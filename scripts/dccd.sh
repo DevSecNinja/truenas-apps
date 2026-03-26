@@ -151,22 +151,27 @@ log_image_changes() {
         return
     fi
 
+    local sep="========================================"
+    log_message "$sep"
+
     if [ -z "$before" ]; then
-        log_message "INFO:  $app_name: Initial deployment:"
+        log_message "RESULT: $app_name: Initial deployment:"
         while IFS= read -r line; do
             local svc="${line%%=*}"
             local img="${line#*=}"
-            log_message "INFO:    $svc: $img"
+            log_message "RESULT:   $svc: $img"
         done <<< "$after"
+        log_message "$sep"
         return
     fi
 
     if [ "$before" = "$after" ]; then
-        log_message "INFO:  $app_name: No updates (images unchanged)"
+        log_message "RESULT: $app_name: No updates (images unchanged)"
+        log_message "$sep"
         return
     fi
 
-    log_message "INFO:  $app_name: Image changes:"
+    log_message "RESULT: $app_name: Image changes detected!"
     while IFS= read -r after_line; do
         local svc="${after_line%%=*}"
         local after_img="${after_line#*=}"
@@ -174,13 +179,16 @@ log_image_changes() {
         before_line=$(echo "$before" | grep "^${svc}=" | head -1)
         local before_img="${before_line#*=}"
         if [ -z "$before_img" ]; then
-            log_message "INFO:    $svc: new → $after_img"
+            log_message "RESULT:   $svc: new -> $after_img"
         elif [ "$before_img" = "$after_img" ]; then
-            log_message "INFO:    $svc: unchanged ($after_img)"
+            log_message "RESULT:   $svc: unchanged ($after_img)"
         else
-            log_message "INFO:    $svc: $before_img → $after_img"
+            log_message "RESULT:   $svc: UPDATED"
+            log_message "RESULT:     from: $before_img"
+            log_message "RESULT:     to:   $after_img"
         fi
     done <<< "$after"
+    log_message "$sep"
 }
 
 redeploy_truenas_apps() {
