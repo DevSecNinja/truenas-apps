@@ -51,7 +51,7 @@ redeploy_truenas_apps() {
 
         # If EXCLUDE is set and the app matches, skip it
         if [ -n "$EXCLUDE" ] && [[ "$app_name" == *"$EXCLUDE"* ]]; then
-            log_message "STATE: Skipping excluded app $app_name"
+            log_message "STATE: Skipping excluded app '$app_name'"
             continue
         fi
 
