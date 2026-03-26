@@ -1,0 +1,112 @@
+<div align="center">
+
+### TrueNAS Apps
+
+_... managed with Docker Compose, SOPS, Renovate, and a sprinkle of GitOps_ 🤖
+
+</div>
+
+---
+
+## 📖 Overview
+
+This repo contains the Docker Compose stacks that run on my [TrueNAS](https://www.truenas.com/) home lab server. Each app lives under `src/` with its own `compose.yaml`, environment files, and SOPS-encrypted secrets. A cron-driven continuous deployment script pulls changes from this repo and redeploys apps automatically.
+
+The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](https://technotim.com/posts/truenas-docker-pro/) — huge thanks to him for the excellent walkthrough.
+
+---
+
+## 🐳 Apps
+
+| App | Purpose |
+|-----|---------|
+| [Traefik](https://traefik.io/) | Reverse proxy with automatic SSL via Cloudflare DNS |
+| [Echo Server](https://github.com/mendhak/docker-http-https-echo) | HTTP echo server for testing Traefik routing |
+
+---
+
+## 🏗️ Setup
+
+### 1. Create the dataset
+
+In the TrueNAS UI, create a dataset to store the git repo (e.g. `vm-pool/Apps`).
+
+### 2. Clone the repo
+
+```sh
+git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/Apps
+```
+
+### 3. Add apps via TrueNAS Custom App (YAML)
+
+Create a Custom App in the TrueNAS UI and use the `include` directive to point at each compose file. For example, for Traefik:
+
+```yaml
+include:
+  - /mnt/vm-pool/Apps/src/traefik/compose.yaml
+services: {}
+```
+
+Repeat for each app under `src/`.
+
+---
+
+## 🔐 Secrets
+
+Secrets are encrypted with [SOPS](https://github.com/getsops/sops) and [Age](https://github.com/FiloSottile/age). Each app that needs secrets has a `secret.sops.env` file which is decrypted to `.env` at deploy time by the CD script.
+
+```sh
+# Encrypt
+sops -e -i secret.sops.env
+
+# Decrypt (manual)
+sops -d secret.sops.env > .env
+```
+
+The Age private key is stored on the TrueNAS host and referenced via the `-k` flag in `dccd.sh`.
+
+---
+
+## 🔄 Continuous Deployment
+
+The [dccd.sh](scripts/dccd.sh) script (based on [loganmarchione/dccd](https://github.com/loganmarchione/dccd)) handles GitOps-style CD:
+
+1. Fetches the latest commit from `main`
+2. Compares local and remote hashes
+3. Pulls changes if they differ
+4. Decrypts SOPS secrets with Age
+5. Redeploys each TrueNAS app via `docker compose`
+
+Run it as a TrueNAS cron job:
+
+```sh
+bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /mnt/vm-pool/Apps/age.key
+```
+
+---
+
+## 🤖 Renovate
+
+[Renovate](https://github.com/renovatebot/renovate) watches the repo for dependency updates — container image digests in compose files and the SOPS version in `dccd.sh`. When updates are found, a PR is automatically created.
+
+---
+
+## 📁 Structure
+
+```sh
+📁 truenas-apps
+├── 📁 scripts        # CD script (dccd.sh)
+└── 📁 src            # App stacks
+    ├── 📁 echo-server
+    ├── 📁 traefik
+    └── 📁 shared     # Shared env files (TZ, PUID/PGID)
+```
+
+---
+
+## 🙏 Thank You
+
+- [Techno Tim](https://technotim.com/posts/truenas-docker-pro/) — the guide this setup is built on
+- [onedr0p/home-ops](https://github.com/onedr0p/home-ops) — README inspiration & foundation for a lot of configs
+- [loganmarchione/dccd](https://github.com/loganmarchione/dccd) — the CD script this is based on
+- [Home Operations](https://discord.gg/home-operations) Discord community
