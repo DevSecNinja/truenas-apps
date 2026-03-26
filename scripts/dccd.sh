@@ -18,6 +18,8 @@ COMPOSE_OPTS=""                # Additional options for docker compose
 TRUENAS=0                      # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
 FORCE=0                        # Force redeploy, skip hash check
+# renovate: datasource=github-releases depName=getsops/sops
+SOPS_VERSION="v3.12.2"        # SOPS version for secret decryption
 
 ########################################
 # Functions
@@ -34,6 +36,70 @@ if [ "$(id -u)" -eq 0 ]; then
 else
     SUDO="sudo"
 fi
+
+ensure_sops() {
+    local sops_bin="/tmp/sops-${SOPS_VERSION}"
+    if [ -x "$sops_bin" ]; then
+        SOPS_BIN="$sops_bin"
+        return
+    fi
+
+    local arch
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64)  arch="amd64" ;;
+        aarch64) arch="arm64" ;;
+        *)
+            log_message "ERROR: Unsupported architecture: $arch"
+            exit 1
+            ;;
+    esac
+
+    local url="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${arch}"
+    log_message "STATE: Downloading SOPS ${SOPS_VERSION}..."
+    if curl -fsSL -o "$sops_bin" "$url"; then
+        chmod +x "$sops_bin"
+        SOPS_BIN="$sops_bin"
+        log_message "INFO:  SOPS ${SOPS_VERSION} installed to $sops_bin"
+    else
+        log_message "ERROR: Failed to download SOPS from $url"
+        exit 1
+    fi
+}
+
+decrypt_sops_files() {
+    local src_dir="$BASE_DIR/src"
+
+    if [ ! -d "$src_dir" ]; then
+        return
+    fi
+
+    local sops_files
+    sops_files=$(find "$src_dir" -name 'secret.sops.env' -type f)
+
+    if [ -z "$sops_files" ]; then
+        return
+    fi
+
+    ensure_sops
+
+    local count=0
+    while IFS= read -r sops_file; do
+        local dir
+        dir=$(dirname "$sops_file")
+        local secret_env="${dir}/secret.env"
+
+        log_message "STATE: Decrypting $(basename "$dir")/secret.sops.env"
+        if "$SOPS_BIN" -d "$sops_file" > "$secret_env"; then
+            count=$((count + 1))
+        else
+            log_message "ERROR: Failed to decrypt $sops_file"
+            exit 1
+        fi
+    done <<< "$sops_files"
+
+    log_message "INFO:  Decrypted $count secret file(s)"
+}
 
 redeploy_truenas_apps() {
     local src_dir="$BASE_DIR/src"
@@ -150,6 +216,9 @@ update_compose_files() {
                 exit 1
             fi
         fi
+
+        # Decrypt SOPS-encrypted secret files before deploying
+        decrypt_sops_files
 
         if [ $TRUENAS -eq 1 ]; then
             redeploy_truenas_apps
