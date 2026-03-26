@@ -5,7 +5,7 @@
 # Default configuration values
 ########################################
 BASE_DIR=""                    # Initialize empty variable
-LOG_FILE="/tmp/dccd.log"       # Default log file name
+LOG_FILE="/tmp/dccd-$(id -un).log" # Default log file name (per-user)
 PRUNE=0                        # Default prune setting
 GRACEFUL=0                     # Default graceful setting
 TMPRESTART="/tmp/dccd.restart" # Default log file for graceful setting
