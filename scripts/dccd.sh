@@ -24,6 +24,13 @@ log_message() {
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $message" | tee -a "$LOG_FILE"
 }
 
+# Use sudo only when not already running as root
+if [ "$(id -u)" -eq 0 ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
 redeploy_truenas_apps() {
     local src_dir="$BASE_DIR/src"
 
@@ -72,14 +79,14 @@ redeploy_truenas_apps() {
 
         # Pull images
         log_message "STATE: Pulling images for $app_name"
-        sudo docker compose \
+        $SUDO docker compose \
             --project-name "$project_name" \
             --file "$compose_file" \
             pull
 
         # Deploy
         log_message "STATE: Starting containers for $app_name"
-        sudo docker compose \
+        $SUDO docker compose \
             --project-name "$project_name" \
             --file "$compose_file" \
             up -d
@@ -103,21 +110,22 @@ update_compose_files() {
     fi
 
     # Rewrite SSH remote URLs to HTTPS so fetch/pull works without SSH keys (for public repos in cron)
-    GIT_HTTPS_OVERRIDE=(-c "url.https://github.com/.insteadOf=git@github.com:")
+    # Allow root to operate on non-root-owned repos (safe.directory)
+    GIT_OPTS=(-c "url.https://github.com/.insteadOf=git@github.com:" -c "safe.directory=$dir")
 
     # Check if there are any changes in the Git repository
-    if ! git "${GIT_HTTPS_OVERRIDE[@]}" fetch --quiet origin; then
+    if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
         log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
         exit 1
     fi
 
-    local_hash=$(git rev-parse HEAD)
-    remote_hash=$(git rev-parse "origin/$REMOTE_BRANCH")
+    local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
+    remote_hash=$(git "${GIT_OPTS[@]}" rev-parse "origin/$REMOTE_BRANCH")
     log_message "INFO:  Local hash is  $local_hash"
     log_message "INFO:  Remote hash is $remote_hash"
 
     # Check for uncommitted local changes
-    uncommitted_changes=$(git status --porcelain)
+    uncommitted_changes=$(git "${GIT_OPTS[@]}" status --porcelain)
     if [ -n "$uncommitted_changes" ]; then
         log_message "ERROR: Uncommitted changes detected in $dir, exiting..."
         exit 1
@@ -133,7 +141,7 @@ update_compose_files() {
 
         # Pull any changes in the Git repository
         if [ "$local_hash" != "$remote_hash" ]; then
-            if ! git "${GIT_HTTPS_OVERRIDE[@]}" pull --quiet origin "$REMOTE_BRANCH"; then
+            if ! git "${GIT_OPTS[@]}" pull --quiet origin "$REMOTE_BRANCH"; then
                 log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
                 exit 1
             fi
@@ -149,9 +157,9 @@ update_compose_files() {
                 run_compose_command() {
                     local cmd_args="$1"
                     if [ -n "$COMPOSE_OPTS" ]; then
-                        eval "sudo docker compose $COMPOSE_OPTS $cmd_args"
+                        eval "$SUDO docker compose $COMPOSE_OPTS $cmd_args"
                     else
-                        eval "sudo docker compose $cmd_args"
+                        eval "$SUDO docker compose $cmd_args"
                     fi
                 }
 
@@ -191,7 +199,7 @@ update_compose_files() {
     # Check if PRUNE is provided
     if [ $PRUNE -eq 1 ]; then
         log_message "STATE: Pruning images"
-        sudo docker image prune --all --force
+        $SUDO docker image prune --all --force
     fi
 
     # Cleanup graceful file.
