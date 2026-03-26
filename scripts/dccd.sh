@@ -102,8 +102,11 @@ update_compose_files() {
         log_message "INFO:  Git repository found!"
     fi
 
+    # Rewrite SSH remote URLs to HTTPS so fetch/pull works without SSH keys (for public repos in cron)
+    GIT_HTTPS_OVERRIDE=(-c "url.https://github.com/.insteadOf=git@github.com:")
+
     # Check if there are any changes in the Git repository
-    if ! git fetch --quiet origin; then
+    if ! git "${GIT_HTTPS_OVERRIDE[@]}" fetch --quiet origin; then
         log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
         exit 1
     fi
@@ -130,7 +133,7 @@ update_compose_files() {
 
         # Pull any changes in the Git repository
         if [ "$local_hash" != "$remote_hash" ]; then
-            if ! git pull --quiet origin "$REMOTE_BRANCH"; then
+            if ! git "${GIT_HTTPS_OVERRIDE[@]}" pull --quiet origin "$REMOTE_BRANCH"; then
                 log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
                 exit 1
             fi
