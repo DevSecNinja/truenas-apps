@@ -1,3 +1,54 @@
 {
-  "sops.defaults.ageKeyFile": "age.key"
+    "files.autoSave": "onWindowChange",
+    "files.associations": {
+        "*.json5": "jsonc",
+        "*.y*ml.j2": "yaml",
+        "*.conf.j2": "properties",
+        "alert.rules": "yaml",
+    },
+    "files.watcherExclude": {
+      "**/.git/objects/**": true,
+      "**/.git/subtree-cache/**": true,
+      "**/node_modules/*/**": true,
+      "**/.venv/*/**": true
+    },
+    "files.exclude": {
+      "**/.git": true,
+      "**/.svn": true,
+      "**/.hg": true,
+      "**/CVS": true,
+      "**/.DS_Store": true,
+      "**/Thumbs.db": true
+    },
+    "search.exclude": {
+      "**/.git": true,
+      "**/.venv": true,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/dist": true,
+      "**/build": true,
+      "**/.cache": true,
+      "**/logs": true,
+      "**/*.log": true,
+      "**/.nyc_output": true,
+      "**/coverage": true,
+      "**/.coverage": true,
+      "**/htmlcov": true,
+      "**/.tox": true,
+      "**/.mypy_cache": true,
+      "**/.ruff_cache": true,
+      "**/target": true,
+      "**/bin": true,
+      "**/obj": true
+    },
+    "sops.defaults.ageKeyFile": "age.key",
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "yaml.schemas": {
+        "https://taskfile.dev/schema.json": [
+          "**/Taskfile.yml",
+          "./path/to/any/other/taskfile.yml"
+        ]
+    }
 }
