@@ -78,6 +78,7 @@ decrypt_sops_files() {
     sops_files=$(find "$src_dir" -name 'secret.sops.env' -type f)
 
     if [ -z "$sops_files" ]; then
+        log_message "INFO:  No secret.sops.env files found, skipping decryption"
         return
     fi
 
@@ -278,6 +279,12 @@ update_compose_files() {
     # Cleanup graceful file.
     if [ $GRACEFUL -eq 1 ]; then
         rm -f $TMPRESTART
+    fi
+
+    # Restore ownership when running as root (e.g. on TrueNAS)
+    if [ -z "$SUDO" ]; then
+        log_message "STATE: Restoring ownership to truenas_admin:truenas_admin"
+        chown -R truenas_admin:truenas_admin "$dir"
     fi
 
     log_message "STATE: Done!"
