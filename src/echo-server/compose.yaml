@@ -12,7 +12,7 @@ services:
       - HTTPS_PORT=${HTTPS_PORT:-443}
     restart: always
     ports:
-      - ${HOST_PORT:-9080}:${HTTPS_PORT:-443}
+      - ${HOST_HTTPS_PORT:-9080}:${HTTPS_PORT:-443}
     mem_limit: ${MEM_LIMIT:-1024m}
     security_opt:
       - no-new-privileges=true
