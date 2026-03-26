@@ -72,9 +72,9 @@ update_compose_files() {
             run_compose_command() {
                 local cmd_args="$1"
                 if [ -n "$COMPOSE_OPTS" ]; then
-                    eval "docker compose $COMPOSE_OPTS $cmd_args"
+                    eval "sudo docker compose $COMPOSE_OPTS $cmd_args"
                 else
-                    eval "docker compose $cmd_args"
+                    eval "sudo docker compose $cmd_args"
                 fi
             }
 
