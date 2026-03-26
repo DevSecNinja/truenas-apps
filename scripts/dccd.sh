@@ -284,7 +284,7 @@ touch "$LOG_FILE"
 } >> "$LOG_FILE"
 
 # Redirect all stderr to the log file so command errors (e.g., sudo, docker) are captured
-exec 2> >(while IFS= read -r line; do echo "$(date +'%Y-%m-%d %H:%M:%S') - STDERR: $line" | tee -a "$LOG_FILE"; done)
+exec 2>> "$LOG_FILE"
 
 # Check if BASE_DIR is provided
 if [ -z "$BASE_DIR" ]; then
