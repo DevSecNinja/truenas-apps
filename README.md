@@ -123,8 +123,14 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
 
 ## 🙏 Thank You
 
-- [Techno Tim](https://technotim.com/posts/truenas-docker-pro/) — the guide this setup is built on
-- [onedr0p/home-ops](https://github.com/onedr0p/home-ops) — README inspiration & foundation for a lot of configs
-- [loganmarchione/dccd](https://github.com/loganmarchione/dccd) — the CD script this is based on
-- [TrueNAS](https://www.truenas.com/) — the platform powering this home lab
-- [Home Operations](https://discord.gg/home-operations) Discord community
+| Project | Role |
+|---------|------|
+| [Age](https://github.com/FiloSottile/age) | Encryption key provider for SOPS |
+| [Home Operations](https://discord.gg/home-operations) | Discord community |
+| [Let's Encrypt](https://letsencrypt.org/) | Free, automated SSL certificates |
+| [LinuxServer.io](https://www.linuxserver.io/) | Docker socket proxy keeping Traefik secure |
+| [loganmarchione/dccd](https://github.com/loganmarchione/dccd) | The CD script this setup is based on |
+| [onedr0p/home-ops](https://github.com/onedr0p/home-ops) | README inspiration & foundation for configs |
+| [SOPS](https://github.com/getsops/sops) | Secret encryption |
+| [Techno Tim](https://technotim.com/posts/truenas-docker-pro/) | The guide this setup is built on |
+| [TrueNAS](https://www.truenas.com/) | The platform powering this home lab |
