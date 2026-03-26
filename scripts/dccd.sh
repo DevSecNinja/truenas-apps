@@ -113,7 +113,7 @@ update_compose_files() {
     # Check if PRUNE is provided
     if [ $PRUNE -eq 1 ]; then
         log_message "STATE: Pruning images"
-        docker image prune --all --force
+        sudo docker image prune --all --force
     fi
 
     # Cleanup graceful file.
