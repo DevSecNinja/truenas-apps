@@ -18,10 +18,11 @@ COMPOSE_OPTS=""                # Additional options for docker compose
 TRUENAS=0                      # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
 FORCE=0                        # Force redeploy, skip hash check
+WAIT_TIMEOUT=60                # Timeout in seconds for --wait (0 = no timeout)
 # renovate: datasource=github-releases depName=getsops/sops
-SOPS_VERSION="v3.12.2"        # SOPS version for secret decryption
-SOPS_INSTALL_DIR=""              # Directory to install SOPS binary (default: <BASE_DIR>/bin)
-SOPS_AGE_KEY_FILE=""             # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
+SOPS_VERSION="v3.12.2"         # SOPS version for secret decryption
+SOPS_INSTALL_DIR=""            # Directory to install SOPS binary (default: <BASE_DIR>/bin)
+SOPS_AGE_KEY_FILE=""           # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
 
 ########################################
 # Functions
@@ -185,7 +186,10 @@ redeploy_truenas_apps() {
         $SUDO docker compose \
             --project-name "$project_name" \
             --file "$compose_file" \
-            up -d
+            up \
+            -d \
+            --wait \
+            --wait-timeout "$WAIT_TIMEOUT"
     done
 }
 
@@ -331,6 +335,7 @@ usage() {
       -p              Specify if you want to prune docker images (default: don't prune)
       -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
+      -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 120, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -l /tmp/dccd.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
@@ -344,7 +349,7 @@ usage() {
 # Options
 ########################################
 
-while getopts ":b:d:fgk:hl:o:ps:tx:" opt; do
+while getopts ":b:d:fgk:hl:o:ps:tw:x:" opt; do
     case "$opt" in
     b)
         REMOTE_BRANCH="$OPTARG"
@@ -378,6 +383,9 @@ while getopts ":b:d:fgk:hl:o:ps:tx:" opt; do
         ;;
     t)
         TRUENAS=1
+        ;;
+    w)
+        WAIT_TIMEOUT="$OPTARG"
         ;;
     x)
         EXCLUDE="$OPTARG"
@@ -453,5 +461,7 @@ log_message "INFO:  SOPS Age key file is set to $SOPS_AGE_KEY_FILE"
 if [ $TRUENAS -eq 1 ]; then
     log_message "INFO:  TrueNAS Scale mode enabled (apps base: $TRUENAS_APPS_BASE)"
 fi
+
+log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
 
 update_compose_files "$BASE_DIR"
