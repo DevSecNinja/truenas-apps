@@ -1,0 +1,64 @@
+---
+services:
+  traefik:
+    image: traefik:v3.6.11@sha256:acfc80650104f0194a15f73dc1648f517561bc1645391a15705332a064cfc33c
+    container_name: traefik
+    depends_on:
+      - traefik-docker-proxy
+    env_file:
+      - compose.env
+      - secret.env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    environment:
+      # Defined here instead of compose.env because env_file values are not interpolated by Compose,
+      # so ${DOMAINNAME} would be passed as a literal string rather than the actual domain.
+      TRAEFIK_PROVIDERS_DOCKER_DEFAULTRULE: >-
+        Host(`{{ index .Labels "com.docker.compose.service" }}.${DOMAINNAME}`)
+    restart: always
+    networks:
+      - traefik-backend
+    security_opt:
+      - no-new-privileges=true
+    ports:
+      - ${HOST_HTTP_PORT:-80}:80
+      - ${HOST_HTTPS_PORT:-443}:443
+    volumes:
+      - ./data/acme:/acme
+      - ./config/rules:/rules
+      - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
+    mem_limit: ${MEM_LIMIT:-1024m}
+    labels:
+      - "traefik.enable=true"
+      ## TLS
+      - "traefik.http.routers.traefik-rtr.tls.certresolver=dns-cloudflare"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].main=${DOMAINNAME}"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].sans=*.${DOMAINNAME}"
+      ## Middlewares
+      - "traefik.http.routers.traefik-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.traefik-rtr.rule=Host(`traefik.${DOMAINNAME}`)"
+      - "traefik.http.routers.traefik-rtr.service=api@internal"
+
+  traefik-docker-proxy:
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
+    container_name: traefik-docker-proxy
+    restart: always
+    networks:
+      - traefik-backend
+    env_file:
+      - ../shared/env/tz.env
+    environment:
+      - CONTAINERS=1
+    security_opt:
+      - no-new-privileges=true
+    mem_limit: ${SOCKET_PROXY_MEM_LIMIT:-50m}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+
+networks:
+  traefik-backend:
+    name: traefik-backend
+    driver: bridge
