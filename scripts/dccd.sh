@@ -128,6 +128,57 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted $count secret file(s)"
 }
 
+# Returns sorted lines of "<service>=<image>@<short-id>" for all running containers in a compose project
+get_project_image_info() {
+    local project_name="$1"
+    $SUDO docker ps \
+        --filter "label=com.docker.compose.project=${project_name}" \
+        --format '{{.Label "com.docker.compose.service"}}={{.Image}}@{{.ImageID}}' \
+        2>/dev/null | sort
+}
+
+# Log image changes between two snapshots captured by get_project_image_info
+log_image_changes() {
+    local app_name="$1"
+    local before="$2"
+    local after="$3"
+
+    if [ -z "$before" ] && [ -z "$after" ]; then
+        return
+    fi
+
+    if [ -z "$before" ]; then
+        log_message "INFO:  $app_name: Initial deployment:"
+        while IFS= read -r line; do
+            local svc="${line%%=*}"
+            local img="${line#*=}"
+            log_message "INFO:    $svc: $img"
+        done <<< "$after"
+        return
+    fi
+
+    if [ "$before" = "$after" ]; then
+        log_message "INFO:  $app_name: No updates (images unchanged)"
+        return
+    fi
+
+    log_message "INFO:  $app_name: Image changes:"
+    while IFS= read -r after_line; do
+        local svc="${after_line%%=*}"
+        local after_img="${after_line#*=}"
+        local before_line
+        before_line=$(echo "$before" | grep "^${svc}=" | head -1)
+        local before_img="${before_line#*=}"
+        if [ -z "$before_img" ]; then
+            log_message "INFO:    $svc: new → $after_img"
+        elif [ "$before_img" = "$after_img" ]; then
+            log_message "INFO:    $svc: unchanged ($after_img)"
+        else
+            log_message "INFO:    $svc: $before_img → $after_img"
+        fi
+    done <<< "$after"
+}
+
 redeploy_truenas_apps() {
     local src_dir="$BASE_DIR/src"
 
@@ -174,6 +225,10 @@ redeploy_truenas_apps() {
         version=$(basename "$version_dir")
         log_message "STATE: Deploying TrueNAS app $app_name (version $version, project $project_name)"
 
+        # Capture image state before pulling so we can report what changed
+        local img_before
+        img_before=$(get_project_image_info "$project_name")
+
         # Pull images
         log_message "STATE: Pulling images for $app_name"
         $SUDO docker compose \
@@ -190,6 +245,11 @@ redeploy_truenas_apps() {
             -d \
             --wait \
             --wait-timeout "$WAIT_TIMEOUT"
+
+        # Report which images changed (or not)
+        local img_after
+        img_after=$(get_project_image_info "$project_name")
+        log_image_changes "$app_name" "$img_before" "$img_after"
     done
 }
 
