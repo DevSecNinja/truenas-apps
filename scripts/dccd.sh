@@ -87,10 +87,10 @@ decrypt_sops_files() {
     fi
 
     local sops_files
-    sops_files=$(find "$src_dir" -name 'secret.sops.env' -type f)
+    sops_files=$(find "$src_dir" -name '*.sops.env' -type f)
 
     if [ -z "$sops_files" ]; then
-        log_message "INFO:  No secret.sops.env files found, skipping decryption"
+        log_message "INFO:  No *.sops.env files found, skipping decryption"
         return
     fi
 
@@ -100,9 +100,9 @@ decrypt_sops_files() {
     while IFS= read -r sops_file; do
         local dir
         dir=$(dirname "$sops_file")
-        local secret_env="${dir}/secret.env"
+        local secret_env="${sops_file%.sops.env}.env"
 
-        log_message "STATE: Decrypting $(basename "$dir")/secret.sops.env"
+        log_message "STATE: Decrypting $(basename "$dir")/$(basename "$sops_file")"
         if "$SOPS_BIN" -d "$sops_file" > "$secret_env"; then
             count=$((count + 1))
         else
