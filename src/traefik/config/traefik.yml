@@ -39,7 +39,7 @@ providers:
 certificatesResolvers:
   dns-cloudflare:
     acme:
-      caServer: "https://acme-staging-v02.api.letsencrypt.org/directory" # LetsEncrypt Staging Server - uncomment when testing
+      # caServer: "https://acme-staging-v02.api.letsencrypt.org/directory" # LetsEncrypt Staging Server - uncomment when testing
       storage: "/acme/acme.json"
       dnsChallenge:
         provider: "cloudflare"
@@ -49,7 +49,8 @@ certificatesResolvers:
 
 accessLog:
   filters:
-    statusCodes: 400-499
+    statusCodes:
+      - "400-499"
   fields:
     headers:
       names:
