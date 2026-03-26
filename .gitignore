@@ -5,3 +5,4 @@ bin/**
 
 age.key
 secret.env
+.decrypted~*
