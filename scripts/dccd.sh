@@ -20,7 +20,7 @@ TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app config
 FORCE=0                        # Force redeploy, skip hash check
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2"        # SOPS version for secret decryption
-SOPS_INSTALL_DIR="/usr/local/bin" # Directory to install SOPS binary
+SOPS_INSTALL_DIR=""              # Directory to install SOPS binary (default: <BASE_DIR>/bin)
 
 ########################################
 # Functions
@@ -39,6 +39,7 @@ else
 fi
 
 ensure_sops() {
+    mkdir -p "${SOPS_INSTALL_DIR}"
     local sops_bin="${SOPS_INSTALL_DIR}/sops-${SOPS_VERSION}"
     if [ -x "$sops_bin" ]; then
         SOPS_BIN="$sops_bin"
@@ -314,7 +315,7 @@ usage() {
       -l <path>       Specify the path to the log file (default: /tmp/dccd.log)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -p              Specify if you want to prune docker images (default: don't prune)
-      -s <path>       Specify the directory to install the SOPS binary (default: /usr/local/bin)
+      -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
@@ -419,7 +420,10 @@ if [ $FORCE -eq 1 ]; then
     log_message "INFO:  Force mode enabled, will redeploy regardless of hash match"
 fi
 
-# Log SOPS install directory
+# Resolve SOPS install directory now that BASE_DIR is known
+if [ -z "$SOPS_INSTALL_DIR" ]; then
+    SOPS_INSTALL_DIR="${BASE_DIR}/bin"
+fi
 log_message "INFO:  SOPS install directory is set to $SOPS_INSTALL_DIR"
 
 # Check if TRUENAS mode is enabled
