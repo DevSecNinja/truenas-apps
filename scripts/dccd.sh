@@ -20,6 +20,7 @@ TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app config
 FORCE=0                        # Force redeploy, skip hash check
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2"        # SOPS version for secret decryption
+SOPS_INSTALL_DIR="/usr/local/bin" # Directory to install SOPS binary
 
 ########################################
 # Functions
@@ -38,7 +39,7 @@ else
 fi
 
 ensure_sops() {
-    local sops_bin="/tmp/sops-${SOPS_VERSION}"
+    local sops_bin="${SOPS_INSTALL_DIR}/sops-${SOPS_VERSION}"
     if [ -x "$sops_bin" ]; then
         SOPS_BIN="$sops_bin"
         return
@@ -56,13 +57,16 @@ ensure_sops() {
     esac
 
     local url="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${arch}"
+    local tmp_bin="/tmp/sops-${SOPS_VERSION}"
     log_message "STATE: Downloading SOPS ${SOPS_VERSION}..."
-    if curl -fsSL -o "$sops_bin" "$url"; then
-        chmod +x "$sops_bin"
+    if curl -fsSL -o "$tmp_bin" "$url"; then
+        $SUDO mv "$tmp_bin" "$sops_bin"
+        $SUDO chmod +x "$sops_bin"
         SOPS_BIN="$sops_bin"
         log_message "INFO:  SOPS ${SOPS_VERSION} installed to $sops_bin"
     else
         log_message "ERROR: Failed to download SOPS from $url"
+        rm -f "$tmp_bin"
         exit 1
     fi
 }
@@ -303,6 +307,7 @@ usage() {
       -l <path>       Specify the path to the log file (default: /tmp/dccd.log)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -p              Specify if you want to prune docker images (default: don't prune)
+      -s <path>       Specify the directory to install the SOPS binary (default: /usr/local/bin)
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
@@ -317,7 +322,7 @@ usage() {
 # Options
 ########################################
 
-while getopts ":b:d:fghl:o:ptx:" opt; do
+while getopts ":b:d:fghl:o:ps:tx:" opt; do
     case "$opt" in
     b)
         REMOTE_BRANCH="$OPTARG"
@@ -342,6 +347,9 @@ while getopts ":b:d:fghl:o:ptx:" opt; do
         ;;
     p)
         PRUNE=1
+        ;;
+    s)
+        SOPS_INSTALL_DIR="$OPTARG"
         ;;
     t)
         TRUENAS=1
@@ -403,6 +411,9 @@ fi
 if [ $FORCE -eq 1 ]; then
     log_message "INFO:  Force mode enabled, will redeploy regardless of hash match"
 fi
+
+# Log SOPS install directory
+log_message "INFO:  SOPS install directory is set to $SOPS_INSTALL_DIR"
 
 # Check if TRUENAS mode is enabled
 if [ $TRUENAS -eq 1 ]; then
