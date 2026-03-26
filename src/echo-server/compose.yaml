@@ -6,7 +6,7 @@ services:
     env_file:
       - compose.env
       - ../global/env/tz.env
-      - ../global/env/id.env
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       - HTTP_PORT=${HTTP_PORT:-80}
       - HTTPS_PORT=${HTTPS_PORT:-443}
