@@ -17,6 +17,7 @@ services:
     restart: always
     networks:
       - traefik-backend
+      - echo-server-frontend
     security_opt:
       - no-new-privileges=true
     ports:
@@ -62,3 +63,6 @@ networks:
   traefik-backend:
     name: traefik-backend
     driver: bridge
+  echo-server-frontend:
+    name: echo-server-frontend
+    external: true

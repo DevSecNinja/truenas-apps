@@ -3,6 +3,8 @@ services:
   echo-server:
     image: mendhak/http-https-echo:40@sha256:d072446da821a767d05dc19fa5ab6a27b1150bfb5c6ecfaecf3a2e5f9812794c
     container_name: echo-server
+    depends_on:
+      - traefik
     env_file:
       - compose.env
       - ../shared/env/tz.env
@@ -11,9 +13,26 @@ services:
       - HTTP_PORT=${HTTP_PORT:-80}
       - HTTPS_PORT=${HTTPS_PORT:-443}
     restart: always
-    ports:
-      - ${HOST_HTTPS_PORT:-9080}:${HTTPS_PORT:-443}
+    networks:
+      - echo-server-frontend
     mem_limit: ${MEM_LIMIT:-1024m}
     security_opt:
       - no-new-privileges=true
+    labels:
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=echo-server-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.echo-server-rtr.rule=Host(`echo.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.echo-server-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.echo-server-rtr.service=echo-server"
+      ### Enable the server port
+      - "traefik.http.services.echo-server.loadbalancer.server.port=${HTTP_PORT:-80}"
     # No Healthcheck possible since curl is not available in image
+
+networks:
+  echo-server-frontend:
+    name: echo-server-frontend
+    driver: bridge
