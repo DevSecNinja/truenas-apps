@@ -1,6 +1,8 @@
 <div align="center">
 
-### TrueNAS Apps
+<img src="assets/truenas-logo.png" alt="TrueNAS" width="300" />
+
+### Home Lab Apps
 
 _... managed with Docker Compose, SOPS, Renovate, and a sprinkle of GitOps_ 🤖
 
@@ -27,15 +29,30 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 
 ## 🏗️ Setup
 
-### 1. Create the dataset
+### 1. Create the dataset structure and clone the repo
 
-In the TrueNAS UI, create a dataset to store the git repo (e.g. `vm-pool/Apps`).
+Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and backup control:
 
-### 2. Clone the repo
+``` text
+vm-pool/Apps          # root — holds the git repo
+vm-pool/Apps/src      # parent for all app datasets
+vm-pool/Apps/src/traefik
+vm-pool/Apps/src/echo-server
+# ... one dataset per app
+```
+
+Then clone the repo into the root dataset:
 
 ```sh
 git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/Apps
 ```
+
+Because each app has its own child dataset, you can snapshot or replicate apps independently. The Compose definitions are checked into git; each app's persistent data lives in its dataset.
+
+### 2. Add a new app
+
+1. Create the dataset `vm-pool/Apps/src/<app-name>` in the TrueNAS UI
+2. Add a `src/<app-name>/compose.yaml` (and optional `compose.env` / `secret.sops.env`) to this repo
 
 ### 3. Add apps via TrueNAS Custom App (YAML)
 
@@ -109,4 +126,5 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
 - [Techno Tim](https://technotim.com/posts/truenas-docker-pro/) — the guide this setup is built on
 - [onedr0p/home-ops](https://github.com/onedr0p/home-ops) — README inspiration & foundation for a lot of configs
 - [loganmarchione/dccd](https://github.com/loganmarchione/dccd) — the CD script this is based on
+- [TrueNAS](https://www.truenas.com/) — the platform powering this home lab
 - [Home Operations](https://discord.gg/home-operations) Discord community
