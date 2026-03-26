@@ -11,6 +11,8 @@ GRACEFUL=0                     # Default graceful setting
 TMPRESTART="/tmp/dccd.restart" # Default log file for graceful setting
 REMOTE_BRANCH="main"           # Default remote branch name
 COMPOSE_OPTS=""                # Additional options for docker compose
+TRUENAS=0                      # TrueNAS Scale mode
+TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
 
 ########################################
 # Functions
@@ -19,6 +21,68 @@ COMPOSE_OPTS=""                # Additional options for docker compose
 log_message() {
     local message="$1"
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $message" | tee -a "$LOG_FILE"
+}
+
+redeploy_truenas_apps() {
+    local src_dir="$BASE_DIR/src"
+
+    if [ ! -d "$src_dir" ]; then
+        log_message "ERROR: Source directory $src_dir does not exist, exiting..."
+        exit 1
+    fi
+
+    for app_dir in "$src_dir"/*/; do
+        local app_name
+        app_name=$(basename "$app_dir")
+        local project_name="ix-${app_name}"
+        local app_config_dir="${TRUENAS_APPS_BASE}/${app_name}/versions"
+
+        # If EXCLUDE is set and the app matches, skip it
+        if [ -n "$EXCLUDE" ] && [[ "$app_name" == *"$EXCLUDE"* ]]; then
+            log_message "STATE: Skipping excluded app $app_name"
+            continue
+        fi
+
+        if [ ! -d "$app_config_dir" ]; then
+            log_message "ERROR: TrueNAS app config directory not found: $app_config_dir, skipping..."
+            continue
+        fi
+
+        # Auto-detect the version directory (use the latest/only version)
+        local version_dir
+        version_dir=$(find "$app_config_dir" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+
+        if [ -z "$version_dir" ]; then
+            log_message "ERROR: No version directory found in $app_config_dir, skipping..."
+            continue
+        fi
+
+        local rendered_dir="${version_dir}/templates/rendered"
+        local compose_file="${rendered_dir}/docker-compose.yaml"
+
+        if [ ! -f "$compose_file" ]; then
+            log_message "ERROR: Compose file not found: $compose_file, skipping..."
+            continue
+        fi
+
+        local version
+        version=$(basename "$version_dir")
+        log_message "STATE: Deploying TrueNAS app $app_name (version $version, project $project_name)"
+
+        # Pull images
+        log_message "STATE: Pulling images for $app_name"
+        sudo docker compose \
+            --project-name "$project_name" \
+            --file "$compose_file" \
+            pull
+
+        # Deploy
+        log_message "STATE: Starting containers for $app_name"
+        sudo docker compose \
+            --project-name "$project_name" \
+            --file "$compose_file" \
+            up -d
+    done
 }
 
 update_compose_files() {
@@ -65,47 +129,51 @@ update_compose_files() {
             exit 1
         fi
 
-        redeploy_compose_file() {
-            local file=$1
+        if [ $TRUENAS -eq 1 ]; then
+            redeploy_truenas_apps
+        else
+            redeploy_compose_file() {
+                local file=$1
 
-            # Build the command based on whether we have extra options
-            run_compose_command() {
-                local cmd_args="$1"
-                if [ -n "$COMPOSE_OPTS" ]; then
-                    eval "sudo docker compose $COMPOSE_OPTS $cmd_args"
+                # Build the command based on whether we have extra options
+                run_compose_command() {
+                    local cmd_args="$1"
+                    if [ -n "$COMPOSE_OPTS" ]; then
+                        eval "sudo docker compose $COMPOSE_OPTS $cmd_args"
+                    else
+                        eval "sudo docker compose $cmd_args"
+                    fi
+                }
+
+                if [ $GRACEFUL -eq 1 ]; then
+                    run_compose_command "-f \"$file\" up -d --dry-run" &> $TMPRESTART
+                    if grep -q "Recreate" $TMPRESTART; then
+                        log_message "GRACEFUL: Redeploying compose file for $file"
+                        run_compose_command "-f \"$file\" up -d --quiet-pull"
+                    else
+                        log_message "GRACEFUL: Skipping Redeploying compose file for $file (no change)"
+                    fi
                 else
-                    eval "sudo docker compose $cmd_args"
+                    log_message "STATE: Redeploying compose file for $file"
+                    run_compose_command "-f \"$file\" up -d --quiet-pull"
                 fi
             }
 
-            if [ $GRACEFUL -eq 1 ]; then
-                run_compose_command "-f \"$file\" up -d --dry-run" &> $TMPRESTART
-                if grep -q "Recreate" $TMPRESTART; then
-                    log_message "GRACEFUL: Redeploying compose file for $file"
-                    run_compose_command "-f \"$file\" up -d --quiet-pull"
+            find . -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) | sort | while IFS= read -r file; do
+                # Extract the directory containing the file
+                dir=$(dirname "$file")
+
+                # If EXCLUDE is set
+                if [ -n "$EXCLUDE" ]; then
+                    # If the directory does not contain the exclude pattern
+                    if [[ "$dir" != *"$EXCLUDE"* ]]; then
+                        redeploy_compose_file "$file"
+                    fi
                 else
-                    log_message "GRACEFUL: Skipping Redeploying compose file for $file (no change)"
-                fi
-            else
-                log_message "STATE: Redeploying compose file for $file"
-                run_compose_command "-f \"$file\" up -d --quiet-pull"
-            fi
-        }
-
-        find . -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) | sort | while IFS= read -r file; do
-            # Extract the directory containing the file
-            dir=$(dirname "$file")
-
-            # If EXCLUDE is set
-            if [ -n "$EXCLUDE" ]; then
-                # If the directory does not contain the exclude pattern
-                if [[ "$dir" != *"$EXCLUDE"* ]]; then
                     redeploy_compose_file "$file"
                 fi
-            else
-                redeploy_compose_file "$file"
-            fi
-        done
+            done
+        fi
     else
         log_message "STATE: Hashes match, so nothing to do"
     fi
@@ -136,9 +204,11 @@ usage() {
       -l <path>       Specify the path to the log file (default: /tmp/dccd.log)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -p              Specify if you want to prune docker images (default: don't prune)
+      -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -l /tmp/dccd.txt -o \"--env-file /path/to/my.env\" -p -x ignore_this_directory
+    TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -p
 
 "
     exit 1
@@ -148,7 +218,7 @@ usage() {
 # Options
 ########################################
 
-while getopts ":b:d:ghl:o:px:" opt; do
+while getopts ":b:d:ghl:o:ptx:" opt; do
     case "$opt" in
     b)
         REMOTE_BRANCH="$OPTARG"
@@ -170,6 +240,9 @@ while getopts ":b:d:ghl:o:px:" opt; do
         ;;
     p)
         PRUNE=1
+        ;;
+    t)
+        TRUENAS=1
         ;;
     x)
         EXCLUDE="$OPTARG"
@@ -219,6 +292,11 @@ fi
 # Check if EXCLUDE is provided
 if [ -n "$EXCLUDE" ]; then
     log_message "INFO:  Will be excluding pattern $EXCLUDE"
+fi
+
+# Check if TRUENAS mode is enabled
+if [ $TRUENAS -eq 1 ]; then
+    log_message "INFO:  TrueNAS Scale mode enabled (apps base: $TRUENAS_APPS_BASE)"
 fi
 
 update_compose_files "$BASE_DIR"
