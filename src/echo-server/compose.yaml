@@ -5,7 +5,7 @@ services:
     container_name: echo-server
     env_file:
       - compose.env
-      - ../global/env/tz.env
+      - ../shared/env/tz.env
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       - HTTP_PORT=${HTTP_PORT:-80}
