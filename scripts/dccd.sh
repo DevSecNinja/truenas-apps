@@ -60,8 +60,15 @@ ensure_sops() {
     local tmp_bin="/tmp/sops-${SOPS_VERSION}"
     log_message "STATE: Downloading SOPS ${SOPS_VERSION}..."
     if curl -fsSL -o "$tmp_bin" "$url"; then
-        $SUDO mv "$tmp_bin" "$sops_bin"
-        $SUDO chmod +x "$sops_bin"
+        if ! $SUDO mv "$tmp_bin" "$sops_bin"; then
+            log_message "ERROR: Failed to move SOPS binary to $sops_bin (permission denied?)"
+            rm -f "$tmp_bin"
+            exit 1
+        fi
+        if ! $SUDO chmod +x "$sops_bin"; then
+            log_message "ERROR: Failed to make $sops_bin executable"
+            exit 1
+        fi
         SOPS_BIN="$sops_bin"
         log_message "INFO:  SOPS ${SOPS_VERSION} installed to $sops_bin"
     else
