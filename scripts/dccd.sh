@@ -13,6 +13,7 @@ REMOTE_BRANCH="main"           # Default remote branch name
 COMPOSE_OPTS=""                # Additional options for docker compose
 TRUENAS=0                      # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
+FORCE=0                        # Force redeploy, skip hash check
 
 ########################################
 # Functions
@@ -119,14 +120,20 @@ update_compose_files() {
         exit 1
     fi
 
-    # Check if the local hash matches the remote hash
-    if [ "$local_hash" != "$remote_hash" ]; then
-        log_message "STATE: Hashes don't match, updating..."
+    # Check if the local hash matches the remote hash (skip check in force mode)
+    if [ $FORCE -eq 1 ] || [ "$local_hash" != "$remote_hash" ]; then
+        if [ $FORCE -eq 1 ]; then
+            log_message "STATE: Force mode enabled, skipping hash check..."
+        else
+            log_message "STATE: Hashes don't match, updating..."
+        fi
 
         # Pull any changes in the Git repository
-        if ! git pull --quiet origin "$REMOTE_BRANCH"; then
-            log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
-            exit 1
+        if [ "$local_hash" != "$remote_hash" ]; then
+            if ! git pull --quiet origin "$REMOTE_BRANCH"; then
+                log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
+                exit 1
+            fi
         fi
 
         if [ $TRUENAS -eq 1 ]; then
@@ -199,6 +206,7 @@ usage() {
     Options:
       -b <name>       Specify the remote branch to track (default: main)
       -d <path>       Specify the base directory of the git repository (required)
+      -f              Force redeploy, skip the hash comparison check (optional)
       -g              Graceful, only restart containers that will be recreated (optional)
       -h              Show this help message
       -l <path>       Specify the path to the log file (default: /tmp/dccd.log)
@@ -218,13 +226,16 @@ usage() {
 # Options
 ########################################
 
-while getopts ":b:d:ghl:o:ptx:" opt; do
+while getopts ":b:d:fghl:o:ptx:" opt; do
     case "$opt" in
     b)
         REMOTE_BRANCH="$OPTARG"
         ;;
     d)
         BASE_DIR="$OPTARG"
+        ;;
+    f)
+        FORCE=1
         ;;
     g)
         GRACEFUL=1
@@ -292,6 +303,11 @@ fi
 # Check if EXCLUDE is provided
 if [ -n "$EXCLUDE" ]; then
     log_message "INFO:  Will be excluding pattern $EXCLUDE"
+fi
+
+# Check if FORCE mode is enabled
+if [ $FORCE -eq 1 ]; then
+    log_message "INFO:  Force mode enabled, will redeploy regardless of hash match"
 fi
 
 # Check if TRUENAS mode is enabled
