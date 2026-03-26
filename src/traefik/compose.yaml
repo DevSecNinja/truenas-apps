@@ -13,7 +13,7 @@ services:
       # so ${DOMAINNAME} would be passed as a literal string rather than the actual domain.
       TRAEFIK_PROVIDERS_DOCKER_DEFAULTRULE: >-
         Host(`{{ index .Labels "com.docker.compose.service" }}.${DOMAINNAME}`)
-    user: "${PUID:-1000}:${PGID:-1000}"
+    #user: "${PUID:-1000}:${PGID:-1000}"
     restart: always
     networks:
       - traefik-backend
