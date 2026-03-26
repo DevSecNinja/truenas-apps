@@ -128,13 +128,17 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted $count secret file(s)"
 }
 
-# Returns sorted lines of "<service>=<image>@<short-id>" for all running containers in a compose project
+# Returns sorted lines of "<service>=<image-reference>" for all running containers in a compose project.
+# Uses docker inspect on container IDs for reliable image info (including digest).
 get_project_image_info() {
     local project_name="$1"
-    $SUDO docker ps \
+    $SUDO docker ps -q \
         --filter "label=com.docker.compose.project=${project_name}" \
-        --format '{{.Label "com.docker.compose.service"}}={{.Image}}@{{.ImageID}}' \
-        2>/dev/null | sort
+        2>/dev/null \
+    | xargs -r $SUDO docker inspect \
+        --format '{{index .Config.Labels "com.docker.compose.service"}}={{.Config.Image}}' \
+        2>/dev/null \
+    | sort
 }
 
 # Log image changes between two snapshots captured by get_project_image_info
