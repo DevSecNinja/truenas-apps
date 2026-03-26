@@ -1,4 +1,7 @@
 **/data/*
 !**/data/.gitkeep
+
+bin/**
+
 age.key
 secret.env
