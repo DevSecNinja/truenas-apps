@@ -1,0 +1,3 @@
+{
+  "sops.defaults.ageKeyFile": "age.key"
+}
