@@ -1,5 +1,9 @@
 #!/bin/bash
 # Source: https://github.com/loganmarchione/dccd/blob/d5aef3f684e5f63e8ec348652c6dc24e7447336c/dccd.sh
+# Usage in TrueNAS Scale:
+#   Command: bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -t -f
+#   Run As User: root
+#   Unselect 'Hide Standard Output' and 'Hide Standard Error'
 
 ########################################
 # Default configuration values
