@@ -6,7 +6,6 @@ services:
     depends_on:
       - traefik-docker-proxy
     env_file:
-      - compose.env
       - .env # Decrypted from secret.sops.env
       - ../shared/env/tz.env
     environment:
