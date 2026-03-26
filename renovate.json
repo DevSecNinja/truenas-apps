@@ -6,7 +6,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["scripts/dccd\\.sh$"],
+      "managerFilePatterns": [
+        "/scripts/dccd\\.sh$/"
+      ],
       "matchStrings": [
         "# renovate: datasource=github-releases depName=(?<depName>\\S+)\\nSOPS_VERSION=\"(?<currentValue>[^\"]+)\""
       ],
