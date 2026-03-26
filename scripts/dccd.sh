@@ -21,6 +21,7 @@ FORCE=0                        # Force redeploy, skip hash check
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2"        # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""              # Directory to install SOPS binary (default: <BASE_DIR>/bin)
+SOPS_AGE_KEY_FILE=""             # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
 
 ########################################
 # Functions
@@ -93,6 +94,18 @@ decrypt_sops_files() {
         log_message "INFO:  No *.sops.env files found, skipping decryption"
         return
     fi
+
+    if [ -z "$SOPS_AGE_KEY_FILE" ]; then
+        log_message "ERROR: SOPS_AGE_KEY_FILE is not set; use -k to specify the Age private key file"
+        exit 1
+    fi
+
+    if [ ! -f "$SOPS_AGE_KEY_FILE" ]; then
+        log_message "ERROR: SOPS Age key file not found: $SOPS_AGE_KEY_FILE"
+        exit 1
+    fi
+
+    export SOPS_AGE_KEY_FILE
 
     ensure_sops
 
@@ -314,13 +327,14 @@ usage() {
       -h              Show this help message
       -l <path>       Specify the path to the log file (default: /tmp/dccd.log)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
+      -k <path>       Specify the path to the Age private key file for SOPS decryption (required when *.sops.env files exist)
       -p              Specify if you want to prune docker images (default: don't prune)
       -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
-    Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -l /tmp/dccd.txt -o \"--env-file /path/to/my.env\" -p -x ignore_this_directory
-    TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -p
+    Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -l /tmp/dccd.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
+    TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
 
 "
     exit 1
@@ -330,7 +344,7 @@ usage() {
 # Options
 ########################################
 
-while getopts ":b:d:fghl:o:ps:tx:" opt; do
+while getopts ":b:d:fgk:hl:o:ps:tx:" opt; do
     case "$opt" in
     b)
         REMOTE_BRANCH="$OPTARG"
@@ -346,6 +360,9 @@ while getopts ":b:d:fghl:o:ps:tx:" opt; do
         ;;
     h)
         usage
+        ;;
+    k)
+        SOPS_AGE_KEY_FILE="$OPTARG"
         ;;
     l)
         LOG_FILE="$OPTARG"
@@ -425,6 +442,12 @@ if [ -z "$SOPS_INSTALL_DIR" ]; then
     SOPS_INSTALL_DIR="${BASE_DIR}/bin"
 fi
 log_message "INFO:  SOPS install directory is set to $SOPS_INSTALL_DIR"
+
+# Resolve SOPS Age key file now that BASE_DIR is known
+if [ -z "$SOPS_AGE_KEY_FILE" ]; then
+    SOPS_AGE_KEY_FILE="${BASE_DIR}/age.key"
+fi
+log_message "INFO:  SOPS Age key file is set to $SOPS_AGE_KEY_FILE"
 
 # Check if TRUENAS mode is enabled
 if [ $TRUENAS -eq 1 ]; then
