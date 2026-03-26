@@ -1,0 +1,15 @@
+---
+services:
+  echo-server:
+    image: mendhak/http-https-echo:39@sha256:59e97f8417530cd88c2a4bb7b488153276e88df8a317a86641c575138ad81829
+    container_name: echo-server
+    environment:
+      - HTTP_PORT=80
+      - HTTPS_PORT=443
+    restart: always
+    ports:
+      - 9080:443
+    mem_limit: 1024m
+    security_opt:
+      - no-new-privileges=true
+    # No Healthcheck possible since curl is not available in image
