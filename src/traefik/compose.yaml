@@ -42,6 +42,7 @@ services:
       retries: 3
       start_period: 10s
     mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
     labels:
       # Homepage
       - homepage.group=Infra
@@ -70,6 +71,9 @@ services:
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.replacement=https://svlnas.${DOMAINNAME}:8443$${1}"
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.permanent=true"
 
+  # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
+  # It does not support custom users, mods, or scripts.
+  # See: https://github.com/linuxserver/docker-socket-proxy
   traefik-docker-proxy:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: traefik-docker-proxy
@@ -83,6 +87,7 @@ services:
     security_opt:
       - no-new-privileges=true
     mem_limit: ${SOCKET_PROXY_MEM_LIMIT:-50m}
+    pids_limit: 50
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     read_only: true
