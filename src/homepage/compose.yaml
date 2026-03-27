@@ -50,17 +50,6 @@ services:
     read_only: true
     tmpfs:
       - /run
-    labels:
-      # Traefik
-      - "traefik.enable=true"
-      - "traefik.docker.network=homepage-frontend"
-      ## HTTP Routers
-      - "traefik.http.routers.homepage-proxy-rtr.rule=Host(`homepage-proxy.${DOMAINNAME}`)"
-      ## Middlewares
-      - "traefik.http.routers.homepage-proxy-rtr.middlewares=chain-no-auth@file"
-      ## HTTP Services
-      - "traefik.http.routers.homepage-proxy-rtr.service=homepage-proxy"
-      - "traefik.http.services.homepage-proxy.loadbalancer.server.port=2375"
 
 networks:
   homepage-frontend:

@@ -68,7 +68,6 @@ services:
       - traefik-backend
     env_file:
       - ../shared/env/tz.env
-      - ../shared/env/linuxserver.env
     environment:
       - CONTAINERS=1
     security_opt:
