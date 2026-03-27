@@ -52,7 +52,7 @@ certificatesResolvers:
 accessLog:
   filters:
     statusCodes:
-      - "400-499"
+      - "400-599"
   fields:
     headers:
       names:
