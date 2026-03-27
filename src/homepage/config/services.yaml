@@ -1,0 +1,13 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/latest/configs/services
+
+# - Infrastructure:
+#     - NAS:
+#         href: https://svlnas.{{ generic__domain_name }}
+#         icon: truenas
+#         description: TrueNAS Scale
+#     - JetKVM:
+#         href: http://jetkvm.MANAGEMENT
+#         icon: jetkvm
+#         description: KVM Server

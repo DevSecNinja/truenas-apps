@@ -79,3 +79,6 @@ networks:
   echo-server-frontend:
     name: echo-server-frontend
     external: true
+  homepage-frontend:
+    name: homepage-frontend
+    external: true

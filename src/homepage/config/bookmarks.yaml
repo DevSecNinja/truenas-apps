@@ -1,0 +1,41 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/latest/configs/bookmarks
+
+# Inspiration: https://technotim.live/posts/homepage-dashboard/
+
+- Developer:
+    - GitHub Repository:
+        - abbr: GH
+          icon: si-github-#e5e7eb
+          href: https://github.com/DevSecNinja/truenas-apps
+    - Microsoft Azure:
+        - abbr: Azure
+          icon: azure
+          href: https://portal.azure.com
+    - Renovate Dashboard:
+        - abbr: Reno
+          icon: si-renovatebot
+          href: https://github.com/DevSecNinja/truenas-apps/issues/3
+    - Renovate Jobs:
+        - icon: si-renovatebot
+          href: https://developer.mend.io/github/DevSecNinja/truenas-apps
+    - Speedtest:
+        - href: https://speed.cloudflare.com
+          icon: cloudflare
+    - Ad Blocker Tester:
+        - href: https://d3ward.github.io/toolz/adblock
+          icon: si-adblock-#e5e7eb
+    - Certificate Search:
+        - href: https://crt.sh
+          icon: si-letsencrypt-#e5e7eb
+    - Photopea:
+        - icon: si-photopea-#e5e7eb
+          href: https://www.photopea.com/
+    - AdGuard Temporary Email:
+        - abbr: temp-mail
+          icon: adguard-home.svg
+          href: https://adguard.com/en/adguard-temp-mail/overview.html
+    - Cronjob Schedule Maker:
+        - icon: mdi-clock-outline-#e5e7eb
+          href: https://crontab.guru/

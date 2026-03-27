@@ -1,0 +1,44 @@
+---
+# For configuration options and examples, please see:
+# https://gethomepage.dev/latest/configs/settings
+
+# Inspiration: https://technotim.live/posts/homepage-dashboard/
+
+title: "Apps"
+
+theme: dark
+color: slate
+
+useEqualHeights: true
+hideVersion: true
+showStats: true # Show Docker stats
+headerStyle: clean
+
+layout:
+  # Home:
+  #   icon: mdi-home-analytics
+  Productivity:
+    icon: mdi-briefcase
+  Media:
+    icon: mdi-multimedia
+  Infrastructure:
+    icon: mdi-tools
+  Per Server Consoles:
+    icon: mdi-console
+  # Network:
+  #   icon: mdi-graph
+  # Observability:
+  #   icon: mdi-chart-line
+  # Database:
+  #   icon: mdi-database
+
+background:
+  image: https://cdnb.artstation.com/p/assets/images/images/006/897/659/large/mikael-gustafsson-wallpaper-mikael-gustafsson.jpg
+  blur: sm # sm, md, xl... see https://tailwindcss.com/docs/backdrop-blur
+  saturate: 100 # 0, 50, 100... see https://tailwindcss.com/docs/backdrop-saturate
+  brightness: 50 # 0, 50, 75... see https://tailwindcss.com/docs/backdrop-brightness
+  opacity: 100 # 0-100
+
+# providers:
+#   openweathermap: openweathermapapikey
+#   weatherapi: weatherapiapikey
