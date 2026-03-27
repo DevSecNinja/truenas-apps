@@ -155,6 +155,7 @@ decrypt_sops_files() {
 
         log_message "STATE: Decrypting $(basename "$dir")/$(basename "$sops_file")"
         if "$SOPS_BIN" -d "$sops_file" > "$secret_env"; then
+            chmod 600 "$secret_env"
             count=$((count + 1))
         else
             log_message "ERROR: Failed to decrypt $sops_file"
