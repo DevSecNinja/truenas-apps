@@ -18,6 +18,9 @@ services:
     mem_limit: ${MEM_LIMIT:-300m}
     security_opt:
       - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
     volumes:
       - ./config:/app/config
     healthcheck:

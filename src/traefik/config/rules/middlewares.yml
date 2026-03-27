@@ -1,9 +1,5 @@
 http:
   middlewares:
-    middlewares-redirect-to-https:
-      redirectscheme:
-        scheme: "https"
-        permanent: true
     middlewares-rate-limit:
       rateLimit:
         average: 200

@@ -16,6 +16,9 @@ services:
     mem_limit: ${MEM_LIMIT:-1024m}
     security_opt:
       - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       # Homepage
       - homepage.group=Infra
