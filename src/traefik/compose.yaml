@@ -4,7 +4,8 @@ services:
     image: traefik:v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
     container_name: traefik
     depends_on:
-      - traefik-docker-proxy
+      traefik-docker-proxy:
+        condition: service_healthy
     env_file:
       - .env # Decrypted from secret.sops.env
       - ../shared/env/tz.env
@@ -31,6 +32,12 @@ services:
       - ./data/acme:/acme
       - ./config/rules:/rules
       - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     mem_limit: ${MEM_LIMIT:-1024m}
     labels:
       # Homepage
@@ -78,6 +85,11 @@ services:
     read_only: true
     tmpfs:
       - /run
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/_ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   traefik-backend:
