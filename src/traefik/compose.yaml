@@ -33,7 +33,7 @@ services:
       - /tmp
       - /run
     volumes:
-      - ./data/acme:/acme
+      - traefik-acme:/acme
       - ./config/rules:/rules
       - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
     healthcheck:
@@ -106,3 +106,7 @@ networks:
   homepage-frontend:
     name: homepage-frontend
     external: true
+
+volumes:
+  traefik-acme:
+    name: traefik-acme
