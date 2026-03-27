@@ -250,13 +250,15 @@ redeploy_truenas_apps() {
 
         # Deploy
         log_message "STATE: Starting containers for $app_name"
-        $SUDO docker compose \
+        if ! $SUDO docker compose \
             --project-name "$project_name" \
             --file "$compose_file" \
             up \
             -d \
             --wait \
-            --wait-timeout "$WAIT_TIMEOUT"
+            --wait-timeout "$WAIT_TIMEOUT"; then
+            log_message "ERROR: $app_name failed to become healthy within ${WAIT_TIMEOUT}s - check 'docker compose --project-name $project_name logs' for details"
+        fi
 
         # Report which images changed (or not)
         local img_after
@@ -328,27 +330,37 @@ update_compose_files() {
             redeploy_compose_file() {
                 local file=$1
 
-                # Build the command based on whether we have extra options
+                # Build the command as an array to avoid eval and command injection
                 run_compose_command() {
-                    local cmd_args="$1"
-                    if [ -n "$COMPOSE_OPTS" ]; then
-                        eval "$SUDO docker compose $COMPOSE_OPTS $cmd_args"
-                    else
-                        eval "$SUDO docker compose $cmd_args"
+                    local -a cmd=()
+                    if [ -n "$SUDO" ]; then
+                        cmd+=("$SUDO")
                     fi
+                    cmd+=(docker compose)
+                    if [ -n "$COMPOSE_OPTS" ]; then
+                        # Word-split is intentional: COMPOSE_OPTS is a controlled CLI flag (-o)
+                        # shellcheck disable=SC2206
+                        cmd+=($COMPOSE_OPTS)
+                    fi
+                    cmd+=("$@")
+                    "${cmd[@]}"
                 }
 
                 if [ $GRACEFUL -eq 1 ]; then
-                    run_compose_command "-f \"$file\" up -d --dry-run" &> $TMPRESTART
+                    run_compose_command -f "$file" up -d --dry-run &> $TMPRESTART
                     if grep -q "Recreate" $TMPRESTART; then
                         log_message "GRACEFUL: Redeploying compose file for $file"
-                        run_compose_command "-f \"$file\" up -d --quiet-pull"
+                        if ! run_compose_command -f "$file" up -d --quiet-pull; then
+                            log_message "ERROR: Failed to deploy $file - containers may be unhealthy"
+                        fi
                     else
                         log_message "GRACEFUL: Skipping Redeploying compose file for $file (no change)"
                     fi
                 else
                     log_message "STATE: Redeploying compose file for $file"
-                    run_compose_command "-f \"$file\" up -d --quiet-pull"
+                    if ! run_compose_command -f "$file" up -d --quiet-pull; then
+                        log_message "ERROR: Failed to deploy $file - containers may be unhealthy"
+                    fi
                 fi
             }
 
