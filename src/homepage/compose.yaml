@@ -42,7 +42,6 @@ services:
     restart: always
     networks:
       - homepage-backend
-      - homepage-frontend
     mem_limit: ${PROXY_MEM_LIMIT:-50m}
     security_opt:
       - no-new-privileges=true
