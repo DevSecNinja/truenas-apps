@@ -5,6 +5,8 @@
 #   Run As User: root
 #   Unselect 'Hide Standard Output' and 'Hide Standard Error'
 
+set -euo pipefail
+
 ########################################
 # Default configuration values
 ########################################
@@ -14,6 +16,7 @@ GRACEFUL=0                     # Default graceful setting
 TMPRESTART="/tmp/dccd.restart" # Default log file for graceful setting
 REMOTE_BRANCH="main"           # Default remote branch name
 COMPOSE_OPTS=""                # Additional options for docker compose
+EXCLUDE=""                     # Exclude pattern for directories
 TRUENAS=0                      # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
 FORCE=0                        # Force redeploy, skip hash check
@@ -22,6 +25,7 @@ WAIT_TIMEOUT=60                # Timeout in seconds for --wait (0 = no timeout)
 SOPS_VERSION="v3.12.2"         # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""            # Directory to install SOPS binary (default: <BASE_DIR>/bin)
 SOPS_AGE_KEY_FILE=""           # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
+SOPS_BIN=""                    # Path to SOPS binary (set by ensure_sops)
 
 ########################################
 # Functions
@@ -209,7 +213,7 @@ log_image_changes() {
         local svc="${after_line%%=*}"
         local after_img="${after_line#*=}"
         local before_line
-        before_line=$(echo "$before" | grep "^${svc}=" | head -1)
+        before_line=$(echo "$before" | grep "^${svc}=" | head -1) || true
         local before_img="${before_line#*=}"
         if [ -z "$before_img" ]; then
             log_message "RESULT:   $svc: new -> $after_img"
@@ -272,7 +276,7 @@ redeploy_truenas_apps() {
 
         # Capture image state before pulling so we can report what changed
         local img_before
-        img_before=$(get_project_image_info "$project_name")
+        img_before=$(get_project_image_info "$project_name") || true
 
         # Pull images
         log_message "STATE: Pulling images for $app_name"
@@ -295,7 +299,7 @@ redeploy_truenas_apps() {
 
         # Report which images changed (or not)
         local img_after
-        img_after=$(get_project_image_info "$project_name")
+        img_after=$(get_project_image_info "$project_name") || true
         log_image_changes "$app_name" "$img_before" "$img_after"
     done
 }
