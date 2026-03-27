@@ -33,4 +33,4 @@ http:
           server: ""
           # TODO: Revisit CSP after testing with various apps
           # Homepage & Treafik dash started to act weird
-          Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+          #Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
