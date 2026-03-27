@@ -2,8 +2,12 @@ http:
   middlewares:
     middlewares-rate-limit:
       rateLimit:
-        average: 200
-        burst: 100
+        average: 100
+        burst: 50
+    middlewares-rate-limit-strict:
+      rateLimit:
+        average: 10
+        burst: 20
     middlewares-secure-headers:
       headers:
         accessControlAllowMethods:
@@ -27,3 +31,4 @@ http:
         customResponseHeaders:
           X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
           server: ""
+          Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
