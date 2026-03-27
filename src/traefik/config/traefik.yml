@@ -1,6 +1,8 @@
 api:
   dashboard: true
 
+ping: {}
+
 global:
   checkNewVersion: false
   sendAnonymousUsage: false
