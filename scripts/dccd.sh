@@ -407,7 +407,7 @@ usage() {
       -p              Specify if you want to prune docker images (default: don't prune)
       -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
-      -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 120, 0 = no timeout)
+      -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -l /tmp/dccd.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
