@@ -1,0 +1,72 @@
+---
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v1.10.1@sha256:0b596092c0b55fe4c65379a428a3fe90bd192f10d1b07d189a34fe5fabe7eedb
+    container_name: homepage
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    depends_on:
+      - homepage-docker-proxy
+    environment:
+      - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAINNAME}
+    restart: always
+    networks:
+      - homepage-frontend
+      - homepage-backend
+    mem_limit: ${MEM_LIMIT:-300m}
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./data:/app/config
+    labels:
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=homepage-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.homepage-rtr.rule=Host(`apps.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.homepage-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.homepage-rtr.service=homepage"
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+
+  homepage-docker-proxy:
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
+    container_name: homepage-docker-proxy
+    env_file:
+      - ../shared/env/tz.env
+    environment:
+      - CONTAINERS=1 # Allow access to viewing containers
+      - POST=0 # Disallow any POST operations (effectively read-only)
+    restart: always
+    networks:
+      - homepage-backend
+      - homepage-frontend
+    mem_limit: ${PROXY_MEM_LIMIT:-50m}
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    labels:
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=homepage-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.homepage-proxy-rtr.rule=Host(`homepage-proxy.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.homepage-proxy-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.homepage-proxy-rtr.service=homepage-proxy"
+      - "traefik.http.services.homepage-proxy.loadbalancer.server.port=2375"
+
+networks:
+  homepage-frontend:
+    name: homepage-frontend
+    driver: bridge
+  homepage-backend:
+    name: homepage-backend
+    driver: bridge
