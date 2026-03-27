@@ -19,6 +19,7 @@ services:
     networks:
       - traefik-backend
       - echo-server-frontend
+      - homepage-frontend
     security_opt:
       - no-new-privileges=true
     cap_add:
