@@ -16,6 +16,7 @@ services:
       - homepage-frontend
       - homepage-backend
     mem_limit: ${MEM_LIMIT:-300m}
+    pids_limit: 100
     security_opt:
       - no-new-privileges=true
     read_only: true
@@ -41,6 +42,9 @@ services:
       - "traefik.http.routers.homepage-rtr.service=homepage"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
 
+  # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
+  # It does not support custom users, mods, or scripts.
+  # See: https://github.com/linuxserver/docker-socket-proxy
   homepage-docker-proxy:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: homepage-docker-proxy
@@ -53,6 +57,7 @@ services:
     networks:
       - homepage-backend
     mem_limit: ${PROXY_MEM_LIMIT:-50m}
+    pids_limit: 50
     security_opt:
       - no-new-privileges=true
     volumes:

@@ -17,6 +17,7 @@ services:
     networks:
       - <service>-frontend                 # Traefik-facing network
     mem_limit: ${MEM_LIMIT:-<default>}     # Prevent runaway memory
+    pids_limit: 100                        # Prevent fork-bomb DoS
     security_opt:
       - no-new-privileges=true             # Block privilege escalation
     read_only: true                        # Immutable root filesystem
@@ -39,6 +40,7 @@ services:
 - `read_only: true` with `tmpfs` mounts for writable paths
 - `no-new-privileges` on every container, no exceptions
 - Memory limits with env-var overrides for per-environment tuning
+- `pids_limit` on every container to prevent fork-bomb DoS
 - Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`
 - Volumes mounted `:ro` wherever the container only reads
 
