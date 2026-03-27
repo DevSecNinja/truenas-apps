@@ -14,7 +14,6 @@ services:
       # so ${DOMAINNAME} would be passed as a literal string rather than the actual domain.
       TRAEFIK_PROVIDERS_DOCKER_DEFAULTRULE: >-
         Host(`{{ index .Labels "com.docker.compose.service" }}.${DOMAINNAME}`)
-    # TODO: [traefik] Find a solution for having data and config folders with different owners
     user: "${PUID:-1000}:${PGID:-1000}"
     restart: always
     networks:
