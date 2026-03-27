@@ -18,7 +18,7 @@ services:
     security_opt:
       - no-new-privileges=true
     volumes:
-      - ./data:/app/config
+      - ./config:/app/config
     labels:
       # Traefik
       - "traefik.enable=true"
