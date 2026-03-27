@@ -17,6 +17,12 @@ services:
     security_opt:
       - no-new-privileges=true
     labels:
+      # Homepage
+      - homepage.group=Infra
+      - homepage.name=Echo-Server
+      - homepage.icon=mdi-test-tube-#ffffff
+      - homepage.href=https://echo.$DOMAINNAME
+      - homepage.description=Testing Web Requests
       # Traefik
       - "traefik.enable=true"
       - "traefik.docker.network=echo-server-frontend"
