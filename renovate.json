@@ -3,6 +3,7 @@
   "extends": [
     "config:recommended"
   ],
+  "pinDigests": true,
   "customManagers": [
     {
       "customType": "regex",
