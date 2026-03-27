@@ -7,3 +7,6 @@ age.key
 secret.env
 .env
 .decrypted~*
+
+# App Specific
+src/homepage/config/logs/
