@@ -33,6 +33,13 @@ services:
       - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
     mem_limit: ${MEM_LIMIT:-1024m}
     labels:
+      # Homepage
+      - homepage.group=Infra
+      - homepage.name=Traefik
+      - homepage.icon=traefik.svg
+      - homepage.href=https://traefik.$DOMAINNAME
+      - homepage.description=Application Proxy
+      # Traefik
       - "traefik.enable=true"
       ## TLS
       - "traefik.http.routers.traefik-rtr.tls.certresolver=dns-cloudflare"
