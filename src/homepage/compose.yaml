@@ -7,7 +7,8 @@ services:
       - .env # Decrypted from secret.sops.env
       - ../shared/env/tz.env
     depends_on:
-      - homepage-docker-proxy
+      homepage-docker-proxy:
+        condition: service_healthy
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAINNAME}
     restart: always
@@ -19,6 +20,12 @@ services:
       - no-new-privileges=true
     volumes:
       - ./config:/app/config
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       # Traefik
       - "traefik.enable=true"
@@ -50,6 +57,11 @@ services:
     read_only: true
     tmpfs:
       - /run
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/_ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   homepage-frontend:
