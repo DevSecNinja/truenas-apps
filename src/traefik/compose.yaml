@@ -33,7 +33,7 @@ services:
       - /run
     volumes:
       - traefik-acme:/acme
-      - ./config/rules:/rules
+      - ./config/rules:/rules:ro
       - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
