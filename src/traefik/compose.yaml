@@ -95,6 +95,7 @@ networks:
   traefik-backend:
     name: traefik-backend
     driver: bridge
+    internal: true
   echo-server-frontend:
     name: echo-server-frontend
     external: true

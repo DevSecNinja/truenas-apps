@@ -70,3 +70,4 @@ networks:
   homepage-backend:
     name: homepage-backend
     driver: bridge
+    internal: true
