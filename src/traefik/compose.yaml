@@ -42,6 +42,15 @@ services:
       ## HTTP Services
       - "traefik.http.routers.traefik-rtr.rule=Host(`traefik.${DOMAINNAME}`)"
       - "traefik.http.routers.traefik-rtr.service=api@internal"
+      ## SVLNAS redirect to TrueNAS portal (80/443 → 8443)
+      - "traefik.http.routers.svlnas-rtr.rule=Host(`svlnas.${DOMAINNAME}`)"
+      - "traefik.http.routers.svlnas-rtr.entrypoints=https"
+      - "traefik.http.routers.svlnas-rtr.tls=true"
+      - "traefik.http.routers.svlnas-rtr.middlewares=middlewares-redirect-to-nas-mgmt"
+      - "traefik.http.routers.svlnas-rtr.service=noop@internal"
+      - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.regex=^https?://svlnas\\.${DOMAINNAME}(.*)"
+      - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.replacement=https://svlnas.${DOMAINNAME}:8443$${1}"
+      - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.permanent=true"
 
   traefik-docker-proxy:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
