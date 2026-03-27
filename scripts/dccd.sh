@@ -9,7 +9,6 @@
 # Default configuration values
 ########################################
 BASE_DIR=""                    # Initialize empty variable
-LOG_FILE="/tmp/dccd-$(id -un).log" # Default log file name (per-user)
 PRUNE=0                        # Default prune setting
 GRACEFUL=0                     # Default graceful setting
 TMPRESTART="/tmp/dccd.restart" # Default log file for graceful setting
@@ -30,7 +29,10 @@ SOPS_AGE_KEY_FILE=""           # Path to Age private key file for SOPS decryptio
 
 log_message() {
     local message="$1"
-    echo "$(date +'%Y-%m-%d %H:%M:%S') - $message" | tee -a "$LOG_FILE"
+    local formatted
+    formatted="$(date +'%Y-%m-%d %H:%M:%S') - $message"
+    echo "$formatted"
+    logger -t dccd "$message"
 }
 
 # Use sudo only when not already running as root
@@ -59,26 +61,57 @@ ensure_sops() {
             ;;
     esac
 
-    local url="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${arch}"
+    local binary_name="sops-${SOPS_VERSION}.linux.${arch}"
+    local url="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/${binary_name}"
+    local checksums_url="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.checksums.txt"
     local tmp_bin="/tmp/sops-${SOPS_VERSION}"
+    local tmp_checksums="/tmp/sops-${SOPS_VERSION}.checksums.txt"
+
     log_message "STATE: Downloading SOPS ${SOPS_VERSION}..."
-    if curl -fsSL -o "$tmp_bin" "$url"; then
-        if ! $SUDO mv "$tmp_bin" "$sops_bin"; then
-            log_message "ERROR: Failed to move SOPS binary to $sops_bin (permission denied?)"
-            rm -f "$tmp_bin"
-            exit 1
-        fi
-        if ! $SUDO chmod +x "$sops_bin"; then
-            log_message "ERROR: Failed to make $sops_bin executable"
-            exit 1
-        fi
-        SOPS_BIN="$sops_bin"
-        log_message "INFO:  SOPS ${SOPS_VERSION} installed to $sops_bin"
-    else
+    if ! curl -fsSL -o "$tmp_bin" "$url"; then
         log_message "ERROR: Failed to download SOPS from $url"
         rm -f "$tmp_bin"
         exit 1
     fi
+
+    log_message "STATE: Verifying SOPS ${SOPS_VERSION} checksum..."
+    if ! curl -fsSL -o "$tmp_checksums" "$checksums_url"; then
+        log_message "ERROR: Failed to download SOPS checksums from $checksums_url"
+        rm -f "$tmp_bin" "$tmp_checksums"
+        exit 1
+    fi
+
+    local expected_hash
+    expected_hash=$(grep "${binary_name}$" "$tmp_checksums" | awk '{print $1}')
+    rm -f "$tmp_checksums"
+
+    if [ -z "$expected_hash" ]; then
+        log_message "ERROR: Could not find checksum for $binary_name in checksums file"
+        rm -f "$tmp_bin"
+        exit 1
+    fi
+
+    local actual_hash
+    actual_hash=$(sha256sum "$tmp_bin" | awk '{print $1}')
+
+    if [ "$expected_hash" != "$actual_hash" ]; then
+        log_message "ERROR: SOPS checksum mismatch for $binary_name (expected: $expected_hash, got: $actual_hash)"
+        rm -f "$tmp_bin"
+        exit 1
+    fi
+
+    log_message "INFO:  SOPS ${SOPS_VERSION} checksum verified"
+
+    if ! $SUDO mv "$tmp_bin" "$sops_bin"; then
+        log_message "ERROR: Failed to move SOPS binary to $sops_bin (permission denied?)"
+        exit 1
+    fi
+    if ! $SUDO chmod +x "$sops_bin"; then
+        log_message "ERROR: Failed to make $sops_bin executable"
+        exit 1
+    fi
+    SOPS_BIN="$sops_bin"
+    log_message "INFO:  SOPS ${SOPS_VERSION} installed to $sops_bin"
 }
 
 decrypt_sops_files() {
@@ -413,7 +446,6 @@ usage() {
       -f              Force redeploy, skip the hash comparison check (optional)
       -g              Graceful, only restart containers that will be recreated (optional)
       -h              Show this help message
-      -l <path>       Specify the path to the log file (default: /tmp/dccd.log)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -k <path>       Specify the path to the Age private key file for SOPS decryption (required when *.sops.env files exist)
       -p              Specify if you want to prune docker images (default: don't prune)
@@ -422,7 +454,7 @@ usage() {
       -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
 
-    Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -l /tmp/dccd.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
+    Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
 
 "
@@ -433,7 +465,7 @@ usage() {
 # Options
 ########################################
 
-while getopts ":b:d:fgk:hl:o:ps:tw:x:" opt; do
+while getopts ":b:d:fgk:ho:ps:tw:x:" opt; do
     case "$opt" in
     b)
         REMOTE_BRANCH="$OPTARG"
@@ -452,9 +484,6 @@ while getopts ":b:d:fgk:hl:o:ps:tw:x:" opt; do
         ;;
     k)
         SOPS_AGE_KEY_FILE="$OPTARG"
-        ;;
-    l)
-        LOG_FILE="$OPTARG"
         ;;
     o)
         COMPOSE_OPTS="$OPTARG"
@@ -488,16 +517,6 @@ done
 ########################################
 # Script starts here
 ########################################
-
-touch "$LOG_FILE"
-{
-    echo "########################################"
-    echo "# Starting!"
-    echo "########################################"
-} >> "$LOG_FILE"
-
-# Redirect all stderr to the log file so command errors (e.g., sudo, docker) are captured
-exec 2>> "$LOG_FILE"
 
 # Check if BASE_DIR is provided
 if [ -z "$BASE_DIR" ]; then
