@@ -31,6 +31,4 @@ http:
         customResponseHeaders:
           X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
           server: ""
-          # TODO: Revisit CSP after testing with various apps
-          # Homepage & Treafik dash started to act weird
           Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
