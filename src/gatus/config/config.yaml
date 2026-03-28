@@ -33,6 +33,17 @@ endpoint-defaults: &defaults
   alerts:
     - type: email
       description: "Health check failed"
+
+tcp-udp-defaults: &tcp-udp-defaults
+  group: Internal
+  interval: 1m
+  client:
+    timeout: 3s
+  conditions:
+    - "[CONNECTED] == true"
+  alerts:
+    - type: email
+      description: "Health check failed"
       send-on-resolved: true
 
 # Pause endpoint executions if internet is down
@@ -260,6 +271,26 @@ endpoints:
   - name: UniFi Guest - HTTP
     <<: *defaults
     url: "https://unifi-guest.${DOMAINNAME}:8843/guest/s/default/"
+
+  - name: UniFi - Inform (TCP)
+    <<: *tcp-udp-defaults
+    url: "tcp://${IP_SVLNAS}:8080"
+
+  - name: UniFi - STUN (UDP)
+    <<: *tcp-udp-defaults
+    url: "udp://${IP_SVLNAS}:3478"
+
+  - name: UniFi - Device Discovery (UDP)
+    <<: *tcp-udp-defaults
+    url: "udp://${IP_SVLNAS}:10001"
+
+  - name: UniFi - Speed Test (TCP)
+    <<: *tcp-udp-defaults
+    url: "tcp://${IP_SVLNAS}:6789"
+
+  - name: UniFi - SSH (TCP)
+    <<: *tcp-udp-defaults
+    url: "tcp://${IP_SVLNAS}:2221"
 
   #
   # DNS
