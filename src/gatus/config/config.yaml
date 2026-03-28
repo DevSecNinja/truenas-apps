@@ -300,30 +300,6 @@ endpoints:
   # DNS
   #
 
-  - name: AdGuard Local - DNS
-    url: "${IP_SVLNAS}" # Address of the DNS server to use
-    group: Internal
-    dns:
-      query-name: "healthcheck.${DOMAINNAME}"
-      query-type: "A"
-    conditions:
-      - "[BODY] == 127.0.0.1"
-      - "[DNS_RCODE] == NOERROR"
-
-  - name: AdGuard Local - DNS-over-TLS (TCP)
-    <<: *tcp-udp-defaults
-    url: "tcp://${IP_SVLNAS}:853"
-
-  - name: AdGuard External - DNS
-    url: "${IP_SVLEXT}" # Address of the DNS server to use
-    group: External
-    dns:
-      query-name: "healthcheck.${DOMAINNAME}"
-      query-type: "A"
-    conditions:
-      - "[BODY] == 127.0.0.1"
-      - "[DNS_RCODE] == NOERROR"
-
   - name: AdGuard Router - DNS
     url: "192.168.1.1" # Address of the DNS server to use
     group: Internal
