@@ -356,6 +356,8 @@ update_compose_files() {
             if ! git "${GIT_OPTS[@]}" pull --quiet origin "$REMOTE_BRANCH"; then
                 log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
                 exit 1
+            else
+                log_message "INFO:  Successfully pulled changes from origin/$REMOTE_BRANCH"
             fi
         fi
 
