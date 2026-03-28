@@ -109,41 +109,41 @@ endpoints:
   # Internal HTTP
   #
 
-  - name: AdGuard Primary - HTTP
-    <<: *defaults
-    url: "https://adguard-infra.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: AdGuard Primary - HTTP
+  #   <<: *defaults
+  #   url: "https://adguard-infra.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Bazarr - HTTP
-    <<: *defaults
-    url: "https://bazarr.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Bazarr - HTTP
+  #   <<: *defaults
+  #   url: "https://bazarr.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Cyberchef - HTTP
-    <<: *defaults
-    url: "https://cyberchef.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Cyberchef - HTTP
+  #   <<: *defaults
+  #   url: "https://cyberchef.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Dawarich - HTTP
-    <<: *defaults
-    url: "https://dawarich.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Dawarich - HTTP
+  #   <<: *defaults
+  #   url: "https://dawarich.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Draw.io - HTTP
-    <<: *defaults
-    url: "https://draw.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Draw.io - HTTP
+  #   <<: *defaults
+  #   url: "https://draw.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Excalidraw - HTTP
-    <<: *defaults
-    url: "https://excalidraw.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Excalidraw - HTTP
+  #   <<: *defaults
+  #   url: "https://excalidraw.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
   - name: Home Assistant - HTTP
     <<: *defaults
@@ -153,103 +153,103 @@ endpoints:
     <<: *defaults
     url: "https://apps.${DOMAINNAME}"
 
-  - name: Hoppscotch - HTTP
-    <<: *defaults
-    url: "https://api-tester.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Hoppscotch - HTTP
+  #   <<: *defaults
+  #   url: "https://api-tester.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Lidarr - HTTP
-    <<: *defaults
-    url: "https://lidarr.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Lidarr - HTTP
+  #   <<: *defaults
+  #   url: "https://lidarr.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: metube - HTTP
-    <<: *defaults
-    url: "https://metube.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: metube - HTTP
+  #   <<: *defaults
+  #   url: "https://metube.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: n8n - HTTP
-    <<: *defaults
-    url: "https://api-tester.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: n8n - HTTP
+  #   <<: *defaults
+  #   url: "https://api-tester.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: open-webui - HTTP
-    <<: *defaults
-    url: "https://chat.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: open-webui - HTTP
+  #   <<: *defaults
+  #   url: "https://chat.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Photos - HTTP
-    <<: *defaults
-    url: "https://photos.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Photos - HTTP
+  #   <<: *defaults
+  #   url: "https://photos.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Plex-Noauth - HTTP
-    <<: *defaults
-    url: "https://plex-noauth.${DOMAINNAME}"
-    conditions:
-      - "[STATUS] == 401" # Plex will redirect
-      - "[CERTIFICATE_EXPIRATION] > 48h"
-      - "[RESPONSE_TIME] < 1000"
+  # - name: Plex-Noauth - HTTP
+  #   <<: *defaults
+  #   url: "https://plex-noauth.${DOMAINNAME}"
+  #   conditions:
+  #     - "[STATUS] == 401" # Plex will redirect
+  #     - "[CERTIFICATE_EXPIRATION] > 48h"
+  #     - "[RESPONSE_TIME] < 1000"
 
-  - name: Prowlarr - HTTP
-    <<: *defaults
-    url: "https://prowlarr.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Prowlarr - HTTP
+  #   <<: *defaults
+  #   url: "https://prowlarr.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: qBittorrent - HTTP
-    <<: *defaults
-    url: "https://qbittorrent.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: qBittorrent - HTTP
+  #   <<: *defaults
+  #   url: "https://qbittorrent.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: SABnzbd - HTTP
-    <<: *defaults
-    url: "https://sabnzbd.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: SABnzbd - HTTP
+  #   <<: *defaults
+  #   url: "https://sabnzbd.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Radarr - HTTP
-    <<: *defaults
-    url: "https://radarr.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Radarr - HTTP
+  #   <<: *defaults
+  #   url: "https://radarr.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Sonarr - HTTP
-    <<: *defaults
-    url: "https://sonarr.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Sonarr - HTTP
+  #   <<: *defaults
+  #   url: "https://sonarr.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Speedtest - HTTP
-    <<: *defaults
-    url: "https://speedtest.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Speedtest - HTTP
+  #   <<: *defaults
+  #   url: "https://speedtest.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Spottarr - HTTP
-    <<: *defaults
-    url: "https://spottarr.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Spottarr - HTTP
+  #   <<: *defaults
+  #   url: "https://spottarr.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: Tools - HTTP
-    <<: *defaults
-    url: "https://tools.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: Tools - HTTP
+  #   <<: *defaults
+  #   url: "https://tools.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
-  - name: TubeSync - HTTP
-    <<: *defaults
-    url: "https://tubesync.${DOMAINNAME}"
-    headers:
-      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+  # - name: TubeSync - HTTP
+  #   <<: *defaults
+  #   url: "https://tubesync.${DOMAINNAME}"
+  #   headers:
+  #     X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
 
   - name: UniFi - HTTP
     <<: *defaults
