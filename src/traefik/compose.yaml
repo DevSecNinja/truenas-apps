@@ -19,6 +19,7 @@ services:
     networks:
       - traefik-backend
       - echo-server-frontend
+      - gatus-frontend
       - homepage-frontend
     security_opt:
       - no-new-privileges=true
@@ -108,6 +109,9 @@ networks:
     internal: true
   echo-server-frontend:
     name: echo-server-frontend
+    external: true
+  gatus-frontend:
+    name: gatus-frontend
     external: true
   homepage-frontend:
     name: homepage-frontend

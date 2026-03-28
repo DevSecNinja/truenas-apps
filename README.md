@@ -33,6 +33,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | App | Purpose |
 |-----|---------|
 | [Traefik](https://traefik.io/) | Reverse proxy with automatic SSL via Cloudflare DNS |
+| [Gatus](https://gatus.io/) | Uptime monitoring with alerting and a status page |
 | [Homepage](https://gethomepage.dev/) | Customizable dashboard for home lab services |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo) | HTTP echo server for testing Traefik routing |
 
@@ -48,6 +49,7 @@ Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and ba
 vm-pool/Apps          # root — holds the git repo
 vm-pool/Apps/src      # parent for all app datasets
 vm-pool/Apps/src/traefik
+vm-pool/Apps/src/gatus
 vm-pool/Apps/src/homepage
 vm-pool/Apps/src/echo-server
 # ... one dataset per app
@@ -127,6 +129,7 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
 ├── 📁 scripts        # CD script (dccd.sh)
 └── 📁 src            # App stacks
     ├── 📁 echo-server
+    ├── 📁 gatus
     ├── 📁 homepage
     ├── 📁 traefik
     └── 📁 shared     # Shared env files (TZ, PUID/PGID)

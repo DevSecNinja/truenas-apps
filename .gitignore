@@ -9,4 +9,6 @@ secret.env
 .decrypted~*
 
 # App Specific
+src/**/backups/**
+!src/**/backups/**/.gitkeep
 src/homepage/config/logs/
