@@ -354,7 +354,7 @@ update_compose_files() {
         # Pull any changes in the Git repository
         if [ "$local_hash" != "$remote_hash" ]; then
             if ! git "${GIT_OPTS[@]}" checkout "$REMOTE_BRANCH"; then
-                log_message "ERROR: Unable to checkout branch $REMOTE_BRANCH"
+                log_message "ERROR: Unable to checkout branch $REMOTE_BRANCH. Verify the branch exists and there are no uncommitted changes."
                 exit 1
             fi
             if ! git "${GIT_OPTS[@]}" pull --quiet origin "$REMOTE_BRANCH"; then
