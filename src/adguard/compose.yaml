@@ -18,7 +18,7 @@ services:
     command: ["/templates/envsubst.sh"]
     volumes:
       - ./config/unbound:/templates:ro
-      - unbound-config:/output
+      - ./data/unbound:/output
     tmpfs:
       - /tmp
 
@@ -33,6 +33,8 @@ services:
       - ../shared/env/tz.env
     # mvance/unbound starts as root and drops privileges to the _unbound user
     # internally. Setting user: externally would break the startup process.
+    # read_only is not set because the startup script generates unbound.conf and
+    # creates dev/ and var/ directories inside /opt/unbound/etc/unbound/.
     restart: always
     networks:
       - adguard-backend
@@ -40,11 +42,11 @@ services:
     pids_limit: 100
     security_opt:
       - no-new-privileges=true
-    read_only: true
     tmpfs:
       - /tmp
     volumes:
-      - unbound-config:/opt/unbound/etc/unbound:ro
+      - ./data/unbound/a-records.conf:/opt/unbound/etc/unbound/a-records.conf:ro
+      - ./data/unbound/forward-records.conf:/opt/unbound/etc/unbound/forward-records.conf:ro
     healthcheck:
       test: ["CMD", "drill", "@127.0.0.1", "localhost"]
       interval: 15s
@@ -144,5 +146,3 @@ networks:
 volumes:
   adguard-data:
     name: adguard-data
-  unbound-config:
-    name: unbound-config
