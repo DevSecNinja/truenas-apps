@@ -126,7 +126,7 @@ decrypt_sops_files() {
     fi
 
     local sops_files
-    sops_files=$(find "$src_dir" -name '*.sops.env' -type f)
+    sops_files=$(find "$src_dir" -not -path '*/data/*' -not -path '*/backups/*' -name '*.sops.env' -type f)
 
     if [ -z "$sops_files" ]; then
         log_message "INFO:  No *.sops.env files found, skipping decryption"
@@ -412,7 +412,7 @@ update_compose_files() {
                 else
                     other_files+=("$file")
                 fi
-            done < <(find . -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) | sort)
+            done < <(find . -not -path '*/data/*' -not -path '*/backups/*' -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) | sort)
 
             for file in "${other_files[@]}" "${traefik_files[@]}"; do
                 # Extract the directory containing the file
