@@ -31,12 +31,7 @@ services:
       - /tmp
     volumes:
       - ./config/config.yaml:/config/config.yaml:ro
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    # No healthcheck — the image is scratch-based (no shell, wget, or curl available)
     labels:
       # Homepage
       - homepage.group=Infrastructure
