@@ -106,8 +106,9 @@ services:
     volumes:
       - gatus-db-data:/var/lib/postgresql/data
 
-  # tiredofit/db-backup uses s6-overlay which requires extensive writeable paths,
-  # so read_only is not set on this container.
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
+  # read_only is also not set because s6-overlay needs extensive writable paths.
   gatus-db-backup:
     image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: gatus-db-backup
@@ -117,8 +118,9 @@ services:
     env_file:
       - .env # Decrypted from secret.sops.env
       - ../shared/env/tz.env
-    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
+      - USER_DBBACKUP=${PUID:-1000}
+      - GROUP_DBBACKUP=${PGID:-1000}
       - CONTAINER_NAME=gatus-db-backup
       - CONTAINER_ENABLE_MONITORING=FALSE
       # Notification settings
