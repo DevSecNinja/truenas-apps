@@ -1,6 +1,3 @@
-**/data/*
-!**/data/.gitkeep
-
 bin/**
 
 age.key
@@ -8,7 +5,9 @@ secret.env
 .env
 .decrypted~*
 
-# App Specific
-src/**/backups/**
-!src/**/backups/**/.gitkeep
+# Exclude directories that Git might not have permissions to
+src/**/backups/
+src/**/data/
+
+# App specific
 src/homepage/config/logs/
