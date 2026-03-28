@@ -23,9 +23,9 @@ alerting:
 
 endpoint-defaults: &defaults
   group: Internal
-  interval: 30s
+  interval: 1m
   client:
-    timeout: 10s
+    timeout: 3s
   conditions:
     - "[STATUS] == 200"
     - "[CERTIFICATE_EXPIRATION] > 48h"
