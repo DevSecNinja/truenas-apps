@@ -66,6 +66,26 @@ Services never mount `/var/run/docker.sock` directly. Instead, each gets its own
 
 If Traefik and Homepage shared one proxy, compromising either would grant the attacker the union of both permission sets. Separate proxies enforce least privilege per consumer.
 
+## Directory Conventions
+
+Each service follows a consistent layout:
+
+``` text
+src/<service>/
+  compose.yaml       # Service definition — committed to Git
+  secret.sops.env    # SOPS-encrypted secrets — committed to Git
+  config/            # Static configuration — committed to Git
+  data/              # Runtime data — NOT committed to Git
+```
+
+**`compose.yaml`** defines the service: images, networks, volumes, labels, and resource limits. It is the source of truth for how the service runs and is always committed to Git.
+
+**`secret.sops.env`** stores secrets (API keys, passwords, tokens) encrypted with SOPS + Age. Because the values are encrypted, the file is safe to commit to Git. At deploy time, the CD script decrypts it to `.env` which is excluded from Git.
+
+**`config/`** holds files that you author and version-control: configuration files, rule sets, and any other inputs the container reads at startup. For example, Traefik's `config/` contains `traefik.yml` and the dynamic rules under `rules/`. These are mounted `:ro` into the container because the container should only read them, never write to them.
+
+**`data/`** holds files that are produced or mutated by the running container: databases, certificates, caches, state files, and other dynamic output. This directory lives only on the host machine and is excluded from Git via `.gitignore`. It is mounted read-write so the container can persist its runtime state across restarts.
+
 ## Secret Management
 
 Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https://github.com/FiloSottile/age) and stored in git as `secret.sops.env`. The CD script decrypts them to `.env` at deploy time using an Age key stored on the TrueNAS host.
