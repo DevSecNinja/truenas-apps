@@ -1,0 +1,5 @@
+# ShellCheck configuration
+# https://www.shellcheck.net/wiki/
+
+# Allow following sourced files
+external-sources=true

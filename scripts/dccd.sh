@@ -457,7 +457,7 @@ update_compose_files() {
 
 usage() {
     printf "
-    Usage: $0 [OPTIONS]
+    Usage: %s [OPTIONS]
 
     Options:
       -b <name>       Specify the remote branch to track (default: main)
@@ -476,7 +476,7 @@ usage() {
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
 
-"
+" "$0"
     exit 1
 }
 

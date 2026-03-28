@@ -1,2 +1,7 @@
 [tools]
 sops = "3.12.2"
+shellcheck = "0.10.0"
+yq = "4.44.6"
+"npm:markdownlint-cli2" = "0.17.2"
+"pipx:yamllint" = "1.37.0"
+"pipx:check-jsonschema" = "0.32.1"

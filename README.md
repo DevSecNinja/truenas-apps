@@ -6,6 +6,8 @@
 
 _... managed with Docker Compose, SOPS, Renovate, and a sprinkle of GitOps_ 🤖
 
+[![CI](https://github.com/DevSecNinja/truenas-apps/actions/workflows/ci.yml/badge.svg)](https://github.com/DevSecNinja/truenas-apps/actions/workflows/ci.yml)
+
 </div>
 
 ---
@@ -138,6 +140,12 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
     ├── 📁 traefik
     └── 📁 shared     # Shared env files (TZ, PUID/PGID)
 ```
+
+---
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, how to run CI checks locally, and guidelines for adding new apps.
 
 ---
 

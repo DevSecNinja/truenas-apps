@@ -1,0 +1,17 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 256
+    allow-non-breakable-inline-mappings: true
+  comments:
+    min-spaces-from-content: 1
+  truthy:
+    check-keys: false
+  document-start: disable
+  comments-indentation: disable
+
+ignore:
+  - "src/**/data/"
+  - "src/**/backups/"

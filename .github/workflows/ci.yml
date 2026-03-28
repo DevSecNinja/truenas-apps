@@ -1,0 +1,113 @@
+---
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install yamllint
+        run: pipx install yamllint
+      - name: Run yamllint
+        run: yamllint .
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run ShellCheck
+        run: |
+          shopt -s globstar
+          shellcheck **/*.sh
+
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install markdownlint-cli2
+        run: npm install -g markdownlint-cli2
+      - name: Run markdownlint
+        run: markdownlint-cli2 "**/*.md"
+
+  compose-validation:
+    name: Docker Compose Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create dummy env files for validation
+        run: |
+          cat > /tmp/ci-dummy.env << 'EOF'
+          DOMAINNAME=ci.example.com
+          PUID=1000
+          PGID=1000
+          GATUS_DB_PASSWORD=ci-dummy-password
+          UNIFI_MONGO_ROOT_PASS=ci-dummy-password
+          UNIFI_MONGO_PASS=ci-dummy-password
+          DB_ENC_PASSPHRASE=ci-dummy-passphrase
+          NOTIFICATIONS_EMAIL_HOST=smtp.example.com
+          NOTIFICATIONS_EMAIL_DOMAIN=example.com
+          NOTIFICATIONS_EMAIL_PORT=587
+          NOTIFICATIONS_EMAIL_USERNAME=ci-user
+          NOTIFICATIONS_EMAIL_PASSWORD=ci-password
+          NOTIFICATIONS_EMAIL_TO=ci@example.com
+          NOTIFICATIONS_EMAIL_FROM=ci@example.com
+          EOF
+          for dir in src/*/; do
+            if [ -f "${dir}compose.yaml" ]; then
+              cp /tmp/ci-dummy.env "${dir}.env"
+            fi
+          done
+      - name: Validate compose files
+        run: |
+          errors=0
+          for file in src/*/compose.yaml; do
+            echo "Validating: $file"
+            dir=$(dirname "$file")
+            if ! (cd "$dir" && docker compose config --quiet); then
+              echo "FAIL: $file"
+              errors=$((errors + 1))
+            fi
+          done
+          if [ "$errors" -gt 0 ]; then
+            echo "Found $errors compose validation error(s)"
+            exit 1
+          fi
+          echo "All compose files are valid"
+
+  traefik-schema:
+    name: Traefik Schema Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install check-jsonschema
+        run: pipx install check-jsonschema
+      - name: Validate Traefik static configuration
+        run: |
+          check-jsonschema \
+            --schemafile "https://json.schemastore.org/traefik-v3.json" \
+            src/traefik/config/traefik.yml
+
+  best-practices:
+    name: Best Practices
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run best-practices checks
+        run: bash scripts/check-best-practices.sh
