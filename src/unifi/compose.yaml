@@ -1,0 +1,171 @@
+---
+services:
+  # NOTE: MongoDB doesn't support automatic major-version upgrades.
+  # Before upgrading to a new major version, run (change MONGO_VERSION to CURRENT version):
+  #   export MONGO_VERSION=8.2
+  #   docker compose exec unifi-db mongosh --eval 'db.adminCommand({ setFeatureCompatibilityVersion: "'$MONGO_VERSION'" })'
+  unifi-db:
+    image: mongo:8.2.6@sha256:d343c378b5c6e2fe373174abcf4a877be0dfc721b5d0b9d582204dccb1c00b86
+    container_name: unifi-db
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=${UNIFI_MONGO_ROOT_PASS}
+      - MONGO_USER=unifi
+      - MONGO_PASS=${UNIFI_MONGO_PASS}
+      - MONGO_DBNAME=unifi
+      - MONGO_AUTHSOURCE=admin
+    restart: always
+    networks:
+      - unifi-backend
+    mem_limit: ${DB_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /data/configdb
+    volumes:
+      - unifi-db-data:/data/db
+      - ./config/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
+  # read_only is also not set because s6-overlay needs extensive writable paths.
+  unifi-db-backup:
+    image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: unifi-db-backup
+    depends_on:
+      unifi-db:
+        condition: service_healthy
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    environment:
+      - USER_DBBACKUP=${PUID:-1000}
+      - GROUP_DBBACKUP=${PGID:-1000}
+      - CONTAINER_NAME=unifi-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      # Notification settings
+      - ENABLE_NOTIFICATIONS=TRUE
+      - NOTIFICATION_TYPE=EMAIL
+      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
+      - SMTP_DOMAIN=${NOTIFICATIONS_EMAIL_DOMAIN}
+      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
+      - SMTP_USER=${NOTIFICATIONS_EMAIL_USERNAME}
+      - SMTP_PASS=${NOTIFICATIONS_EMAIL_PASSWORD}
+      - MAIL_TO=${NOTIFICATIONS_EMAIL_TO}
+      - MAIL_FROM=${NOTIFICATIONS_EMAIL_FROM}
+      - SMTP_AUTHENTICATION=on
+      - SMTP_TLSCERTCHECK=TRUE
+      - SMTP_STARTTLS=on
+      - SMTP_TLS=on
+      # Backup defaults
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_BACKUP_INTERVAL=1440
+      - DEFAULT_BACKUP_BEGIN=0000
+      - DEFAULT_CLEANUP_TIME=2880
+      # Encryption
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      # Database
+      - DB01_TYPE=mongo
+      - DB01_HOST=unifi-db
+      - DB01_NAME=unifi
+      - DB01_USER=unifi
+      - DB01_PORT=27017
+      - DB01_PASS=${UNIFI_MONGO_PASS}
+      - DB01_AUTH=admin
+    restart: always
+    networks:
+      - unifi-backend
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./backups/db-backup:/backup
+
+  # LinuxServer's unifi-network-application uses s6-overlay which must start as root.
+  # It handles user switching internally via PUID/PGID environment variables.
+  # read_only is not set because s6-overlay and the Java-based Unifi application
+  # need extensive writable paths beyond what can be covered by tmpfs mounts.
+  unifi:
+    image: lscr.io/linuxserver/unifi-network-application:version-10.0.162@sha256:1c3667f6f145b49dcbd105b090a3740a6403f2ae02a164ae9231649e073e2f84
+    container_name: unifi
+    depends_on:
+      unifi-db:
+        condition: service_healthy
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - MONGO_USER=unifi
+      - MONGO_PASS=${UNIFI_MONGO_PASS}
+      - MONGO_HOST=unifi-db
+      - MONGO_PORT=27017
+      - MONGO_DBNAME=unifi
+      - MONGO_AUTHSOURCE=admin
+      - MEM_LIMIT=1024
+    restart: always
+    networks:
+      - unifi-frontend
+      - unifi-backend
+    mem_limit: ${MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - unifi-data:/config
+      - ./backups/autobackup:/config/data/backup
+    ports:
+      - 3478:3478/udp    # STUN
+      - 10001:10001/udp  # Device discovery
+      - 8080:8080/tcp    # Device ↔ controller communication
+      - 6789:6789/tcp    # Mobile speed test
+      - 2221:22/tcp      # SSH
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Unifi
+      - homepage.icon=unifi.svg
+      - homepage.href=https://unifi.${DOMAINNAME}
+      - homepage.description=Ubiquiti Network Controller
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=unifi-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.unifi-rtr.rule=Host(`unifi.${DOMAINNAME}`)"
+      ## Middlewares — no-auth because Unifi has its own authentication
+      - "traefik.http.routers.unifi-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services — Unifi serves HTTPS on 8443 internally
+      - "traefik.http.routers.unifi-rtr.service=unifi"
+      - "traefik.http.services.unifi.loadbalancer.server.scheme=https"
+      - "traefik.http.services.unifi.loadbalancer.server.port=8443"
+
+networks:
+  unifi-frontend:
+    name: unifi-frontend
+    driver: bridge
+  unifi-backend:
+    name: unifi-backend
+    driver: bridge
+    internal: true
+
+volumes:
+  unifi-data:
+    name: unifi-data
+  unifi-db-data:
+    name: unifi-db-data

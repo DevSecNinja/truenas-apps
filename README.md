@@ -36,6 +36,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Gatus](https://gatus.io/) | Uptime monitoring with alerting and a status page |
 | [Homepage](https://gethomepage.dev/) | Customizable dashboard for home lab services |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo) | HTTP echo server for testing Traefik routing |
+| [Unifi](https://ui.com/) | Ubiquiti network controller with MongoDB backend |
 
 ---
 
@@ -52,6 +53,7 @@ vm-pool/Apps/src/traefik
 vm-pool/Apps/src/gatus
 vm-pool/Apps/src/homepage
 vm-pool/Apps/src/echo-server
+vm-pool/Apps/src/unifi
 # ... one dataset per app
 ```
 
