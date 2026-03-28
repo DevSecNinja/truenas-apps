@@ -76,6 +76,7 @@ src/<service>/
   secret.sops.env    # SOPS-encrypted secrets — committed to Git
   config/            # Static configuration — committed to Git
   data/              # Runtime data — NOT committed to Git
+  backups/           # Backup output — NOT committed to Git
 ```
 
 **`compose.yaml`** defines the service: images, networks, volumes, labels, and resource limits. It is the source of truth for how the service runs and is always committed to Git.
@@ -85,6 +86,8 @@ src/<service>/
 **`config/`** holds files that you author and version-control: configuration files, rule sets, and any other inputs the container reads at startup. For example, Traefik's `config/` contains `traefik.yml` and the dynamic rules under `rules/`. These are mounted `:ro` into the container because the container should only read them, never write to them.
 
 **`data/`** holds files that are produced or mutated by the running container: databases, certificates, caches, state files, and other dynamic output. This directory lives only on the host machine and is excluded from Git via `.gitignore`. It is mounted read-write so the container can persist its runtime state across restarts.
+
+**`backups/`** holds database backup files produced by the backup sidecar container (e.g., `tiredofit/db-backup`). Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
 
 ## Secret Management
 

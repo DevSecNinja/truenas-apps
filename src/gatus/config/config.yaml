@@ -1,0 +1,311 @@
+storage:
+  type: ${DB_ENGINE}
+  path: "${DB_ENGINE}://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}?sslmode=disable"
+
+# Enable Prometheus metrics
+metrics: true
+
+alerting:
+  email:
+    from: ${NOTIFICATIONS_EMAIL_FROM}
+    username: ${NOTIFICATIONS_EMAIL_USERNAME}
+    password: ${NOTIFICATIONS_EMAIL_PASSWORD}
+    host: ${NOTIFICATIONS_EMAIL_HOST}
+    port: ${NOTIFICATIONS_EMAIL_PORT}
+    to: ${NOTIFICATIONS_EMAIL_TO}
+    client:
+      insecure: false
+    default-alert:
+      description: "Health check failed"
+      send-on-resolved: true
+      failure-threshold: 5
+      success-threshold: 5
+
+endpoint-defaults: &defaults
+  group: Internal
+  interval: 30s
+  client:
+    timeout: 10s
+  conditions:
+    - "[STATUS] == 200"
+    - "[CERTIFICATE_EXPIRATION] > 48h"
+    - "[RESPONSE_TIME] < 1000"
+  alerts:
+    - type: email
+      description: "Health check failed"
+      send-on-resolved: true
+
+# Pause endpoint executions if internet is down
+connectivity:
+  checker:
+    target: 1.1.1.1:53
+    interval: 60s
+
+endpoints:
+  #
+  # External HTTP
+  #
+
+  - name: DevSecNinja - HTTP
+    <<: *defaults
+    url: "https://devsecninja.com/"
+    group: External
+
+  - name: hadiscover - HTTP
+    <<: *defaults
+    url: "https://hadiscover.com/"
+    group: External
+    interval: 1m
+    conditions:
+      - "[BODY] == pat(*Built with 💙 for the Home Assistant community*)"
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: hadiscover WWW - HTTP
+    <<: *defaults
+    url: "https://www.hadiscover.com/"
+    group: External
+    interval: 1m
+    conditions:
+      - "[BODY] == pat(*Built with 💙 for the Home Assistant community*)"
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: hadiscover API - HTTP
+    <<: *defaults
+    url: "https://api.hadiscover.com/api/v1/statistics"
+    group: External
+    method: GET
+    headers:
+      Accept: application/json
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+      - "[BODY].total_repositories != null"
+      - "[BODY].total_automations != null"
+      - "[BODY].total_repositories > 0"
+      - "[BODY].total_automations > 10"
+
+  - name: V60 - HTTP
+    <<: *defaults
+    url: "https://v60.${DOMAINNAME}"
+    group: External
+    conditions:
+      - "[BODY] == pat(*V60 Recipe Calculator*)"
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: Bing - HTTP
+    <<: *defaults
+    url: "https://bing.com/"
+    group: External
+
+  #
+  # Internal HTTP
+  #
+
+  - name: AdGuard Primary - HTTP
+    <<: *defaults
+    url: "https://adguard-infra.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Bazarr - HTTP
+    <<: *defaults
+    url: "https://bazarr.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Cyberchef - HTTP
+    <<: *defaults
+    url: "https://cyberchef.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Dawarich - HTTP
+    <<: *defaults
+    url: "https://dawarich.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Draw.io - HTTP
+    <<: *defaults
+    url: "https://draw.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Excalidraw - HTTP
+    <<: *defaults
+    url: "https://excalidraw.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Home Assistant - HTTP
+    <<: *defaults
+    url: "https://home.${DOMAINNAME}"
+
+  - name: Homepage - HTTP
+    <<: *defaults
+    url: "https://apps.${DOMAINNAME}"
+
+  - name: Hoppscotch - HTTP
+    <<: *defaults
+    url: "https://api-tester.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Lidarr - HTTP
+    <<: *defaults
+    url: "https://lidarr.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: metube - HTTP
+    <<: *defaults
+    url: "https://metube.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: n8n - HTTP
+    <<: *defaults
+    url: "https://api-tester.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: open-webui - HTTP
+    <<: *defaults
+    url: "https://chat.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Photos - HTTP
+    <<: *defaults
+    url: "https://photos.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Plex-Noauth - HTTP
+    <<: *defaults
+    url: "https://plex-noauth.${DOMAINNAME}"
+    conditions:
+      - "[STATUS] == 401" # Plex will redirect
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: Prowlarr - HTTP
+    <<: *defaults
+    url: "https://prowlarr.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: qBittorrent - HTTP
+    <<: *defaults
+    url: "https://qbittorrent.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: SABnzbd - HTTP
+    <<: *defaults
+    url: "https://sabnzbd.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Radarr - HTTP
+    <<: *defaults
+    url: "https://radarr.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Sonarr - HTTP
+    <<: *defaults
+    url: "https://sonarr.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Speedtest - HTTP
+    <<: *defaults
+    url: "https://speedtest.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Spottarr - HTTP
+    <<: *defaults
+    url: "https://spottarr.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: Tools - HTTP
+    <<: *defaults
+    url: "https://tools.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: TubeSync - HTTP
+    <<: *defaults
+    url: "https://tubesync.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: UniFi - HTTP
+    <<: *defaults
+    url: "https://unifi.${DOMAINNAME}"
+    headers:
+      X-Monitor-Key: "${GENERIC_MONITORING_HEADER_SECRET}"
+
+  - name: UniFi Guest - HTTP
+    <<: *defaults
+    url: "https://unifi-guest.${DOMAINNAME}:8843/guest/s/default/"
+
+  #
+  # DNS
+  #
+
+  - name: AdGuard External - DNS
+    url: "${IP_SVLEXT}" # Address of the DNS server to use
+    group: External
+    dns:
+      query-name: "SVLINFRA.${DOMAINNAME}"
+      query-type: "A"
+    conditions:
+      - "[BODY] == 192.168.1.15"
+      - "[DNS_RCODE] == NOERROR"
+
+  - name: AdGuard Router - DNS
+    url: "192.168.1.1" # Address of the DNS server to use
+    group: Internal
+    dns:
+      query-name: "SVLINFRA.${DOMAINNAME}"
+      query-type: "A"
+    conditions:
+      - "[BODY] == 192.168.1.15"
+      - "[DNS_RCODE] == NOERROR"
+
+  - name: Google.com - DNS
+    url: "192.168.1.1" # Address of the DNS server to use
+    group: External
+    dns:
+      query-name: "google.com"
+      query-type: "A"
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+
+  #
+  # ICMP
+  #
+
+  - name: Google - ICMP
+    url: "icmp://8.8.8.8"
+    group: External
+    conditions:
+      - "[CONNECTED] == true"
+
+  - name: Quad9 - ICMP
+    url: "icmp://9.9.9.9"
+    group: External
+    conditions:
+      - "[CONNECTED] == true"
