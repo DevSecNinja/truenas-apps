@@ -48,7 +48,9 @@ services:
       - ./data/unbound/a-records.conf:/opt/unbound/etc/unbound/a-records.conf:ro
       - ./data/unbound/forward-records.conf:/opt/unbound/etc/unbound/forward-records.conf:ro
     healthcheck:
-      test: ["CMD", "drill", "@127.0.0.1", "localhost"]
+      # Resolves the canary record from a-records.conf — proves unbound is running,
+      # the config was loaded, and envsubst substituted ${DOMAINNAME} correctly.
+      test: ["CMD", "drill", "@127.0.0.1", "healthcheck.${DOMAINNAME}"]
       interval: 15s
       timeout: 5s
       retries: 3
