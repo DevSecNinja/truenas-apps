@@ -402,7 +402,19 @@ update_compose_files() {
                 fi
             }
 
-            find . -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) | sort | while IFS= read -r file; do
+            # Collect compose files; traefik must be deployed last because it
+            # attaches to networks created by other projects.
+            local -a traefik_files=()
+            local -a other_files=()
+            while IFS= read -r file; do
+                if [[ "$file" == */traefik/* ]]; then
+                    traefik_files+=("$file")
+                else
+                    other_files+=("$file")
+                fi
+            done < <(find . -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) | sort)
+
+            for file in "${other_files[@]}" "${traefik_files[@]}"; do
                 # Extract the directory containing the file
                 dir=$(dirname "$file")
 
