@@ -29,8 +29,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    volumes:
-      - ./config/config.yaml:/config/config.yaml:ro
+    configs:
+      - source: gatus-config
+        target: /config/config.yaml
     # No healthcheck — the image is scratch-based (no shell, wget, or curl available)
     labels:
       # Homepage
@@ -175,3 +176,7 @@ networks:
 volumes:
   gatus-db-data:
     name: gatus-db-data
+
+configs:
+  gatus-config:
+    file: ./config/config.yaml
