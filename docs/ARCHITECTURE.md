@@ -44,6 +44,15 @@ services:
 - Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`
 - Volumes mounted `:ro` wherever the container only reads
 
+**Exceptions — s6-overlay and root-start containers:**
+
+Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. This applies to:
+
+- **LinuxServer images** (e.g., `unifi-network-application`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit the `user:` directive and `read_only`.
+- **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
+
+Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
+
 ## Networking: Per-Service Isolation
 
 Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins each frontend network individually.

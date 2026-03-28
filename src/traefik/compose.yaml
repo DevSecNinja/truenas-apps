@@ -21,6 +21,7 @@ services:
       - echo-server-frontend
       - gatus-frontend
       - homepage-frontend
+      - unifi-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -115,6 +116,9 @@ networks:
     external: true
   homepage-frontend:
     name: homepage-frontend
+    external: true
+  unifi-frontend:
+    name: unifi-frontend
     external: true
 
 volumes:
