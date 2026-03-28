@@ -18,6 +18,7 @@ services:
     restart: always
     networks:
       - traefik-backend
+      - adguard-frontend
       - echo-server-frontend
       - gatus-frontend
       - homepage-frontend
@@ -110,6 +111,9 @@ networks:
     internal: true
   echo-server-frontend:
     name: echo-server-frontend
+    external: true
+  adguard-frontend:
+    name: adguard-frontend
     external: true
   gatus-frontend:
     name: gatus-frontend

@@ -32,6 +32,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 
 | App | Purpose |
 |-----|---------|
+| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html) | DNS filtering and ad blocking with Unbound resolver |
 | [Traefik](https://traefik.io/) | Reverse proxy with automatic SSL via Cloudflare DNS |
 | [Gatus](https://gatus.io/) | Uptime monitoring with alerting and a status page |
 | [Homepage](https://gethomepage.dev/) | Customizable dashboard for home lab services |
@@ -49,6 +50,7 @@ Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and ba
 ``` text
 vm-pool/Apps          # root — holds the git repo
 vm-pool/Apps/src      # parent for all app datasets
+vm-pool/Apps/src/adguard
 vm-pool/Apps/src/traefik
 vm-pool/Apps/src/gatus
 vm-pool/Apps/src/homepage

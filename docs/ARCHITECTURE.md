@@ -50,6 +50,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 
 - **LinuxServer images** (e.g., `unifi-network-application`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit the `user:` directive and `read_only`.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
+- **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; omit `user:`.
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 

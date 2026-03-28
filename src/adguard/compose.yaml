@@ -1,0 +1,129 @@
+---
+services:
+  # Runs once at startup to substitute ${VAR} placeholders in unbound config
+  # templates with actual values from secret.sops.env, then exits.
+  adguard-unbound-init:
+    image: docker.io/library/busybox:1.37.0
+    container_name: adguard-unbound-init
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    command: ["/templates/envsubst.sh"]
+    volumes:
+      - ./config/unbound:/templates:ro
+      - unbound-config:/output
+    tmpfs:
+      - /tmp
+
+  adguard-unbound:
+    image: mvance/unbound:1.22.0@sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90
+    container_name: adguard-unbound
+    depends_on:
+      adguard-unbound-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    # mvance/unbound starts as root and drops privileges to the _unbound user
+    # internally. Setting user: externally would break the startup process.
+    restart: always
+    networks:
+      - adguard-backend
+    mem_limit: ${UNBOUND_MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - unbound-config:/opt/unbound/etc/unbound:ro
+    healthcheck:
+      test: ["CMD", "drill", "@127.0.0.1", "localhost"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  adguard:
+    image: adguard/adguardhome:v0.107.73@sha256:7fbf01d73ecb7a32d2d9e6cef8bf88e64bd787889ca80a1e8bce30cd4c084442
+    container_name: adguard
+    depends_on:
+      adguard-unbound:
+        condition: service_healthy
+    env_file:
+      - .env # Decrypted from secret.sops.env
+      - ../shared/env/tz.env
+    user: "${PUID:-1000}:${PGID:-1000}"
+    restart: always
+    networks:
+      - adguard-frontend
+      - adguard-backend
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "853:853/tcp"
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE # Required to bind DNS on port 53
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - adguard-data:/opt/adguardhome/work
+      # AdGuard Home writes to its config directory at runtime (user/filter changes),
+      # so this mount cannot be :ro. Copy config/conf/ to data/conf/ before first run.
+      - ./data/conf:/opt/adguardhome/conf
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=AdGuard
+      - homepage.icon=adguard-home.svg
+      - homepage.href=https://adguard.${DOMAINNAME}
+      - homepage.description=DNS Service
+      ## Widget
+      - homepage.widget.type=adguard
+      - homepage.widget.url=https://adguard.${DOMAINNAME}
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=adguard-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.adguard-rtr.rule=Host(`adguard.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.adguard-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.adguard-rtr.service=adguard"
+      - "traefik.http.services.adguard.loadbalancer.server.port=80"
+
+networks:
+  adguard-frontend:
+    name: adguard-frontend
+    driver: bridge
+  adguard-backend:
+    name: adguard-backend
+    driver: bridge
+    internal: true
+
+volumes:
+  adguard-data:
+    name: adguard-data
+  unbound-config:
+    name: unbound-config
