@@ -3,7 +3,7 @@ services:
   # Runs once at startup to substitute ${VAR} placeholders in unbound config
   # templates with actual values from secret.sops.env, then exits.
   adguard-unbound-init:
-    image: docker.io/library/busybox:1.37.0
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: adguard-unbound-init
     env_file:
       - .env # Decrypted from secret.sops.env
@@ -59,7 +59,7 @@ services:
   # Sets ownership on the adguard-data volume and data/conf directory so the
   # non-root adguard container can write to them. Runs once, then exits.
   adguard-init:
-    image: docker.io/library/busybox:1.37.0
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: adguard-init
     env_file:
       - .env # Decrypted from secret.sops.env
