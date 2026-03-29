@@ -155,7 +155,7 @@ services:
       ## HTTP Routers
       - "traefik.http.routers.adguard-rtr.rule=Host(`adguard.${DOMAINNAME}`)"
       ## Middlewares
-      - "traefik.http.routers.adguard-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.adguard-rtr.middlewares=chain-auth@file"
       ## HTTP Services
       - "traefik.http.routers.adguard-rtr.service=adguard"
       - "traefik.http.services.adguard.loadbalancer.server.port=80"
