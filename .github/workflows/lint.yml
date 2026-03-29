@@ -26,7 +26,7 @@ jobs:
           version: 2026.3.10
 
       - name: Check YAML formatting
-        run: mise exec -- yamlfmt -lint '**/*.yaml' '**/*.yml'
+        run: find . -name '*.yaml' -o -name '*.yml' | xargs mise exec -- yamlfmt -lint
 
   shellcheck:
     name: shellcheck
@@ -43,4 +43,4 @@ jobs:
           version: 2026.3.10
 
       - name: Run shellcheck
-        run: mise exec -- shellcheck scripts/**/*.sh src/**/*.sh
+        run: find . -name '*.sh' | xargs mise exec -- shellcheck
