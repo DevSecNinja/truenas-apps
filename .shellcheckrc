@@ -1,0 +1,8 @@
+# Default shell dialect; individual scripts override this via their shebang
+shell=bash
+
+# Error severity: error, warning, info, style (default: style — show everything)
+severity=style
+
+# Enable optional checks not on by default
+enable=add-default-case,avoid-nullary-conditions,check-extra-masked-returns,check-set-e-suppressed,deprecate-which,quote-safe-variables,require-variable-braces
