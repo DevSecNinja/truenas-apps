@@ -11,6 +11,25 @@ permissions:
   contents: read
 
 jobs:
+  dprint:
+    name: dprint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.17
+
+      - name: Check formatting with dprint
+        run: mise exec -- dprint check
+
   yamlfmt:
     name: yamlfmt
     runs-on: ubuntu-24.04

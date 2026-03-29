@@ -1,4 +1,6 @@
 {
+    "editor.defaultFormatter": "dprint.dprint",
+    "editor.formatOnSave": true,
     "files.autoSave": "onWindowChange",
     "files.associations": {
         "*.json5": "jsonc",

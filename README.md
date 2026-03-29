@@ -30,15 +30,15 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 
 ## 🐳 Apps
 
-| App | Purpose |
-|-----|---------|
-| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html) | DNS filtering and ad blocking with Unbound resolver |
-| [Traefik](https://traefik.io/) | Reverse proxy with automatic SSL via Cloudflare DNS |
-| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID |
-| [Gatus](https://gatus.io/) | Uptime monitoring with alerting and a status page |
-| [Homepage](https://gethomepage.dev/) | Customizable dashboard for home lab services |
-| [Echo Server](https://github.com/mendhak/docker-http-https-echo) | HTTP echo server for testing Traefik routing |
-| [Unifi](https://ui.com/) | Ubiquiti network controller with MongoDB backend |
+| App                                                                          | Purpose                                             |
+| ---------------------------------------------------------------------------- | --------------------------------------------------- |
+| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)            | DNS filtering and ad blocking with Unbound resolver |
+| [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS |
+| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID           |
+| [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page   |
+| [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services        |
+| [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing        |
+| [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend    |
 
 ---
 
@@ -48,7 +48,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 
 Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and backup control:
 
-``` text
+```text
 vm-pool/Apps          # root — holds the git repo
 vm-pool/Apps/src      # parent for all app datasets
 vm-pool/Apps/src/adguard
@@ -145,16 +145,16 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
 
 ## 🙏 Thank You
 
-| Project | Role |
-|---------|------|
-| [Age](https://github.com/FiloSottile/age) | Encryption key provider for SOPS |
-| [DevSecNinja/home](https://github.com/DevSecNinja/home) | My (former) personal home repo — source of many compose configurations built up over the years |
-| [GitHub Copilot](https://github.com/features/copilot) | AI coding assistant (Claude Sonnet & Opus models) — code may be AI-authored but is always reviewed and verified by me |
-| [Home Operations](https://discord.gg/home-operations) | Discord community |
-| [Let's Encrypt](https://letsencrypt.org/) | Free, automated SSL certificates |
-| [LinuxServer.io](https://www.linuxserver.io/) | Docker socket proxy keeping Traefik secure |
-| [loganmarchione/dccd](https://github.com/loganmarchione/dccd) | The CD script this setup is based on |
-| [onedr0p/home-ops](https://github.com/onedr0p/home-ops) | README inspiration & foundation for configs |
-| [SOPS](https://github.com/getsops/sops) | Secret encryption |
-| [Techno Tim](https://technotim.com/posts/truenas-docker-pro/) | The guide this setup is built on |
-| [TrueNAS](https://www.truenas.com/) | The platform powering this home lab |
+| Project                                                       | Role                                                                                                                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| [Age](https://github.com/FiloSottile/age)                     | Encryption key provider for SOPS                                                                                      |
+| [DevSecNinja/home](https://github.com/DevSecNinja/home)       | My (former) personal home repo — source of many compose configurations built up over the years                        |
+| [GitHub Copilot](https://github.com/features/copilot)         | AI coding assistant (Claude Sonnet & Opus models) — code may be AI-authored but is always reviewed and verified by me |
+| [Home Operations](https://discord.gg/home-operations)         | Discord community                                                                                                     |
+| [Let's Encrypt](https://letsencrypt.org/)                     | Free, automated SSL certificates                                                                                      |
+| [LinuxServer.io](https://www.linuxserver.io/)                 | Docker socket proxy keeping Traefik secure                                                                            |
+| [loganmarchione/dccd](https://github.com/loganmarchione/dccd) | The CD script this setup is based on                                                                                  |
+| [onedr0p/home-ops](https://github.com/onedr0p/home-ops)       | README inspiration & foundation for configs                                                                           |
+| [SOPS](https://github.com/getsops/sops)                       | Secret encryption                                                                                                     |
+| [Techno Tim](https://technotim.com/posts/truenas-docker-pro/) | The guide this setup is built on                                                                                      |
+| [TrueNAS](https://www.truenas.com/)                           | The platform powering this home lab                                                                                   |
