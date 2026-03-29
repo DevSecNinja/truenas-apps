@@ -20,6 +20,10 @@ services:
     pids_limit: 100                        # Prevent fork-bomb DoS
     security_opt:
       - no-new-privileges=true             # Block privilege escalation
+    cap_drop:
+      - ALL                                # Drop every capability …
+    # cap_add:                            # … re-add only what is provably needed
+    #   - NET_BIND_SERVICE
     read_only: true                        # Immutable root filesystem
     tmpfs:
       - /tmp                               # Writable scratch space
@@ -39,6 +43,7 @@ services:
 - Images are digest-pinned (`@sha256:...`) — Renovate manages updates via PRs
 - `read_only: true` with `tmpfs` mounts for writable paths
 - `no-new-privileges` on every container, no exceptions
+- `cap_drop: ALL` on every container — this is a hard security requirement. If a container needs a specific capability, declare `cap_add` with only the minimum required capability and add a comment on the container in the compose file explaining why the exception is necessary
 - Memory limits with env-var overrides for per-environment tuning
 - `pids_limit` on every container to prevent fork-bomb DoS
 - Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`
@@ -69,6 +74,10 @@ The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, a
   pids_limit: 50
   security_opt:
     - no-new-privileges=true
+  cap_drop:
+    - ALL
+  cap_add:
+    - CHOWN # Required to chown volume paths to ${PUID}:${PGID}
   read_only: true
   command:
     - "sh"
@@ -79,7 +88,7 @@ The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, a
     - ./data/something:/path/b
 ```
 
-**Why no `cap_drop: ALL` on the init container?** It needs `CAP_CHOWN` (root-level) to change volume ownership. Since it exits immediately after chowning and exposes no network surface, this is acceptable.
+Init containers follow the same `cap_drop: ALL` hard requirement as all other containers. The single re-added capability, `CAP_CHOWN`, is the minimum needed to set volume ownership and is documented with a comment. Since the container exits immediately after chowning and exposes no network surface, this is a contained, minimal exception.
 
 **Exceptions — images that manage their own permissions:**
 
@@ -98,7 +107,7 @@ The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, a
 
 **Exceptions — s6-overlay and root-start containers:**
 
-Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. This applies to:
+Some images cannot use `read_only: true`, `user:`, or `cap_drop: ALL` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. Each such container must include a comment block in the compose file explaining why `cap_drop: ALL`, `user:`, and/or `read_only` are omitted. This applies to:
 
 - **LinuxServer images** (e.g., `unifi-network-application`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit the `user:` directive and `read_only`.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
