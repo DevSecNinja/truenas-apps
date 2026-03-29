@@ -22,6 +22,15 @@
       "matchStrings": [
         "# renovate: datasource=github-releases depName=(?<depName>\\S+)\\n\\s+version: (?<currentValue>[^\\s]+)"
       ],
+      "datasourceTemplate": "github-releases"    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/\\.mise\\.toml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=github-releases depName=(?<depName>\\S+)\\nmin_version = \"(?<currentValue>[^\"]+)\""
+      ],
       "datasourceTemplate": "github-releases"    }
   ]
 }
