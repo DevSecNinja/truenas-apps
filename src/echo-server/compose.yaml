@@ -25,7 +25,7 @@ services:
       - /tmp
     labels:
       # Homepage
-      - homepage.group=Infra
+      - homepage.group=Infrastructure
       - homepage.name=Echo-Server
       - homepage.icon=mdi-test-tube-#ffffff
       - homepage.href=https://echo.$DOMAINNAME
