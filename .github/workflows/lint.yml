@@ -111,7 +111,7 @@ jobs:
         run: mise exec -- zizmor --format sarif . > zizmor.sarif
 
       - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@45775bd8235c68ba998cffa5171334d58593da47 # v3.28.15
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3.35.1
         if: always()
         with:
           sarif_file: zizmor.sarif
