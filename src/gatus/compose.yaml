@@ -91,7 +91,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s # To allow longer upgrade times without marking the service as unhealthy
 
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
