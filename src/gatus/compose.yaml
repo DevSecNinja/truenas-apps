@@ -117,14 +117,14 @@ services:
     volumes:
       - gatus-db-data:/var/lib/postgresql
 
-  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # nfrastack/db-backup uses s6-overlay which must start as root.
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
   # read_only is also not set because s6-overlay needs extensive writable paths.
   # cap_drop: ALL is therefore omitted.
   # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
   # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
   gatus-db-backup:
-    image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    image: nfrastack/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: gatus-db-backup
     depends_on:
       gatus-db:
