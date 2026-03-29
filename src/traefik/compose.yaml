@@ -7,8 +7,9 @@ services:
       traefik-docker-proxy:
         condition: service_healthy
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       # Defined here instead of compose.env because env_file values are not interpolated by Compose,
       # so ${DOMAINNAME} would be passed as a literal string rather than the actual domain.
@@ -90,7 +91,7 @@ services:
     networks:
       - traefik-backend
     env_file:
-      - ../shared/env/tz.env
+      - path: ../shared/env/tz.env
     environment:
       - CONTAINERS=1
     security_opt:

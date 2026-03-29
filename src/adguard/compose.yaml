@@ -6,8 +6,9 @@ services:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: adguard-unbound-init
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     restart: "no"
     network_mode: none
     mem_limit: 64m
@@ -30,8 +31,9 @@ services:
       adguard-unbound-init:
         condition: service_completed_successfully
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     # mvance/unbound starts as root and drops privileges to the _unbound user
     # internally. Setting user: externally would break the startup process.
     # read_only is not set because the startup script generates unbound.conf and
@@ -67,7 +69,8 @@ services:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: adguard-init
     env_file:
-      - .env # Decrypted from secret.sops.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
     restart: "no"
     network_mode: none
     mem_limit: 64m
@@ -92,8 +95,9 @@ services:
       adguard-unbound:
         condition: service_healthy
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     user: "${PUID:-1000}:${PGID:-1000}"
     restart: always
     networks:

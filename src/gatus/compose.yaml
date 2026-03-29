@@ -7,8 +7,9 @@ services:
       gatus-db:
         condition: service_healthy
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       # Database
@@ -58,8 +59,9 @@ services:
       gatus-db-upgrade:
         condition: service_completed_successfully
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       - POSTGRES_DB=gatus
       - POSTGRES_USER=gatus
@@ -91,8 +93,9 @@ services:
     image: pgautoupgrade/pgautoupgrade:17.7-alpine@sha256:091e51fb5347d48aec720b139f3b1ede45d4721310274c688cead29e77845921
     container_name: gatus-db-upgrade
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       - POSTGRES_DB=gatus
       - POSTGRES_USER=gatus
@@ -119,8 +122,9 @@ services:
       gatus-db:
         condition: service_healthy
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       - USER_DBBACKUP=${PUID:-1000}
       - GROUP_DBBACKUP=${PGID:-1000}
