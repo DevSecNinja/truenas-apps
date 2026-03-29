@@ -146,6 +146,8 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
 | Project | Role |
 |---------|------|
 | [Age](https://github.com/FiloSottile/age) | Encryption key provider for SOPS |
+| [DevSecNinja/home](https://github.com/DevSecNinja/home) | My (former) personal home repo — source of many compose configurations built up over the years |
+| [GitHub Copilot](https://github.com/features/copilot) | AI coding assistant (Claude Sonnet & Opus models) — code may be AI-authored but is always reviewed and verified by me |
 | [Home Operations](https://discord.gg/home-operations) | Discord community |
 | [Let's Encrypt](https://letsencrypt.org/) | Free, automated SSL certificates |
 | [LinuxServer.io](https://www.linuxserver.io/) | Docker socket proxy keeping Traefik secure |
