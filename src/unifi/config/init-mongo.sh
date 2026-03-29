@@ -5,10 +5,10 @@
 
 set -e
 
-if command -v mongosh > /dev/null 2>&1; then
-  mongo_init_bin='mongosh'
+if command -v mongosh >/dev/null 2>&1; then
+    mongo_init_bin='mongosh'
 else
-  mongo_init_bin='mongo'
+    mongo_init_bin='mongo'
 fi
 
 "${mongo_init_bin}" <<EOF

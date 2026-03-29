@@ -30,6 +30,35 @@ jobs:
       - name: Check YAML formatting
         run: find . \( -name '*.yaml' -o -name '*.yml' \) -print0 | xargs -0 mise exec -- yamlfmt -lint
 
+  checkov:
+    name: checkov
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run checkov
+        run: mise exec -- checkov -d . --output sarif --output-file-path . || true
+
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: results_sarif.sarif
+          category: checkov
+
   actionlint:
     name: actionlint
     runs-on: ubuntu-24.04
@@ -87,6 +116,73 @@ jobs:
 
       - name: Run shellcheck
         run: find . -name '*.sh' -print0 | xargs -0 mise exec -- shellcheck
+
+  shfmt:
+    name: shfmt
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run shfmt
+        run: find . -name '*.sh' -print0 | xargs -0 mise exec -- shfmt --diff
+
+  trivy:
+    name: trivy
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run trivy
+        run: mise exec -- trivy fs --scanners misconfig,secret --format sarif --output trivy.sarif . || true
+
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run yamllint
+        run: find . \( -name '*.yaml' -o -name '*.yml' \) -print0 | xargs -0 mise exec -- yamllint
 
   zizmor:
     name: zizmor

@@ -5,6 +5,9 @@ parallel = true
 run = "mise exec -- actionlint {staged_files}"
 glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 
+[pre-commit.commands.checkov]
+run = "mise exec -- checkov -d ."
+
 [pre-commit.commands.format-yaml]
 run = "mise exec -- yamlfmt {staged_files}"
 glob = ["**/*.yaml", "**/*.yml"]
@@ -16,6 +19,18 @@ run = "mise exec -- gitleaks protect --staged --redact"
 [pre-commit.commands.shellcheck]
 run = "mise exec -- shellcheck {staged_files}"
 glob = ["**/*.sh"]
+
+[pre-commit.commands.shfmt]
+run = "mise exec -- shfmt --write {staged_files}"
+glob = ["**/*.sh"]
+stage_fixed = true
+
+[pre-commit.commands.trivy]
+run = "mise exec -- trivy fs --scanners misconfig,secret ."
+
+[pre-commit.commands.yamllint]
+run = "mise exec -- yamllint {staged_files}"
+glob = ["**/*.yaml", "**/*.yml"]
 
 [pre-commit.commands.zizmor]
 run = "mise exec -- zizmor {staged_files}"

@@ -1,0 +1,6 @@
+---
+scan:
+  # age.key is a local developer Age private key used for SOPS decryption.
+  # It is gitignored and intentionally never committed.
+  skip-files:
+    - age.key

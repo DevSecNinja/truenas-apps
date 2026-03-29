@@ -1,0 +1,16 @@
+---
+extends: default
+
+rules:
+  # Inline comment spacing varies by author style — not auto-fixable
+  comments: disable
+  # Long lines are unavoidable with image digests, Traefik labels, and URLs — not auto-fixable
+  line-length: disable
+  # Let yamlfmt handle document start markers
+  document-start: disable
+  # Allow 'on:' as a mapping key in GitHub Actions workflows
+  truthy:
+    allowed-values:
+      - "true"
+      - "false"
+    check-keys: false
