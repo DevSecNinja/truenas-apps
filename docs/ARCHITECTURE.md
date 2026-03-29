@@ -109,7 +109,7 @@ Init containers follow the same `cap_drop: ALL` hard requirement as all other co
 
 Some images cannot use `read_only: true`, `user:`, or `cap_drop: ALL` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. Each such container must include a comment block in the compose file explaining why `cap_drop: ALL`, `user:`, and/or `read_only` are omitted. This applies to:
 
-- **LinuxServer images** (e.g., `unifi-network-application`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit the `user:` directive and `read_only`.
+- **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit the `user:` directive and `read_only`.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 
