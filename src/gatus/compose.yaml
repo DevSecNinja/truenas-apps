@@ -83,7 +83,7 @@ services:
       - /tmp
       - /run
     volumes:
-      - gatus-db-data:/var/lib/postgresql/data
+      - gatus-db-data:/var/lib/postgresql
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -106,7 +106,6 @@ services:
       - POSTGRES_DB=gatus
       - POSTGRES_USER=gatus
       - POSTGRES_PASSWORD=${GATUS_DB_PASSWORD}
-      - PGDATA=/var/lib/postgresql/data
       - PGAUTO_ONESHOT=yes
     restart: "no"
     network_mode: none
@@ -116,7 +115,7 @@ services:
     security_opt:
       - no-new-privileges=true
     volumes:
-      - gatus-db-data:/var/lib/postgresql/data
+      - gatus-db-data:/var/lib/postgresql
 
   # tiredofit/db-backup uses s6-overlay which must start as root.
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
