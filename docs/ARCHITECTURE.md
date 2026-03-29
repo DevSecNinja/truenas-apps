@@ -115,6 +115,21 @@ Some images cannot use `read_only: true`, `user:`, or `cap_drop: ALL` because th
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 
+## Config Template Substitution: Envsubst Init Containers
+
+Some services need secrets or environment-specific values (domain names, API keys) injected into their configuration files at deploy time. Since these config files are committed to Git as templates with `${VAR}` placeholders, a separate init container processes them before the main service starts.
+
+**Pattern:** An `<app>-init` container mounts `./config` as `/templates:ro`, runs `envsubst.sh` to replace `${VAR}` placeholders with values from `secret.sops.env`, and writes the processed output to `./data/`. The main container then mounts the processed file from `data/` as `:ro`.
+
+This keeps secrets out of Git (the template only contains placeholder names) while the processed config with real values lives in `data/` which is gitignored.
+
+**Services using this pattern:**
+
+| Service | Init container | Template → Output |
+|---------|---------------|-------------------|
+| adguard (unbound) | `adguard-unbound-init` | `config/unbound/*.conf` → `data/unbound/*.conf` |
+| traefik-forward-auth | `traefik-forward-auth-init` | `config/config.yaml` → `data/config.yaml` |
+
 ## Networking: Per-Service Isolation
 
 Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins each frontend network individually.

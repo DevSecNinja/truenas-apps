@@ -34,6 +34,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 |-----|---------|
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html) | DNS filtering and ad blocking with Unbound resolver |
 | [Traefik](https://traefik.io/) | Reverse proxy with automatic SSL via Cloudflare DNS |
+| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID |
 | [Gatus](https://gatus.io/) | Uptime monitoring with alerting and a status page |
 | [Homepage](https://gethomepage.dev/) | Customizable dashboard for home lab services |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo) | HTTP echo server for testing Traefik routing |
@@ -52,6 +53,7 @@ vm-pool/Apps          # root — holds the git repo
 vm-pool/Apps/src      # parent for all app datasets
 vm-pool/Apps/src/adguard
 vm-pool/Apps/src/traefik
+vm-pool/Apps/src/traefik-forward-auth
 vm-pool/Apps/src/gatus
 vm-pool/Apps/src/homepage
 vm-pool/Apps/src/echo-server

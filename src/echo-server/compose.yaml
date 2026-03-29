@@ -36,7 +36,7 @@ services:
       ## HTTP Routers
       - "traefik.http.routers.echo-server-rtr.rule=Host(`echo.${DOMAINNAME}`)"
       ## Middlewares
-      - "traefik.http.routers.echo-server-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.echo-server-rtr.middlewares=chain-auth@file"
       ## HTTP Services
       - "traefik.http.routers.echo-server-rtr.service=echo-server"
       ### Enable the server port

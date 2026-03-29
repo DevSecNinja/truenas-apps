@@ -1,0 +1,36 @@
+---
+# Example: https://github.com/ItalyPaleAle/traefik-forward-auth/blob/main/config.sample.yaml
+# NOTE: This file is a template. The traefik-forward-auth-init container runs
+# envsubst.sh to replace ${VAR} placeholders with values from secret.sops.env.
+# The processed output is written to data/config.yaml (not committed to git).
+
+server:
+  # External hostname Traefik will use
+  hostname: "auth.${DOMAINNAME}"
+
+cookies:
+  # Use the main domain so sub-domains share the cookie
+  domain: "${DOMAINNAME}"
+  # Match your custom cookie name
+  namePrefix: "_forward_auth_home"
+
+tokens:
+  # Keep users signed in for 12 hours instead of the 2-hour default
+  sessionLifetime: "12h"
+  # Key used to sign session tokens
+  signingKey: "${TRAEFIK_FORWARD_AUTH_SECRET}"
+
+logs:
+  level: "info"
+  omitHealthChecks: true
+
+portals:
+  - name: "main"
+    providers:
+      - microsoftEntraID:
+          tenantID: "${AZURE_TENANT_ID}"
+          clientID: "${AZURE_CLIENT_ID}"
+          clientSecret: "${AZURE_CLIENT_SECRET}"
+
+# Since we only use one portal, we can set it as the default
+defaultPortal: "main"

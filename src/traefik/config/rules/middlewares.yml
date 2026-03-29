@@ -34,3 +34,10 @@ http:
           server: ""
           Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
             'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+    middlewares-forward-auth:
+      forwardAuth:
+        address: "http://traefik-forward-auth:4181/api/verify"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-Forwarded-User"
+          - "X-Forwarded-DisplayName"

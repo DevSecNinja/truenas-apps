@@ -169,6 +169,14 @@ endpoints:
     <<: *defaults
     url: "https://apps.${DOMAINNAME}"
 
+  - name: Traefik Forward Auth - HTTP
+    <<: *defaults
+    url: "https://auth.${DOMAINNAME}/healthz"
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
   # - name: Hoppscotch - HTTP
   #   <<: *defaults
   #   url: "https://api-tester.${DOMAINNAME}"
