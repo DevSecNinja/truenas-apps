@@ -91,6 +91,7 @@ The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, a
 | Service | Init container | Volumes chown'd |
 |---------|---------------|-----------------|
 | adguard | `adguard-init` | `adguard-data`, `./data/conf` |
+| homepage | `homepage-init` | `./config` |
 | traefik | `traefik-init` | `traefik-acme` |
 
 ---
@@ -153,3 +154,12 @@ src/<service>/
 ## Secret Management
 
 Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https://github.com/FiloSottile/age) and stored in git as `secret.sops.env`. The CD script decrypts them to `.env` at deploy time using an Age key stored on the TrueNAS host.
+
+## Shared Environment Files
+
+Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
+
+| File | Purpose | When to include |
+|------|---------|-----------------|
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container |
+| `pgid-puid-media.env` | Sets `PUID=568` / `PGID=568` | **Only** containers that need read/write access to TrueNAS media content (e.g., media servers, download clients). This UID/GID matches the TrueNAS built-in `apps` user that owns media datasets. Do not include it for infrastructure services (reverse proxy, monitoring, DNS, etc.) — those get their PUID/PGID from `secret.sops.env` instead. |
