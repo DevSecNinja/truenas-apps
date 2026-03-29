@@ -10,7 +10,7 @@
       "groupName": "mise"
     },
     {
-      "matchDepNames": ["pgautoupgrade/pgautoupgrade", "postgres"],
+      "matchDepNames": ["pgautoupgrade/pgautoupgrade", "postgres", "docker.io/library/postgres"],
       "groupName": "postgres"
     }
   ],
