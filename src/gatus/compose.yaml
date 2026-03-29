@@ -133,6 +133,8 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
     environment:
       - USER_DBBACKUP=${PUID:-1000}
       - GROUP_DBBACKUP=${PGID:-1000}
