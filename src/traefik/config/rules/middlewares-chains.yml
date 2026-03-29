@@ -6,3 +6,9 @@ http:
         middlewares:
           - "middlewares-rate-limit"
           - "middlewares-secure-headers"
+    chain-auth:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-secure-headers"
+          - "middlewares-forward-auth"

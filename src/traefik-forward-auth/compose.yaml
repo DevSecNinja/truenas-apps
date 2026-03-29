@@ -1,0 +1,77 @@
+---
+services:
+  # Substitutes ${VAR} placeholders in config.yaml with actual values from
+  # secret.sops.env. Runs once, writes processed config to data/, then exits.
+  traefik-forward-auth-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: traefik-forward-auth-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE # Required to overwrite existing output files regardless of their permissions
+    read_only: true
+    command:
+      - "/templates/envsubst.sh"
+    volumes:
+      - ./config:/templates:ro
+      - ./data:/output
+
+  traefik-forward-auth:
+    image: ghcr.io/italypaleale/traefik-forward-auth:4.6.1@sha256:dfbce2959ea91ad6855918bf6b41417b6f5b512b23d4bd67f78cc0a62d23f375
+    container_name: traefik-forward-auth
+    depends_on:
+      traefik-forward-auth-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "${PUID:-1000}:${PGID:-1000}"
+    restart: always
+    networks:
+      - traefik-forward-auth-frontend
+    mem_limit: ${MEM_LIMIT:-200m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/config.yaml:/etc/traefik-forward-auth/config.yaml:ro
+    # No custom healthcheck — the image has a built-in HEALTHCHECK directive.
+    # The /healthz endpoint is monitored externally by Gatus.
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Traefik Forward Auth
+      - homepage.icon=traefik.svg
+      - homepage.href=https://auth.${DOMAINNAME}
+      - homepage.description=Authentication Service
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-forward-auth-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.traefik-forward-auth-rtr.rule=Host(`auth.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.traefik-forward-auth-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.traefik-forward-auth-rtr.service=traefik-forward-auth"
+      - "traefik.http.services.traefik-forward-auth.loadbalancer.server.port=4181"
+
+networks:
+  traefik-forward-auth-frontend:
+    name: traefik-forward-auth-frontend
+    driver: bridge

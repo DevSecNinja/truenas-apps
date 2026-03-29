@@ -55,6 +55,7 @@ services:
       - echo-server-frontend
       - gatus-frontend
       - homepage-frontend
+      - traefik-forward-auth-frontend
       - unifi-frontend
     security_opt:
       - no-new-privileges=true
@@ -163,6 +164,9 @@ networks:
     external: true
   homepage-frontend:
     name: homepage-frontend
+    external: true
+  traefik-forward-auth-frontend:
+    name: traefik-forward-auth-frontend
     external: true
   unifi-frontend:
     name: unifi-frontend
