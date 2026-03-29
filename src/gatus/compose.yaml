@@ -88,7 +88,7 @@ services:
       start_period: 10s
 
   gatus-db-upgrade:
-    image: pgautoupgrade/pgautoupgrade:17.7-alpine@sha256:091e51fb5347d48aec720b139f3b1ede45d4721310274c688cead29e77845921
+    image: pgautoupgrade/pgautoupgrade:17.9-alpine@sha256:42ebd4dc6110174e213c5bf1717a370aa17f46e4d2e04a84222c6250e6c1635d
     container_name: gatus-db-upgrade
     env_file:
       - .env # Decrypted from secret.sops.env
