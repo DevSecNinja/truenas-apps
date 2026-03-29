@@ -2,10 +2,10 @@
 parallel = true
 
 [pre-commit.commands.format-yaml]
-run = "yamlfmt {staged_files}"
+run = "mise exec -- yamlfmt {staged_files}"
 glob = ["**/*.yaml", "**/*.yml"]
 stage_fixed = true
 
 [pre-commit.commands.shellcheck]
-run = "shellcheck {staged_files}"
+run = "mise exec -- shellcheck {staged_files}"
 glob = ["**/*.sh"]

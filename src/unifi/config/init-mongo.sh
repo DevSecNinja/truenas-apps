@@ -5,7 +5,7 @@
 
 set -e
 
-if which mongosh > /dev/null 2>&1; then
+if command -v mongosh > /dev/null 2>&1; then
   mongo_init_bin='mongosh'
 else
   mongo_init_bin='mongo'

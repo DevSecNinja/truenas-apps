@@ -9,6 +9,7 @@ set -eu
 
 for f in a-records.conf forward-records.conf; do
   cp "/templates/${f}" "/output/${f}"
+  # shellcheck disable=SC2312  # grep/sort exit codes are intentionally unmasked; empty output is handled
   grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/templates/${f}" | sort -u | while read -r pattern; do
     name="${pattern#\$\{}"
     name="${name%\}}"
