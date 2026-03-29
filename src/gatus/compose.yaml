@@ -53,7 +53,7 @@ services:
       - "traefik.http.services.gatus.loadbalancer.server.port=8080"
 
   gatus-db:
-    image: docker.io/library/postgres:17.8-alpine@sha256:3430fe182f5065a6ea505c3d432d2c7fff18fbab954df8f277c1dbf4c70124af
+    image: docker.io/library/postgres:17.9-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
     container_name: gatus-db
     depends_on:
       gatus-db-upgrade:
@@ -90,7 +90,7 @@ services:
       start_period: 10s
 
   gatus-db-upgrade:
-    image: pgautoupgrade/pgautoupgrade:17.7-alpine@sha256:091e51fb5347d48aec720b139f3b1ede45d4721310274c688cead29e77845921
+    image: pgautoupgrade/pgautoupgrade:17.9-alpine@sha256:42ebd4dc6110174e213c5bf1717a370aa17f46e4d2e04a84222c6250e6c1635d
     container_name: gatus-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env
