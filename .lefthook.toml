@@ -35,3 +35,7 @@ glob = ["**/*.yaml", "**/*.yml"]
 [pre-commit.commands.zizmor]
 run = "mise exec -- zizmor {staged_files}"
 glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+
+[pre-commit.commands.docker-compose-config]
+run = "for f in {staged_files}; do mise exec -- docker-compose -f \"$f\" config --quiet; done"
+glob = ["src/**/compose.yaml", "src/**/compose.yml", "src/**/docker-compose.yaml", "src/**/docker-compose.yml"]

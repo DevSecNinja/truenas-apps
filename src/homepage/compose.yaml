@@ -4,8 +4,9 @@ services:
     image: ghcr.io/gethomepage/homepage:v1.12.1@sha256:9627769818fbfb14147d3e633e57cef9c27c0c5f07585f5a1d6c3d3425b3b33c
     container_name: homepage
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     depends_on:
       homepage-docker-proxy:
         condition: service_healthy
@@ -54,7 +55,7 @@ services:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: homepage-docker-proxy
     env_file:
-      - ../shared/env/tz.env
+      - path: ../shared/env/tz.env
     environment:
       - CONTAINERS=1 # Allow access to viewing containers
       - POST=0 # Disallow any POST operations (effectively read-only)

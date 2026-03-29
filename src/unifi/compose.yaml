@@ -8,8 +8,9 @@ services:
     image: mongo:8.2.6@sha256:d343c378b5c6e2fe373174abcf4a877be0dfc721b5d0b9d582204dccb1c00b86
     container_name: unifi-db
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=${UNIFI_MONGO_ROOT_PASS}
@@ -53,8 +54,9 @@ services:
       unifi-db:
         condition: service_healthy
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       - USER_DBBACKUP=${PUID:-1000}
       - GROUP_DBBACKUP=${PGID:-1000}
@@ -112,8 +114,9 @@ services:
       unifi-db:
         condition: service_healthy
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}

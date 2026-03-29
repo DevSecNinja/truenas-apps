@@ -4,8 +4,9 @@ services:
     image: mendhak/http-https-echo:40@sha256:d072446da821a767d05dc19fa5ab6a27b1150bfb5c6ecfaecf3a2e5f9812794c
     container_name: echo-server
     env_file:
-      - .env # Decrypted from secret.sops.env
-      - ../shared/env/tz.env
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       - HTTP_PORT=${HTTP_PORT:-80}
