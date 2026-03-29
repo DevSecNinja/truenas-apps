@@ -44,6 +44,57 @@ services:
 - Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`
 - Volumes mounted `:ro` wherever the container only reads
 
+## Volume Permissions: Init Container Pattern
+
+Named Docker volumes and bind-mounted directories are created as `root:root` by Docker. A container with `user: "${PUID}:${PGID}"` and `cap_drop: ALL` has no `CAP_CHOWN` and cannot fix this at runtime — it will fail to write on first deploy.
+
+**Rule:** Any service with both of the following requires a `<app>-init` container:
+
+1. `user: "${PUID}:${PGID}"` (explicit non-root)
+2. At least one writable volume (named volume or bind mount)
+
+The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
+
+```yaml
+# Pattern — copy this block, adjust container_name, command paths, and volumes
+<app>-init:
+  image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+  container_name: <app>-init
+  env_file:
+    - path: .env          # Provides PUID/PGID
+      required: false
+  restart: "no"
+  network_mode: none
+  mem_limit: 64m
+  pids_limit: 50
+  security_opt:
+    - no-new-privileges=true
+  read_only: true
+  command:
+    - "sh"
+    - "-c"
+    - "chown -R ${PUID:-1000}:${PGID:-1000} /path/a /path/b"
+  volumes:
+    - <app>-volume:/path/a
+    - ./data/something:/path/b
+```
+
+**Why no `cap_drop: ALL` on the init container?** It needs `CAP_CHOWN` (root-level) to change volume ownership. Since it exits immediately after chowning and exposes no network surface, this is acceptable.
+
+**Exceptions — images that manage their own permissions:**
+
+- **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and chown their own directories during their own init phase. They do not need an external init container.
+- **Database images** (postgres, MongoDB) initialise their own data directories. They do not need an external init container.
+
+**Services using this pattern:**
+
+| Service | Init container | Volumes chown'd |
+|---------|---------------|-----------------|
+| adguard | `adguard-init` | `adguard-data`, `./data/conf` |
+| traefik | `traefik-init` | `traefik-acme` |
+
+---
+
 **Exceptions — s6-overlay and root-start containers:**
 
 Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. This applies to:

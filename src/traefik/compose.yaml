@@ -1,9 +1,35 @@
 ---
 services:
+  # Sets ownership on the traefik-acme volume so the non-root traefik container
+  # can write acme.json to it. Runs once, then exits.
+  # Required because traefik runs as ${PUID}:${PGID} with cap_drop: ALL, meaning
+  # it has no CAP_CHOWN and cannot fix volume ownership itself at runtime.
+  traefik-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: traefik-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -R ${PUID:-1000}:${PGID:-1000} /acme && chmod 700 /acme && touch /acme/acme.json && chmod 600 /acme/acme.json"
+    volumes:
+      - traefik-acme:/acme
+
   traefik:
     image: traefik:v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
     container_name: traefik
     depends_on:
+      traefik-init:
+        condition: service_completed_successfully
       traefik-docker-proxy:
         condition: service_healthy
     env_file:
