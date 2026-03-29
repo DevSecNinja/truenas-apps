@@ -57,7 +57,7 @@ services:
   # Postgres starts as root and uses gosu to switch to the postgres user during
   # startup. cap_drop: ALL would break that privilege transition.
   gatus-db:
-    image: docker.io/library/postgres:17.9-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+    image: docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911
     container_name: gatus-db
     depends_on:
       gatus-db-upgrade:
@@ -96,7 +96,7 @@ services:
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
   gatus-db-upgrade:
-    image: pgautoupgrade/pgautoupgrade:17.9-alpine@sha256:42ebd4dc6110174e213c5bf1717a370aa17f46e4d2e04a84222c6250e6c1635d
+    image: pgautoupgrade/pgautoupgrade:18.3-alpine@sha256:fadc9788ee25f7acc040bbf485a880ce7ca9021575bd6e45b0ca4cf7edb50d5b
     container_name: gatus-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env
