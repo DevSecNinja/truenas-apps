@@ -1,5 +1,29 @@
 ---
 services:
+  # Sets ownership on ./config so the non-root homepage container can write to it.
+  # Runs once, then exits.
+  # Required because homepage's entrypoint only chowns when starting as root, so by
+  # pre-chowning here we can start homepage directly as ${PUID}:${PGID} without root.
+  homepage-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: homepage-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -R ${PUID:-1000}:${PGID:-1000} /config"
+    volumes:
+      - ./config:/config
+
   homepage:
     image: ghcr.io/gethomepage/homepage:v1.12.1@sha256:9627769818fbfb14147d3e633e57cef9c27c0c5f07585f5a1d6c3d3425b3b33c
     container_name: homepage
@@ -8,10 +32,13 @@ services:
         required: false
       - path: ../shared/env/tz.env
     depends_on:
+      homepage-init:
+        condition: service_completed_successfully
       homepage-docker-proxy:
         condition: service_healthy
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAINNAME}
+    user: "${PUID:-1000}:${PGID:-1000}"
     restart: always
     networks:
       - homepage-frontend
@@ -20,6 +47,8 @@ services:
     pids_limit: 100
     security_opt:
       - no-new-privileges=true
+    cap_drop:
+      - ALL
     read_only: true
     tmpfs:
       - /tmp
