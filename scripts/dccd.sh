@@ -10,22 +10,22 @@ set -euo pipefail
 ########################################
 # Default configuration values
 ########################################
-BASE_DIR=""                    # Initialize empty variable
-PRUNE=0                        # Default prune setting
-GRACEFUL=0                     # Default graceful setting
-TMPRESTART="/tmp/dccd.restart" # Default log file for graceful setting
-REMOTE_BRANCH="main"           # Default remote branch name
-COMPOSE_OPTS=""                # Additional options for docker compose
-EXCLUDE=""                     # Exclude pattern for directories
-TRUENAS=0                      # TrueNAS Scale mode
+BASE_DIR=""                                   # Initialize empty variable
+PRUNE=0                                       # Default prune setting
+GRACEFUL=0                                    # Default graceful setting
+TMPRESTART="/tmp/dccd.restart"                # Default log file for graceful setting
+REMOTE_BRANCH="main"                          # Default remote branch name
+COMPOSE_OPTS=""                               # Additional options for docker compose
+EXCLUDE=""                                    # Exclude pattern for directories
+TRUENAS=0                                     # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
-FORCE=0                        # Force redeploy, skip hash check
-WAIT_TIMEOUT=60                # Timeout in seconds for --wait (0 = no timeout)
+FORCE=0                                       # Force redeploy, skip hash check
+WAIT_TIMEOUT=60                               # Timeout in seconds for --wait (0 = no timeout)
 # renovate: datasource=github-releases depName=getsops/sops
-SOPS_VERSION="v3.12.2"         # SOPS version for secret decryption
-SOPS_INSTALL_DIR=""            # Directory to install SOPS binary (default: <BASE_DIR>/bin)
-SOPS_AGE_KEY_FILE=""           # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
-SOPS_BIN=""                    # Path to SOPS binary (set by ensure_sops)
+SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
+SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
+SOPS_AGE_KEY_FILE=""   # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
+SOPS_BIN=""            # Path to SOPS binary (set by ensure_sops)
 
 ########################################
 # Functions
@@ -58,12 +58,12 @@ ensure_sops() {
     local arch
     arch=$(uname -m)
     case "${arch}" in
-        x86_64)  arch="amd64" ;;
-        aarch64) arch="arm64" ;;
-        *)
-            log_message "ERROR: Unsupported architecture: ${arch}"
-            exit 1
-            ;;
+    x86_64) arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+    *)
+        log_message "ERROR: Unsupported architecture: ${arch}"
+        exit 1
+        ;;
     esac
 
     local binary_name="sops-${SOPS_VERSION}.linux.${arch}"
@@ -155,14 +155,14 @@ decrypt_sops_files() {
         local secret_env="${dir}/.env"
 
         log_message "STATE: Decrypting $(basename "${dir}")/$(basename "${sops_file}")"
-        if "${SOPS_BIN}" -d "${sops_file}" > "${secret_env}"; then
+        if "${SOPS_BIN}" -d "${sops_file}" >"${secret_env}"; then
             chmod 600 "${secret_env}"
             count=$((count + 1))
         else
             log_message "ERROR: Failed to decrypt ${sops_file}"
             exit 1
         fi
-    done <<< "${sops_files}"
+    done <<<"${sops_files}"
 
     log_message "INFO:  Decrypted ${count} secret file(s)"
 }
@@ -173,11 +173,11 @@ get_project_image_info() {
     local project_name="$1"
     ${SUDO} docker ps -q \
         --filter "label=com.docker.compose.project=${project_name}" \
-        2>/dev/null \
-    | xargs -r "${SUDO}" docker inspect \
-        --format '{{index .Config.Labels "com.docker.compose.service"}}={{.Config.Image}}' \
-        2>/dev/null \
-    | sort
+        2>/dev/null |
+        xargs -r "${SUDO}" docker inspect \
+            --format '{{index .Config.Labels "com.docker.compose.service"}}={{.Config.Image}}' \
+            2>/dev/null |
+        sort
 }
 
 # Log image changes between two snapshots captured by get_project_image_info
@@ -199,7 +199,7 @@ log_image_changes() {
             local svc="${line%%=*}"
             local img="${line#*=}"
             log_message "RESULT:   ${svc}: ${img}"
-        done <<< "${after}"
+        done <<<"${after}"
         log_message "${sep}"
         return
     fi
@@ -226,7 +226,7 @@ log_image_changes() {
             log_message "RESULT:     from: ${before_img}"
             log_message "RESULT:     to:   ${after_img}"
         fi
-    done <<< "${after}"
+    done <<<"${after}"
     log_message "${sep}"
 }
 
@@ -399,7 +399,7 @@ update_compose_files() {
                 }
 
                 if [ "${GRACEFUL}" -eq 1 ]; then
-                    run_compose_command -f "${file}" up -d --dry-run &> "${TMPRESTART}"
+                    run_compose_command -f "${file}" up -d --dry-run &>"${TMPRESTART}"
                     if grep -q "Recreate" "${TMPRESTART}"; then
                         log_message "GRACEFUL: Redeploying compose file for ${file}"
                         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
@@ -471,7 +471,7 @@ update_compose_files() {
 }
 
 usage() {
-    cat << EOF
+    cat <<EOF
 
     Usage: $0 [OPTIONS]
 
