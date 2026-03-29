@@ -12,7 +12,7 @@ for f in a-records.conf forward-records.conf; do
   grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/templates/${f}" | sort -u | while read -r pattern; do
     name="${pattern#\$\{}"
     name="${name%\}}"
-    val=$(printenv "$name" 2>/dev/null) || continue
+    val=$(printenv "${name}" 2>/dev/null) || continue
     sed -i "s|${pattern}|${val}|g" "/output/${f}"
   done
 done
