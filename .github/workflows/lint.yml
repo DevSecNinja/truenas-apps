@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Install mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
@@ -26,7 +28,46 @@ jobs:
           version: 2026.3.10
 
       - name: Check YAML formatting
-        run: find . -name '*.yaml' -o -name '*.yml' | xargs mise exec -- yamlfmt -lint
+        run: find . \( -name '*.yaml' -o -name '*.yml' \) -print0 | xargs -0 mise exec -- yamlfmt -lint
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run actionlint
+        run: mise exec -- actionlint
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run gitleaks
+        run: mise exec -- gitleaks detect --redact
 
   shellcheck:
     name: shellcheck
@@ -34,6 +75,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Install mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
@@ -43,4 +86,33 @@ jobs:
           version: 2026.3.10
 
       - name: Run shellcheck
-        run: find . -name '*.sh' | xargs mise exec -- shellcheck
+        run: find . -name '*.sh' -print0 | xargs -0 mise exec -- shellcheck
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.3.10
+
+      - name: Run zizmor
+        run: mise exec -- zizmor --format sarif . > zizmor.sarif
+
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@45775bd8235c68ba998cffa5171334d58593da47 # v3.28.15
+        if: always()
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
