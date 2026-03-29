@@ -139,9 +139,6 @@ services:
       - homepage.icon=adguard-home.svg
       - homepage.href=https://adguard.${DOMAINNAME}
       - homepage.description=DNS Service
-      ## Widget
-      - homepage.widget.type=adguard
-      - homepage.widget.url=https://adguard.${DOMAINNAME}
       # Traefik
       - "traefik.enable=true"
       - "traefik.docker.network=adguard-frontend"
