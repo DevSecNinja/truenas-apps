@@ -25,7 +25,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Check YAML formatting
         run: find . \( -name '*.yaml' -o -name '*.yml' \) -print0 | xargs -0 mise exec -- yamlfmt -lint
@@ -47,7 +47,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run checkov
         run: mise exec -- checkov -d . --output sarif --output-file-path . || true
@@ -73,7 +73,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run actionlint
         run: mise exec -- actionlint
@@ -93,7 +93,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run gitleaks
         run: mise exec -- gitleaks detect --redact
@@ -112,7 +112,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run shellcheck
         run: find . -name '*.sh' -print0 | xargs -0 mise exec -- shellcheck
@@ -131,7 +131,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run shfmt
         run: find . -name '*.sh' -print0 | xargs -0 mise exec -- shfmt --diff
@@ -153,7 +153,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run trivy
         run: mise exec -- trivy fs --scanners misconfig,secret --format sarif --output trivy.sarif . || true
@@ -179,7 +179,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run yamllint
         run: find . \( -name '*.yaml' -o -name '*.yml' \) -print0 | xargs -0 mise exec -- yamllint
@@ -201,7 +201,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.3.10
+          version: 2026.3.17
 
       - name: Run zizmor
         run: mise exec -- zizmor --format sarif . > zizmor.sarif
