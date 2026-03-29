@@ -53,7 +53,7 @@ services:
       - "traefik.http.services.gatus.loadbalancer.server.port=8080"
 
   gatus-db:
-    image: docker.io/library/postgres:17.8-alpine@sha256:3430fe182f5065a6ea505c3d432d2c7fff18fbab954df8f277c1dbf4c70124af
+    image: docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911
     container_name: gatus-db
     depends_on:
       gatus-db-upgrade:
