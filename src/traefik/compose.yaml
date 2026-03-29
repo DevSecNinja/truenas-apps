@@ -88,7 +88,7 @@ services:
     pids_limit: 100
     labels:
       # Homepage
-      - homepage.group=Infra
+      - homepage.group=Infrastructure
       - homepage.name=Traefik
       - homepage.icon=traefik.svg
       - homepage.href=https://traefik.$DOMAINNAME
