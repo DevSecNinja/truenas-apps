@@ -1,0 +1,7 @@
+default: true  # Start with all default rules
+
+MD013: false  # Allow long lines in Markdown files
+
+MD033: false  # Allow inline HTML (e.g., <div>, <br>) inside Markdown files
+
+MD041: false  # Allow first line to be a top-level header (e.g., # Title)
