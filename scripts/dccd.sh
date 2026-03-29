@@ -40,6 +40,7 @@ log_message() {
 }
 
 # Use sudo only when not already running as root
+# shellcheck disable=SC2312  # id -u always succeeds
 if [ "$(id -u)" -eq 0 ]; then
     SUDO=""
 else
@@ -277,6 +278,7 @@ redeploy_truenas_apps() {
 
         # Capture image state before pulling so we can report what changed
         local img_before
+        # shellcheck disable=SC2310  # || true is intentional; function may fail when no containers exist
         img_before=$(get_project_image_info "${project_name}") || true
 
         # Pull images
@@ -300,6 +302,7 @@ redeploy_truenas_apps() {
 
         # Report which images changed (or not)
         local img_after
+        # shellcheck disable=SC2310  # || true is intentional; function may fail when no containers exist
         img_after=$(get_project_image_info "${project_name}") || true
         log_image_changes "${app_name}" "${img_before}" "${img_after}"
     done
@@ -390,6 +393,7 @@ update_compose_files() {
                     run_compose_command -f "${file}" up -d --dry-run &> "${TMPRESTART}"
                     if grep -q "Recreate" "${TMPRESTART}"; then
                         log_message "GRACEFUL: Redeploying compose file for ${file}"
+                        # shellcheck disable=SC2310  # failure is handled by the surrounding if block
                         if ! run_compose_command -f "${file}" up -d --quiet-pull; then
                             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                         fi
@@ -398,6 +402,7 @@ update_compose_files() {
                     fi
                 else
                     log_message "STATE: Redeploying compose file for ${file}"
+                    # shellcheck disable=SC2310  # failure is handled by the surrounding if block
                     if ! run_compose_command -f "${file}" up -d --quiet-pull; then
                         log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                     fi
@@ -408,6 +413,7 @@ update_compose_files() {
             # attaches to networks created by other projects.
             local -a traefik_files=()
             local -a other_files=()
+            # shellcheck disable=SC2312  # find/sort exit codes in process substitution are non-fatal
             while IFS= read -r file; do
                 if [[ "${file}" == */traefik/* ]]; then
                     traefik_files+=("${file}")
@@ -456,7 +462,8 @@ update_compose_files() {
 }
 
 usage() {
-    printf "
+    cat << EOF
+
     Usage: $0 [OPTIONS]
 
     Options:
@@ -476,7 +483,7 @@ usage() {
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
 
-"
+EOF
     exit 1
 }
 
@@ -528,6 +535,9 @@ while getopts ":b:d:fgk:ho:ps:tw:x:" opt; do
         ;;
     :)
         echo "Option -${OPTARG} requires an argument." >&2
+        usage
+        ;;
+    *)
         usage
         ;;
     esac
