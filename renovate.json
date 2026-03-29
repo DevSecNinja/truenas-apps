@@ -8,6 +8,10 @@
     {
       "matchDepNames": ["jdx/mise"],
       "groupName": "mise"
+    },
+    {
+      "matchDepNames": ["pgautoupgrade/pgautoupgrade", "postgres"],
+      "groupName": "postgres"
     }
   ],
   "customManagers": [
