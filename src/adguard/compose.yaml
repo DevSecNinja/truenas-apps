@@ -15,7 +15,8 @@ services:
     security_opt:
       - no-new-privileges=true
     read_only: true
-    command: ["/templates/envsubst.sh"]
+    command:
+      - "/templates/envsubst.sh"
     volumes:
       - ./config/unbound:/templates:ro
       - ./data/unbound:/output
@@ -50,7 +51,11 @@ services:
     healthcheck:
       # Resolves the canary record from a-records.conf — proves unbound is running,
       # the config was loaded, and envsubst substituted ${DOMAINNAME} correctly.
-      test: ["CMD", "drill", "@127.0.0.1", "healthcheck.${DOMAINNAME}"]
+      test:
+        - "CMD"
+        - "drill"
+        - "@127.0.0.1"
+        - "healthcheck.${DOMAINNAME}"
       interval: 15s
       timeout: 5s
       retries: 3
@@ -70,7 +75,10 @@ services:
     security_opt:
       - no-new-privileges=true
     read_only: true
-    command: ["sh", "-c", "chown -R ${PUID:-1000}:${PGID:-1000} /opt/adguardhome/work /opt/adguardhome/conf"]
+    command:
+      - "sh"
+      - "-c"
+      - "chown -R ${PUID:-1000}:${PGID:-1000} /opt/adguardhome/work /opt/adguardhome/conf"
     volumes:
       - adguard-data:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
@@ -110,7 +118,12 @@ services:
       - adguard-data:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:80"
       interval: 15s
       timeout: 5s
       retries: 3

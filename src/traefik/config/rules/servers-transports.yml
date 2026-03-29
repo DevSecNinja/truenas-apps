@@ -1,3 +1,4 @@
+---
 http:
   serversTransports:
     # Used by backends that serve HTTPS with self-signed certificates (e.g., Unifi)

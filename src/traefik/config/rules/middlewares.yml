@@ -1,3 +1,4 @@
+---
 http:
   middlewares:
     middlewares-rate-limit:
