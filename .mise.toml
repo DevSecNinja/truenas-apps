@@ -2,7 +2,10 @@
 min_version = "2026.3.10"
 
 [tools]
+actionlint = "1.7.11"
+gitleaks = "8.30.1"
 lefthook = "2.1.4"
 shellcheck = "0.11.0"
 sops = "3.12.2"
 yamlfmt = "0.21.0"
+zizmor = "1.23.1"
