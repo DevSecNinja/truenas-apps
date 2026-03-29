@@ -17,7 +17,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/.github/workflows/\\.+\\.ya?ml$/"
+        "/.github/workflows/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=github-releases depName=(?<depName>\\S+)\\n\\s+version: (?<currentValue>[^\\s]+)"
