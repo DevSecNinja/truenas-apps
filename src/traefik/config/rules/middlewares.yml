@@ -36,8 +36,9 @@ http:
             'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
     middlewares-forward-auth:
       forwardAuth:
-        address: "http://traefik-forward-auth:4181/api/verify"
+        address: "http://traefik-forward-auth:4181"
         trustForwardHeader: true
+        maxResponseBodySize: 1048576 # 1 MiB — prevents DoS via unbounded response
         authResponseHeaders:
           - "X-Forwarded-User"
           - "X-Forwarded-DisplayName"
