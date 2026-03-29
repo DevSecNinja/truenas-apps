@@ -17,6 +17,8 @@ services:
       - no-new-privileges=true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE # Required to overwrite existing output files regardless of their permissions
     read_only: true
     command:
       - "/templates/envsubst.sh"
@@ -40,6 +42,7 @@ services:
     # internally. Setting user: externally would break the startup process.
     # read_only is not set because the startup script generates unbound.conf and
     # creates dev/ and var/ directories inside /opt/unbound/etc/unbound/.
+    # cap_drop: ALL is therefore omitted.
     restart: always
     networks:
       - adguard-backend
@@ -82,7 +85,8 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN
+      - CHOWN # Required to change file ownership
+      - DAC_OVERRIDE # Required to traverse directories previously chowned to ${PUID}:${PGID}
     read_only: true
     command:
       - "sh"
