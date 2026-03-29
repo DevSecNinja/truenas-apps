@@ -32,7 +32,12 @@ services:
       - unifi-db-data:/data/db
       - ./config/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        - "CMD"
+        - "mongosh"
+        - "--quiet"
+        - "--eval"
+        - "db.adminCommand('ping')"
       interval: 30s
       timeout: 10s
       retries: 3
@@ -131,11 +136,11 @@ services:
       - unifi-data:/config
       - ./backups/autobackup:/config/data/backup
     ports:
-      - 3478:3478/udp    # STUN
-      - 10001:10001/udp  # Device discovery
-      - 8080:8080/tcp    # Device ↔ controller communication
-      - 6789:6789/tcp    # Mobile speed test
-      - 2221:22/tcp      # SSH
+      - 3478:3478/udp # STUN
+      - 10001:10001/udp # Device discovery
+      - 8080:8080/tcp # Device ↔ controller communication
+      - 6789:6789/tcp # Mobile speed test
+      - 2221:22/tcp # SSH
     labels:
       # Homepage
       - homepage.group=Infrastructure

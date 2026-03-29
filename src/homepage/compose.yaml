@@ -25,7 +25,12 @@ services:
     volumes:
       - ./config:/app/config
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:3000"
       interval: 15s
       timeout: 5s
       retries: 3
@@ -66,7 +71,12 @@ services:
     tmpfs:
       - /run
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2375/_ping"]
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:2375/_ping"
       interval: 5s
       timeout: 5s
       retries: 3

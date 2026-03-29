@@ -1,3 +1,4 @@
+---
 storage:
   type: ${DB_ENGINE}
   path: "${DB_ENGINE}://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}?sslmode=disable"

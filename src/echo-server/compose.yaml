@@ -39,7 +39,12 @@ services:
       ### Enable the server port
       - "traefik.http.services.echo-server.loadbalancer.server.port=${HTTP_PORT:-80}"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${HTTP_PORT:-80}"]
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:${HTTP_PORT:-80}"
       interval: 15s
       timeout: 5s
       retries: 3
