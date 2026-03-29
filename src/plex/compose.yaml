@@ -31,7 +31,7 @@ services:
     networks:
       - plex-frontend
     mem_limit: ${MEM_LIMIT:-2048m}
-    pids_limit: 100
+    pids_limit: 500 # Plex spawns many threads for plugins, DB, and transcoding
     security_opt:
       - no-new-privileges=true
     ulimits:
