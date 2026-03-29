@@ -6,7 +6,7 @@ run = "mise exec -- actionlint {staged_files}"
 glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 
 [pre-commit.commands.checkov]
-run = "mise exec -- checkov -d ."
+run = "mise exec -- checkov --skip-download -d ."
 
 [pre-commit.commands.format-yaml]
 run = "mise exec -- yamlfmt {staged_files}"
