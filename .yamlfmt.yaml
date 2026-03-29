@@ -3,6 +3,9 @@ doublestar: true
 formatter:
   type: basic
   disable_alias_key_correction: true
+  indent: 2
+  max_line_length: 120
+  pad_line_comments: 1
   drop_merge_tag: true
   eof_newline: true
   force_array_style: block
