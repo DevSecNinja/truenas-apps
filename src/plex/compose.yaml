@@ -1,0 +1,90 @@
+---
+# Manual work to implement on a new server:
+#
+# - Plex claim token must be refreshed (get it from https://www.plex.tv/claim/)
+# - Set 'Custom server access URLs' to https://plex.<DOMAINNAME> in Plex settings
+# - Set LAN networks to 192.168.0.0/16,172.16.0.0/16 in Plex settings
+#   so proxy-forwarded streams are classified as 'Local' instead of 'Remote'
+# - Enable automatic library scanning in Plex settings
+# - Set 'Transcoder temporary directory' to /data/transcode in Plex settings
+# - Set backup directory in Plex settings under Scheduled Tasks
+
+services:
+  # LinuxServer's Plex image uses s6-overlay which must start as root.
+  # It handles user switching internally via PUID/PGID environment variables.
+  # read_only is not set because s6-overlay and the Plex application
+  # need extensive writable paths beyond what can be covered by tmpfs mounts.
+  # cap_drop: ALL is therefore omitted.
+  plex:
+    image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:a27f1ce1e1d14cd3627ed217f042bf8de0f796ed274fb27b2dc971ae22a64b95
+    container_name: plex
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+      - path: ../shared/env/pgid-puid-media.env
+    environment:
+      - HOSTNAME=plex
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM_TOKEN} # Get it from: https://www.plex.tv/claim/
+    restart: always
+    networks:
+      - plex-frontend
+    mem_limit: ${MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    ulimits:
+      sigpending: 62793
+      nproc: 131072
+      nofile: 60000
+      core: 0
+    # devices:
+    #   - /dev/dri/renderD128:/dev/dri/renderD128
+    volumes:
+      - plex-data:/config
+      # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
+      - /dev/shm:/data/transcode
+      # Media datasets (ZFS on TrueNAS)
+      - /mnt/archive-pool/Media/Audiobooks:/media/audiobooks:ro
+      - /mnt/archive-pool/Media/Movies:/media/movies:ro
+      - /mnt/archive-pool/Media/Music:/media/music:ro
+      - /mnt/archive-pool/Media/Study:/media/study:ro
+      - /mnt/archive-pool/Media/TV:/media/tv:ro
+      - /mnt/archive-pool/Media/YouTube:/media/youtube:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://localhost:32400/identity"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Media
+      - homepage.name=Plex
+      - homepage.icon=plex.svg
+      - homepage.href=https://plex.${DOMAINNAME}
+      - homepage.description=Media Services
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=plex-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.plex-rtr.rule=Host(`plex.${DOMAINNAME}`)"
+      ## Middlewares — no-auth because Plex has its own authentication
+      - "traefik.http.routers.plex-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.plex-rtr.service=plex"
+      - "traefik.http.services.plex.loadbalancer.server.port=32400"
+
+networks:
+  plex-frontend:
+    name: plex-frontend
+    driver: bridge
+
+volumes:
+  plex-data:
+    name: plex-data

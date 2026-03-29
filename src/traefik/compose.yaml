@@ -57,6 +57,7 @@ services:
       - homepage-frontend
       - traefik-forward-auth-frontend
       - unifi-frontend
+      - plex-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -170,6 +171,9 @@ networks:
     external: true
   unifi-frontend:
     name: unifi-frontend
+    external: true
+  plex-frontend:
+    name: plex-frontend
     external: true
 
 volumes:
