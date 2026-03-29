@@ -46,14 +46,14 @@ services:
       retries: 3
       start_period: 30s
 
-  # nfrastack/db-backup uses s6-overlay which must start as root.
+  # tiredofit/db-backup uses s6-overlay which must start as root.
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
   # read_only is also not set because s6-overlay needs extensive writable paths.
   # cap_drop: ALL is therefore omitted.
   # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
   # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
   unifi-db-backup:
-    image: nfrastack/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: unifi-db-backup
     depends_on:
       unifi-db:
