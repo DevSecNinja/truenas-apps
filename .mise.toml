@@ -1,3 +1,4 @@
 [tools]
+lefthook = "2.1.4"
 sops = "3.12.2"
 yamlfmt = "0.21.0"
