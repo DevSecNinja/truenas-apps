@@ -336,7 +336,6 @@ update_compose_files() {
 
     local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
     remote_hash=$(git "${GIT_OPTS[@]}" rev-parse "origin/${REMOTE_BRANCH}")
-    log_message "INFO:  Local hash is  ${local_hash}"
     log_message "INFO:  Remote hash is ${remote_hash}"
 
     # Check for uncommitted local changes
@@ -345,6 +344,16 @@ update_compose_files() {
         log_message "ERROR: Uncommitted changes detected in ${dir}, exiting..."
         exit 1
     fi
+
+    # Ensure we are on the expected branch before comparing hashes or pulling
+    if ! git "${GIT_OPTS[@]}" checkout "${REMOTE_BRANCH}"; then
+        log_message "ERROR: Unable to checkout branch ${REMOTE_BRANCH}. Verify the branch exists and there are no uncommitted changes."
+        exit 1
+    fi
+
+    # Re-read local hash now that we are confirmed on the correct branch
+    local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
+    log_message "INFO:  Local hash is  ${local_hash} (after checkout)"
 
     # Check if the local hash matches the remote hash (skip check in force mode)
     if [ "${FORCE}" -eq 1 ] || [ "${local_hash}" != "${remote_hash}" ]; then
