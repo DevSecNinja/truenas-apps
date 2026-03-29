@@ -50,6 +50,8 @@ services:
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
   # read_only is also not set because s6-overlay needs extensive writable paths.
   # cap_drop: ALL is therefore omitted.
+  # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
+  # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
   unifi-db-backup:
     image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: unifi-db-backup
@@ -65,6 +67,10 @@ services:
       - GROUP_DBBACKUP=${PGID:-1000}
       - CONTAINER_NAME=unifi-db-backup
       - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      # Run once and exit — restarted nightly by dccd.sh
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
       # Notification settings
       - ENABLE_NOTIFICATIONS=TRUE
       - NOTIFICATION_TYPE=EMAIL
@@ -82,8 +88,6 @@ services:
       # Backup defaults
       - DEFAULT_CHECKSUM=SHA1
       - DEFAULT_COMPRESSION=ZSTD
-      - DEFAULT_BACKUP_INTERVAL=1440
-      - DEFAULT_BACKUP_BEGIN=0000
       - DEFAULT_CLEANUP_TIME=2880
       # Encryption
       - DEFAULT_ENCRYPT=TRUE
@@ -96,7 +100,7 @@ services:
       - DB01_PORT=27017
       - DB01_PASS=${UNIFI_MONGO_PASS}
       - DB01_AUTH=admin
-    restart: always
+    restart: "no"
     networks:
       - unifi-backend
     mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
