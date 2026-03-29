@@ -97,11 +97,11 @@ Init containers follow the same `cap_drop: ALL` hard requirement as all other co
 
 **Services using this pattern:**
 
-| Service | Init container | Volumes chown'd |
-|---------|---------------|-----------------|
-| adguard | `adguard-init` | `adguard-data`, `./data/conf` |
-| homepage | `homepage-init` | `./config` |
-| traefik | `traefik-init` | `traefik-acme` |
+| Service  | Init container  | Volumes chown'd               |
+| -------- | --------------- | ----------------------------- |
+| adguard  | `adguard-init`  | `adguard-data`, `./data/conf` |
+| homepage | `homepage-init` | `./config`                    |
+| traefik  | `traefik-init`  | `traefik-acme`                |
 
 ---
 
@@ -125,10 +125,10 @@ This keeps secrets out of Git (the template only contains placeholder names) whi
 
 **Services using this pattern:**
 
-| Service | Init container | Template → Output |
-|---------|---------------|-------------------|
-| adguard (unbound) | `adguard-unbound-init` | `config/unbound/*.conf` → `data/unbound/*.conf` |
-| traefik-forward-auth | `traefik-forward-auth-init` | `config/config.yaml` → `data/config.yaml` |
+| Service              | Init container              | Template → Output                               |
+| -------------------- | --------------------------- | ----------------------------------------------- |
+| adguard (unbound)    | `adguard-unbound-init`      | `config/unbound/*.conf` → `data/unbound/*.conf` |
+| traefik-forward-auth | `traefik-forward-auth-init` | `config/config.yaml` → `data/config.yaml`       |
 
 ## Networking: Per-Service Isolation
 
@@ -156,7 +156,7 @@ If Traefik and Homepage shared one proxy, compromising either would grant the at
 
 Each service follows a consistent layout:
 
-``` text
+```text
 src/<service>/
   compose.yaml       # Service definition — committed to Git
   secret.sops.env    # SOPS-encrypted secrets — committed to Git
@@ -183,7 +183,7 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File | Purpose | When to include |
-|------|---------|-----------------|
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container |
+| File                  | Purpose                      | When to include                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tz.env`              | Sets `TZ=Europe/Amsterdam`   | Every container                                                                                                                                                                                                                                                                                                                                    |
 | `pgid-puid-media.env` | Sets `PUID=568` / `PGID=568` | **Only** containers that need read/write access to TrueNAS media content (e.g., media servers, download clients). This UID/GID matches the TrueNAS built-in `apps` user that owns media datasets. Do not include it for infrastructure services (reverse proxy, monitoring, DNS, etc.) — those get their PUID/PGID from `secret.sops.env` instead. |
