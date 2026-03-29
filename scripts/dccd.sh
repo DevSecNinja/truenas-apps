@@ -20,7 +20,7 @@ EXCLUDE=""                                    # Exclude pattern for directories
 TRUENAS=0                                     # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
 FORCE=0                                       # Force redeploy, skip hash check
-WAIT_TIMEOUT=60                               # Timeout in seconds for --wait (0 = no timeout)
+WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
