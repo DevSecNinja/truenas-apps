@@ -4,6 +4,8 @@ services:
   # Before upgrading to a new major version, run (change MONGO_VERSION to CURRENT version):
   #   export MONGO_VERSION=8.2
   #   docker compose exec unifi-db mongosh --eval 'db.adminCommand({ setFeatureCompatibilityVersion: "'$MONGO_VERSION'" })'
+  # MongoDB starts as root and uses gosu to switch to the mongodb user during
+  # startup. cap_drop: ALL would break that privilege transition.
   unifi-db:
     image: mongo:8.2.6@sha256:d343c378b5c6e2fe373174abcf4a877be0dfc721b5d0b9d582204dccb1c00b86
     container_name: unifi-db
@@ -47,6 +49,7 @@ services:
   # tiredofit/db-backup uses s6-overlay which must start as root.
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
   # read_only is also not set because s6-overlay needs extensive writable paths.
+  # cap_drop: ALL is therefore omitted.
   unifi-db-backup:
     image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: unifi-db-backup
@@ -107,6 +110,7 @@ services:
   # It handles user switching internally via PUID/PGID environment variables.
   # read_only is not set because s6-overlay and the Java-based Unifi application
   # need extensive writable paths beyond what can be covered by tmpfs mounts.
+  # cap_drop: ALL is therefore omitted.
   unifi:
     image: lscr.io/linuxserver/unifi-network-application:version-10.0.162@sha256:1c3667f6f145b49dcbd105b090a3740a6403f2ae02a164ae9231649e073e2f84
     container_name: unifi
