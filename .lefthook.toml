@@ -39,3 +39,8 @@ glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 [pre-commit.commands.docker-compose-config]
 run = "for f in {staged_files}; do mise exec -- docker-compose -f \"$f\" config --quiet; done"
 glob = ["src/**/compose.yaml", "src/**/compose.yml", "src/**/docker-compose.yaml", "src/**/docker-compose.yml"]
+
+[pre-commit.commands.dotenv-linter]
+run = "mise exec -- dotenv-linter fix --no-backup {staged_files}"
+glob = ["src/shared/env/*.env"]
+stage_fixed = true
