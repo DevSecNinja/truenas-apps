@@ -5,3 +5,7 @@ parallel = true
 run = "yamlfmt {staged_files}"
 glob = ["**/*.yaml", "**/*.yml"]
 stage_fixed = true
+
+[pre-commit.commands.shellcheck]
+run = "shellcheck {staged_files}"
+glob = ["**/*.sh"]
