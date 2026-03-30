@@ -21,6 +21,8 @@ services:
   # Note: with read_only=true, PUID/PGID and UMASK have no effect (runs as UID 911).
   # Runtime Plex updates are not supported in read-only mode.
   # /run must be mounted as tmpfs (with exec) for s6-overlay to write its service files.
+  # The /config volume must be owned by UID 911:911 — fix with:
+  #   sudo docker run --rm -v plex-data:/config alpine chown -R 911:911 /config
   plex:
     image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
     container_name: plex
@@ -28,7 +30,8 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-      - path: ../shared/env/pgid-puid-media.env
+        # PUID/PGID are forced to 911/911 by the image when read_only=true, so no need to set them here
+        #- path: ../shared/env/pgid-puid-media.env
     environment:
       - HOSTNAME=plex
       - VERSION=docker
