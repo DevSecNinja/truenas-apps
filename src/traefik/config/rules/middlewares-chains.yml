@@ -6,6 +6,12 @@ http:
         middlewares:
           - "middlewares-rate-limit"
           - "middlewares-secure-headers"
+    chain-no-auth-plex:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-secure-headers"
+          - "middlewares-plex-headers"
     chain-auth:
       chain:
         middlewares:
