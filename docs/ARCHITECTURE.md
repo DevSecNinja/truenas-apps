@@ -115,6 +115,12 @@ Some images cannot use `read_only: true`, `user:`, or `cap_drop: ALL` because th
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 
+**Pitfalls specific to s6-overlay images:**
+
+- **`read_only: true` silently breaks `PUID`/`PGID`.** s6-overlay writes the UID/GID entries to `/etc/passwd` and `/etc/group` during startup before dropping privileges. With `read_only: true` those writes fail silently and the container continues running as the image default (UID 911 for LinuxServer Plex), ignoring `PUID`/`PGID` entirely. Always omit `read_only` for s6-overlay images when working with subprcesses in the container such as Plex that need access to volumes.
+
+- **`group_add` does not grant supplementary groups to the application process.** `group_add` adds GIDs to the credentials of PID 1 (s6-overlay, which runs as root). When s6-overlay drops privileges to run the application it re-initialises the process's supplementary groups from `/etc/group` inside the container — where the host-only GID does not exist. The result is that the application process has no membership in the added group. To grant an s6-overlay image membership in a host GID, set that GID as `PGID` (primary group) or ensure the image's own group-setup mechanism adds it. The correct approach for LinuxServer images is to set the desired GID via the `PGID` env var; s6-overlay will then create the `/etc/group` entry and the application process will run with that GID.
+
 ## Config Template Substitution: Envsubst Init Containers
 
 Some services need secrets or environment-specific values (domain names, API keys) injected into their configuration files at deploy time. Since these config files are committed to Git as templates with `${VAR}` placeholders, a separate init container processes them before the main service starts.
