@@ -17,11 +17,10 @@
 # - Set backup directory in Plex settings under Scheduled Tasks
 
 services:
-  # LinuxServer's Plex image uses s6-overlay which must start as root.
-  # It handles user switching internally via PUID/PGID environment variables.
-  # read_only is not set because s6-overlay and the Plex application
-  # need extensive writable paths beyond what can be covered by tmpfs mounts.
-  # cap_drop: ALL is therefore omitted.
+  # LinuxServer's Plex image supports read-only operation.
+  # Note: with read_only=true, PUID/PGID and UMASK have no effect (runs as UID 911).
+  # Runtime Plex updates are not supported in read-only mode.
+  # /run must be mounted as tmpfs (with exec) for s6-overlay to write its service files.
   plex:
     image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
     container_name: plex
@@ -35,6 +34,9 @@ services:
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM_TOKEN} # Get it from: https://www.plex.tv/claim/
     restart: always
+    read_only: true
+    tmpfs:
+      - /run:exec
     ports:
       - "32400:32400" # First-run only: remove after completing setup via direct port access (see top of file)
     networks:
