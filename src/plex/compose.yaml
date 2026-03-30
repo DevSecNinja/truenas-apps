@@ -74,9 +74,8 @@ services:
       - "traefik.docker.network=plex-frontend"
       ## HTTP Routers
       - "traefik.http.routers.plex-rtr.rule=Host(`plex.${DOMAINNAME}`)"
-      ## Middlewares — no-auth because Plex has its own authentication;
-      ## uses plex-specific chain with relaxed CSP (Plex web app needs plex.tv access)
-      - "traefik.http.routers.plex-rtr.middlewares=chain-no-auth-plex@file"
+      ## Middlewares — no-auth because Plex has its own authentication
+      - "traefik.http.routers.plex-rtr.middlewares=chain-no-auth@file"
       ## HTTP Services
       - "traefik.http.routers.plex-rtr.service=plex"
       - "traefik.http.services.plex.loadbalancer.server.port=32400"
