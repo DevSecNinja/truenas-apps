@@ -17,11 +17,15 @@
 # - Set backup directory in Plex settings under Scheduled Tasks
 
 services:
-  # LinuxServer's Plex image supports read-only operation.
-  # Note: with read_only=true, PUID/PGID and UMASK have no effect (runs as UID 911).
-  # Runtime Plex updates are not supported in read-only mode.
-  # /run must be mounted as tmpfs (with exec) for s6-overlay to write its service files.
-  # The /config volume must be owned by UID 911:911 — fix with:
+  # s6-overlay exception (see ARCHITECTURE.md): read_only is omitted because s6-overlay starts as
+  # root and needs a writable rootfs to create /etc/passwd and /etc/group entries for PUID/PGID,
+  # chown /config, and then drop privileges internally. With read_only=true none of this works and
+  # PUID/PGID are silently ignored. user: is also omitted for the same reason.
+  # PUID=911 (LinuxServer Plex default) and PGID=3051 (media-readers) are set explicitly so that
+  # the Plex process actually runs as 911:3051 with group 3051 in its supplementary groups, matching
+  # the TrueNAS dataset ACL entry that grants media-readers read access.
+  # /run is mounted as tmpfs (with exec) for s6-overlay's service files.
+  # The /config volume must be owned by UID 911 — fix with:
   #   sudo docker run --rm -v plex-data:/config alpine chown -R 911:911 /config
   plex:
     image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
@@ -30,17 +34,13 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-        # The LinuxServer image forces UID/GID 911:911 internally when read_only=true,
-        # so PUID/PGID env vars have no effect. Access to media datasets is granted via
-        # a host-level ACL entry for UID 911. See docs/ARCHITECTURE.md § "Media Access: Consumer/Producer Model".
+      - path: ../shared/env/pgid-media.env # Sets PGID=3051 (media-readers)
     environment:
+      - PUID=911 # LinuxServer Plex default UID
       - HOSTNAME=plex
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM_TOKEN} # Get it from: https://www.plex.tv/claim/
     restart: always
-    read_only: true
-    group_add:
-      - "3051" # media-readers GID — grants Plex (UID 911) group-level access to media datasets
     tmpfs:
       - /run:exec
     ports:
