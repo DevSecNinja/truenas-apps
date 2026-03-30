@@ -34,6 +34,14 @@ http:
           server: ""
           Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
             'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+    # Plex web app needs to connect to plex.tv, plex.direct, and various CDNs
+    # for authentication, streaming, and metadata. The default CSP blocks these.
+    # Stacked after middlewares-secure-headers in chain-no-auth-plex to override.
+    middlewares-plex-headers:
+      headers:
+        customResponseHeaders:
+          Content-Security-Policy: ""
+        customFrameOptionsValue: ""
     middlewares-forward-auth:
       forwardAuth:
         address: "http://traefik-forward-auth:4181"
