@@ -30,14 +30,17 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-        # PUID/PGID are forced to 911/911 by the image when read_only=true, so no need to set them here
-        #- path: ../shared/env/pgid-puid-media.env
+        # The LinuxServer image forces UID/GID 911:911 internally when read_only=true,
+        # so PUID/PGID env vars have no effect. Access to media datasets is granted via
+        # a host-level ACL entry for UID 911. See docs/ARCHITECTURE.md § "Media Access: Consumer/Producer Model".
     environment:
       - HOSTNAME=plex
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM_TOKEN} # Get it from: https://www.plex.tv/claim/
     restart: always
     read_only: true
+    group_add:
+      - "3051" # media-readers GID — grants Plex (UID 911) group-level access to media datasets
     tmpfs:
       - /run:exec
     ports:
