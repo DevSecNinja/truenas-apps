@@ -41,7 +41,7 @@ run = "for f in {staged_files}; do mise exec -- docker-compose -f \"$f\" config 
 glob = ["src/**/compose.yaml", "src/**/compose.yml", "src/**/docker-compose.yaml", "src/**/docker-compose.yml"]
 
 [pre-commit.commands.dprint]
-run = "mise exec -- dprint check {staged_files}"
+run = "mise exec -- dprint fmt {staged_files}"
 glob = ["**/*.md"]
 
 [pre-commit.commands.dotenv-linter]

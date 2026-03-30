@@ -183,7 +183,78 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File                  | Purpose                      | When to include                                                                                                                                                                                                                                                                                                                                    |
-| --------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tz.env`              | Sets `TZ=Europe/Amsterdam`   | Every container                                                                                                                                                                                                                                                                                                                                    |
-| `pgid-puid-media.env` | Sets `PUID=568` / `PGID=568` | **Only** containers that need read/write access to TrueNAS media content (e.g., media servers, download clients). This UID/GID matches the TrueNAS built-in `apps` user that owns media datasets. Do not include it for infrastructure services (reverse proxy, monitoring, DNS, etc.) — those get their PUID/PGID from `secret.sops.env` instead. |
+| File                      | Purpose                    | When to include                                          |
+| ------------------------- | -------------------------- | -------------------------------------------------------- |
+| `tz.env`                  | Sets `TZ=Europe/Amsterdam` | Every container                                          |
+| `pgid-media.env`          | Sets `PGID=3051`           | Consumer containers that access TrueNAS media datasets   |
+| `pgid-media-writers.env`  | Sets `PGID=3052`           | Producer containers that write to TrueNAS media datasets |
+
+## Media Access: Consumer/Producer Model
+
+Services that interact with media datasets are divided into two roles:
+
+**Consumers** (e.g., Plex) only read media files. All media bind-mounts carry `:ro`, enforcing this at the kernel level regardless of filesystem permissions. Consumers are members of the shared `media` group (GID 3051) on the TrueNAS host so that dataset ACLs can grant them read access.
+
+**Producers** (e.g., DVD rippers, download clients) write new media files. Each producer runs under its own dedicated UID so file ownership is auditable — `ls -la` shows which service created a file. All producers share the `media-writers` group (GID 3052) as their primary group, so dataset write access is controlled by a single ACL entry per dataset. Adding a new producer tool only requires joining it to the group on TrueNAS — no dataset ACL edits needed.
+
+Producers are also supplementary members of the `media` group on the TrueNAS host. This is set at the OS level and applies at the filesystem layer regardless of what the container knows about its groups — so consumers can read whatever a producer writes without any additional configuration.
+
+### TrueNAS Scale Setup
+
+On the TrueNAS host, create or confirm:
+
+- A `media` group (GID 3051, matching `pgid-media.env`) — for all consumers
+- A `media-writers` group (GID 3052, matching `pgid-media-writers.env`) — for all producers
+- A `plex` user (UID 911) as a member of `media`
+  - UID 911 is fixed by the LinuxServer image when `read_only: true`; it cannot be changed via `PUID`
+  - **UID 911 is reserved exclusively for Plex.** No other service may use this UID unless strictly necessary, and any exception must be documented with a comment in the relevant compose file explaining why.
+- A dedicated user per producer (e.g., `ripper` at UID 1050)
+  - Primary group: `media-writers` (controls write access via ACL)
+  - Supplementary group: `media` (ensures consumers can read files the producer writes)
+  - Use a distinct UID per producer tool so file ownership is unambiguous in `ls -la`
+  - To add a new producer tool: create its user, set primary group to `media-writers`, add it to `media` as supplementary — no dataset ACL changes needed
+
+On each media dataset under `/mnt/archive-pool/Media/`:
+
+1. Set the owning group to `media-writers` and enable **Apply Group**
+2. Configure NFSv4 ACLs (TrueNAS Scale default on ZFS datasets) using Basic presets:
+   - `owner@`: **Full Control** — dataset owner (root)
+   - `group@` (= `media-writers`, GID 3052): **Modify** — all producers; because `media-writers` is the owning group, `group@` covers it — no separate named ACL entry needed
+   - Named entry for `media` group (GID 3051): **Read** — all consumers, including Plex via `group_add`
+3. Enable ACL inheritance on both the `group@` and the named `media` group ACL entries. In the TrueNAS dataset ACL editor, edit each entry and enable **File Inherit** and **Directory Inherit**. This ensures new files and subdirectories created inside the dataset automatically receive the correct ACL entries.
+4. Select **Apply permissions recursively** and **Apply permissions to child datasets** when appropriate.
+
+### Container Configuration
+
+**Consumers:** Include `pgid-media.env` for the shared `media` group GID and set a unique `PUID` in `secret.sops.env`. Mount all media paths `:ro`:
+
+```yaml
+env_file:
+  - ../shared/env/pgid-media.env  # Provides PGID=3051 (media group)
+  - path: .env                     # Provides service-specific PUID
+    required: false
+volumes:
+  - /mnt/archive-pool/Media/Movies:/media/movies:ro
+```
+
+**Producers:** Include `pgid-media-writers.env` for the `media-writers` group GID (used as `PGID`) and set a unique `PUID` in `secret.sops.env`. Set `UMASK=002` so created files are group-writable (`664`) and directories group-traversable (`775`). The supplementary `media` group membership is configured on the TrueNAS host at the OS level — no container-side config needed for consumers to read produced files:
+
+```yaml
+env_file:
+  - ../shared/env/pgid-media-writers.env  # Provides PGID=3052 (media-writers group)
+  - path: .env                              # Provides service-specific PUID
+    required: false
+environment:
+  - UMASK=002
+volumes:
+  - /mnt/archive-pool/Media/Movies:/media/movies  # read-write; no :ro
+```
+
+> **Plex exception:** The LinuxServer Plex image forces UID/GID 911:911 internally when `read_only: true`, so `PUID`/`PGID` env vars have no effect. The host-level ACL entry for `plex` (UID 911) on each media dataset handles access instead. **UID 911 is reserved for Plex** — no other service may use it unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
+
+### Role Summary
+
+| Role     | Example service | UID               | Primary group              | Supplementary group | Media mount | UMASK |
+| -------- | --------------- | ----------------- | -------------------------- | ------------------- | ----------- | ----- |
+| Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)             | —                   | `:ro`       | —     |
+| Producer | DVD ripper      | 1050 (dedicated)  | 3052 (`media-writers`)     | 3051 (`media`)      | read-write  | `002` |
