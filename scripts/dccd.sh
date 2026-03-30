@@ -20,6 +20,8 @@ EXCLUDE=""                                    # Exclude pattern for directories
 TRUENAS=0                                     # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
 FORCE=0                                       # Force redeploy, skip hash check
+NO_PULL=0                                     # Skip pulling images (for local testing)
+APP_FILTER=""                                 # Only deploy this specific app (empty = all)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
@@ -244,6 +246,11 @@ redeploy_truenas_apps() {
         local project_name="ix-${app_name}"
         local app_config_dir="${TRUENAS_APPS_BASE}/${app_name}/versions"
 
+        # If APP_FILTER is set, only deploy the matching app
+        if [ -n "${APP_FILTER}" ] && [ "${app_name}" != "${APP_FILTER}" ]; then
+            continue
+        fi
+
         # If EXCLUDE is set and the app matches, skip it
         if [ -n "${EXCLUDE}" ] && [[ "${app_name}" == *"${EXCLUDE}"* ]]; then
             log_message "STATE: Skipping excluded app '${app_name}'"
@@ -281,12 +288,16 @@ redeploy_truenas_apps() {
         # shellcheck disable=SC2310  # || true is intentional; function may fail when no containers exist
         img_before=$(get_project_image_info "${project_name}") || true
 
-        # Pull images
-        log_message "STATE: Pulling images for ${app_name}"
-        ${SUDO} docker compose \
-            --project-name "${project_name}" \
-            --file "${compose_file}" \
-            pull
+        # Pull images (unless NO_PULL is set)
+        if [ "${NO_PULL}" -eq 0 ]; then
+            log_message "STATE: Pulling images for ${app_name}"
+            ${SUDO} docker compose \
+                --project-name "${project_name}" \
+                --file "${compose_file}" \
+                pull
+        else
+            log_message "STATE: Skipping image pull for ${app_name} (no-pull mode)"
+        fi
 
         # Deploy
         log_message "STATE: Starting containers for ${app_name}"
@@ -398,6 +409,13 @@ update_compose_files() {
                     "${cmd[@]}"
                 }
 
+                # Pull images unless NO_PULL is set
+                if [ "${NO_PULL}" -eq 0 ]; then
+                    run_compose_command -f "${file}" pull --quiet
+                else
+                    log_message "STATE: Skipping image pull for ${file} (no-pull mode)"
+                fi
+
                 if [ "${GRACEFUL}" -eq 1 ]; then
                     run_compose_command -f "${file}" up -d --dry-run &>"${TMPRESTART}"
                     if grep -q "Recreate" "${TMPRESTART}"; then
@@ -434,6 +452,13 @@ update_compose_files() {
             for file in "${other_files[@]}" "${traefik_files[@]}"; do
                 # Extract the directory containing the file
                 dir=$(dirname "${file}")
+
+                # If APP_FILTER is set, only deploy the matching app
+                if [ -n "${APP_FILTER}" ]; then
+                    if [[ "${dir}" != *"${APP_FILTER}"* ]]; then
+                        continue
+                    fi
+                fi
 
                 # If EXCLUDE is set
                 if [ -n "${EXCLUDE}" ]; then
@@ -476,13 +501,15 @@ usage() {
     Usage: $0 [OPTIONS]
 
     Options:
+      -a <name>       Only deploy the specified app (optional - matches directory name)
       -b <name>       Specify the remote branch to track (default: main)
       -d <path>       Specify the base directory of the git repository (required)
       -f              Force redeploy, skip the hash comparison check (optional)
       -g              Graceful, only restart containers that will be recreated (optional)
       -h              Show this help message
-      -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -k <path>       Specify the path to the Age private key file for SOPS decryption (required when *.sops.env files exist)
+      -n              No-pull mode: skip pulling images, use local images only (optional)
+      -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -p              Specify if you want to prune docker images (default: don't prune)
       -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
@@ -491,6 +518,7 @@ usage() {
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
+    Local:   /path/to/dccd.sh -d /path/to/git_repo -f -n -a plex
 
 EOF
     exit 1
@@ -500,8 +528,11 @@ EOF
 # Options
 ########################################
 
-while getopts ":b:d:fgk:ho:ps:tw:x:" opt; do
+while getopts ":a:b:d:fgk:hno:ps:tw:x:" opt; do
     case "${opt}" in
+    a)
+        APP_FILTER="${OPTARG}"
+        ;;
     b)
         REMOTE_BRANCH="${OPTARG}"
         ;;
@@ -516,6 +547,9 @@ while getopts ":b:d:fgk:ho:ps:tw:x:" opt; do
         ;;
     h)
         usage
+        ;;
+    n)
+        NO_PULL=1
         ;;
     k)
         SOPS_AGE_KEY_FILE="${OPTARG}"
@@ -584,6 +618,16 @@ fi
 # Check if FORCE mode is enabled
 if [ "${FORCE}" -eq 1 ]; then
     log_message "INFO:  Force mode enabled, will redeploy regardless of hash match"
+fi
+
+# Check if NO_PULL mode is enabled
+if [ "${NO_PULL}" -eq 1 ]; then
+    log_message "INFO:  No-pull mode enabled, will skip pulling images"
+fi
+
+# Check if APP_FILTER is provided
+if [ -n "${APP_FILTER}" ]; then
+    log_message "INFO:  Will only deploy app '${APP_FILTER}'"
 fi
 
 # Resolve SOPS install directory now that BASE_DIR is known
