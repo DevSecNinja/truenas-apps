@@ -335,55 +335,68 @@ update_compose_files() {
         log_message "INFO:  Git repository found!"
     fi
 
-    # Rewrite SSH remote URLs to HTTPS so fetch/pull works without SSH keys (for public repos in cron)
-    # Allow root to operate on non-root-owned repos (safe.directory)
-    GIT_OPTS=(-c "url.https://github.com/.insteadOf=git@github.com:" -c "safe.directory=${dir}")
+    local SHOULD_DEPLOY=0
 
-    # Check if there are any changes in the Git repository
-    if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
-        log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
-        exit 1
-    fi
+    if [ "${NO_PULL}" -eq 1 ]; then
+        log_message "STATE: No-pull mode enabled, skipping git sync..."
+        SHOULD_DEPLOY=1
+    else
+        # Rewrite SSH remote URLs to HTTPS so fetch/pull works without SSH keys (for public repos in cron)
+        # Allow root to operate on non-root-owned repos (safe.directory)
+        GIT_OPTS=(-c "url.https://github.com/.insteadOf=git@github.com:" -c "safe.directory=${dir}")
 
-    local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
-    remote_hash=$(git "${GIT_OPTS[@]}" rev-parse "origin/${REMOTE_BRANCH}")
-    log_message "INFO:  Remote hash is ${remote_hash}"
-
-    # Check for uncommitted local changes
-    uncommitted_changes=$(git "${GIT_OPTS[@]}" status --porcelain)
-    if [ -n "${uncommitted_changes}" ]; then
-        log_message "ERROR: Uncommitted changes detected in ${dir}, exiting..."
-        exit 1
-    fi
-
-    # Ensure we are on the expected branch before comparing hashes or pulling
-    if ! git "${GIT_OPTS[@]}" checkout "${REMOTE_BRANCH}"; then
-        log_message "ERROR: Unable to checkout branch ${REMOTE_BRANCH}. Verify the branch exists and there are no uncommitted changes."
-        exit 1
-    fi
-
-    # Re-read local hash now that we are confirmed on the correct branch
-    local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
-    log_message "INFO:  Local hash is  ${local_hash} (after checkout)"
-
-    # Check if the local hash matches the remote hash (skip check in force mode)
-    if [ "${FORCE}" -eq 1 ] || [ "${local_hash}" != "${remote_hash}" ]; then
-        if [ "${FORCE}" -eq 1 ]; then
-            log_message "STATE: Force mode enabled, skipping hash check..."
-        else
-            log_message "STATE: Hashes don't match, updating..."
+        # Check if there are any changes in the Git repository
+        if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
+            log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
+            exit 1
         fi
 
-        # Pull any changes in the Git repository
-        if [ "${local_hash}" != "${remote_hash}" ]; then
-            if ! git "${GIT_OPTS[@]}" pull --quiet origin "${REMOTE_BRANCH}"; then
-                log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
-                exit 1
+        local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
+        remote_hash=$(git "${GIT_OPTS[@]}" rev-parse "origin/${REMOTE_BRANCH}")
+        log_message "INFO:  Remote hash is ${remote_hash}"
+
+        # Check for uncommitted local changes
+        uncommitted_changes=$(git "${GIT_OPTS[@]}" status --porcelain)
+        if [ -n "${uncommitted_changes}" ]; then
+            log_message "ERROR: Uncommitted changes detected in ${dir}, exiting..."
+            exit 1
+        fi
+
+        # Ensure we are on the expected branch before comparing hashes or pulling
+        if ! git "${GIT_OPTS[@]}" checkout "${REMOTE_BRANCH}"; then
+            log_message "ERROR: Unable to checkout branch ${REMOTE_BRANCH}. Verify the branch exists and there are no uncommitted changes."
+            exit 1
+        fi
+
+        # Re-read local hash now that we are confirmed on the correct branch
+        local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
+        log_message "INFO:  Local hash is  ${local_hash} (after checkout)"
+
+        # Check if the local hash matches the remote hash (skip check in force mode)
+        if [ "${FORCE}" -eq 1 ] || [ "${local_hash}" != "${remote_hash}" ]; then
+            if [ "${FORCE}" -eq 1 ]; then
+                log_message "STATE: Force mode enabled, skipping hash check..."
             else
-                log_message "INFO:  Successfully pulled changes from origin/${REMOTE_BRANCH}"
+                log_message "STATE: Hashes don't match, updating..."
             fi
-        fi
 
+            # Pull any changes in the Git repository
+            if [ "${local_hash}" != "${remote_hash}" ]; then
+                if ! git "${GIT_OPTS[@]}" pull --quiet origin "${REMOTE_BRANCH}"; then
+                    log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
+                    exit 1
+                else
+                    log_message "INFO:  Successfully pulled changes from origin/${REMOTE_BRANCH}"
+                fi
+            fi
+
+            SHOULD_DEPLOY=1
+        else
+            log_message "STATE: Hashes match, so nothing to do"
+        fi
+    fi
+
+    if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
         # Decrypt SOPS-encrypted secret files before deploying
         decrypt_sops_files
 
@@ -471,8 +484,6 @@ update_compose_files() {
                 fi
             done
         fi
-    else
-        log_message "STATE: Hashes match, so nothing to do"
     fi
 
     # Check if PRUNE is provided
