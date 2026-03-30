@@ -183,11 +183,11 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File                      | Purpose                    | When to include                                          |
-| ------------------------- | -------------------------- | -------------------------------------------------------- |
-| `tz.env`                  | Sets `TZ=Europe/Amsterdam` | Every container                                          |
-| `pgid-media.env`          | Sets `PGID=3051`           | Consumer containers that access TrueNAS media datasets   |
-| `pgid-media-writers.env`  | Sets `PGID=3052`           | Producer containers that write to TrueNAS media datasets |
+| File                     | Purpose                    | When to include                                          |
+| ------------------------ | -------------------------- | -------------------------------------------------------- |
+| `tz.env`                 | Sets `TZ=Europe/Amsterdam` | Every container                                          |
+| `pgid-media.env`         | Sets `PGID=3051`           | Consumer containers that access TrueNAS media datasets   |
+| `pgid-media-writers.env` | Sets `PGID=3052`           | Producer containers that write to TrueNAS media datasets |
 
 ## Media Access: Consumer/Producer Model
 
@@ -254,7 +254,7 @@ volumes:
 
 ### Role Summary
 
-| Role     | Example service | UID               | Primary group              | Supplementary group | Media mount | UMASK |
-| -------- | --------------- | ----------------- | -------------------------- | ------------------- | ----------- | ----- |
-| Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)             | —                   | `:ro`       | —     |
-| Producer | DVD ripper      | 1050 (dedicated)  | 3052 (`media-writers`)     | 3051 (`media`)      | read-write  | `002` |
+| Role     | Example service | UID               | Primary group          | Supplementary group | Media mount | UMASK |
+| -------- | --------------- | ----------------- | ---------------------- | ------------------- | ----------- | ----- |
+| Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)         | —                   | `:ro`       | —     |
+| Producer | DVD ripper      | 1050 (dedicated)  | 3052 (`media-writers`) | 3051 (`media`)      | read-write  | `002` |
