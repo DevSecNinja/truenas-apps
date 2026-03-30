@@ -34,14 +34,38 @@ http:
           server: ""
           Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
             'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
-    # Plex web app needs to connect to plex.tv, plex.direct, and various CDNs
-    # for authentication, streaming, and metadata. The default CSP blocks these.
-    # Stacked after middlewares-secure-headers in chain-no-auth-plex to override.
-    middlewares-plex-headers:
+    # Standalone Plex-specific headers middleware — replaces middlewares-secure-headers
+    # entirely for Plex rather than chaining and overriding. The two-middleware approach
+    # (secure-headers + plex-headers) had a middleware ordering bug: in Traefik chains,
+    # response headers are applied in reverse order, so middlewares-secure-headers ran
+    # last and its strict CSP always won over the plex-headers override.
+    # Plex Web needs to reach plex.tv/plex.direct for auth, metadata, and streaming.
+    middlewares-plex-secure-headers:
       headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "OPTIONS"
+          - "PUT"
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "same-origin"
+        permissionsPolicy: "camera 'none'; geolocation 'none'; microphone 'none'; payment 'none'; usb 'none'; vr 'none';"
+        customRequestHeaders:
+          X-Forwarded-Proto: https
         customResponseHeaders:
-          Content-Security-Policy: ""
-        customFrameOptionsValue: ""
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
+          server: ""
+          Content-Security-Policy: "default-src 'self' https://*.plex.tv wss://*.plex.tv https://*.plex.direct; script-src
+            'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src
+            'self' data:; connect-src 'self' https://*.plex.tv wss://*.plex.tv https://*.plex.direct https://*.plex.media;
+            frame-ancestors 'none'"
     middlewares-forward-auth:
       forwardAuth:
         address: "http://traefik-forward-auth:4181"
