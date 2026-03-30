@@ -78,7 +78,9 @@ services:
       - "traefik.http.routers.plex-rtr.middlewares=chain-no-auth@file"
       ## HTTP Services
       - "traefik.http.routers.plex-rtr.service=plex"
+      - "traefik.http.services.plex.loadbalancer.server.scheme=https"
       - "traefik.http.services.plex.loadbalancer.server.port=32400"
+      - "traefik.http.services.plex.loadbalancer.serverstransport=insecure-skip-verify@file"
 
 networks:
   plex-frontend:
