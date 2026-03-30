@@ -107,13 +107,24 @@ Init containers follow the same `cap_drop: ALL` hard requirement as all other co
 
 **Exceptions — s6-overlay and root-start containers:**
 
-Some images cannot use `read_only: true`, `user:`, or `cap_drop: ALL` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. Each such container must include a comment block in the compose file explaining why `cap_drop: ALL`, `user:`, and/or `read_only` are omitted. This applies to:
+Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. `cap_drop: ALL` is **still required** for these images — only the specific capabilities that s6-overlay needs are re-added via `cap_add`. Each such container must include a comment block in the compose file explaining the deviation. This applies to:
 
-- **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit the `user:` directive and `read_only`.
+- **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit `user:` and `read_only`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
+
+**Minimum `cap_add` for LinuxServer/s6-overlay images:**
+
+| Capability | Why it is needed                                                                     |
+| ---------- | ------------------------------------------------------------------------------------ |
+| `CHOWN`    | s6-overlay chowns mounted volumes (e.g., `/config`) to `PUID:PGID` at startup        |
+| `SETUID`   | s6-overlay calls `setuid()` to drop from root to `PUID`                              |
+| `SETGID`   | s6-overlay calls `setgid()` to drop from root to `PGID`                              |
+| `SETPCAP`  | s6-overlay clears the bounding capability set before exec-ing the application daemon |
+
+All other default Docker capabilities (`NET_RAW`, `NET_BIND_SERVICE`, `MKNOD`, `AUDIT_WRITE`, `SYS_CHROOT`, `FSETID`, `FOWNER`, `DAC_OVERRIDE`, `KILL`) are dropped and not needed.
 
 **Pitfalls specific to s6-overlay images:**
 
