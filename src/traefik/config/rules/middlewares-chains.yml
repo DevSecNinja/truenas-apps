@@ -10,8 +10,7 @@ http:
       chain:
         middlewares:
           - "middlewares-rate-limit"
-          - "middlewares-secure-headers"
-          - "middlewares-plex-headers"
+          - "middlewares-plex-secure-headers"
     chain-auth:
       chain:
         middlewares:
