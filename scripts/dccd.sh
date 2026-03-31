@@ -169,11 +169,13 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted ${count} secret file(s)"
 }
 
-# Returns sorted lines of "<service>=<image-reference>" for all running containers in a compose project.
+# Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.
 # Uses docker inspect on container IDs for reliable image info (including digest).
+# Includes stopped/exited containers (-a) so one-shot services (e.g. backup sidecars) are
+# captured in the "before" snapshot and not falsely reported as "new".
 get_project_image_info() {
     local project_name="$1"
-    ${SUDO} docker ps -q \
+    ${SUDO} docker ps -aq \
         --filter "label=com.docker.compose.project=${project_name}" \
         2>/dev/null |
         xargs -r "${SUDO}" docker inspect \
