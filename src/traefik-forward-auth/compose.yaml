@@ -18,10 +18,13 @@ services:
     cap_drop:
       - ALL
     cap_add:
+      - CHOWN # Required to chown ./data to ${PUID}:${PGID} so the main container can traverse it
       - DAC_OVERRIDE # Required to overwrite existing output files regardless of their permissions
     read_only: true
     command:
-      - "/templates/envsubst.sh"
+      - "sh"
+      - "-c"
+      - "chown -R ${PUID:-1000}:${PGID:-1000} /output && /templates/envsubst.sh"
     volumes:
       - ./config:/templates:ro
       - ./data:/output

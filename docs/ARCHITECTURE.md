@@ -60,6 +60,8 @@ Named Docker volumes and bind-mounted directories are created as `root:root` by 
 
 The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
 
+**Bind-mount directories (`./config`, `./data`, `./backup`) must always be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable by `${PUID}`. The init container is the single recovery point that restores ownership on every deploy.
+
 ```yaml
 # Pattern — copy this block, adjust container_name, command paths, and volumes
 <app>-init:
@@ -97,12 +99,13 @@ Init containers follow the same `cap_drop: ALL` hard requirement as all other co
 
 **Services using this pattern:**
 
-| Service  | Init container  | Volumes chown'd               |
-| -------- | --------------- | ----------------------------- |
-| adguard  | `adguard-init`  | `adguard-data`, `./data/conf` |
-| homepage | `homepage-init` | `./config`                    |
-| metube   | `metube-init`   | `metube-state`                |
-| traefik  | `traefik-init`  | `traefik-acme`                |
+| Service              | Init container              | Volumes chown'd               |
+| -------------------- | --------------------------- | ----------------------------- |
+| adguard              | `adguard-init`              | `adguard-data`, `./data/conf` |
+| homepage             | `homepage-init`             | `./config`                    |
+| metube               | `metube-init`               | `metube-state`                |
+| traefik              | `traefik-init`              | `traefik-acme`, `./config`    |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                      |
 
 ---
 
