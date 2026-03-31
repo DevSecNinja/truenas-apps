@@ -58,6 +58,7 @@ services:
       - traefik-forward-auth-frontend
       - unifi-frontend
       - plex-frontend
+      - metube-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -174,6 +175,9 @@ networks:
     external: true
   plex-frontend:
     name: plex-frontend
+    external: true
+  metube-frontend:
+    name: metube-frontend
     external: true
 
 volumes:

@@ -1,0 +1,116 @@
+---
+services:
+  # Sets ownership on the metube-state volume so the non-root metube container
+  # can write its download queue state. Runs once, then exits.
+  # Required because metube runs as ${PUID}:${PGID} with cap_drop: ALL, meaning
+  # it has no CAP_CHOWN and cannot fix volume ownership itself at runtime.
+  metube-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: metube-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/pgid-media-writers.env # Ensures chown uses PGID=3052 (media-writers)
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown the metube-state volume to ${PUID}:${PGID}
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -R ${PUID:-1000}:${PGID:-1000} /metube-state-dir"
+    volumes:
+      - metube-state:/metube-state-dir
+
+  # alexta69/metube is a standard Python/aiohttp application; it does not use
+  # gosu or s6-overlay. The container can start directly as ${PUID}:${PGID}
+  # with cap_drop: ALL and read_only: true fully supported.
+  # UID/GID env vars instruct yt-dlp to set that ownership on downloaded files;
+  # the composed user: field ensures the process itself runs as non-root.
+  # UMASK=002 produces group-writable files (664/775) so the media-readers group
+  # (GID 3051) can read files written by the media-writers group (GID 3052).
+  metube:
+    image: ghcr.io/alexta69/metube:latest@sha256:afd3fa2b229e3e6d4c8750618fe148af33a1f70b32af4441ecbd2d08f29d8221
+    container_name: metube
+    depends_on:
+      metube-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+      - path: ../shared/env/pgid-media-writers.env # Sets PGID=3052 (media-writers); must come last
+    environment:
+      - UID=${PUID:-1000}
+      - GID=${PGID:-1000}
+      - UMASK=002 # Producers write group-writable files (664/775) for media consumers
+      - AUDIO_DOWNLOAD_DIR=/downloads/audio
+      - DOWNLOAD_DIR=/downloads/video
+      - TEMP_DIR=/metube-temp-dir
+      - STATE_DIR=/metube-state-dir
+      - DOWNLOAD_MODE=limited
+      - MAX_CONCURRENT_DOWNLOADS=1
+    user: "${PUID:-1000}:${PGID:-1000}"
+    restart: always
+    networks:
+      - metube-frontend
+    mem_limit: ${MEM_LIMIT:-4096m}
+    # Limiting to 1024m can cause issues with large downloads; 4096m is the best compromise.
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      # temp download dir: size-capped, accessible only by the metube user (mode=1700)
+      - /metube-temp-dir:size=4G,uid=${PUID:-1000},gid=${PGID:-1000},mode=1700
+    volumes:
+      # TrueNAS ZFS dataset — ownership/ACLs managed on the host; no init chown needed
+      - /mnt/smb_share_youtube/metube:/downloads
+      - metube-state:/metube-state-dir
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:8081"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Media
+      - homepage.name=MeTube
+      - homepage.icon=sh-metube
+      - homepage.href=https://metube.${DOMAINNAME}
+      - homepage.description=YouTube Individual Downloads
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=metube-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.metube-rtr.rule=Host(`metube.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.metube-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.metube-rtr.service=metube"
+      - "traefik.http.services.metube.loadbalancer.server.port=8081"
+
+networks:
+  metube-frontend:
+    name: metube-frontend
+    driver: bridge
+
+volumes:
+  metube-state:
+    name: metube-state
