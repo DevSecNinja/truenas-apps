@@ -3,7 +3,7 @@ min_version = "2026.3.17"
 
 [tools]
 "pipx:yamllint" = "1.38.0"
-"pipx" = "1.11.0"
+"pipx" = "1.11.1"
 actionlint = "1.7.12"
 checkov = "3.2.513"
 docker-compose = "5.1.1"
