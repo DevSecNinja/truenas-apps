@@ -29,9 +29,9 @@ services:
       - "sh"
       - "-c"
       - |-
-        chown -R ${PUID:-1000}:3052 /metube-state-dir &&
-        mkdir -p /downloads/video /downloads/audio &&
-        chown ${PUID:-1000}:3052 /downloads/video /downloads/audio
+        chown -Rv ${PUID:-1000}:3052 /metube-state-dir &&
+        mkdir -pv /downloads/video /downloads/audio &&
+        chown -v ${PUID:-1000}:3052 /downloads/video /downloads/audio
     volumes:
       - metube-state:/metube-state-dir
       - /mnt/smb_share_youtube/metube:/downloads
