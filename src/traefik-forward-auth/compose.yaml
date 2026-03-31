@@ -24,7 +24,7 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -R ${PUID:-1000}:${PGID:-1000} /output && /templates/envsubst.sh"
+      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /output && /templates/envsubst.sh"
     volumes:
       - ./config:/templates:ro
       - ./data:/output

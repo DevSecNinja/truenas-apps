@@ -26,8 +26,8 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -R ${PUID:-1000}:${PGID:-1000} /acme && chmod 700 /acme && touch /acme/acme.json && chmod 600 /acme/acme.json
-        && chown -R ${PUID:-1000}:${PGID:-1000} /config"
+      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /acme && chmod -v 700 /acme && touch /acme/acme.json && chmod -v 600 /acme/acme.json
+        && chown -Rv ${PUID:-1000}:${PGID:-1000} /config"
     volumes:
       - traefik-acme:/acme
       - ./config:/config

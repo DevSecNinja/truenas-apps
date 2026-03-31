@@ -91,7 +91,7 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -R ${PUID:-1000}:${PGID:-1000} /opt/adguardhome/work /opt/adguardhome/conf"
+      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /opt/adguardhome/work /opt/adguardhome/conf"
     volumes:
       - adguard-data:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
