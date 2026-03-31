@@ -40,6 +40,7 @@ services:
 
 **Key rules:**
 
+- Images must always include an explicit registry prefix (e.g. `docker.io/library/busybox`, `ghcr.io/gethomepage/homepage`). Bare image names like `busybox` or `user/image` are not allowed — Docker's implicit `docker.io` default is not reliable across runtimes and Renovate cannot enforce the correct registry without it
 - Images are digest-pinned (`@sha256:...`) — Renovate manages updates via PRs
 - `read_only: true` with `tmpfs` mounts for writable paths
 - `no-new-privileges` on every container, no exceptions
