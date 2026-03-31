@@ -1,16 +1,18 @@
 ---
 services:
-  # Sets ownership on the metube-state volume so the non-root metube container
-  # can write its download queue state. Runs once, then exits.
-  # Required because metube runs as ${PUID}:${PGID} with cap_drop: ALL, meaning
-  # it has no CAP_CHOWN and cannot fix volume ownership itself at runtime.
+  # Sets ownership on the metube-state volume and pre-creates the download
+  # subdirectories inside the bind-mount so MeTube can write on first boot.
+  # Runs once, then exits.
+  # GID is hardcoded to 3052 (media-writers) because env_file entries are
+  # injected into the container environment and do not feed into compose
+  # variable substitution (user:, tmpfs gid=, etc.) — so pgid-media-writers.env
+  # cannot supply ${PGID} at compose-parse time.
   metube-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: metube-init
     env_file:
-      - path: .env # Decrypted from secret.sops.env
+      - path: .env # Decrypted from secret.sops.env — provides PUID
         required: false
-      - path: ../shared/env/pgid-media-writers.env # Ensures chown uses PGID=3052 (media-writers)
     restart: "no"
     network_mode: none
     mem_limit: 64m
@@ -20,14 +22,19 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # Required to chown the metube-state volume to ${PUID}:${PGID}
+      - CHOWN # Required to chown volumes to ${PUID}:3052
+      - DAC_OVERRIDE # Required to create subdirs inside the /downloads bind-mount
     read_only: true
     command:
       - "sh"
       - "-c"
-      - "chown -R ${PUID:-1000}:${PGID:-1000} /metube-state-dir"
+      - |-
+        chown -R ${PUID:-1000}:3052 /metube-state-dir &&
+        mkdir -p /downloads/video /downloads/audio &&
+        chown ${PUID:-1000}:3052 /downloads/video /downloads/audio
     volumes:
       - metube-state:/metube-state-dir
+      - /mnt/smb_share_youtube/metube:/downloads
 
   # alexta69/metube is a standard Python/aiohttp application; it does not use
   # gosu or s6-overlay. The container can start directly as ${PUID}:${PGID}
@@ -46,10 +53,12 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-      - path: ../shared/env/pgid-media-writers.env # Sets PGID=3052 (media-writers); must come last
     environment:
       - UID=${PUID:-1000}
-      - GID=${PGID:-1000}
+      # GID hardcoded to 3052 (media-writers) — env_file cannot supply ${PGID} for
+      # compose-level variable substitution (user:, tmpfs gid=), so we don't use
+      # pgid-media-writers.env here to avoid the misleading illusion that it does.
+      - GID=3052
       - UMASK=002 # Producers write group-writable files (664/775) for media consumers
       - AUDIO_DOWNLOAD_DIR=/downloads/audio
       - DOWNLOAD_DIR=/downloads/video
@@ -57,7 +66,7 @@ services:
       - STATE_DIR=/metube-state-dir
       - DOWNLOAD_MODE=limited
       - MAX_CONCURRENT_DOWNLOADS=1
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "${PUID:-1000}:3052" # 3052 = media-writers GID (hardcoded — see env_file note above)
     restart: always
     networks:
       - metube-frontend
@@ -72,9 +81,9 @@ services:
     tmpfs:
       - /tmp
       # temp download dir: size-capped, accessible only by the metube user (mode=1700)
-      - /metube-temp-dir:size=4G,uid=${PUID:-1000},gid=${PGID:-1000},mode=1700
+      - /metube-temp-dir:size=4G,uid=${PUID:-1000},gid=3052,mode=1700
     volumes:
-      # TrueNAS ZFS dataset — ownership/ACLs managed on the host; no init chown needed
+      # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
       - /mnt/smb_share_youtube/metube:/downloads
       - metube-state:/metube-state-dir
     healthcheck:
