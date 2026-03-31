@@ -272,8 +272,8 @@ volumes:
 
 ### Role Summary
 
-| Role     | Example service | UID               | Primary group          | Auxiliary group     | Media mount | UMASK |
-| -------- | --------------- | ----------------- | ---------------------- | ------------------- | ----------- | ----- |
-| Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)         | —                   | `:ro`       | —     |
-| Producer | MeTube          | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)      | read-write  | `002` |
-| Producer | DVD ripper      | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)      | read-write  | `002` |
+| Role     | Example service | UID               | Primary group          | Auxiliary group | Media mount | UMASK |
+| -------- | --------------- | ----------------- | ---------------------- | --------------- | ----------- | ----- |
+| Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)         | —               | `:ro`       | —     |
+| Producer | MeTube          | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)  | read-write  | `002` |
+| Producer | DVD ripper      | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)  | read-write  | `002` |
