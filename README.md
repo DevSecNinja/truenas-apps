@@ -39,6 +39,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services        |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing        |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding              |
+| [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI         |
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend    |
 
 ---
@@ -59,6 +60,7 @@ vm-pool/Apps/src/gatus
 vm-pool/Apps/src/homepage
 vm-pool/Apps/src/echo-server
 vm-pool/Apps/src/plex
+vm-pool/Apps/src/metube
 vm-pool/Apps/src/unifi
 # ... one dataset per app
 ```

@@ -101,6 +101,7 @@ Init containers follow the same `cap_drop: ALL` hard requirement as all other co
 | -------- | --------------- | ----------------------------- |
 | adguard  | `adguard-init`  | `adguard-data`, `./data/conf` |
 | homepage | `homepage-init` | `./config`                    |
+| metube   | `metube-init`   | `metube-state`                |
 | traefik  | `traefik-init`  | `traefik-acme`                |
 
 ---
@@ -271,7 +272,8 @@ volumes:
 
 ### Role Summary
 
-| Role     | Example service | UID               | Primary group          | Supplementary group | Media mount | UMASK |
+| Role     | Example service | UID               | Primary group          | Auxiliary group     | Media mount | UMASK |
 | -------- | --------------- | ----------------- | ---------------------- | ------------------- | ----------- | ----- |
 | Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)         | —                   | `:ro`       | —     |
-| Producer | DVD ripper      | 1050 (dedicated)  | 3052 (`media-writers`) | 3051 (`media`)      | read-write  | `002` |
+| Producer | MeTube          | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)      | read-write  | `002` |
+| Producer | DVD ripper      | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)      | read-write  | `002` |
