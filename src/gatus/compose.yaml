@@ -96,7 +96,7 @@ services:
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
   gatus-db-upgrade:
-    image: pgautoupgrade/pgautoupgrade:18.3-alpine@sha256:fadc9788ee25f7acc040bbf485a880ce7ca9021575bd6e45b0ca4cf7edb50d5b
+    image: docker.io/pgautoupgrade/pgautoupgrade:18.3-alpine@sha256:fadc9788ee25f7acc040bbf485a880ce7ca9021575bd6e45b0ca4cf7edb50d5b
     container_name: gatus-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env
@@ -124,7 +124,7 @@ services:
   # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
   # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
   gatus-db-backup:
-    image: tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: gatus-db-backup
     depends_on:
       gatus-db:
