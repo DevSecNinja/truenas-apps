@@ -86,17 +86,6 @@ services:
       # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
       - /mnt/smb_share_youtube/metube:/downloads
       - metube-state:/metube-state-dir
-    healthcheck:
-      test:
-        - "CMD"
-        - "wget"
-        - "--spider"
-        - "-q"
-        - "http://localhost:8081"
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     labels:
       # Homepage
       - homepage.group=Media
