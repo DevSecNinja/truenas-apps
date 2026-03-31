@@ -129,7 +129,7 @@ decrypt_sops_files() {
     fi
 
     local sops_files
-    sops_files=$(find "${src_dir}" \( -name data -o -name backups \) -prune -o -name '*.sops.env' -type f -print)
+    sops_files=$(find "${src_dir}" \( -name config -o -name data -o -name backups \) -prune -o -name '*.sops.env' -type f -print)
 
     if [ -z "${sops_files}" ]; then
         log_message "INFO:  No *.sops.env files found, skipping decryption"
