@@ -1,5 +1,5 @@
 # renovate: datasource=github-releases depName=jdx/mise
-min_version = "2026.3.17"
+min_version = "2026.3.18"
 
 [tools]
 "pipx:yamllint" = "1.38.0"
