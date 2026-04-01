@@ -2,10 +2,10 @@
 min_version = "2026.3.18"
 
 [tools]
+"pipx:checkov" = "3.2.513"
 "pipx:yamllint" = "1.38.0"
 "pipx" = "1.11.1"
 actionlint = "1.7.12"
-"pipx:checkov" = "3.2.513"
 docker-compose = "5.1.1"
 dotenv-linter = "4.0.0"
 dprint = "0.53.1"
