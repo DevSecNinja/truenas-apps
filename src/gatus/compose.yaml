@@ -19,6 +19,8 @@ services:
       - DB_PASSWORD=${GATUS_DB_PASSWORD}
       - DB_HOST=gatus-db
       - DB_PORT=5432
+      # Gatus
+      - GATUS_CONFIG_PATH=/config
     restart: always
     networks:
       - gatus-frontend
