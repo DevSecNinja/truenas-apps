@@ -308,6 +308,7 @@ redeploy_truenas_apps() {
             --file "${compose_file}" \
             up \
             -d \
+            --build \
             --wait \
             --wait-timeout "${WAIT_TIMEOUT}"; then
             log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'docker compose --project-name ${project_name} logs' for details"
@@ -436,7 +437,7 @@ update_compose_files() {
                     if grep -q "Recreate" "${TMPRESTART}"; then
                         log_message "GRACEFUL: Redeploying compose file for ${file}"
                         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                        if ! run_compose_command -f "${file}" up -d --quiet-pull; then
+                        if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
                             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                         fi
                     else
@@ -445,7 +446,7 @@ update_compose_files() {
                 else
                     log_message "STATE: Redeploying compose file for ${file}"
                     # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                    if ! run_compose_command -f "${file}" up -d --quiet-pull; then
+                    if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
                         log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                     fi
                 fi
