@@ -32,6 +32,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - gatus-sidecar-config:/config
     configs:
       - source: gatus-config
         target: /config/config.yaml
@@ -182,6 +184,70 @@ services:
     volumes:
       - ./backups/db-backup:/backup
 
+  gatus-sidecar:
+    build: https://github.com/DevSecNinja/gatus-sidecar.git#feature/docker-support
+    container_name: gatus-sidecar
+    command:
+      - --mode=docker
+      - --output=/config/gatus-sidecar.yaml
+      - --docker-default-protocol=https
+    depends_on:
+      gatus-docker-proxy:
+        condition: service_healthy
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      - DOCKER_HOST=tcp://gatus-docker-proxy:2375
+    restart: always
+    networks:
+      - gatus-backend
+    mem_limit: ${SIDECAR_MEM_LIMIT:-100m}
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - gatus-sidecar-config:/config
+
+  # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
+  # It does not support custom users, mods, or scripts.
+  # See: https://github.com/linuxserver/docker-socket-proxy
+  # cap_drop: ALL is therefore omitted.
+  gatus-docker-proxy:
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
+    container_name: gatus-docker-proxy
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      - CONTAINERS=1 # Allow access to viewing containers
+      - POST=0 # Disallow any POST operations (effectively read-only)
+    restart: always
+    networks:
+      - gatus-backend
+    mem_limit: ${PROXY_MEM_LIMIT:-50m}
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:2375/_ping"
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
 networks:
   gatus-frontend:
     name: gatus-frontend
@@ -194,6 +260,8 @@ networks:
 volumes:
   gatus-db-data:
     name: gatus-db-data
+  gatus-sidecar-config:
+    name: gatus-sidecar-config
 
 configs:
   gatus-config:
