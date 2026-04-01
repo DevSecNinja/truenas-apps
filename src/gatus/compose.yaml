@@ -195,6 +195,7 @@ services:
       - --mode=docker
       - --output=/config/gatus-sidecar.yaml
       - --docker-default-protocol=https
+      - --docker-default-group=Docker
     depends_on:
       gatus-docker-proxy:
         condition: service_healthy
