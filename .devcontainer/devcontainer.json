@@ -1,0 +1,34 @@
+{
+  "name": "truenas-apps",
+  "image": "mcr.microsoft.com/devcontainers/base:debian-12",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "sh -c '$(curl -fsLS https://get.chezmoi.io)' -- init --apply DevSecNinja && curl https://mise.run | sh && echo 'eval \"$(~/.local/bin/mise activate bash)\"' >> ~/.bashrc && ~/.local/bin/mise install && ~/.local/bin/mise exec -- lefthook install",
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "timonwong.shellcheck",
+        "foxundermoon.shell-format",
+        "dprint.dprint",
+        "signageos.signageos-vscode-sops"
+      ],
+      "settings": {
+        "[markdown]": {
+          "editor.defaultFormatter": "dprint.dprint"
+        },
+        "[shellscript]": {
+          "editor.defaultFormatter": "foxundermoon.shell-format",
+          "editor.formatOnSave": true
+        },
+        "shellcheck.executablePath": "/home/vscode/.local/share/mise/shims/shellcheck",
+        "shellformat.path": "/home/vscode/.local/share/mise/shims/shfmt"
+      }
+    }
+  }
+}
