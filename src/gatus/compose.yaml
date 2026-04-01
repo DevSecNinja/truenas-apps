@@ -57,6 +57,8 @@ services:
       ## HTTP Services
       - "traefik.http.routers.gatus-rtr.service=gatus"
       - "traefik.http.services.gatus.loadbalancer.server.port=8080"
+      ## Disable automatic monitoring with Gatus since ... this is Gatus!
+      - "gatus.enabled=false"
 
   # Postgres starts as root and uses gosu to switch to the postgres user during
   # startup. cap_drop: ALL would break that privilege transition.
