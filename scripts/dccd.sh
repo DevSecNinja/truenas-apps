@@ -716,6 +716,16 @@ log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
 
 # Check if Gatus CD reporting is configured
 if [ -n "${GATUS_URL}" ]; then
+    # If the token isn't already in the environment, source it from the
+    # already-decrypted gatus .env file (written there by decrypt_sops_files
+    # on previous runs, so no extra decryption step is needed).
+    if [ -z "${GATUS_CD_TOKEN:-}" ] && [ -f "${BASE_DIR}/src/gatus/.env" ]; then
+        set -a
+        # shellcheck disable=SC1091
+        source "${BASE_DIR}/src/gatus/.env"
+        set +a
+    fi
+
     if [ -n "${GATUS_CD_TOKEN:-}" ]; then
         log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL})"
     else
