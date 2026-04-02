@@ -189,6 +189,8 @@ services:
       - ALL
     cap_add:
       - CHOWN # Required for Valkey's entrypoint to chown /data before dropping to valkey user
+      - SETUID # Required for setpriv/gosu to drop from root to valkey user
+      - SETGID # Required for setpriv/gosu to drop from root to valkey group
     read_only: true
     tmpfs:
       - /tmp
