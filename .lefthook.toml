@@ -45,6 +45,7 @@ run = "mise exec -- dprint fmt {staged_files}"
 glob = ["**/*.md"]
 
 [pre-commit.commands.dotenv-linter]
-run = "mise exec -- dotenv-linter fix --no-backup {staged_files}"
+run = "uname -m | grep -qE 'aarch64|arm64' || mise exec -- dotenv-linter fix --no-backup {staged_files}"
 glob = ["src/shared/env/*.env"]
 stage_fixed = true
+

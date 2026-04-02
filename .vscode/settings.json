@@ -46,7 +46,7 @@
       "**/obj": true
     },
     "sops.defaults.ageKeyFile": "${workspaceFolder}/age.key",
-    "terminal.integrated.defaultProfile.linux": "zsh",
+    "terminal.integrated.defaultProfile.linux": "fish",
     "yaml.schemas": {
         "https://taskfile.dev/schema.json": [
           "**/Taskfile.yml",
