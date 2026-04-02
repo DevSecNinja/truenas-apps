@@ -6,6 +6,11 @@
   "pinDigests": true,
   "packageRules": [
     {
+      "description": "Flag dependencies where the currently-used version is over 1 years old — likely abandoned or unmaintained.",
+      "matchCurrentAge": "> 1 year",
+      "addLabels": ["stale-dependency"]
+    },
+    {
       "matchManagers": ["mise"],
       "pinDigests": false
     },
