@@ -194,7 +194,7 @@ services:
     healthcheck:
       test:
         - "CMD"
-        - "redis-cli"
+        - "valkey-cli"
         - "-a"
         - "${IMMICH_REDIS_PASSWORD}"
         - "--no-auth-warning"
