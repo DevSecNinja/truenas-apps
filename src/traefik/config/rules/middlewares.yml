@@ -66,6 +66,38 @@ http:
             'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src
             'self' data:; connect-src 'self' https://*.plex.tv wss://*.plex.tv https://*.plex.direct https://*.plex.media;
             frame-ancestors 'none'"
+    # Standalone Immich-specific headers middleware — replaces middlewares-secure-headers
+    # for Immich. Immich requires:
+    #   - worker-src 'self' blob: for WASM/image-processing web workers
+    #   - wasm-unsafe-eval for WebAssembly execution
+    #   - connect-src + script-src for static.immich.cloud and tiles.immich.cloud (maps)
+    #   - https://www.gstatic.com for Google ML Kit scripts (v2+)
+    middlewares-immich-secure-headers:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "OPTIONS"
+          - "PUT"
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "same-origin"
+        permissionsPolicy: "camera 'none'; geolocation 'none'; microphone 'none'; payment 'none'; usb 'none'; vr 'none';"
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+        customResponseHeaders:
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
+          server: ""
+          Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'
+            https://static.immich.cloud https://tiles.immich.cloud https://www.gstatic.com; style-src 'self' 'unsafe-inline';
+            img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://tiles.immich.cloud https://static.immich.cloud
+            https://www.gstatic.com; frame-ancestors 'none'; worker-src 'self' blob:"
     middlewares-forward-auth:
       forwardAuth:
         address: "http://traefik-forward-auth:4181"

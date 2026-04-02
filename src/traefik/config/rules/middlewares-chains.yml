@@ -11,6 +11,17 @@ http:
         middlewares:
           - "middlewares-rate-limit"
           - "middlewares-plex-secure-headers"
+    chain-no-auth-immich:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-immich-secure-headers"
+    chain-auth-immich:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-immich-secure-headers"
+          - "middlewares-forward-auth"
     chain-auth:
       chain:
         middlewares:
