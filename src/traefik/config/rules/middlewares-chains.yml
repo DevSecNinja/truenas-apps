@@ -14,12 +14,12 @@ http:
     chain-no-auth-immich:
       chain:
         middlewares:
-          - "middlewares-rate-limit"
+          - "middlewares-rate-limit-loose"
           - "middlewares-immich-secure-headers"
     chain-auth-immich:
       chain:
         middlewares:
-          - "middlewares-rate-limit"
+          - "middlewares-rate-limit-loose"
           - "middlewares-immich-secure-headers"
           - "middlewares-forward-auth"
     chain-auth:
