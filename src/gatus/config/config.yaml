@@ -53,6 +53,18 @@ connectivity:
     target: 1.1.1.1:53
     interval: 60s
 
+# External endpoints pushed programmatically (e.g. CD pipeline status)
+external-endpoints:
+  - name: docker-compose-cd
+    group: Webhooks
+    token: "${GATUS_CD_TOKEN}"
+    heartbeat:
+      interval: 25h
+    alerts:
+      - type: email
+        description: "CD pipeline has not reported in 25 hours"
+        send-on-resolved: true
+
 endpoints:
   #
   # External HTTP
