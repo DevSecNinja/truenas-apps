@@ -266,4 +266,6 @@ jobs:
           version: 2026.3.18
 
       - name: Run dotenv-linter
-        run: find . -path "*/shared/env/*.env" -print0 | xargs -0 mise exec -- dotenv-linter check
+        # renovate: datasource=github-releases depName=dotenv-linter/dotenv-linter
+        run: find . -path "*/shared/env/*.env" -print0 | xargs -0 mise exec aqua:dotenv-linter/dotenv-linter@4.0.0 -- dotenv-linter
+          check
