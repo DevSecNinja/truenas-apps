@@ -24,7 +24,7 @@ NO_PULL=0                                     # Skip pulling images (for local t
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
-# The bearer token is read from the GATUS_CD_TOKEN environment variable
+# GATUS_URL and GATUS_CD_TOKEN can also be sourced from src/gatus/.env (already decrypted on disk)
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
@@ -576,7 +576,7 @@ usage() {
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
       -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
-      -G <url>        Gatus instance URL to report CD status to (optional - requires GATUS_CD_TOKEN env var)
+      -G <url>        Gatus instance URL to report CD status to (optional - falls back to GATUS_URL/GATUS_CD_TOKEN from src/gatus/.env)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
@@ -714,22 +714,29 @@ fi
 
 log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
 
+# Source the already-decrypted gatus .env to pick up GATUS_CD_TOKEN and
+# DOMAINNAME. The -G flag takes precedence over the derived URL.
+_gatus_env="${BASE_DIR}/src/gatus/.env"
+if [ -f "${_gatus_env}" ]; then
+    _saved_gatus_url="${GATUS_URL}"
+    set -a
+    # shellcheck disable=SC1090
+    source "${_gatus_env}"
+    set +a
+    # Restore CLI-supplied URL so -G always takes precedence over the file
+    if [ -n "${_saved_gatus_url}" ]; then
+        GATUS_URL="${_saved_gatus_url}"
+    elif [ -n "${DOMAINNAME:-}" ] && [ -z "${GATUS_URL}" ]; then
+        GATUS_URL="https://status.${DOMAINNAME}"
+    fi
+fi
+
 # Check if Gatus CD reporting is configured
 if [ -n "${GATUS_URL}" ]; then
-    # If the token isn't already in the environment, source it from the
-    # already-decrypted gatus .env file (written there by decrypt_sops_files
-    # on previous runs, so no extra decryption step is needed).
-    if [ -z "${GATUS_CD_TOKEN:-}" ] && [ -f "${BASE_DIR}/src/gatus/.env" ]; then
-        set -a
-        # shellcheck disable=SC1091
-        source "${BASE_DIR}/src/gatus/.env"
-        set +a
-    fi
-
     if [ -n "${GATUS_CD_TOKEN:-}" ]; then
         log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL})"
     else
-        log_message "WARNING: -G is set but GATUS_CD_TOKEN env var is not set - Gatus reporting disabled"
+        log_message "WARNING: GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
     fi
 fi
 
