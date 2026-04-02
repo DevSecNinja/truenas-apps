@@ -25,7 +25,8 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /config"
+      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /config && find /config -type d -exec chmod 755 {} + && find /config -type
+        f -exec chmod 644 {} +"
     volumes:
       - ./config:/config
 
