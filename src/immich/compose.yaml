@@ -120,13 +120,13 @@ services:
       ## HTTP Routers
       - "traefik.http.routers.immich-rtr.rule=Host(`photos.${DOMAINNAME}`)"
       ## Middlewares
-      - "traefik.http.routers.immich-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.immich-rtr.middlewares=chain-auth-immich@file"
       ## HTTP Services
       - "traefik.http.routers.immich-rtr.service=immich"
       - "traefik.http.services.immich.loadbalancer.server.port=2283"
       ## No-auth endpoint for mobile apps (Immich doesn't support OAuth)
       - "traefik.http.routers.immich-noauth-rtr.rule=Host(`photos-noauth.${DOMAINNAME}`)"
-      - "traefik.http.routers.immich-noauth-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.immich-noauth-rtr.middlewares=chain-no-auth-immich@file"
       - "traefik.http.routers.immich-noauth-rtr.service=immich"
 
   # Immich machine learning is a standard Python application (not s6-overlay).
