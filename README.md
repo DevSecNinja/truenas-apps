@@ -38,6 +38,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page   |
 | [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services        |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing        |
+| [Immich](https://immich.app/)                                                | Self-hosted photo and video management              |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding              |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI         |
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend    |
@@ -59,6 +60,7 @@ vm-pool/Apps/src/traefik-forward-auth
 vm-pool/Apps/src/gatus
 vm-pool/Apps/src/homepage
 vm-pool/Apps/src/echo-server
+vm-pool/Apps/src/immich
 vm-pool/Apps/src/plex
 vm-pool/Apps/src/metube
 vm-pool/Apps/src/unifi
@@ -141,6 +143,7 @@ bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /
     ├── 📁 echo-server
     ├── 📁 gatus
     ├── 📁 homepage
+    ├── 📁 immich
     ├── 📁 plex
     ├── 📁 traefik
     └── 📁 shared     # Shared env files (TZ, PUID/PGID)
