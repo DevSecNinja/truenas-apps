@@ -45,7 +45,7 @@
       "**/bin": true,
       "**/obj": true
     },
-    "sops.defaults.ageKeyFile": "${workspaceFolder}/age.key",
+    "sops.defaults.ageKeyFile": "age.key",
     "terminal.integrated.defaultProfile.linux": "zsh",
     "yaml.schemas": {
         "https://taskfile.dev/schema.json": [
