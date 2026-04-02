@@ -23,6 +23,8 @@ FORCE=0                                       # Force redeploy, skip hash check
 NO_PULL=0                                     # Skip pulling images (for local testing)
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
+GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
+# The bearer token is read from the GATUS_CD_TOKEN environment variable
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
@@ -509,6 +511,51 @@ update_compose_files() {
     log_message "STATE: Done!"
 }
 
+# Report the CD pipeline status to a Gatus external endpoint.
+# Requires GATUS_URL (-G flag) and GATUS_CD_TOKEN (env var) to be set.
+report_cd_status_to_gatus() {
+    local success="$1"
+    local error_msg="${2:-}"
+    local duration="${3:-}"
+
+    if [ -z "${GATUS_URL}" ] || [ -z "${GATUS_CD_TOKEN:-}" ]; then
+        return
+    fi
+
+    # Simple URL encoding for query string values (handles spaces and common special chars)
+    url_encode_simple() {
+        printf '%s' "$1" | sed 's/ /+/g; s/&/%26/g; s/=/%3D/g; s/#/%23/g'
+    }
+
+    # Key format: <GROUP>_<NAME> with spaces and special chars replaced by dashes
+    local key="cd_docker-compose-cd"
+    local query="success=${success}"
+    [ -n "${error_msg}" ] && query="${query}&error=$(url_encode_simple "${error_msg}")"
+    [ -n "${duration}" ] && query="${query}&duration=${duration}"
+
+    if curl -fsSL -X POST \
+        -H "Authorization: Bearer ${GATUS_CD_TOKEN}" \
+        "${GATUS_URL%/}/api/v1/endpoints/${key}/external?${query}" >/dev/null 2>&1; then
+        log_message "INFO:  CD status (success=${success}) reported to Gatus"
+    else
+        log_message "WARNING: Failed to report CD status to Gatus"
+    fi
+}
+
+# EXIT trap handler: report final CD status to Gatus including duration.
+_handle_gatus_exit() {
+    local exit_code="$1"
+    [ -z "${_CD_START_TIME:-}" ] && return
+    local end_time
+    end_time=$(date +%s)
+    local duration=$((end_time - _CD_START_TIME))
+    if [ "${exit_code}" -eq 0 ]; then
+        report_cd_status_to_gatus "true" "" "${duration}s"
+    else
+        report_cd_status_to_gatus "false" "CD pipeline exited with code ${exit_code}" "${duration}s"
+    fi
+}
+
 usage() {
     cat <<EOF
 
@@ -529,6 +576,7 @@ usage() {
       -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
       -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
+      -G <url>        Gatus instance URL to report CD status to (optional - requires GATUS_CD_TOKEN env var)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
@@ -542,7 +590,7 @@ EOF
 # Options
 ########################################
 
-while getopts ":a:b:d:fgk:hno:ps:tw:x:" opt; do
+while getopts ":a:b:d:fgG:k:hno:ps:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
@@ -585,6 +633,9 @@ while getopts ":a:b:d:fgk:hno:ps:tw:x:" opt; do
         ;;
     x)
         EXCLUDE="${OPTARG}"
+        ;;
+    G)
+        GATUS_URL="${OPTARG}"
         ;;
     \?)
         echo "Invalid option: -${OPTARG}" >&2
@@ -662,5 +713,17 @@ if [ "${TRUENAS}" -eq 1 ]; then
 fi
 
 log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
+
+# Check if Gatus CD reporting is configured
+if [ -n "${GATUS_URL}" ]; then
+    if [ -n "${GATUS_CD_TOKEN:-}" ]; then
+        log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL})"
+    else
+        log_message "WARNING: -G is set but GATUS_CD_TOKEN env var is not set - Gatus reporting disabled"
+    fi
+fi
+
+_CD_START_TIME=$(date +%s)
+trap '_handle_gatus_exit $?' EXIT
 
 update_compose_files "${BASE_DIR}"
