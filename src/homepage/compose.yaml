@@ -21,6 +21,7 @@ services:
     cap_add:
       - CHOWN # Required to change file ownership
       - DAC_OVERRIDE # Required to traverse /config if it was previously chowned to ${PUID}:${PGID}
+      - FOWNER # Required to chmod files/dirs not owned by root (after a previous chown to ${PUID}:${PGID})
     read_only: true
     command:
       - "sh"
