@@ -100,13 +100,14 @@ Init containers follow the same `cap_drop: ALL` hard requirement as all other co
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd               |
-| -------------------- | --------------------------- | ----------------------------- |
-| adguard              | `adguard-init`              | `adguard-data`, `./data/conf` |
-| homepage             | `homepage-init`             | `./config`                    |
-| metube               | `metube-init`               | `metube-state`                |
-| traefik              | `traefik-init`              | `traefik-acme`, `./config`    |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                      |
+| Service              | Init container              | Volumes chown'd                                                 |
+| -------------------- | --------------------------- | --------------------------------------------------------------- |
+| adguard              | `adguard-init`              | `adguard-data`, `./data/conf`                                   |
+| homepage             | `homepage-init`             | `./config`                                                      |
+| metube               | `metube-init`               | `metube-state`                                                  |
+| traefik              | `traefik-init`              | `traefik-acme`, `./config`                                      |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                        |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich`, `immich-model-cache` |
 
 ---
 
@@ -205,11 +206,12 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File                     | Purpose                    | When to include                                          |
-| ------------------------ | -------------------------- | -------------------------------------------------------- |
-| `tz.env`                 | Sets `TZ=Europe/Amsterdam` | Every container                                          |
-| `pgid-media.env`         | Sets `PGID=3051`           | Consumer containers that access TrueNAS media datasets   |
-| `pgid-media-writers.env` | Sets `PGID=3052`           | Producer containers that write to TrueNAS media datasets |
+| File                     | Purpose                    | When to include                                                     |
+| ------------------------ | -------------------------- | ------------------------------------------------------------------- |
+| `tz.env`                 | Sets `TZ=Europe/Amsterdam` | Every container                                                     |
+| `pgid-media.env`         | Sets `PGID=3051`           | Consumer containers that access TrueNAS media datasets              |
+| `pgid-media-writers.env` | Sets `PGID=3052`           | Producer containers that write to TrueNAS media datasets            |
+| `pgid-private.env`       | Sets `PGID=3053`           | Containers that access TrueNAS private datasets (photos, documents) |
 
 ## Media Access: Consumer/Producer Model
 
@@ -281,3 +283,30 @@ volumes:
 | Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)         | —               | `:ro`       | —     |
 | Producer | MeTube          | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)  | read-write  | `002` |
 | Producer | DVD ripper      | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)  | read-write  | `002` |
+
+## Private Storage: Access Model
+
+Private data (photos, documents) is intentionally separated from the shared media group hierarchy. Containers that access private datasets use a dedicated `private` group (GID 3053) rather than the `media` or `media-writers` groups, ensuring media consumers like Plex cannot access personal data.
+
+### TrueNAS Host Setup
+
+On the TrueNAS host, create or confirm:
+
+- A `private` group (GID 3053, matching `pgid-private.env`)
+- A dedicated user per private-data service (e.g., `immich`) with primary group `private` (GID 3053)
+
+On the private dataset (`/mnt/archive-pool/private`):
+
+1. Set the owning group to `private` and enable **Apply Group**
+2. Configure NFSv4 ACLs:
+   - `owner@`: **Full Control**
+   - `group@` (= `private`, GID 3053): **Modify**
+3. Enable **File Inherit** and **Directory Inherit** on ACL entries
+
+### Container Configuration
+
+Private-data containers include `pgid-private.env` for documentation consistency. The GID is hardcoded in `user:` directives and the init container because `env_file` values are not interpolated by Compose at parse time:
+
+```yaml
+user: "${PUID:-1000}:3053" # 3053 = private GID
+```

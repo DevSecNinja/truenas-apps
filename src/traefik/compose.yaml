@@ -61,6 +61,7 @@ services:
       - unifi-frontend
       - plex-frontend
       - metube-frontend
+      - immich-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -180,6 +181,9 @@ networks:
     external: true
   metube-frontend:
     name: metube-frontend
+    external: true
+  immich-frontend:
+    name: immich-frontend
     external: true
 
 volumes:

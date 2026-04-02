@@ -17,19 +17,7 @@
         "foxundermoon.shell-format",
         "dprint.dprint",
         "signageos.signageos-vscode-sops"
-      ],
-      "settings": {
-        "[markdown]": {
-          "editor.defaultFormatter": "dprint.dprint"
-        },
-        "[shellscript]": {
-          "editor.defaultFormatter": "foxundermoon.shell-format",
-          "editor.formatOnSave": true
-        },
-        "dprint.path": "/home/vscode/.local/share/mise/shims/dprint",
-        "shellcheck.executablePath": "/home/vscode/.local/share/mise/shims/shellcheck",
-        "shellformat.path": "/home/vscode/.local/share/mise/shims/shfmt"
-      }
+      ]
     }
   }
 }
