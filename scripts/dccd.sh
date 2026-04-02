@@ -25,6 +25,7 @@ APP_FILTER=""                                 # Only deploy this specific app (e
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
 # GATUS_URL and GATUS_CD_TOKEN can also be sourced from src/gatus/.env (already decrypted on disk)
+_DEPLOY_ERRORS=0 # Count of deployment failures (non-fatal errors logged during deploy)
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
@@ -314,6 +315,7 @@ redeploy_truenas_apps() {
             --wait \
             --wait-timeout "${WAIT_TIMEOUT}"; then
             log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'docker compose --project-name ${project_name} logs' for details"
+            _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
         fi
 
         # Report which images changed (or not)
@@ -441,6 +443,7 @@ update_compose_files() {
                         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
                         if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
                             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                            _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                         fi
                     else
                         log_message "GRACEFUL: Skipping Redeploying compose file for ${file} (no change)"
@@ -450,6 +453,7 @@ update_compose_files() {
                     # shellcheck disable=SC2310  # failure is handled by the surrounding if block
                     if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
                         log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                        _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                     fi
                 fi
             }
@@ -549,8 +553,10 @@ _handle_gatus_exit() {
     local end_time
     end_time=$(date +%s)
     local duration=$((end_time - _CD_START_TIME))
-    if [ "${exit_code}" -eq 0 ]; then
+    if [ "${exit_code}" -eq 0 ] && [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
         report_cd_status_to_gatus "true" "" "${duration}s"
+    elif [ "${_DEPLOY_ERRORS}" -gt 0 ]; then
+        report_cd_status_to_gatus "false" "${_DEPLOY_ERRORS} deployment(s) failed - check logs for details" "${duration}s"
     else
         report_cd_status_to_gatus "false" "CD pipeline exited with code ${exit_code}" "${duration}s"
     fi
