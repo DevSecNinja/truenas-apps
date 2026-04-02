@@ -527,8 +527,8 @@ report_cd_status_to_gatus() {
         printf '%s' "$1" | sed 's/ /+/g; s/&/%26/g; s/=/%3D/g; s/#/%23/g'
     }
 
-    # Key format: <GROUP>_<NAME> with spaces and special chars replaced by dashes
-    local key="cd_docker-compose-cd"
+    # Key format: <GROUP>_<NAME> — must match the external-endpoint definition in Gatus config
+    local key="Webhooks_docker-compose-cd"
     local query="success=${success}"
     [ -n "${error_msg}" ] && query="${query}&error=$(url_encode_simple "${error_msg}")"
     [ -n "${duration}" ] && query="${query}&duration=${duration}"
