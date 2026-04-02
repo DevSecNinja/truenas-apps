@@ -46,7 +46,18 @@
       "**/obj": true
     },
     "sops.defaults.ageKeyFile": "age.key",
+    "[markdown]": {
+        "editor.defaultFormatter": "dprint.dprint"
+    },
+    "[shellscript]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format",
+        "editor.formatOnSave": true
+    },
     "terminal.integrated.defaultProfile.linux": "fish",
+    "dprint.path": "/home/vscode/.local/share/mise/shims/dprint",
+    "shellcheck.executablePath": "/home/vscode/.local/share/mise/shims/shellcheck",
+    "shellformat.path": "/home/vscode/.local/share/mise/shims/shfmt",
+    "sops.binPath": "/home/vscode/.local/share/mise/shims/sops",
     "yaml.schemas": {
         "https://taskfile.dev/schema.json": [
           "**/Taskfile.yml",

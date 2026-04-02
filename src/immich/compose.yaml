@@ -1,0 +1,320 @@
+---
+# Manual work to implement on a new server:
+#
+# TrueNAS host setup:
+#   1. Create a `private` group (GID 3053, matching pgid-private.env)
+#   2. Create a dedicated `immich` user with primary group `private` (GID 3053)
+#   3. Set ACLs on the private dataset (/archive-pool/private):
+#        - owner@: Full Control
+#        - group@ (= private, GID 3053): Modify
+#        - Enable File Inherit and Directory Inherit
+#   4. Create the dataset vm-pool/Apps/src/immich in TrueNAS
+#
+# First-run steps:
+#   1. Verify hardware transcoding works by uploading a video and checking
+#      the Jobs page in the Immich admin panel
+#
+# Database notes:
+#   - pgautoupgrade is NOT used for Immich because the custom
+#     ghcr.io/immich-app/postgres image bundles pgvecto.rs and vectorchord
+#     extensions that are not available in standard pgautoupgrade images.
+#     Database major version upgrades must follow the Immich docs:
+#     https://immich.app/docs/administration/postgres-upgrade
+
+services:
+  # Sets ownership on the upload directory and model cache volume so the
+  # non-root containers can write on first boot. Runs once, then exits.
+  # GID is hardcoded to 3053 (private) because env_file entries are injected
+  # into the container environment and do not feed into compose variable
+  # substitution (user:, tmpfs gid=, etc.).
+  immich-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: immich-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env — provides PUID
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown volumes to ${PUID}:3053
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -Rv ${PUID:-1000}:3053 /upload /model-cache"
+    volumes:
+      - /mnt/archive-pool/private/photos/immich:/upload
+      - immich-model-cache:/model-cache
+
+  # Immich server is a standard Node.js application (not s6-overlay).
+  # It runs as non-root and supports user: directly.
+  # Hardware transcoding is enabled via the quicksync extends profile.
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:v2.5.6@sha256:aa163d2e1cc2b16a9515dd1fef901e6f5231befad7024f093d7be1f2da14341a
+    container_name: immich-server
+    depends_on:
+      immich-init:
+        condition: service_completed_successfully
+      immich-db:
+        condition: service_healthy
+      immich-redis:
+        condition: service_healthy
+    extends:
+      file: ./config/hwaccel.transcoding.yml
+      service: quicksync # set to one of [cpu, nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - DB_HOSTNAME=immich-db
+      - DB_USERNAME=immich
+      - DB_DATABASE_NAME=immich
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD}
+      - REDIS_HOSTNAME=immich-redis
+      - REDIS_PASSWORD=${IMMICH_REDIS_PASSWORD}
+    user: "${PUID:-1000}:3053" # 3053 = private GID (hardcoded — see env_file note on immich-init)
+    restart: always
+    networks:
+      - immich-frontend
+      - immich-backend
+    # 4096m is not enough and the server will be killed automatically
+    # Recommended: https://docs.immich.app/install/requirements/
+    mem_limit: ${MEM_LIMIT:-6144m}
+    pids_limit: 200
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://localhost:2283/api/server/ping"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Immich
+      - homepage.icon=sh-immich
+      - homepage.href=https://photos.${DOMAINNAME}
+      - homepage.description=Photo Library
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=immich-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.immich-rtr.rule=Host(`photos.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.immich-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.immich-rtr.service=immich"
+      - "traefik.http.services.immich.loadbalancer.server.port=2283"
+      ## No-auth endpoint for mobile apps (Immich doesn't support OAuth)
+      - "traefik.http.routers.immich-noauth-rtr.rule=Host(`photos-noauth.${DOMAINNAME}`)"
+      - "traefik.http.routers.immich-noauth-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.immich-noauth-rtr.service=immich"
+
+  # Immich machine learning is a standard Python application (not s6-overlay).
+  # It runs as non-root and supports user: directly.
+  immich-machine-learning:
+    # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
+    image: ghcr.io/immich-app/immich-machine-learning:v2.5.6@sha256:b213fa3c82d27a21a299c46ffbb38a091f18384db1ad67d409a3b34fe0fce556
+    container_name: immich-machine-learning
+    depends_on:
+      immich-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "${PUID:-1000}:3053" # 3053 = private GID (hardcoded — see env_file note on immich-init)
+    restart: always
+    networks:
+      - immich-backend
+    mem_limit: ${ML_MEM_LIMIT:-4096m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - immich-model-cache:/cache
+    healthcheck:
+      test:
+        - "CMD"
+        - "python3"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:3003/ping')"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  immich-redis:
+    image: docker.io/valkey/valkey:9-alpine@sha256:84c96f47ebe197e635cd3ddbe3ab74e8bdf783cf3befbfb1c36387275c1cd5d5
+    container_name: immich-redis
+    # requirepass via command because the REDIS_PASSWORD env var isn't picked up
+    command: >
+      --requirepass ${IMMICH_REDIS_PASSWORD}
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: always
+    networks:
+      - immich-backend
+    mem_limit: ${REDIS_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /data # Valkey data directory — ephemeral for Immich (used as cache only)
+    healthcheck:
+      test:
+        - "CMD"
+        - "redis-cli"
+        - "-a"
+        - "${IMMICH_REDIS_PASSWORD}"
+        - "--no-auth-warning"
+        - "ping"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Immich's custom Postgres image bundles pgvecto.rs and vectorchord extensions.
+  # Postgres starts as root and uses gosu to switch to the postgres user during
+  # startup. cap_drop: ALL would break that privilege transition.
+  # pgautoupgrade is NOT used — see database notes at top of file.
+  immich-db:
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.3.0-pgvectors0.2.0@sha256:c570d9e1c2494f65d2a0a379a7f6df66e8441964254a30aa62cc58e8ebf1dee0
+    container_name: immich-db
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - POSTGRES_DB=immich
+      - POSTGRES_USER=immich
+      - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    restart: always
+    networks:
+      - immich-backend
+    # Recommended: https://docs.immich.app/install/requirements/
+    mem_limit: ${DB_MEM_LIMIT:-2048m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - immich-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
+  # read_only is not set because s6-overlay needs extensive writable paths.
+  # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
+  # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
+  immich-db-backup:
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: immich-db-backup
+    depends_on:
+      immich-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      - USER_DBBACKUP=${PUID:-1000}
+      - GROUP_DBBACKUP=${PGID:-1000}
+      - CONTAINER_NAME=immich-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      # Run once and exit — restarted nightly by dccd.sh
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
+      # Notification settings
+      - ENABLE_NOTIFICATIONS=TRUE
+      - NOTIFICATION_TYPE=EMAIL
+      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
+      - SMTP_DOMAIN=${NOTIFICATIONS_EMAIL_DOMAIN}
+      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
+      - SMTP_USER=${NOTIFICATIONS_EMAIL_USERNAME}
+      - SMTP_PASS=${NOTIFICATIONS_EMAIL_PASSWORD}
+      - MAIL_TO=${NOTIFICATIONS_EMAIL_TO}
+      - MAIL_FROM=${NOTIFICATIONS_EMAIL_FROM}
+      - SMTP_AUTHENTICATION=on
+      - SMTP_TLSCERTCHECK=TRUE
+      - SMTP_STARTTLS=on
+      - SMTP_TLS=on
+      # Backup defaults
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_CLEANUP_TIME=2880
+      # Encryption
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      # Database
+      - DB01_TYPE=pgsql
+      - DB01_HOST=immich-db
+      - DB01_NAME=immich
+      - DB01_USER=immich
+      - DB01_PORT=5432
+      - DB01_PASS=${IMMICH_DB_PASSWORD}
+    restart: "no"
+    networks:
+      - immich-backend
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./backups/db-backup:/backup
+
+networks:
+  immich-frontend:
+    name: immich-frontend
+    driver: bridge
+  immich-backend:
+    name: immich-backend
+    driver: bridge
+    internal: true
+
+volumes:
+  immich-model-cache:
+    name: immich-model-cache
+  immich-db-data:
+    name: immich-db-data
