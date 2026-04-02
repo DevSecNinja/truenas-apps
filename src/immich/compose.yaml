@@ -187,6 +187,8 @@ services:
       - no-new-privileges=true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN # Required for Valkey's entrypoint to chown /data before dropping to valkey user
     read_only: true
     tmpfs:
       - /tmp
