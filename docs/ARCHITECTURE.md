@@ -280,22 +280,23 @@ The git repo lives on the `vm-pool/Apps` dataset. Because `dccd.sh` decrypts `se
 
 **Owner:** `truenas_admin` — allows `git pull` without sudo. Root does not need ownership because it bypasses all permission checks on Linux/ZFS.
 
-**Owning group:** `truenas_admin` (or `root` — irrelevant since access is controlled via named ACL entries, not `group@`).
+**Owning group:** `truenas_admin`.
 
-Configure the following NFSv4 ACL entries on the `vm-pool/Apps` dataset:
+Configure the following Unix permissions on the `vm-pool/Apps` dataset using the TrueNAS **Unix Permissions Editor**:
 
-| Entry                      | Permission     | File Inherit | Directory Inherit |
-| -------------------------- | -------------- | ------------ | ----------------- |
-| `owner@` (`truenas_admin`) | Full Control   | ✓            | ✓                 |
-| `everyone@`                | No permissions | —            | —                 |
+| Setting | Value                    |
+| ------- | ------------------------ |
+| User    | `truenas_admin`          |
+| Group   | `truenas_admin`          |
+| User    | Read ✓ Write ✓ Execute ✓ |
+| Group   | Read ✓ Write ✓ Execute ✓ |
+| Other   | No permissions           |
 
-- **`owner@`**: `truenas_admin` can git pull, edit configs, and administer the repo interactively.
-- **`everyone@`**: No permissions — blocks all other users from reading decrypted `.env` files containing secrets. Remove or deny any default `everyone@` read entry.
-- **Root** does not need an explicit ACL entry — it bypasses all permission checks.
+Enable **Apply permissions recursively**.
 
-Apply recursively and to child datasets.
+This gives `truenas_admin` full access while blocking all other users from reading decrypted `.env` files containing secrets. Root does not need explicit permissions — it bypasses all permission checks.
 
-**Per-app config directories** are handled separately by init containers, not by dataset-level ACLs:
+**Per-app config directories** are handled separately by init containers, not by dataset-level permissions:
 
 1. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
 2. `truenas_admin` (a member of each app's primary group) gets group-write access via POSIX group permissions
