@@ -1,9 +1,48 @@
 ---
 services:
+  # Sets ownership on the ./config directory and copies config.yaml into the
+  # gatus-sidecar-config volume so the non-root gatus container can read it.
+  # Runs once, then exits.
+  # Docker Compose configs (non-swarm) are bind-mounted from the host, so host
+  # file permissions apply. An init container avoids that limitation.
+  # Config files are set to group-write (775/664) so truenas_admin (member of
+  # group 3103) can git-pull without permission conflicts.
+  gatus-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: gatus-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to change file ownership
+      - FOWNER # Required to chmod files after chown transfers ownership away from root
+      - DAC_OVERRIDE # Required to traverse and read host files with restrictive permissions
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        chown -Rv 3103:3103 /config-src &&
+        find /config-src -type d -exec chmod 775 {} + &&
+        find /config-src -type f -exec chmod 664 {} + &&
+        cp /config-src/config.yaml /config/config.yaml &&
+        chown 3103:3103 /config/config.yaml &&
+        chmod 644 /config/config.yaml
+    volumes:
+      - ./config:/config-src
+      - gatus-sidecar-config:/config
+
   gatus:
     image: twinproduction/gatus:v5.35.0@sha256:21609f31be8c4e680ce3004b24276305666239c99aff58391503f3fb6142f39d
     container_name: gatus
     depends_on:
+      gatus-init:
+        condition: service_completed_successfully
       gatus-db:
         condition: service_healthy
     env_file:
@@ -36,9 +75,6 @@ services:
       - /tmp
     volumes:
       - gatus-sidecar-config:/config
-    configs:
-      - source: gatus-config
-        target: /config/config.yaml
     # No healthcheck — the image is scratch-based (no shell, wget, or curl available)
     labels:
       # Homepage
@@ -267,7 +303,3 @@ volumes:
     name: gatus-db-data
   gatus-sidecar-config:
     name: gatus-sidecar-config
-
-configs:
-  gatus-config:
-    file: ./config/config.yaml
