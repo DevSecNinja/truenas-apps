@@ -293,7 +293,7 @@ Configure the following Unix permissions on the `vm-pool/apps` dataset using the
 | Group   | Read ✓ Write ✓ Execute ✓ |
 | Other   | No permissions           |
 
-Enable **Apply permissions recursively**.
+Enable both **Apply permissions recursively** and **Apply permissions to child datasets**. Child datasets are created as `root:root` regardless of the parent's permissions, so this must be done after all child datasets exist.
 
 This gives `truenas_admin` full access while blocking all other users from reading decrypted `.env` files containing secrets. Root does not need explicit permissions — it bypasses all permission checks.
 
