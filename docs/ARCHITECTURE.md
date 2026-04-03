@@ -98,7 +98,9 @@ The init container runs as root, chowns the volume paths to the service's UID:GI
     - ./config:/path/b     # git-tracked config — group-write for truenas_admin
 ```
 
-For services that only chown runtime-only paths (named volumes, `./data/`), the `chmod 775/664` step and `FOWNER`/`DAC_OVERRIDE` capabilities can be omitted — only `CHOWN` is needed.
+For services that only chown runtime-only paths (named Docker volumes, `./data/`), the `chmod 775/664` step and `FOWNER`/`DAC_OVERRIDE` capabilities can be omitted — only `CHOWN` is needed. Docker creates named volumes and `./data/` directories as `root:root 755`, so UID 0 is always the owner and can traverse them without `DAC_OVERRIDE`.
+
+**Exception — external bind-mount paths with non-root ownership:** If the bind-mount source is a host directory owned by a non-root user (e.g., a TrueNAS dataset with `truenas_admin:truenas_admin 770`), UID 0 inside the container matches neither owner nor group and has no permissions. Busybox `chown -R` opens the directory before chowning it, which fails without `DAC_OVERRIDE`. Add `DAC_OVERRIDE` to any init container that chowns such a path.
 
 **Exceptions — images that manage their own permissions:**
 
@@ -114,7 +116,7 @@ For services that only chown runtime-only paths (named volumes, `./data/`), the 
 | metube               | `metube-init`               | `metube-state`                                                  |
 | traefik              | `traefik-init`              | `traefik-acme`, `./config`                                      |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                        |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich`, `immich-model-cache` |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `immich-model-cache` |
 
 ---
 
