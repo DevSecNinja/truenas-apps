@@ -17,26 +17,28 @@ Before starting, ensure you have:
 
 ## Step 1: Create ZFS Datasets
 
-Recreate the dataset hierarchy in the TrueNAS UI. Each app gets its own child dataset for independent snapshots and replication:
+Recreate the dataset hierarchy in the TrueNAS UI. Each app gets its own child dataset for independent snapshots and replication.
+
+**Enable encryption on the `vm-pool/apps` dataset** when creating it. Use the TrueNAS encryption wizard to select a passphrase or key. Store the encryption passphrase/key in a secure, offline location (e.g., a password manager or printed copy) — without it, the dataset cannot be unlocked after a reboot or reinstall. Child datasets inherit encryption from the parent.
 
 ```text
-vm-pool/Apps              # root — holds the git repo
-vm-pool/Apps/src          # parent for all app datasets
-vm-pool/Apps/src/adguard
-vm-pool/Apps/src/echo-server
-vm-pool/Apps/src/gatus
-vm-pool/Apps/src/homepage
-vm-pool/Apps/src/immich
-vm-pool/Apps/src/metube
-vm-pool/Apps/src/plex
-vm-pool/Apps/src/traefik
-vm-pool/Apps/src/traefik-forward-auth
-vm-pool/Apps/src/unifi
+vm-pool/apps              # root — holds the git repo
+vm-pool/apps/src          # parent for all app datasets
+vm-pool/apps/src/adguard
+vm-pool/apps/src/echo-server
+vm-pool/apps/src/gatus
+vm-pool/apps/src/homepage
+vm-pool/apps/src/immich
+vm-pool/apps/src/metube
+vm-pool/apps/src/plex
+vm-pool/apps/src/traefik
+vm-pool/apps/src/traefik-forward-auth
+vm-pool/apps/src/unifi
 ```
 
-### Apps Dataset Permissions
+### apps Dataset Permissions
 
-Set Unix permissions on `vm-pool/Apps` using the TrueNAS **Unix Permissions Editor**:
+Set Unix permissions on `vm-pool/apps` using the TrueNAS **Unix Permissions Editor**:
 
 | Setting | Value                    |
 | ------- | ------------------------ |
@@ -85,7 +87,7 @@ Some service accounts need specific primary or auxiliary group memberships for m
 Clone as `truenas_admin` so the repo is owned correctly from the start:
 
 ```sh
-git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/Apps
+git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/apps
 ```
 
 ---
@@ -96,15 +98,15 @@ Place the Age private key on the TrueNAS host at the expected path:
 
 ```sh
 # Copy from backup or another machine
-cp /path/to/backup/age.key /mnt/vm-pool/Apps/age.key
-chmod 600 /mnt/vm-pool/Apps/age.key
-chown truenas_admin:truenas_admin /mnt/vm-pool/Apps/age.key
+cp /path/to/backup/age.key /mnt/vm-pool/apps/age.key
+chmod 600 /mnt/vm-pool/apps/age.key
+chown truenas_admin:truenas_admin /mnt/vm-pool/apps/age.key
 ```
 
 Verify decryption works by testing one file:
 
 ```sh
-sops -d /mnt/vm-pool/Apps/src/echo-server/secret.sops.env
+sops -d /mnt/vm-pool/apps/src/echo-server/secret.sops.env
 ```
 
 ---
@@ -113,7 +115,7 @@ sops -d /mnt/vm-pool/Apps/src/echo-server/secret.sops.env
 
 If you have ZFS snapshots or replication backups, restore them **before** deploying apps:
 
-- **Per-app datasets** — restore snapshots for `vm-pool/Apps/src/<app>` to recover `data/` directories (databases, state files, certificates)
+- **Per-app datasets** — restore snapshots for `vm-pool/apps/src/<app>` to recover `data/` directories (databases, state files, certificates)
 - **Named Docker volumes** — these live outside the dataset tree and need separate restoration if backed up. Key volumes include Traefik's ACME certificates (`traefik-acme`) and database data (`gatus-db-data`, etc.)
 - **Database backups** — if using `tiredofit/db-backup`, restore from files in each app's `backups/` directory
 
@@ -133,7 +135,7 @@ In the TrueNAS UI, create a Custom App (YAML) for each service. Each entry uses 
 
 ```yaml
 include:
-  - /mnt/vm-pool/Apps/src/<app-name>/compose.yaml
+  - /mnt/vm-pool/apps/src/<app-name>/compose.yaml
 services: {}
 ```
 
@@ -146,11 +148,11 @@ services: {}
 After all apps are deployed via the TrueNAS UI, run the CD script once to verify everything is healthy and secrets decrypt correctly:
 
 ```sh
-bash /mnt/vm-pool/Apps/scripts/dccd.sh \
-  -d /mnt/vm-pool/Apps \
+bash /mnt/vm-pool/apps/scripts/dccd.sh \
+  -d /mnt/vm-pool/apps \
   -x shared \
   -t -f \
-  -k /mnt/vm-pool/Apps/age.key
+  -k /mnt/vm-pool/apps/age.key
 ```
 
 Then check that all containers are healthy:
@@ -167,7 +169,7 @@ Add a TrueNAS cron job for continuous deployment:
 
 - **Command:**
   ```sh
-  bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /mnt/vm-pool/Apps/age.key
+  bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /mnt/vm-pool/apps/age.key
   ```
 - **Run As User:** `root`
 - **Schedule:** Every 15 minutes (or as desired)
@@ -179,8 +181,9 @@ Add a TrueNAS cron job for continuous deployment:
 
 Use this as a quick reference:
 
-- [ ] Create ZFS datasets (`vm-pool/Apps` hierarchy)
-- [ ] Set permissions on the Apps dataset
+- [ ] Create ZFS datasets (`vm-pool/apps` hierarchy) with encryption enabled
+- [ ] Unlock the encrypted apps dataset (if not auto-unlocked on boot)
+- [ ] Set permissions on the apps dataset
 - [ ] Create shared purpose groups (GIDs 3200–3202)
 - [ ] Create app service accounts (UIDs 3100–3108, plus Plex at 911)
 - [ ] Add `truenas_admin` to each app group
