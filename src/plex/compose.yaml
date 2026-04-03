@@ -71,8 +71,6 @@ services:
     restart: always
     tmpfs:
       - /run:exec
-    ports:
-      - "32400:32400" # First-run only: remove after completing setup via direct port access (see top of file)
     networks:
       - plex-frontend
     mem_limit: ${MEM_LIMIT:-2048m}
