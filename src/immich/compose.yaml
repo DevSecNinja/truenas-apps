@@ -169,7 +169,7 @@ services:
       start_period: 30s
 
   immich-redis:
-    image: docker.io/valkey/valkey:9-alpine@sha256:84c96f47ebe197e635cd3ddbe3ab74e8bdf783cf3befbfb1c36387275c1cd5d5
+    image: docker.io/valkey/valkey:9-alpine@sha256:e1095c6c76ee982cb2d1e07edbb7fb2a53606630a1d810d5a47c9f646b708bf5
     container_name: immich-redis
     # requirepass via command because the REDIS_PASSWORD env var isn't picked up
     command: >
