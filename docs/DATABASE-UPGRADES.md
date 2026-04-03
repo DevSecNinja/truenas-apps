@@ -36,11 +36,11 @@ it exits cleanly without doing anything.
 Starting with Postgres 18, the official image changed the expected data
 directory from `/var/lib/postgresql/data` to `/var/lib/postgresql/<MAJOR>/docker`.
 A symlink from `/var/lib/postgresql/data` to `/var/lib/postgresql` was added by
-the image, which causes a conflict when mounting a named volume directly to
+the image, which causes a conflict when mounting a directory directly to
 `/var/lib/postgresql/data`.
 
-**All Postgres stacks in this repo therefore mount the named volume at
-`/var/lib/postgresql`** (the parent directory), not at `.../data`. This allows:
+**All Postgres stacks in this repo therefore mount the data directory at
+`/var/lib/postgresql`** (the parent), not at `.../data`. This allows:
 
 - The Postgres image to create the correct major-version subdirectory.
 - pgautoupgrade to auto-discover the existing installation and upgrade it
@@ -53,7 +53,7 @@ Example compose excerpt:
 gatus-db:
   image: docker.io/library/postgres:18.x-alpine@sha256:...
   volumes:
-    - gatus-db-data:/var/lib/postgresql   # Parent mount, not .../data
+    - ./data/db:/var/lib/postgresql   # Parent mount, not .../data
 
 gatus-db-upgrade:
   image: pgautoupgrade/pgautoupgrade:18.x-alpine@sha256:...
@@ -62,7 +62,7 @@ gatus-db-upgrade:
     # PGDATA is intentionally omitted — pgautoupgrade auto-discovers
     # the installation by scanning /var/lib/postgresql/
   volumes:
-    - gatus-db-data:/var/lib/postgresql
+    - ./data/db:/var/lib/postgresql
 ```
 
 ### Routine upgrade (e.g., 18.x → 19.x)
@@ -83,7 +83,7 @@ a one-time manual restructure is needed **after** pgautoupgrade runs but
 **before** the Postgres 18 container is started. Run the following on the host:
 
 ```bash
-docker run --rm -v <stack>-db-data:/pgvol alpine sh -c \
+docker run --rm -v ${BASE_DIR}/src/<stack>/data/db:/pgvol alpine sh -c \
   'mkdir -p /pgvol/<NEW_MAJOR>/docker && cd /pgvol && \
    mv $(ls -A | grep -v "^<NEW_MAJOR>$") <NEW_MAJOR>/docker/'
 ```
@@ -91,7 +91,7 @@ docker run --rm -v <stack>-db-data:/pgvol alpine sh -c \
 For example, for `gatus` upgrading to 18:
 
 ```bash
-docker run --rm -v gatus-db-data:/pgvol alpine sh -c \
+docker run --rm -v /mnt/vm-pool/apps/src/gatus/data/db:/pgvol alpine sh -c \
   'mkdir -p /pgvol/18/docker && cd /pgvol && mv $(ls -A | grep -v "^18$") 18/docker/'
 ```
 

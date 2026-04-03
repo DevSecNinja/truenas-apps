@@ -1,6 +1,6 @@
 ---
 services:
-  # Sets ownership on the traefik-acme volume and ./config directory so the
+  # Sets ownership on the ./data/acme bind-mount directory and ./config directory so the
   # non-root traefik container can access them. Runs once, then exits.
   # Required because traefik runs as 3100:3100 with cap_drop: ALL, meaning
   # it has no CAP_CHOWN and cannot fix volume ownership itself at runtime.
@@ -37,7 +37,7 @@ services:
         find /config -type d -exec chmod 775 {} + &&
         find /config -type f -exec chmod 664 {} +
     volumes:
-      - traefik-acme:/acme
+      - ./data/acme:/acme
       - ./config:/config
 
   traefik:
@@ -84,7 +84,7 @@ services:
       - /tmp
       - /run
     volumes:
-      - traefik-acme:/acme
+      - ./data/acme:/acme
       - ./config/rules:/rules:ro
       - ./config/traefik.yml:/etc/traefik/traefik.yml:ro
     healthcheck:
@@ -193,7 +193,3 @@ networks:
   immich-frontend:
     name: immich-frontend
     external: true
-
-volumes:
-  traefik-acme:
-    name: traefik-acme

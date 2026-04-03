@@ -1,7 +1,7 @@
 ---
 services:
-  # Sets ownership on the metube-state volume and pre-creates the download
-  # subdirectories inside the bind-mount so MeTube can write on first boot.
+  # Sets ownership on the ./data/state bind-mount directory and pre-creates the
+  # subdirectories inside the /downloads bind-mount so MeTube can write on first boot.
   # Runs once, then exits.
   # GID is hardcoded to 3201 (media-writers) because env_file entries are
   # injected into the container environment and do not feed into compose
@@ -32,7 +32,7 @@ services:
         mkdir -pv /downloads/video /downloads/audio &&
         chown -v 3107:3201 /downloads/video /downloads/audio
     volumes:
-      - metube-state:/metube-state-dir
+      - ./data/state:/metube-state-dir
       - /mnt/smb_share_youtube/metube:/downloads
 
   # alexta69/metube is a standard Python/aiohttp application; it does not use
@@ -83,7 +83,7 @@ services:
     volumes:
       # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
       - /mnt/smb_share_youtube/metube:/downloads
-      - metube-state:/metube-state-dir
+      - ./data/state:/metube-state-dir
     healthcheck:
       test:
         - "CMD"
@@ -116,7 +116,3 @@ networks:
   metube-frontend:
     name: metube-frontend
     driver: bridge
-
-volumes:
-  metube-state:
-    name: metube-state
