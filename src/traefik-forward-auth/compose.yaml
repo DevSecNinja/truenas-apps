@@ -63,6 +63,8 @@ services:
       - homepage.icon=traefik.svg
       - homepage.href=https://auth.${DOMAINNAME}
       - homepage.description=Authentication Service
+      # Gatus
+      - gatus.url=https://auth.${DOMAINNAME}/healthz
       # Traefik
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-forward-auth-frontend"
