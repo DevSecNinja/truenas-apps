@@ -84,11 +84,16 @@ Some service accounts need specific primary or auxiliary group memberships for m
 
 ## Step 3: Clone the Repository
 
-Clone as `truenas_admin` so the repo is owned correctly from the start:
+Because the ZFS datasets from Step 1 already created the directory tree, a normal `git clone` will refuse to run ("destination path already exists"). Instead, initialise the repo inside the existing directory and check out `main`:
 
 ```sh
-git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/apps
+cd /mnt/vm-pool/apps
+git init -b main
+git remote add origin git@github.com:DevSecNinja/truenas-apps.git
+git pull origin main
 ```
+
+This overlays the repo contents onto the existing dataset mount points without conflicting with them.
 
 ---
 
