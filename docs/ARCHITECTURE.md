@@ -12,7 +12,7 @@ services:
     env_file:
       - .env                               # SOPS-decrypted secrets
       - ../shared/env/tz.env               # Shared timezone
-    user: "${PUID:-1000}:${PGID:-1000}"    # Non-root with fallback
+    user: "3100:3100"                     # Hardcoded UID:GID (see § UID/GID Allocation)
     restart: always                        # Auto-recover on failure
     networks:
       - <service>-frontend                 # Traefik-facing network
@@ -52,24 +52,26 @@ services:
 
 ## Volume Permissions: Init Container Pattern
 
-Named Docker volumes and bind-mounted directories are created as `root:root` by Docker. A container with `user: "${PUID}:${PGID}"` and `cap_drop: ALL` has no `CAP_CHOWN` and cannot fix this at runtime — it will fail to write on first deploy.
+Named Docker volumes and bind-mounted directories are created as `root:root` by Docker. A container with a hardcoded non-root `user:` and `cap_drop: ALL` has no `CAP_CHOWN` and cannot fix this at runtime — it will fail to write on first deploy.
 
 **Rule:** Any service with both of the following requires a `<app>-init` container:
 
-1. `user: "${PUID}:${PGID}"` (explicit non-root)
+1. `user: "<UID>:<GID>"` (explicit non-root)
 2. At least one writable volume (named volume or bind mount)
 
-The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
+The init container runs as root, chowns the volume paths to the service's UID:GID, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
 
-**Bind-mount directories (`./config`, `./data`, `./backup`) must always be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable by `${PUID}`. The init container is the single recovery point that restores ownership on every deploy.
+**Bind-mount directories (`./config`, `./data`, `./backup`) must always be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. The init container is the single recovery point that restores ownership on every deploy.
+
+**Git-tracked config directories** (`./config`) must be set to group-write permissions (`775` for directories, `664` for files) by the init container. This allows `truenas_admin` (who is a member of each app's primary group) to run `git pull` without permission conflicts. The init container restores both ownership and permissions on every deploy, so manual permission fixes are never needed.
 
 ```yaml
-# Pattern — copy this block, adjust container_name, command paths, and volumes
+# Pattern — copy this block, adjust container_name, UID:GID, command paths, and volumes
 <app>-init:
   image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
   container_name: <app>-init
   env_file:
-    - path: .env          # Provides PUID/PGID
+    - path: .env          # Decrypted from secret.sops.env
       required: false
   restart: "no"
   network_mode: none
@@ -80,18 +82,23 @@ The init container runs as root, chowns the volume paths to `${PUID}:${PGID}`, a
   cap_drop:
     - ALL
   cap_add:
-    - CHOWN # Required to chown volume paths to ${PUID}:${PGID}
+    - CHOWN    # Required to chown volume paths
+    - FOWNER   # Required to chmod after ownership transfer
+    - DAC_OVERRIDE # Required to traverse previously-chowned directories
   read_only: true
   command:
     - "sh"
     - "-c"
-    - "chown -R ${PUID:-1000}:${PGID:-1000} /path/a /path/b"
+    - |-
+      chown -R <UID>:<GID> /path/a /path/b &&
+      find /path/b -type d -exec chmod 775 {} + &&
+      find /path/b -type f -exec chmod 664 {} +
   volumes:
     - <app>-volume:/path/a
-    - ./data/something:/path/b
+    - ./config:/path/b     # git-tracked config — group-write for truenas_admin
 ```
 
-Init containers follow the same `cap_drop: ALL` hard requirement as all other containers. The single re-added capability, `CAP_CHOWN`, is the minimum needed to set volume ownership and is documented with a comment. Since the container exits immediately after chowning and exposes no network surface, this is a contained, minimal exception.
+For services that only chown runtime-only paths (named volumes, `./data/`), the `chmod 775/664` step and `FOWNER`/`DAC_OVERRIDE` capabilities can be omitted — only `CHOWN` is needed.
 
 **Exceptions — images that manage their own permissions:**
 
@@ -202,111 +209,181 @@ src/<service>/
 
 Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https://github.com/FiloSottile/age) and stored in git as `secret.sops.env`. The CD script decrypts them to `.env` at deploy time using an Age key stored on the TrueNAS host.
 
+`PUID` and `PGID` are hardcoded directly in each service's `compose.yaml` so they are visible, auditable, and self-documenting. See § UID/GID Allocation.
+
+## UID/GID Allocation
+
+Every service runs under a dedicated non-root user with a unique UID. Each user has an auto-created primary group with the same GID (UID = GID). This ensures file ownership is unambiguous in `ls -la` and allows fine-grained access control via TrueNAS group membership.
+
+### Naming Convention
+
+TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-traefik`). This distinguishes them from human users and makes their purpose immediately clear in `ls -la` output.
+
+### ID Ranges
+
+| Range     | Purpose                                          |
+| --------- | ------------------------------------------------ |
+| 911       | Reserved for Plex (LinuxServer image default)    |
+| 3100–3199 | Per-app service accounts (UID = GID)             |
+| 3200+     | Shared purpose groups (no matching user account) |
+
+### App Service Accounts
+
+| UID/GID | TrueNAS user       | Service(s)                                  | Git-tracked config? |
+| ------- | ------------------ | ------------------------------------------- | ------------------- |
+| 3100    | `svc-app-traefik`  | traefik, traefik-init                       | Yes (`./config`)    |
+| 3101    | `svc-app-adguard`  | adguard, adguard-init, adguard-unbound-init | No (`./data/conf`)  |
+| 3102    | `svc-app-homepage` | homepage, homepage-init                     | Yes (`./config`)    |
+| 3103    | `svc-app-gatus`    | gatus, gatus-db-backup                      | No                  |
+| 3104    | `svc-app-echo`     | echo-server                                 | No                  |
+| 3105    | `svc-app-tfa`      | traefik-forward-auth, init                  | No (`./data`)       |
+| 3106    | `svc-app-immich`   | immich-server, immich-ml, immich-init       | No                  |
+| 3107    | `svc-app-metube`   | metube, metube-init                         | No                  |
+| 3108    | `svc-app-unifi`    | unifi, unifi-db-backup                      | No                  |
+
+### Shared Purpose Groups
+
+These groups have no matching user account. They grant cross-service access to shared datasets.
+
+| GID  | Group           | Purpose                            | Used as primary group by |
+| ---- | --------------- | ---------------------------------- | ------------------------ |
+| 3200 | `media-readers` | Read access to media datasets      | Plex (UID 911)           |
+| 3201 | `media-writers` | Write access to media/download dir | MeTube (UID 3107)        |
+| 3202 | `private`       | Access to private datasets         | Immich (UID 3106)        |
+
+### Plex Exception
+
+Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media-readers`). The s6-overlay init system manages permissions internally. UID 911 is reserved exclusively for Plex — no other service may use it. For naming consistency, create a `svc-app-plex` user on TrueNAS with UID 911 and primary group `media-readers` (GID 3200).
+
+### TrueNAS Host Setup
+
+**Important:** When creating service accounts in TrueNAS, always **create the group first**, then the user. If you rely on TrueNAS's "auto-create primary group" checkbox when creating a user, TrueNAS assigns the earliest available GID — which may not match the desired UID. By pre-creating the group with the correct GID, the auto-created primary group step is skipped and UID = GID is guaranteed.
+
+Creation order for each app service account:
+
+1. Create group `svc-app-<name>` with GID matching the UID (e.g., GID 3100)
+2. Create user `svc-app-<name>` with UID matching the GID (e.g., UID 3100), primary group set to the group from step 1
+3. Add `truenas_admin` to the group — this grants group-write access to chown'd config files, allowing `git pull` without permission conflicts
+
+For shared purpose groups (`media-readers`, `media-writers`, `private`):
+
+1. Create the group with the designated GID (3200, 3201, 3202)
+2. Configure the relevant service accounts' group memberships:
+   - `svc-app-plex` (911): primary group `media-readers` (3200)
+   - `svc-app-metube` (3107): primary group `media-writers` (3201), auxiliary group `media-readers` (3200)
+   - `svc-app-immich` (3106): primary group `private` (3202)
+3. Add `truenas_admin` as an auxiliary group member of each group if admin access to those datasets is needed
+
+### Apps Dataset ACLs
+
+The git repo root (`vm-pool/Apps`) does not need per-app group ACL entries. The mechanism is simpler:
+
+1. Parent directories (`src/`, `src/traefik/`, etc.) are owned by root with default `755` permissions — world-traversable
+2. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
+3. `truenas_admin` (a member of each app's primary group) gets group-write access — `git pull` succeeds
+4. Next deploy, the init container re-chowns everything (idempotent)
+
 ## Shared Environment Files
 
 Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File                     | Purpose                    | When to include                                                     |
-| ------------------------ | -------------------------- | ------------------------------------------------------------------- |
-| `tz.env`                 | Sets `TZ=Europe/Amsterdam` | Every container                                                     |
-| `pgid-media.env`         | Sets `PGID=3051`           | Consumer containers that access TrueNAS media datasets              |
-| `pgid-media-writers.env` | Sets `PGID=3052`           | Producer containers that write to TrueNAS media datasets            |
-| `pgid-private.env`       | Sets `PGID=3053`           | Containers that access TrueNAS private datasets (photos, documents) |
+| File     | Purpose                    | When to include |
+| -------- | -------------------------- | --------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container |
+
+UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See § UID/GID Allocation for the full allocation table.
 
 ## Media Access: Consumer/Producer Model
 
 Services that interact with media datasets are divided into two roles:
 
-**Consumers** (e.g., Plex) only read media files. All media bind-mounts carry `:ro`, enforcing this at the kernel level regardless of filesystem permissions. Consumers are members of the shared `media` group (GID 3051) on the TrueNAS host so that dataset ACLs can grant them read access.
+**Consumers** (e.g., Plex) only read media files. All media bind-mounts carry `:ro`, enforcing this at the kernel level regardless of filesystem permissions. Consumers run with the shared `media-readers` group (GID 3200) so that dataset ACLs grant them read access.
 
-**Producers** (e.g., DVD rippers, download clients) write new media files. Each producer runs under its own dedicated UID so file ownership is auditable — `ls -la` shows which service created a file. All producers share the `media-writers` group (GID 3052) as their primary group, so dataset write access is controlled by a single ACL entry per dataset. Adding a new producer tool only requires joining it to the group on TrueNAS — no dataset ACL edits needed.
+**Producers** (e.g., download clients) write new media files. Each producer runs under its own dedicated UID so file ownership is auditable — `ls -la` shows which service created a file. All producers share the `media-writers` group (GID 3201) as their primary group, so dataset write access is controlled by a single ACL entry per dataset. Adding a new producer tool only requires joining it to the group on TrueNAS — no dataset ACL edits needed.
 
-Producers are also supplementary members of the `media` group on the TrueNAS host. This is set at the OS level and applies at the filesystem layer regardless of what the container knows about its groups — so consumers can read whatever a producer writes without any additional configuration.
+Producers are also members of the `media-readers` group (as an auxiliary group on the user) on the TrueNAS host. This is set at the OS level and applies at the filesystem layer regardless of what the container knows about its groups — so consumers can read whatever a producer writes without any additional configuration.
 
 ### TrueNAS Scale Setup
 
 On the TrueNAS host, create or confirm:
 
-- A `media` group (GID 3051, matching `pgid-media.env`) — for all consumers
-- A `media-writers` group (GID 3052, matching `pgid-media-writers.env`) — for all producers
-- A `plex` user (UID 911) as a member of `media`
+- A `media-readers` group (GID 3200) — for all consumers
+- A `media-writers` group (GID 3201) — for all producers
+- A `svc-app-plex` user (UID 911) with primary group `media-readers`
   - UID 911 is fixed by the LinuxServer image when `read_only: true`; it cannot be changed via `PUID`
   - **UID 911 is reserved exclusively for Plex.** No other service may use this UID unless strictly necessary, and any exception must be documented with a comment in the relevant compose file explaining why.
-- A dedicated user per producer (e.g., `ripper` at UID 1050)
+- A dedicated user per producer (e.g., `svc-app-metube` at UID 3107)
   - Primary group: `media-writers` (controls write access via ACL)
-  - Supplementary group: `media` (ensures consumers can read files the producer writes)
+  - Auxiliary group: `media-readers` (ensures consumers can read files the producer writes)
   - Use a distinct UID per producer tool so file ownership is unambiguous in `ls -la`
-  - To add a new producer tool: create its user, set primary group to `media-writers`, add it to `media` as supplementary — no dataset ACL changes needed
+  - To add a new producer tool: create its user, set primary group to `media-writers`, add `media-readers` as an auxiliary group — no dataset ACL changes needed
 
 On each media dataset under `/mnt/archive-pool/Media/`:
 
 1. Set the owning group to `media-writers` and enable **Apply Group**
 2. Configure NFSv4 ACLs (TrueNAS Scale default on ZFS datasets) using Basic presets:
    - `owner@`: **Full Control** — dataset owner (root)
-   - `group@` (= `media-writers`, GID 3052): **Modify** — all producers; because `media-writers` is the owning group, `group@` covers it — no separate named ACL entry needed
-   - Named entry for `media` group (GID 3051): **Read** — all consumers, including Plex via `group_add`
-3. Enable ACL inheritance on both the `group@` and the named `media` group ACL entries. In the TrueNAS dataset ACL editor, edit each entry and enable **File Inherit** and **Directory Inherit**. This ensures new files and subdirectories created inside the dataset automatically receive the correct ACL entries.
+   - `group@` (= `media-writers`, GID 3201): **Modify** — all producers; because `media-writers` is the owning group, `group@` covers it — no separate named ACL entry needed
+   - Named entry for `media-readers` group (GID 3200): **Read** — all consumers, including Plex
+3. Enable ACL inheritance on both the `group@` and the named `media-readers` group ACL entries. In the TrueNAS dataset ACL editor, edit each entry and enable **File Inherit** and **Directory Inherit**. This ensures new files and subdirectories created inside the dataset automatically receive the correct ACL entries.
 4. Select **Apply permissions recursively** and **Apply permissions to child datasets** when appropriate.
 
 ### Container Configuration
 
-**Consumers:** Include `pgid-media.env` for the shared `media` group GID and set a unique `PUID` in `secret.sops.env`. Mount all media paths `:ro`:
+**Consumers** hardcode the media GID in their `user:` directive or `PGID` environment variable. Mount all media paths `:ro`:
 
 ```yaml
-env_file:
-  - ../shared/env/pgid-media.env  # Provides PGID=3051 (media group)
-  - path: .env                     # Provides service-specific PUID
-    required: false
+environment:
+  - PUID=911
+  - PGID=3200 # media-readers group — consumers read media datasets via this GID
 volumes:
   - /mnt/archive-pool/Media/Movies:/media/movies:ro
 ```
 
-**Producers:** Include `pgid-media-writers.env` for the `media-writers` group GID (used as `PGID`) and set a unique `PUID` in `secret.sops.env`. Set `UMASK=002` so created files are group-writable (`664`) and directories group-traversable (`775`). The supplementary `media` group membership is configured on the TrueNAS host at the OS level — no container-side config needed for consumers to read produced files:
+**Producers** hardcode the media-writers GID. Set `UMASK=002` so created files are group-writable (`664`) and directories group-traversable (`775`). The supplementary `media-readers` group membership is configured on the TrueNAS host at the OS level — no container-side config needed for consumers to read produced files:
 
 ```yaml
-env_file:
-  - ../shared/env/pgid-media-writers.env  # Provides PGID=3052 (media-writers group)
-  - path: .env                              # Provides service-specific PUID
-    required: false
+user: "3107:3201" # svc-app-metube:media-writers
 environment:
   - UMASK=002
 volumes:
   - /mnt/archive-pool/Media/Movies:/media/movies  # read-write; no :ro
 ```
 
-> **Plex exception:** The LinuxServer Plex image forces UID/GID 911:911 internally when `read_only: true`, so `PUID`/`PGID` env vars have no effect. The host-level ACL entry for `plex` (UID 911) on each media dataset handles access instead. **UID 911 is reserved for Plex** — no other service may use it unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
+> **Plex exception:** The LinuxServer Plex image forces UID/GID 911:911 internally when `read_only: true`, so `PUID`/`PGID` env vars have no effect. The host-level ACL entry for `svc-app-plex` (UID 911) on each media dataset handles access instead. **UID 911 is reserved for Plex** — no other service may use it unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
 
 ### Role Summary
 
-| Role     | Example service | UID               | Primary group          | Auxiliary group | Media mount | UMASK |
-| -------- | --------------- | ----------------- | ---------------------- | --------------- | ----------- | ----- |
-| Consumer | Plex            | 911 (image-fixed) | 3051 (`media`)         | —               | `:ro`       | —     |
-| Producer | MeTube          | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)  | read-write  | `002` |
-| Producer | DVD ripper      | Dedicated         | 3052 (`media-writers`) | 3051 (`media`)  | read-write  | `002` |
+| Role     | Example service | UID                | Primary group            | Auxiliary group         | Media mount | UMASK |
+| -------- | --------------- | ------------------ | ------------------------ | ----------------------- | ----------- | ----- |
+| Role     | Example service | UID                | Primary group            | Auxiliary group         | Media mount | UMASK |
+| -------- | --------------- | ------------------ | ------------------------ | ----------------------- | ----------- | ----- |
+| Consumer | Plex            | 911 (image-fixed)  | 3200 (`media-readers`)   | —                       | `:ro`       | —     |
+| Producer | MeTube          | 3107               | 3201 (`media-writers`)   | 3200 (`media-readers`)  | read-write  | `002` |
 
 ## Private Storage: Access Model
 
-Private data (photos, documents) is intentionally separated from the shared media group hierarchy. Containers that access private datasets use a dedicated `private` group (GID 3053) rather than the `media` or `media-writers` groups, ensuring media consumers like Plex cannot access personal data.
+Private data (photos, documents) is intentionally separated from the shared media group hierarchy. Containers that access private datasets use a dedicated `private` group (GID 3202) rather than the `media-readers` or `media-writers` groups, ensuring media consumers like Plex cannot access personal data.
 
 ### TrueNAS Host Setup
 
 On the TrueNAS host, create or confirm:
 
-- A `private` group (GID 3053, matching `pgid-private.env`)
-- A dedicated user per private-data service (e.g., `immich`) with primary group `private` (GID 3053)
+- A `private` group (GID 3202)
+- A dedicated user per private-data service (e.g., `svc-app-immich` at UID 3106) with primary group `private` (GID 3202)
 
 On the private dataset (`/mnt/archive-pool/private`):
 
 1. Set the owning group to `private` and enable **Apply Group**
 2. Configure NFSv4 ACLs:
    - `owner@`: **Full Control**
-   - `group@` (= `private`, GID 3053): **Modify**
+   - `group@` (= `private`, GID 3202): **Modify**
 3. Enable **File Inherit** and **Directory Inherit** on ACL entries
 
 ### Container Configuration
 
-Private-data containers include `pgid-private.env` for documentation consistency. The GID is hardcoded in `user:` directives and the init container because `env_file` values are not interpolated by Compose at parse time:
+Private-data containers hardcode the GID in `user:` directives and the init container:
 
 ```yaml
-user: "${PUID:-1000}:3053" # 3053 = private GID
+user: "3106:3202" # svc-app-immich:private
 ```

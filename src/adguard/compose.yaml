@@ -91,7 +91,7 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /opt/adguardhome/work /opt/adguardhome/conf"
+      - "chown -Rv 3101:3101 /opt/adguardhome/work /opt/adguardhome/conf"
     volumes:
       - adguard-data:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
@@ -108,7 +108,7 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "3101:3101" # svc-app-adguard
     restart: always
     networks:
       - adguard-frontend

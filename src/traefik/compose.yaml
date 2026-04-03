@@ -1,9 +1,11 @@
 ---
 services:
-  # Sets ownership on the traefik-acme volume so the non-root traefik container
-  # can write acme.json to it. Runs once, then exits.
-  # Required because traefik runs as ${PUID}:${PGID} with cap_drop: ALL, meaning
+  # Sets ownership on the traefik-acme volume and ./config directory so the
+  # non-root traefik container can access them. Runs once, then exits.
+  # Required because traefik runs as 3100:3100 with cap_drop: ALL, meaning
   # it has no CAP_CHOWN and cannot fix volume ownership itself at runtime.
+  # Config files are set to group-write (775/664) so truenas_admin (member of
+  # group 3100) can git-pull without permission conflicts.
   traefik-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: traefik-init
@@ -21,13 +23,19 @@ services:
     cap_add:
       - CHOWN # Required to change file ownership
       - FOWNER # Required to chmod files after chown transfers ownership away from root
-      - DAC_OVERRIDE # Required to traverse /acme if it was previously chowned to ${PUID}:${PGID}
+      - DAC_OVERRIDE # Required to traverse /acme and /config if previously chowned
     read_only: true
     command:
       - "sh"
       - "-c"
-      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /acme && chmod -v 700 /acme && touch /acme/acme.json && chmod -v 600 /acme/acme.json
-        && chown -Rv ${PUID:-1000}:${PGID:-1000} /config"
+      - |-
+        chown -Rv 3100:3100 /acme &&
+        chmod -v 700 /acme &&
+        touch /acme/acme.json &&
+        chmod -v 600 /acme/acme.json &&
+        chown -Rv 3100:3100 /config &&
+        find /config -type d -exec chmod 775 {} + &&
+        find /config -type f -exec chmod 664 {} +
     volumes:
       - traefik-acme:/acme
       - ./config:/config
@@ -49,7 +57,7 @@ services:
       # so ${DOMAINNAME} would be passed as a literal string rather than the actual domain.
       TRAEFIK_PROVIDERS_DOCKER_DEFAULTRULE: >-
         Host(`{{ index .Labels "com.docker.compose.service" }}.${DOMAINNAME}`)
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "3100:3100" # svc-app-traefik
     restart: always
     networks:
       - traefik-backend

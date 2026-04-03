@@ -65,8 +65,8 @@ services:
     command:
       - "backup-now"
     environment:
-      - USER_DBBACKUP=${PUID:-1000}
-      - GROUP_DBBACKUP=${PGID:-1000}
+      - USER_DBBACKUP=3108
+      - GROUP_DBBACKUP=3108
       - CONTAINER_NAME=unifi-db-backup
       - CONTAINER_ENABLE_MONITORING=FALSE
       - CONTAINER_ENABLE_SCHEDULING=FALSE
@@ -128,8 +128,8 @@ services:
         required: false
       - path: ../shared/env/tz.env
     environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
+      - PUID=3108 # svc-app-unifi
+      - PGID=3108 # svc-app-unifi
       - MONGO_USER=unifi
       - MONGO_PASS=${UNIFI_MONGO_PASS}
       - MONGO_HOST=unifi-db

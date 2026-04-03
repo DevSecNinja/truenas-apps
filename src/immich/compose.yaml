@@ -2,11 +2,11 @@
 # Manual work to implement on a new server:
 #
 # TrueNAS host setup:
-#   1. Create a `private` group (GID 3053, matching pgid-private.env)
-#   2. Create a dedicated `immich` user with primary group `private` (GID 3053)
+#   1. Create a `private` group (GID 3202)
+#   2. Create a dedicated `svc-app-immich` user (UID 3106) with primary group `private` (GID 3202)
 #   3. Set ACLs on the private dataset (/archive-pool/private):
 #        - owner@: Full Control
-#        - group@ (= private, GID 3053): Modify
+#        - group@ (= private, GID 3202): Modify
 #        - Enable File Inherit and Directory Inherit
 #   4. Create the dataset vm-pool/Apps/src/immich in TrueNAS
 #
@@ -24,7 +24,7 @@
 services:
   # Sets ownership on the upload directory and model cache volume so the
   # non-root containers can write on first boot. Runs once, then exits.
-  # GID is hardcoded to 3053 (private) because env_file entries are injected
+  # GID is hardcoded to 3202 (private) because env_file entries are injected
   # into the container environment and do not feed into compose variable
   # substitution (user:, tmpfs gid=, etc.).
   immich-init:
@@ -42,12 +42,12 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # Required to chown volumes to ${PUID}:3053
+      - CHOWN # Required to chown volumes to 3106:3202
     read_only: true
     command:
       - "sh"
       - "-c"
-      - "chown -Rv ${PUID:-1000}:3053 /upload /model-cache"
+      - "chown -Rv 3106:3202 /upload /model-cache"
     volumes:
       - /mnt/archive-pool/private/photos/immich:/upload
       - immich-model-cache:/model-cache
@@ -80,7 +80,7 @@ services:
       - DB_PASSWORD=${IMMICH_DB_PASSWORD}
       - REDIS_HOSTNAME=immich-redis
       - REDIS_PASSWORD=${IMMICH_REDIS_PASSWORD}
-    user: "${PUID:-1000}:3053" # 3053 = private GID (hardcoded — see env_file note on immich-init)
+    user: "3106:3202" # svc-app-immich:private
     restart: always
     networks:
       - immich-frontend
@@ -143,7 +143,7 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    user: "${PUID:-1000}:3053" # 3053 = private GID (hardcoded — see env_file note on immich-init)
+    user: "3106:3202" # svc-app-immich:private
     restart: always
     networks:
       - immich-backend

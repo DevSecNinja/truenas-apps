@@ -10,7 +10,7 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "3103:3103" # svc-app-gatus
     environment:
       # Database
       - DB_ENGINE=postgres
@@ -142,8 +142,8 @@ services:
     command:
       - "backup-now"
     environment:
-      - USER_DBBACKUP=${PUID:-1000}
-      - GROUP_DBBACKUP=${PGID:-1000}
+      - USER_DBBACKUP=3103
+      - GROUP_DBBACKUP=3103
       - CONTAINER_NAME=gatus-db-backup
       - CONTAINER_ENABLE_MONITORING=FALSE
       - CONTAINER_ENABLE_SCHEDULING=FALSE
