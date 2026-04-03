@@ -42,6 +42,8 @@ services:
       - ALL
     cap_add:
       - CHOWN # Required to chown volumes to 3106:3202 (svc-app-immich:private-photos)
+      - DAC_OVERRIDE # Required to open /upload for recursive chown — it is a bind-mount owned by
+      # truenas_admin:truenas_admin 770, so UID 0 has no permissions without this cap
     read_only: true
     command:
       - "sh"
