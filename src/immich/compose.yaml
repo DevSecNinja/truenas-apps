@@ -157,6 +157,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /run # gunicorn 22+ control server creates a Unix socket here at startup
     volumes:
       - immich-model-cache:/cache
     healthcheck:
