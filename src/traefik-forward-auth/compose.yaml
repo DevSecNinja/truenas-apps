@@ -24,7 +24,7 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv ${PUID:-1000}:${PGID:-1000} /output && /templates/envsubst.sh"
+      - "chown -Rv 3105:3105 /output && /templates/envsubst.sh"
     volumes:
       - ./config:/templates:ro
       - ./data:/output
@@ -39,7 +39,7 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "3105:3105" # svc-app-tfa
     restart: always
     networks:
       - traefik-forward-auth-frontend

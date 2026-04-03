@@ -7,7 +7,7 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "3104:3104" # svc-app-echo
     environment:
       - HTTP_PORT=${HTTP_PORT:-80}
       - HTTPS_PORT=${HTTPS_PORT:-443}

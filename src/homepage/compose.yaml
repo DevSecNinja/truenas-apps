@@ -3,7 +3,9 @@ services:
   # Sets ownership on ./config so the non-root homepage container can write to it.
   # Runs once, then exits.
   # Required because homepage's entrypoint only chowns when starting as root, so by
-  # pre-chowning here we can start homepage directly as ${PUID}:${PGID} without root.
+  # pre-chowning here we can start homepage directly as 3102:3102 without root.
+  # Config files are set to group-write (775/664) so truenas_admin (member of
+  # group 3102) can git-pull without permission conflicts.
   homepage-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: homepage-init
@@ -20,14 +22,16 @@ services:
       - ALL
     cap_add:
       - CHOWN # Required to change file ownership
-      - DAC_OVERRIDE # Required to traverse /config if it was previously chowned to ${PUID}:${PGID}
-      - FOWNER # Required to chmod files/dirs not owned by root (after a previous chown to ${PUID}:${PGID})
+      - DAC_OVERRIDE # Required to traverse /config if it was previously chowned
+      - FOWNER # Required to chmod files/dirs not owned by root
     read_only: true
     command:
       - "sh"
       - "-c"
-      - "find /config -type d -exec chmod 755 {} + && find /config -type f -exec chmod 644 {} + && chown -R ${PUID:-1000}:${PGID:-1000}
-        /config"
+      - |-
+        chown -R 3102:3102 /config &&
+        find /config -type d -exec chmod 775 {} + &&
+        find /config -type f -exec chmod 664 {} +
     volumes:
       - ./config:/config
 
@@ -45,7 +49,7 @@ services:
         condition: service_healthy
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAINNAME}
-    user: "${PUID:-1000}:${PGID:-1000}"
+    user: "3102:3102" # svc-app-homepage
     restart: always
     networks:
       - homepage-frontend
