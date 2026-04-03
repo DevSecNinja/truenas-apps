@@ -276,12 +276,30 @@ For shared purpose groups (`media-readers`, `media-writers`, `private`):
 
 ### Apps Dataset ACLs
 
-The git repo root (`vm-pool/Apps`) does not need per-app group ACL entries. The mechanism is simpler:
+The git repo lives on the `vm-pool/Apps` dataset. Because `dccd.sh` decrypts `secret.sops.env` → `.env` files into this tree, access must be restricted to prevent other users from reading secrets.
 
-1. Parent directories (`src/`, `src/traefik/`, etc.) are owned by root with default `755` permissions — world-traversable
-2. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
-3. `truenas_admin` (a member of each app's primary group) gets group-write access — `git pull` succeeds
-4. Next deploy, the init container re-chowns everything (idempotent)
+**Owner:** `truenas_admin` — allows `git pull` without sudo. Root does not need ownership because it bypasses all permission checks on Linux/ZFS.
+
+**Owning group:** `truenas_admin` (or `root` — irrelevant since access is controlled via named ACL entries, not `group@`).
+
+Configure the following NFSv4 ACL entries on the `vm-pool/Apps` dataset:
+
+| Entry                        | Permission     | File Inherit | Directory Inherit |
+| ---------------------------- | -------------- | ------------ | ----------------- |
+| `owner@` (`truenas_admin`)   | Full Control   | ✓            | ✓                 |
+| `everyone@`                  | No permissions | —            | —                 |
+
+- **`owner@`**: `truenas_admin` can git pull, edit configs, and administer the repo interactively.
+- **`everyone@`**: No permissions — blocks all other users from reading decrypted `.env` files containing secrets. Remove or deny any default `everyone@` read entry.
+- **Root** does not need an explicit ACL entry — it bypasses all permission checks.
+
+Apply recursively and to child datasets.
+
+**Per-app config directories** are handled separately by init containers, not by dataset-level ACLs:
+
+1. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
+2. `truenas_admin` (a member of each app's primary group) gets group-write access via POSIX group permissions
+3. Next deploy, the init container re-chowns everything (idempotent)
 
 ## Shared Environment Files
 
