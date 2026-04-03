@@ -2,12 +2,11 @@
 # Manual work to implement on a new server:
 #
 # TrueNAS host setup:
-#   1. Create a `private` group (GID 3202)
-#   2. Create a dedicated `svc-app-immich` user (UID 3106) with primary group `private` (GID 3202)
-#   3. Set ACLs on the private dataset (/archive-pool/private):
-#        - owner@: Full Control
-#        - group@ (= private, GID 3202): Modify
-#        - Enable File Inherit and Directory Inherit
+#   1. Create a `private-photos` group (GID 3202), add `truenas_admin` as auxiliary member
+#   2. Create a dedicated `svc-app-immich` user (UID 3106) with primary group `private-photos` (GID 3202)
+#   3. Set Unix permissions on the parent private dataset (/mnt/archive-pool/private):
+#        - User: truenas_admin, Group: truenas_admin, mode 770 (no access for others)
+#        - No NFSv4 ACLs needed — subdirectory access is managed by init containers
 #   4. Create the dataset vm-pool/apps/src/immich in TrueNAS
 #
 # First-run steps:
@@ -24,7 +23,7 @@
 services:
   # Sets ownership on the upload directory and model cache volume so the
   # non-root containers can write on first boot. Runs once, then exits.
-  # GID is hardcoded to 3202 (private) because env_file entries are injected
+  # GID is hardcoded to 3202 (private-photos) because env_file entries are injected
   # into the container environment and do not feed into compose variable
   # substitution (user:, tmpfs gid=, etc.).
   immich-init:
@@ -42,7 +41,7 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # Required to chown volumes to 3106:3202
+      - CHOWN # Required to chown volumes to 3106:3202 (svc-app-immich:private-photos)
     read_only: true
     command:
       - "sh"
@@ -80,7 +79,7 @@ services:
       - DB_PASSWORD=${IMMICH_DB_PASSWORD}
       - REDIS_HOSTNAME=immich-redis
       - REDIS_PASSWORD=${IMMICH_REDIS_PASSWORD}
-    user: "3106:3202" # svc-app-immich:private
+    user: "3106:3202" # svc-app-immich:private-photos
     restart: always
     networks:
       - immich-frontend
@@ -143,7 +142,7 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    user: "3106:3202" # svc-app-immich:private
+    user: "3106:3202" # svc-app-immich:private-photos
     restart: always
     networks:
       - immich-backend

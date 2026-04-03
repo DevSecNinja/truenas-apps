@@ -246,11 +246,12 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-| GID  | Group           | Purpose                            | Used as primary group by |
-| ---- | --------------- | ---------------------------------- | ------------------------ |
-| 3200 | `media-readers` | Read access to media datasets      | Plex (UID 911)           |
-| 3201 | `media-writers` | Write access to media/download dir | MeTube (UID 3107)        |
-| 3202 | `private`       | Access to private datasets         | Immich (UID 3106)        |
+| GID  | Group               | Purpose                                      | Used as primary group by |
+| ---- | ------------------- | -------------------------------------------- | ------------------------ |
+| 3200 | `media-readers`     | Read access to media datasets                | Plex (UID 911)           |
+| 3201 | `media-writers`     | Write access to media/download dir           | MeTube (UID 3107)        |
+| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)        |
+| 3203 | `private-documents` | Access to private documents (reserved)       | —                        |
 
 ### Plex Exception
 
@@ -266,13 +267,13 @@ Creation order for each app service account:
 2. Create user `svc-app-<name>` with UID matching the GID (e.g., UID 3100), primary group set to the group from step 1
 3. Add `truenas_admin` to the group — this grants group-write access to chown'd config files, allowing `git pull` without permission conflicts
 
-For shared purpose groups (`media-readers`, `media-writers`, `private`):
+For shared purpose groups (`media-readers`, `media-writers`, `private-photos`, `private-documents`):
 
-1. Create the group with the designated GID (3200, 3201, 3202)
+1. Create the group with the designated GID (3200, 3201, 3202, 3203)
 2. Configure the relevant service accounts' group memberships:
    - `svc-app-plex` (911): primary group `media-readers` (3200)
    - `svc-app-metube` (3107): primary group `media-writers` (3201), auxiliary group `media-readers` (3200)
-   - `svc-app-immich` (3106): primary group `private` (3202)
+   - `svc-app-immich` (3106): primary group `private-photos` (3202)
 3. Add `truenas_admin` as an auxiliary group member of each group if admin access to those datasets is needed
 
 ### apps Dataset ACLs
@@ -383,27 +384,60 @@ volumes:
 
 ## Private Storage: Access Model
 
-Private data (photos, documents) is intentionally separated from the shared media group hierarchy. Containers that access private datasets use a dedicated `private` group (GID 3202) rather than the `media-readers` or `media-writers` groups, ensuring media consumers like Plex cannot access personal data.
+Private data (photos, documents) is intentionally separated from the shared media group hierarchy. Each category of private data gets its own dedicated group, ensuring services can only access the specific subdirectory they need — Immich cannot read a future documents directory, and a future documents service cannot read photos.
+
+### Isolation Model
+
+Access isolation is enforced at two layers:
+
+1. **Parent dataset (`/mnt/archive-pool/private`):** Owned by `truenas_admin:truenas_admin` with Unix permissions 770 (no access for others). Same model as the `apps` dataset. This prevents any service account from traversing the parent path unless Docker mounts it directly — and Docker bind-mounts are resolved by the root daemon, so the container does not need host-path traversal rights.
+
+2. **Subdirectory ownership via init containers:** Each service's init container chowns its specific subdirectory to the service's UID:GID. Because the parent dataset is root-inaccessible to service accounts, a service that doesn't have its path bind-mounted cannot reach sibling directories even if it somehow escapes its container.
+
+### Per-Category Group Allocation
+
+Each private data category has its own group. Services only receive the group for their specific category:
+
+| GID  | Group               | Subdirectory                              | Service           |
+| ---- | ------------------- | ----------------------------------------- | ----------------- |
+| 3202 | `private-photos`    | `/mnt/archive-pool/private/photos/immich` | Immich (UID 3106) |
+| 3203 | `private-documents` | `/mnt/archive-pool/private/documents/...` | Reserved          |
+
+`truenas_admin` is added as an auxiliary group member of each group, granting admin access to each category's subdirectory after the init container sets ownership.
 
 ### TrueNAS Host Setup
 
 On the TrueNAS host, create or confirm:
 
-- A `private` group (GID 3202)
-- A dedicated user per private-data service (e.g., `svc-app-immich` at UID 3106) with primary group `private` (GID 3202)
+- A `private-photos` group (GID 3202), with `truenas_admin` as an auxiliary member
+- A `svc-app-immich` user (UID 3106) with primary group `private-photos` (GID 3202)
 
-On the private dataset (`/mnt/archive-pool/private`):
+On the parent private dataset (`/mnt/archive-pool/private`), using the TrueNAS **Unix Permissions Editor**:
 
-1. Set the owning group to `private` and enable **Apply Group**
-2. Configure NFSv4 ACLs:
-   - `owner@`: **Full Control**
-   - `group@` (= `private`, GID 3202): **Modify**
-3. Enable **File Inherit** and **Directory Inherit** on ACL entries
+| Setting | Value                    |
+| ------- | ------------------------ |
+| User    | `truenas_admin`          |
+| Group   | `truenas_admin`          |
+| User    | Read ✓ Write ✓ Execute ✓ |
+| Group   | Read ✓ Write ✓ Execute ✓ |
+| Other   | No permissions           |
+
+No NFSv4 ACLs are needed on the parent dataset. Subdirectory permissions are managed entirely by init containers.
+
+The init container chowns the service-specific subdirectory to the service UID:GID on every deploy. This is the single recovery point that restores access after any host-level permission reset.
 
 ### Container Configuration
 
-Private-data containers hardcode the GID in `user:` directives and the init container:
+Private-data containers hardcode the category-specific GID in `user:` directives and the init container:
 
 ```yaml
-user: "3106:3202" # svc-app-immich:private
+user: "3106:3202" # svc-app-immich:private-photos
 ```
+
+### Adding a New Private-Data Service
+
+1. Allocate the next GID from the `private-documents` row (3203+) in the Shared Purpose Groups table
+2. Create the group on TrueNAS with that GID, add `truenas_admin` as auxiliary member
+3. Create the service account user with its UID and the new group as primary
+4. Add an init container that chowns the service's specific subdirectory under `/mnt/archive-pool/private/`
+5. Bind-mount only that subdirectory into the container — never the parent `private/` path
