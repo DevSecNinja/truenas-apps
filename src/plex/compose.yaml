@@ -48,7 +48,7 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv 911:911 /config"
+      - "chown -Rv 911:3200 /config"
     volumes:
       - plex-data:/config
 
