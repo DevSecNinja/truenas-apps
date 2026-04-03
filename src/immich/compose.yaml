@@ -8,7 +8,7 @@
 #        - owner@: Full Control
 #        - group@ (= private, GID 3202): Modify
 #        - Enable File Inherit and Directory Inherit
-#   4. Create the dataset vm-pool/Apps/src/immich in TrueNAS
+#   4. Create the dataset vm-pool/apps/src/immich in TrueNAS
 #
 # First-run steps:
 #   1. Verify hardware transcoding works by uploading a video and checking

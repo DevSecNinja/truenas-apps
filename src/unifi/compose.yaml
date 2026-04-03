@@ -148,6 +148,16 @@ services:
     volumes:
       - unifi-data:/config
       - ./backups/autobackup:/config/data/backup
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-fkL"
+        - "https://localhost:8443"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     ports:
       - 3478:3478/udp # STUN
       - 10001:10001/udp # Device discovery

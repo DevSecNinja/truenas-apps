@@ -43,7 +43,7 @@ services:
   # UMASK=002 produces group-writable files (664/775) so the media-readers group
   # (GID 3200) can read files written by the media-writers group (GID 3201).
   metube:
-    image: ghcr.io/alexta69/metube:latest@sha256:db96c7de57a2563d360a0167253181773f53fc3e667de402daf31c28d4b285a0
+    image: ghcr.io/alexta69/metube:2026.04.03@sha256:4a773d993edf3d3d03ccb6c91e3bcca221ae634a008417be95921062c6a4a864
     container_name: metube
     depends_on:
       metube-init:
@@ -84,6 +84,16 @@ services:
       # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
       - /mnt/smb_share_youtube/metube:/downloads
       - metube-state:/metube-state-dir
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://localhost:8081"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       # Homepage
       - homepage.group=Media
