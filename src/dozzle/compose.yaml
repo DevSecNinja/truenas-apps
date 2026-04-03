@@ -74,6 +74,7 @@ services:
     environment:
       - CONTAINERS=1 # Allow access to viewing containers
       - EVENTS=1 # Enabled by default
+      - INFO=1 # Allow providing system information
       - POST=0 # Disallow any POST operations (effectively read-only)
     security_opt:
       - no-new-privileges=true
