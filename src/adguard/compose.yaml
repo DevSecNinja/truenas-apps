@@ -69,7 +69,9 @@ services:
       start_period: 10s
 
   # Sets ownership on the adguard-data volume and data/conf directory so the
-  # non-root adguard container can write to them. Runs once, then exits.
+  # non-root adguard container can write to them. On a fresh install, seeds
+  # AdGuardHome.yaml from the repo config so AdGuard Home doesn't refuse to
+  # start as non-root. Runs once, then exits.
   adguard-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: adguard-init
@@ -91,10 +93,16 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv 3101:3101 /opt/adguardhome/work /opt/adguardhome/conf"
+      - |
+        if [ ! -f /opt/adguardhome/conf/AdGuardHome.yaml ]; then
+          cp /seed/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
+          echo 'Seeded AdGuardHome.yaml from repo config'
+        fi
+        chown -Rv 3101:3101 /opt/adguardhome/work /opt/adguardhome/conf
     volumes:
       - adguard-data:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
+      - ./config/conf/AdGuardHome.yaml:/seed/AdGuardHome.yaml:ro
 
   adguard:
     image: docker.io/adguard/adguardhome:v0.107.73@sha256:7fbf01d73ecb7a32d2d9e6cef8bf88e64bd787889ca80a1e8bce30cd4c084442
