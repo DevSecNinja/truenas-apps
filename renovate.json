@@ -12,7 +12,20 @@
     },
     {
       "matchManagers": ["mise"],
+      "minimumReleaseAge": "3 days",
       "pinDigests": false
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchDatasources": ["github-releases"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "minimumReleaseAge": "3 days"
     },
     {
       "matchDepNames": ["jdx/mise"],
