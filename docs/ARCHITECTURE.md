@@ -109,13 +109,13 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd                                                 |
-| -------------------- | --------------------------- | --------------------------------------------------------------- |
-| adguard              | `adguard-init`              | `adguard-data`, `./data/conf`                                   |
-| homepage             | `homepage-init`             | `./config`                                                      |
-| metube               | `metube-init`               | `metube-state`                                                  |
-| traefik              | `traefik-init`              | `traefik-acme`, `./config`                                      |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                        |
+| Service              | Init container              | Volumes chown'd                                                                    |
+| -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| adguard              | `adguard-init`              | `adguard-data`, `./data/conf`                                                      |
+| homepage             | `homepage-init`             | `./config`                                                                         |
+| metube               | `metube-init`               | `metube-state`                                                                     |
+| traefik              | `traefik-init`              | `traefik-acme`, `./config`                                                         |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `immich-model-cache` |
 
 ---
