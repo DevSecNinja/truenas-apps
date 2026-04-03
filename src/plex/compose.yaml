@@ -82,6 +82,7 @@ services:
     cap_add:
       - CHOWN # s6-overlay chowns /config to PUID:PGID at startup
       - DAC_OVERRIDE # s6-overlay runs as root before dropping privs; needed to write into /config even when it's owned by PUID:PGID
+      - KILL # init-plex-claim (root) signals the temporary Plex process (UID 911) during server claiming
       - SETGID # s6-overlay drops from root GID to PGID
       - SETUID # s6-overlay drops from root UID to PUID
       - SETPCAP # s6-overlay clears the bounding capability set before exec-ing Plex
