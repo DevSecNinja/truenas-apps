@@ -29,9 +29,9 @@ services:
       - "sh"
       - "-c"
       - |-
+        touch /acme/acme.json &&
         chown -Rv 3100:3100 /acme &&
         chmod -v 700 /acme &&
-        touch /acme/acme.json &&
         chmod -v 600 /acme/acme.json &&
         chown -Rv 3100:3100 /config &&
         find /config -type d -exec chmod 775 {} + &&
