@@ -25,11 +25,39 @@ services:
   # PUID=911 (LinuxServer Plex UID) and PGID=3200 (media-readers GID) are set explicitly so that
   # Plex runs as 911:3200, matching the TrueNAS dataset ACL that grants media-readers read access.
   # /run is mounted as tmpfs (with exec) for s6-overlay's service files.
-  # The /config volume must be owned by UID 911 — fix with:
-  #   sudo docker run --rm -v plex-data:/config alpine chown -R 911:911 /config
+
+  # Sets ownership on the plex-data volume so s6-overlay can chown /config
+  # to PUID:PGID at startup. On a fresh install the named volume is root-owned,
+  # which causes "mkdir: cannot create directory '/config/Library': Permission denied".
+  # Runs once, then exits.
+  plex-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: plex-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -Rv 911:911 /config"
+    volumes:
+      - plex-data:/config
+
   plex:
     image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
     container_name: plex
+    depends_on:
+      plex-init:
+        condition: service_completed_successfully
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
