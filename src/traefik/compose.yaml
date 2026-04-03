@@ -70,6 +70,7 @@ services:
       - plex-frontend
       - metube-frontend
       - immich-frontend
+      - dozzle-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -192,4 +193,7 @@ networks:
     external: true
   immich-frontend:
     name: immich-frontend
+    external: true
+  dozzle-frontend:
+    name: dozzle-frontend
     external: true
