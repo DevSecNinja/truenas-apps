@@ -123,6 +123,7 @@ For services that only chown runtime-only paths (named volumes, `./data/`), the 
 Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. `cap_drop: ALL` is **still required** for these images — only the specific capabilities that s6-overlay needs are re-added via `cap_add`. Each such container must include a comment block in the compose file explaining the deviation. This applies to:
 
 - **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit `user:` and `read_only`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
+- **LinuxServer socket-proxy** — runs as root by design to proxy the Docker socket. Does not support custom users, mods, or scripts. Omit `cap_drop: ALL`; `no-new-privileges` and `read_only` are still applied.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 
@@ -274,15 +275,15 @@ For shared purpose groups (`media-readers`, `media-writers`, `private`):
    - `svc-app-immich` (3106): primary group `private` (3202)
 3. Add `truenas_admin` as an auxiliary group member of each group if admin access to those datasets is needed
 
-### Apps Dataset ACLs
+### apps Dataset ACLs
 
-The git repo lives on the `vm-pool/Apps` dataset. Because `dccd.sh` decrypts `secret.sops.env` → `.env` files into this tree, access must be restricted to prevent other users from reading secrets.
+The git repo lives on the `vm-pool/apps` dataset. Because `dccd.sh` decrypts `secret.sops.env` → `.env` files into this tree, access must be restricted to prevent other users from reading secrets.
 
 **Owner:** `truenas_admin` — allows `git pull` without sudo. Root does not need ownership because it bypasses all permission checks on Linux/ZFS.
 
 **Owning group:** `truenas_admin`.
 
-Configure the following Unix permissions on the `vm-pool/Apps` dataset using the TrueNAS **Unix Permissions Editor**:
+Configure the following Unix permissions on the `vm-pool/apps` dataset using the TrueNAS **Unix Permissions Editor**:
 
 | Setting | Value                    |
 | ------- | ------------------------ |

@@ -52,32 +52,32 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and backup control:
 
 ```text
-vm-pool/Apps          # root — holds the git repo
-vm-pool/Apps/src      # parent for all app datasets
-vm-pool/Apps/src/adguard
-vm-pool/Apps/src/traefik
-vm-pool/Apps/src/traefik-forward-auth
-vm-pool/Apps/src/gatus
-vm-pool/Apps/src/homepage
-vm-pool/Apps/src/echo-server
-vm-pool/Apps/src/immich
-vm-pool/Apps/src/plex
-vm-pool/Apps/src/metube
-vm-pool/Apps/src/unifi
+vm-pool/apps          # root — holds the git repo
+vm-pool/apps/src      # parent for all app datasets
+vm-pool/apps/src/adguard
+vm-pool/apps/src/traefik
+vm-pool/apps/src/traefik-forward-auth
+vm-pool/apps/src/gatus
+vm-pool/apps/src/homepage
+vm-pool/apps/src/echo-server
+vm-pool/apps/src/immich
+vm-pool/apps/src/plex
+vm-pool/apps/src/metube
+vm-pool/apps/src/unifi
 # ... one dataset per app
 ```
 
 Then clone the repo into the root dataset:
 
 ```sh
-git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/Apps
+git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/apps
 ```
 
 Because each app has its own child dataset, you can snapshot or replicate apps independently. The Compose definitions are checked into git; each app's persistent data lives in its dataset.
 
 ### 2. Add a new app
 
-1. Create the dataset `vm-pool/Apps/src/<app-name>` in the TrueNAS UI
+1. Create the dataset `vm-pool/apps/src/<app-name>` in the TrueNAS UI
 2. Add a `src/<app-name>/compose.yaml` (and optional `compose.env` / `secret.sops.env`) to this repo
 
 ### 3. Add apps via TrueNAS Custom App (YAML)
@@ -86,7 +86,7 @@ Create a Custom App in the TrueNAS UI and use the `include` directive to point a
 
 ```yaml
 include:
-  - /mnt/vm-pool/Apps/src/traefik/compose.yaml
+  - /mnt/vm-pool/apps/src/traefik/compose.yaml
 services: {}
 ```
 
@@ -123,7 +123,7 @@ The [dccd.sh](scripts/dccd.sh) script (based on [loganmarchione/dccd](https://gi
 Run it as a TrueNAS cron job:
 
 ```sh
-bash /mnt/vm-pool/Apps/scripts/dccd.sh -d /mnt/vm-pool/Apps -x shared -t -f -k /mnt/vm-pool/Apps/age.key
+bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /mnt/vm-pool/apps/age.key
 ```
 
 ---
