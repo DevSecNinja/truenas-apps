@@ -284,10 +284,10 @@ The git repo lives on the `vm-pool/Apps` dataset. Because `dccd.sh` decrypts `se
 
 Configure the following NFSv4 ACL entries on the `vm-pool/Apps` dataset:
 
-| Entry                        | Permission     | File Inherit | Directory Inherit |
-| ---------------------------- | -------------- | ------------ | ----------------- |
-| `owner@` (`truenas_admin`)   | Full Control   | ✓            | ✓                 |
-| `everyone@`                  | No permissions | —            | —                 |
+| Entry                      | Permission     | File Inherit | Directory Inherit |
+| -------------------------- | -------------- | ------------ | ----------------- |
+| `owner@` (`truenas_admin`) | Full Control   | ✓            | ✓                 |
+| `everyone@`                | No permissions | —            | —                 |
 
 - **`owner@`**: `truenas_admin` can git pull, edit configs, and administer the repo interactively.
 - **`everyone@`**: No permissions — blocks all other users from reading decrypted `.env` files containing secrets. Remove or deny any default `everyone@` read entry.
