@@ -234,6 +234,10 @@ services:
     shm_size: 128mb
     security_opt:
       - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
     volumes:
       - immich-db-data:/var/lib/postgresql/data
     healthcheck:

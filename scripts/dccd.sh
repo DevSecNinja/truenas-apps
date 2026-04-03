@@ -350,7 +350,8 @@ update_compose_files() {
     else
         # Rewrite SSH remote URLs to HTTPS so fetch/pull works without SSH keys (for public repos in cron)
         # Allow root to operate on non-root-owned repos (safe.directory)
-        GIT_OPTS=(-c "url.https://github.com/.insteadOf=git@github.com:" -c "safe.directory=${dir}")
+        # Ignore file permission changes (init containers chown/chmod volumes, which should not dirty the working tree)
+        GIT_OPTS=(-c "url.https://github.com/.insteadOf=git@github.com:" -c "safe.directory=${dir}" -c "core.filemode=false")
 
         # Check if there are any changes in the Git repository
         if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
