@@ -32,7 +32,7 @@ services:
       - /tmp
       - /data/configdb
     volumes:
-      - unifi-db-data:/data/db
+      - ./data/db:/data/db
       - ./config/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
     healthcheck:
       test:
@@ -146,7 +146,7 @@ services:
     security_opt:
       - no-new-privileges=true
     volumes:
-      - unifi-data:/config
+      - ./data/config:/config
       - ./backups/autobackup:/config/data/backup
     healthcheck:
       test:
@@ -192,9 +192,3 @@ networks:
     name: unifi-backend
     driver: bridge
     internal: true
-
-volumes:
-  unifi-data:
-    name: unifi-data
-  unifi-db-data:
-    name: unifi-db-data

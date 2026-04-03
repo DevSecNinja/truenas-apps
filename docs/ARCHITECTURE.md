@@ -111,12 +111,12 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 | Service              | Init container              | Volumes chown'd                                                                    |
 | -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
-| adguard              | `adguard-init`              | `adguard-data`, `./data/conf`                                                      |
+| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
 | homepage             | `homepage-init`             | `./config`                                                                         |
-| metube               | `metube-init`               | `metube-state`                                                                     |
-| traefik              | `traefik-init`              | `traefik-acme`, `./config`                                                         |
+| metube               | `metube-init`               | `./data/state`                                                                     |
+| traefik              | `traefik-init`              | `./data/acme`, `./config`                                                          |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `immich-model-cache` |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
 
 ---
 

@@ -26,8 +26,8 @@ services:
   # Plex runs as 911:3200, matching the TrueNAS dataset ACL that grants media-readers read access.
   # /run is mounted as tmpfs (with exec) for s6-overlay's service files.
 
-  # Pre-sets ownership on the plex-data volume to PUID:PGID before plex starts.
-  # This is a belt-and-suspenders measure for fresh volumes or ACL resets on ZFS.
+  # Pre-sets ownership on the ./data/config bind-mount directory to PUID:PGID before plex starts.
+  # This is a belt-and-suspenders measure for fresh deploys or ACL resets on ZFS.
   # The main guard is DAC_OVERRIDE on the plex container itself (see below).
   # Runs once, then exits.
   plex-init:
@@ -50,7 +50,7 @@ services:
       - "-c"
       - "chown -Rv 911:3200 /config"
     volumes:
-      - plex-data:/config
+      - ./data/config:/config
 
   plex:
     image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
@@ -94,7 +94,7 @@ services:
     # devices:
     #   - /dev/dri/renderD128:/dev/dri/renderD128
     volumes:
-      - plex-data:/config
+      - ./data/config:/config
       # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
       - /dev/shm:/data/transcode
       # Media datasets (ZFS on TrueNAS)
@@ -139,7 +139,3 @@ networks:
   plex-frontend:
     name: plex-frontend
     driver: bridge
-
-volumes:
-  plex-data:
-    name: plex-data

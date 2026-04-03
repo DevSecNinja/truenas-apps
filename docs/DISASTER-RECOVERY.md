@@ -123,7 +123,7 @@ sops -d /mnt/vm-pool/apps/src/echo-server/secret.sops.env
 If you have ZFS snapshots or replication backups, restore them **before** deploying apps:
 
 - **Per-app datasets** — restore snapshots for `vm-pool/apps/src/<app>` to recover `data/` directories (databases, state files, certificates)
-- **Named Docker volumes** — these live outside the dataset tree and need separate restoration if backed up. Key volumes include Traefik's ACME certificates (`traefik-acme`) and database data (`gatus-db-data`, etc.)
+- **App `data/` directories** — these are bind-mounted from `src/<app>/data/` within the `vm-pool/apps` dataset, so they are restored automatically when a ZFS snapshot of that dataset is restored alongside the compose files. No separate restoration step is needed.
 - **Database backups** — if using `tiredofit/db-backup`, restore from files in each app's `backups/` directory
 
 If no backups are available, apps will start fresh — databases will be initialised empty and ACME certificates will be re-requested from Let's Encrypt.

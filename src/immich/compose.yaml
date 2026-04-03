@@ -51,7 +51,7 @@ services:
       - "chown -Rv 3106:3202 /upload /model-cache"
     volumes:
       - /mnt/archive-pool/private/photos/immich:/upload
-      - immich-model-cache:/model-cache
+      - ./data/model-cache:/model-cache
 
   # Immich server is a standard Node.js application (not s6-overlay).
   # It runs as non-root and supports user: directly.
@@ -144,6 +144,8 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
+    environment:
+      - MPLCONFIGDIR=/tmp # matplotlib defaults to /.config/matplotlib which is on the read-only rootfs
     user: "3106:3202" # svc-app-immich:private-photos
     restart: always
     networks:
@@ -159,7 +161,7 @@ services:
       - /tmp
       - /run # gunicorn 22+ control server creates a Unix socket here at startup
     volumes:
-      - immich-model-cache:/cache
+      - ./data/model-cache:/cache
     healthcheck:
       test:
         - "CMD"
@@ -243,7 +245,7 @@ services:
     #   - /tmp
     #   - /run
     volumes:
-      - immich-db-data:/var/lib/postgresql/data
+      - ./data/db:/var/lib/postgresql/data
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -325,9 +327,3 @@ networks:
     name: immich-backend
     driver: bridge
     internal: true
-
-volumes:
-  immich-model-cache:
-    name: immich-model-cache
-  immich-db-data:
-    name: immich-db-data

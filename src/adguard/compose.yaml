@@ -100,7 +100,7 @@ services:
         fi
         chown -Rv 3101:3101 /opt/adguardhome/work /opt/adguardhome/conf
     volumes:
-      - adguard-data:/opt/adguardhome/work
+      - ./data/work:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
       - ./config/conf/AdGuardHome.yaml:/seed/AdGuardHome.yaml:ro
 
@@ -137,7 +137,7 @@ services:
     tmpfs:
       - /tmp
     volumes:
-      - adguard-data:/opt/adguardhome/work
+      - ./data/work:/opt/adguardhome/work
       - ./data/conf:/opt/adguardhome/conf
     healthcheck:
       test:
@@ -176,7 +176,3 @@ networks:
     name: adguard-backend
     driver: bridge
     internal: true
-
-volumes:
-  adguard-data:
-    name: adguard-data
