@@ -243,6 +243,7 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 | 3106    | `svc-app-immich`   | immich-server, immich-ml, immich-init       | No                  |
 | 3107    | `svc-app-metube`   | metube, metube-init                         | No                  |
 | 3108    | `svc-app-unifi`    | unifi, unifi-db-backup                      | No                  |
+| 3109    | `svc-app-dozzle`   | dozzle                                      | No                  |
 
 ### Shared Purpose Groups
 

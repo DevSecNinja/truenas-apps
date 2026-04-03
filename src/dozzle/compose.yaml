@@ -1,0 +1,105 @@
+---
+services:
+  dozzle:
+    image: docker.io/amir20/dozzle:v10.2.1@sha256:6bdfca41441987648ea2af525f61cdde316df6c433aab6ffdfc64cdd72bfe279
+    container_name: dozzle
+    # Dozzle is a scratch-based Go binary — no shell or wget inside the image.
+    # The binary ships a built-in "healthcheck" subcommand that calls /healthcheck
+    # on the configured address, so no external HTTP client is needed.
+    command:
+      - --remote-host
+      - "tcp://dozzle-docker-proxy:2375|Docker"
+    depends_on:
+      dozzle-docker-proxy:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - DOZZLE_NO_ANALYTICS=true
+    user: "3109:3109" # svc-app-dozzle
+    restart: always
+    networks:
+      - dozzle-frontend
+      - dozzle-backend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      # Uses the dozzle binary's built-in healthcheck subcommand — scratch image has no shell.
+      test:
+        - "CMD"
+        - "/dozzle"
+        - "healthcheck"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Dozzle
+      - homepage.icon=dozzle.svg
+      - homepage.href=https://logs.${DOMAINNAME}
+      - homepage.description=Container Log Viewer
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=dozzle-frontend"
+      ## Middlewares
+      - "traefik.http.routers.dozzle-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.dozzle-rtr.rule=Host(`logs.${DOMAINNAME}`)"
+      - "traefik.http.routers.dozzle-rtr.service=dozzle-svc"
+      - "traefik.http.services.dozzle-svc.loadbalancer.server.port=8080"
+
+  # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
+  # It does not support custom users, mods, or scripts.
+  # See: https://github.com/linuxserver/docker-socket-proxy
+  # cap_drop: ALL is therefore omitted.
+  dozzle-docker-proxy:
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.4-r0@sha256:eaa680cf252ccf1dea354801f2444728fbfabb6431897aaa57d67bbf2121cce0
+    container_name: dozzle-docker-proxy
+    restart: always
+    networks:
+      - dozzle-backend
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      - CONTAINERS=1 # Allow access to viewing containers
+      - EVENTS=1 # Enabled by default
+      - POST=0 # Disallow any POST operations (effectively read-only)
+    security_opt:
+      - no-new-privileges=true
+    mem_limit: ${SOCKET_PROXY_MEM_LIMIT:-50m}
+    pids_limit: 50
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:2375/_ping"
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+networks:
+  dozzle-frontend:
+    name: dozzle-frontend
+    driver: bridge
+  dozzle-backend:
+    name: dozzle-backend
+    driver: bridge
+    internal: true
