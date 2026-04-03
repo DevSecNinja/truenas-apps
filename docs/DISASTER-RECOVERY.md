@@ -38,7 +38,9 @@ vm-pool/apps/src/unifi
 
 ### apps Dataset Permissions
 
-Set Unix permissions on `vm-pool/apps` using the TrueNAS **Unix Permissions Editor**:
+**Wait until all child datasets have been created** before setting permissions. Even though `vm-pool/apps` inherits `truenas_admin` ownership when created, TrueNAS creates child datasets as `root:root` regardless of the parent's permissions.
+
+After all datasets exist, set Unix permissions on `vm-pool/apps` using the TrueNAS **Unix Permissions Editor**:
 
 | Setting | Value                    |
 | ------- | ------------------------ |
@@ -48,7 +50,7 @@ Set Unix permissions on `vm-pool/apps` using the TrueNAS **Unix Permissions Edit
 | Group   | Read ✓ Write ✓ Execute ✓ |
 | Other   | No permissions           |
 
-Enable **Apply permissions recursively**.
+Enable both **Apply permissions recursively** and **Apply permissions to child datasets**.
 
 This ensures `truenas_admin` can manage the repo while decrypted `.env` files remain inaccessible to other users. Root does not need explicit permissions — it bypasses all permission checks.
 
@@ -134,7 +136,23 @@ If the archive pool was also lost or reformatted, recreate the media and private
 
 ---
 
-## Step 7: Create TrueNAS Custom Apps
+## Step 7: Decrypt Secrets
+
+After cloning and restoring the Age key, run the CD script to decrypt all `secret.sops.env` files to `.env`. Apps will fail to start without their decrypted secrets:
+
+```sh
+bash /mnt/vm-pool/apps/scripts/dccd.sh \
+  -d /mnt/vm-pool/apps \
+  -x shared \
+  -t -f \
+  -k /mnt/vm-pool/apps/age.key
+```
+
+This also installs SOPS if not already present. At this stage no apps are created in TrueNAS yet, so the script will decrypt secrets and exit without deploying anything.
+
+---
+
+## Step 8: Create TrueNAS Custom Apps
 
 In the TrueNAS UI, create a Custom App (YAML) for each service. Each entry uses the `include` directive to point at the compose file:
 
@@ -148,9 +166,9 @@ services: {}
 
 ---
 
-## Step 8: Validate with the CD Script
+## Step 9: Validate
 
-After all apps are deployed via the TrueNAS UI, run the CD script once to verify everything is healthy and secrets decrypt correctly:
+After all apps are deployed via the TrueNAS UI, run the CD script once to redeploy and verify everything is healthy:
 
 ```sh
 bash /mnt/vm-pool/apps/scripts/dccd.sh \
@@ -168,7 +186,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 ---
 
-## Step 9: Re-enable the Cron Job
+## Step 10: Re-enable the Cron Job
 
 Add a TrueNAS cron job for continuous deployment:
 
@@ -193,8 +211,9 @@ Use this as a quick reference:
 - [ ] Create app service accounts (UIDs 3100–3108, plus Plex at 911)
 - [ ] Add `truenas_admin` to each app group
 - [ ] Configure cross-group memberships (see ARCHITECTURE.md)
-- [ ] Clone the git repository (as `truenas_admin`)
+- [ ] Clone the git repository via SSH (as `truenas_admin`)
 - [ ] Restore the Age private key
+- [ ] Decrypt secrets by running `dccd.sh`
 - [ ] Restore data from backups (if available)
 - [ ] Recreate media/private dataset permissions (if applicable)
 - [ ] Create TrueNAS Custom App entries in the UI (Traefik last)

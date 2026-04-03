@@ -70,7 +70,7 @@ vm-pool/apps/src/unifi
 Then clone the repo into the root dataset:
 
 ```sh
-git clone https://github.com/DevSecNinja/truenas-apps.git /mnt/vm-pool/apps
+git clone git@github.com:DevSecNinja/truenas-apps.git /mnt/vm-pool/apps
 ```
 
 Because each app has its own child dataset, you can snapshot or replicate apps independently. The Compose definitions are checked into git; each app's persistent data lives in its dataset.
