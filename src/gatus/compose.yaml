@@ -75,7 +75,9 @@ services:
       - /tmp
     volumes:
       - gatus-sidecar-config:/config
-    # No healthcheck — the image is scratch-based (no shell, wget, or curl available)
+    # TODO: [gatus] Healthcheck currently not supported
+    # Issue: https://github.com/TwiN/gatus/issues/711
+    # healthcheck:
     labels:
       # Homepage
       - homepage.group=Infrastructure
