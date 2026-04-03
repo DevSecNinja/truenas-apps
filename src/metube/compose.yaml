@@ -33,7 +33,7 @@ services:
         chown -v 3107:3201 /downloads/video /downloads/audio
     volumes:
       - ./data/state:/metube-state-dir
-      - /mnt/smb_share_youtube/metube:/downloads
+      - /mnt/archive-pool/Media/YouTube/metube:/downloads
 
   # alexta69/metube is a standard Python/aiohttp application; it does not use
   # gosu or s6-overlay. The container can start directly as ${PUID}:${PGID}
@@ -82,7 +82,7 @@ services:
       - /metube-temp-dir:size=4G,uid=3107,gid=3201,mode=1700
     volumes:
       # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
-      - /mnt/smb_share_youtube/metube:/downloads
+      - /mnt/archive-pool/Media/YouTube/metube:/downloads
       - ./data/state:/metube-state-dir
     healthcheck:
       test:
