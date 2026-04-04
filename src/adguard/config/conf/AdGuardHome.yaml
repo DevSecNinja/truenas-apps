@@ -119,6 +119,86 @@ filters:
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_42.txt
     name: ShadowWhisperer's Malware List
     id: 3
+
+  # ---------------------------------------------------------------------------
+  # Stage 1 — Security (threat intelligence, phishing, malware, DNS attacks)
+  # Recommended to enable first. Low false-positive risk.
+  # ---------------------------------------------------------------------------
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt
+    name: HaGeZi's Threat Intelligence Feeds
+    id: 4
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_11.txt
+    name: Malicious URL Blocklist (URLHaus)
+    id: 5
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt
+    name: Phishing Army
+    id: 6
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_30.txt
+    name: Phishing URL Blocklist (PhishTank and OpenPhish)
+    id: 7
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_10.txt
+    name: Scam Blocklist by DurableNapkin
+    id: 8
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_8.txt
+    name: NoCoin Filter List
+    id: 9
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_71.txt
+    name: HaGeZi's DNS Rebind Protection
+    id: 10
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_54.txt
+    name: HaGeZi's DynDNS Blocklist
+    id: 11
+
+# ---------------------------------------------------------------------------
+# Stage 2 — Ad & tracker blocking (general)
+# Enable after Stage 1 is stable. Monitor for false positives.
+# ---------------------------------------------------------------------------
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_5.txt
+#   name: OISD Blocklist Small
+#   id: 12
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_34.txt
+#   name: HaGeZi's Normal Blocklist
+#   id: 13
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_3.txt
+#   name: Peter Lowe's Blocklist
+#   id: 14
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_59.txt
+#   name: AdGuard DNS Popup Hosts filter
+#   id: 15
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_69.txt
+#   name: ShadowWhisperer Tracking List
+#   id: 16
+
+# ---------------------------------------------------------------------------
+# Stage 3 — Device-specific tracker blocklists (optional)
+# Only enable for devices/platforms present on your network.
+# ---------------------------------------------------------------------------
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_63.txt
+#   name: HaGeZi's Windows/Office Tracker Blocklist
+#   id: 17
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_67.txt
+#   name: HaGeZi's Apple Tracker Blocklist
+#   id: 18
+# - enabled: true
+#   url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_7.txt
+#   name: Perflyst and Dandelion Sprout's Smart-TV Blocklist
+#   id: 19
+
 whitelist_filters: []
 user_rules:
   - '@@||api.ipify.org^$important'
