@@ -2,6 +2,7 @@
 name: Image Security
 
 on:
+  pull_request:
   schedule:
     - cron: "0 2 * * 6"
   workflow_dispatch:
@@ -20,6 +21,7 @@ permissions:
 jobs:
   image-age-check:
     name: Image age check
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
