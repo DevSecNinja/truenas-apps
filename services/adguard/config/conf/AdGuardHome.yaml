@@ -33,6 +33,7 @@ dns:
     # - 2620:fe::fe:10
   fallback_dns:
     - https://dns10.quad9.net/dns-query
+    - https://cloudflare-dns.com/dns-query
   upstream_mode: load_balance
   fastest_timeout: 1s
   allowed_clients: []
