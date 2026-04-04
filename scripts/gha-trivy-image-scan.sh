@@ -59,16 +59,23 @@ fi
 # GitHub Code Scanning rejects SARIF files with multiple runs under the same
 # category. Merge all per-image runs into a single run by combining results and
 # deduplicating rules by ID.
-jq -s '{
-  version: .[0].version,
-  "$schema": .[0]["$schema"],
+#
+# Bind the input array to $all so it can be referenced inside the driver
+# sub-expression without resorting to recursive descent (.. | .runs[]?), which
+# errors when it traverses string values (e.g. rule descriptions) and tries to
+# index them with .runs.
+jq -s '
+. as $all |
+{
+  version: $all[0].version,
+  "$schema": $all[0]["$schema"],
   runs: [{
     tool: {
       driver: (
-        .[0].runs[0].tool.driver |
-        .rules = ([.. | .runs[]?.tool.driver.rules[]?] | unique_by(.id))
+        $all[0].runs[0].tool.driver |
+        .rules = ([$all[].runs[].tool.driver.rules[]?] | unique_by(.id))
       )
     },
-    results: [.[].runs[].results[]?]
+    results: [$all[].runs[].results[]?]
   }]
 }' "${sarif_files[@]}" >trivy-images.sarif
