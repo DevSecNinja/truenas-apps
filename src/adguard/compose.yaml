@@ -47,8 +47,6 @@ services:
     environment:
       UNBOUND_UID: 3101
       UNBOUND_GID: 3101
-      EXTENDED_HEALTHCHECK: "true"
-      EXTENDED_HEALTHCHECK_DOMAIN: dns.quad9.net
     # No user: — entrypoint starts as root, chowns dirs to UNBOUND_UID:UNBOUND_GID,
     # then drops privileges internally. Setting user: externally breaks that.
     # read_only is not set: image writes pidfile and auth-zone data under
@@ -73,9 +71,15 @@ services:
       - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
     healthcheck:
-      test: /usr/local/unbound/sbin/healthcheck.sh
-      interval: 60s
-      timeout: 30s
+      # healthcheck.sh is rwxrwx--- and not accessible to the root user Docker
+      # uses for healthcheck execs in this distroless image. Inline equivalent:
+      # 1. netstat check — port 5335 is open (unbound is listening)
+      # 2. drill query — wpad local-data record resolves (conf.d config was loaded)
+      test:
+        - "CMD-SHELL"
+        - "netstat -ln | grep -q ':5335' && drill -Q -p 5335 wpad @127.0.0.1"
+      interval: 30s
+      timeout: 10s
       retries: 5
       start_period: 15s
 
