@@ -19,7 +19,14 @@ STALE=()
 while IFS= read -r full_image; do
     bare="${full_image%%:*}"
     echo "Checking ${bare}..."
-    created=$(crane config "${full_image}" 2>/dev/null | jq -r '.created // empty')
+
+    # Run crane separately so a non-zero exit (auth error, rate limit, etc.)
+    # is caught explicitly rather than killing the script via pipefail.
+    if ! crane_out=$(crane config "${full_image}" 2>/dev/null); then
+        echo "  WARN: crane could not fetch config for ${full_image}, skipping"
+        continue
+    fi
+    created=$(echo "${crane_out}" | jq -r '.created // empty')
 
     if [ -z "${created}" ]; then
         echo "  WARN: could not get creation date for ${full_image}, skipping"
