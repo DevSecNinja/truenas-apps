@@ -104,5 +104,3 @@ Please update the image digest to a more recent version to reduce exposure to kn
         echo "Issue already exists, skipping: ${title}"
     fi
 done
-
-exit 1
