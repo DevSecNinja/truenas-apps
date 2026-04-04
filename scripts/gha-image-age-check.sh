@@ -17,7 +17,8 @@ STALE=()
 # failures — the per-stage warning is a false positive in this context.
 # shellcheck disable=SC2312
 while IFS= read -r full_image; do
-    bare="${full_image%%:*}"
+    # Strip @sha256:... to get the name:tag for display (keep the version)
+    bare="${full_image%%@*}"
     echo "Checking ${bare}..."
 
     # Run crane separately so a non-zero exit (auth error, rate limit, etc.)
@@ -47,7 +48,7 @@ while IFS= read -r full_image; do
 
     if [ "${created_ts}" -lt "${THRESHOLD}" ]; then
         echo "  STALE: ${bare} (created: ${created}, ${age_days} days ago)"
-        STALE+=("${bare}")
+        STALE+=("${full_image}")
     else
         echo "  OK:    ${bare} (created: ${created}, ${age_days} days ago)"
     fi
@@ -71,7 +72,9 @@ done
 echo ""
 
 for image in "${STALE[@]}"; do
-    title="[${image}] Stale image detected"
+    # Strip digest for the issue title so it stays readable
+    title_image="${image%%@*}"
+    title="[${title_image}] Stale image detected"
     existing=$(gh issue list \
         --label stale-dependency \
         --state open \
@@ -80,10 +83,22 @@ for image in "${STALE[@]}"; do
         grep -F "${title}" || true)
 
     if [ -z "${existing}" ]; then
+        # Find compose files that reference this image by name:tag
+        # SC2312: pipefail is active; grep returning no matches exits 1 which
+        # we handle explicitly with || true.
+        # shellcheck disable=SC2312
+        sources=$(grep -rl "${title_image}" src/*/compose.yaml 2>/dev/null |
+            sort | tr '\n' '\n' | sed 's|^|  - |' || true)
+        [ -z "${sources}" ] && sources="  - (not found via grep)"
         gh issue create \
             --title "${title}" \
             --label stale-dependency \
-            --body "The image \`${image}\` appears to be over ${THRESHOLD_DAYS} days old based on its OCI creation timestamp. Please update to a more recent version to reduce exposure to known security vulnerabilities."
+            --body "The pinned digest for \`${image}\` was built over ${THRESHOLD_DAYS} days ago.
+
+**Found in:**
+${sources}
+
+Please update the image digest to a more recent version to reduce exposure to known security vulnerabilities. If Renovate is not auto-updating this image, check whether the registry exposes reliable timestamp metadata."
         echo "Created issue: ${title}"
     else
         echo "Issue already exists, skipping: ${title}"
