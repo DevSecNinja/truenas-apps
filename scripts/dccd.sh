@@ -40,7 +40,26 @@ log_message() {
     local message="$1"
     local formatted
     formatted="$(date +'%Y-%m-%d %H:%M:%S') - ${message}"
-    echo "${formatted}"
+
+    # Colorize output when writing to a terminal
+    if [ -t 1 ]; then
+        local color=""
+        local reset=$'\033[0m'
+        case "${message}" in
+        ERROR:*) color=$'\033[1;31m' ;;   # bold red
+        WARNING:*) color=$'\033[1;33m' ;; # bold yellow
+        STATE:*) color=$'\033[36m' ;;     # cyan
+        RESULT:*) color=$'\033[32m' ;;    # green
+        *) color="" ;;                    # default
+        esac
+        if [ -n "${color}" ]; then
+            echo "${color}${formatted}${reset}"
+        else
+            echo "${formatted}"
+        fi
+    else
+        echo "${formatted}"
+    fi
     logger -t dccd "${message}"
 }
 
