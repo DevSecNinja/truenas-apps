@@ -190,7 +190,7 @@ If Traefik and Homepage shared one proxy, compromising either would grant the at
 Each service follows a consistent layout:
 
 ```text
-src/<service>/
+services/<service>/
   compose.yaml       # Service definition — committed to Git
   secret.sops.env    # SOPS-encrypted secrets — committed to Git
   config/            # Static configuration — committed to Git
@@ -309,7 +309,7 @@ This gives `truenas_admin` full access while blocking all other users from readi
 
 ## Shared Environment Files
 
-Reusable env files live in `src/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
+Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
 | File     | Purpose                    | When to include |
 | -------- | -------------------------- | --------------- |

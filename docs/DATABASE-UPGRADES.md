@@ -83,7 +83,7 @@ a one-time manual restructure is needed **after** pgautoupgrade runs but
 **before** the Postgres 18 container is started. Run the following on the host:
 
 ```bash
-docker run --rm -v ${BASE_DIR}/src/<stack>/data/db:/pgvol alpine sh -c \
+docker run --rm -v ${BASE_DIR}/services/<stack>/data/db:/pgvol alpine sh -c \
   'mkdir -p /pgvol/<NEW_MAJOR>/docker && cd /pgvol && \
    mv $(ls -A | grep -v "^<NEW_MAJOR>$") <NEW_MAJOR>/docker/'
 ```
@@ -91,7 +91,7 @@ docker run --rm -v ${BASE_DIR}/src/<stack>/data/db:/pgvol alpine sh -c \
 For example, for `gatus` upgrading to 18:
 
 ```bash
-docker run --rm -v /mnt/vm-pool/apps/src/gatus/data/db:/pgvol alpine sh -c \
+docker run --rm -v /mnt/vm-pool/apps/services/gatus/data/db:/pgvol alpine sh -c \
   'mkdir -p /pgvol/18/docker && cd /pgvol && mv $(ls -A | grep -v "^18$") 18/docker/'
 ```
 

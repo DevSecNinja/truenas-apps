@@ -1,6 +1,6 @@
 #!/bin/bash
 # Called by .github/workflows/stale-images.yml (image-age-check job).
-# Reads all image: references from src/*/compose.yaml, determines when each
+# Reads all image: references from services/*/compose.yaml, determines when each
 # tag was last pushed to its registry, opens a GitHub issue for each image
 # that has not been updated in more than THRESHOLD_DAYS days, then exits 1
 # if any stale images were found.
@@ -89,7 +89,7 @@ while IFS= read -r full_image; do
         echo "  OK:    ${bare} (${source_label}: ${last_pushed}, ${age_days} days ago)"
     fi
 done < <(
-    grep -rh 'image:' src/*/compose.yaml |
+    grep -rh 'image:' services/*/compose.yaml |
         grep -v '^[[:space:]]*#' |
         sed 's/.*image:[[:space:]]*//' |
         tr -d "'" |
@@ -123,7 +123,7 @@ for image in "${STALE[@]}"; do
         # SC2312: pipefail is active; grep returning no matches exits 1 which
         # we handle explicitly with || true.
         # shellcheck disable=SC2312
-        sources=$(grep -rl "${title_image}" src/*/compose.yaml 2>/dev/null |
+        sources=$(grep -rl "${title_image}" services/*/compose.yaml 2>/dev/null |
             sort | tr '\n' '\n' | sed 's|^|  - |' || true)
         [ -z "${sources}" ] && sources="  - (not found via grep)"
         gh issue create \

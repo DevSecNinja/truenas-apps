@@ -8,8 +8,8 @@ secret.env
 .decrypted~*
 
 # Exclude directories that Git might not have permissions to
-src/**/backups/
-src/**/data/
+services/**/backups/
+services/**/data/
 
 # App specific
-src/homepage/config/logs/
+services/homepage/config/logs/

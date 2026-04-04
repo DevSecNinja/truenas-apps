@@ -12,7 +12,7 @@ _... managed with Docker Compose, SOPS, Renovate, and a sprinkle of GitOps_ 🤖
 
 ## 📖 Overview
 
-This repo contains the Docker Compose stacks that run on my [TrueNAS](https://www.truenas.com/) home lab server. Each app lives under `src/` with its own `compose.yaml`, environment files, and SOPS-encrypted secrets. A cron-driven continuous deployment script pulls changes from this repo and redeploys apps automatically.
+This repo contains the Docker Compose stacks that run on my [TrueNAS](https://www.truenas.com/) home lab server. Each app lives under `services/` with its own `compose.yaml`, environment files, and SOPS-encrypted secrets. A cron-driven continuous deployment script pulls changes from this repo and redeploys apps automatically.
 
 The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](https://technotim.com/posts/truenas-docker-pro/) — huge thanks to him for the excellent walkthrough.
 
@@ -54,18 +54,18 @@ Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and ba
 
 ```text
 vm-pool/apps          # root — holds the git repo
-vm-pool/apps/src      # parent for all app datasets
-vm-pool/apps/src/adguard
-vm-pool/apps/src/traefik
-vm-pool/apps/src/traefik-forward-auth
-vm-pool/apps/src/gatus
-vm-pool/apps/src/homepage
-vm-pool/apps/src/echo-server
-vm-pool/apps/src/immich
-vm-pool/apps/src/plex
-vm-pool/apps/src/metube
-vm-pool/apps/src/unifi
-vm-pool/apps/src/dozzle
+vm-pool/apps/services      # parent for all app datasets
+vm-pool/apps/services/adguard
+vm-pool/apps/services/traefik
+vm-pool/apps/services/traefik-forward-auth
+vm-pool/apps/services/gatus
+vm-pool/apps/services/homepage
+vm-pool/apps/services/echo-server
+vm-pool/apps/services/immich
+vm-pool/apps/services/plex
+vm-pool/apps/services/metube
+vm-pool/apps/services/unifi
+vm-pool/apps/services/dozzle
 # ... one dataset per app
 ```
 
@@ -79,8 +79,8 @@ Because each app has its own child dataset, you can snapshot or replicate apps i
 
 ### 2. Add a new app
 
-1. Create the dataset `vm-pool/apps/src/<app-name>` in the TrueNAS UI
-2. Add a `src/<app-name>/compose.yaml` (and optional `compose.env` / `secret.sops.env`) to this repo
+1. Create the dataset `vm-pool/apps/services/<app-name>` in the TrueNAS UI
+2. Add a `services/<app-name>/compose.yaml` (and optional `compose.env` / `secret.sops.env`) to this repo
 
 ### 3. Add apps via TrueNAS Custom App (YAML)
 
@@ -88,11 +88,11 @@ Create a Custom App in the TrueNAS UI and use the `include` directive to point a
 
 ```yaml
 include:
-  - /mnt/vm-pool/apps/src/traefik/compose.yaml
+  - /mnt/vm-pool/apps/services/traefik/compose.yaml
 services: {}
 ```
 
-Repeat for each app under `src/`.
+Repeat for each app under `services/`.
 
 ---
 
@@ -141,7 +141,7 @@ bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /
 ```sh
 📁 truenas-apps
 ├── 📁 scripts        # CD script (dccd.sh)
-└── 📁 src            # App stacks
+└── 📁 services            # App stacks
     ├── 📁 echo-server
     ├── 📁 gatus
     ├── 📁 homepage

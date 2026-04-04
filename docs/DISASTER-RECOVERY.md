@@ -23,17 +23,17 @@ Recreate the dataset hierarchy in the TrueNAS UI. Each app gets its own child da
 
 ```text
 vm-pool/apps              # root — holds the git repo
-vm-pool/apps/src          # parent for all app datasets
-vm-pool/apps/src/adguard
-vm-pool/apps/src/echo-server
-vm-pool/apps/src/gatus
-vm-pool/apps/src/homepage
-vm-pool/apps/src/immich
-vm-pool/apps/src/metube
-vm-pool/apps/src/plex
-vm-pool/apps/src/traefik
-vm-pool/apps/src/traefik-forward-auth
-vm-pool/apps/src/unifi
+vm-pool/apps/services          # parent for all app datasets
+vm-pool/apps/services/adguard
+vm-pool/apps/services/echo-server
+vm-pool/apps/services/gatus
+vm-pool/apps/services/homepage
+vm-pool/apps/services/immich
+vm-pool/apps/services/metube
+vm-pool/apps/services/plex
+vm-pool/apps/services/traefik
+vm-pool/apps/services/traefik-forward-auth
+vm-pool/apps/services/unifi
 ```
 
 ### apps Dataset Permissions
@@ -113,7 +113,7 @@ chown truenas_admin:truenas_admin /mnt/vm-pool/apps/age.key
 Verify decryption works by testing one file:
 
 ```sh
-sops -d /mnt/vm-pool/apps/src/echo-server/secret.sops.env
+sops -d /mnt/vm-pool/apps/services/echo-server/secret.sops.env
 ```
 
 ---
@@ -122,8 +122,8 @@ sops -d /mnt/vm-pool/apps/src/echo-server/secret.sops.env
 
 If you have ZFS snapshots or replication backups, restore them **before** deploying apps:
 
-- **Per-app datasets** — restore snapshots for `vm-pool/apps/src/<app>` to recover `data/` directories (databases, state files, certificates)
-- **App `data/` directories** — these are bind-mounted from `src/<app>/data/` within the `vm-pool/apps` dataset, so they are restored automatically when a ZFS snapshot of that dataset is restored alongside the compose files. No separate restoration step is needed.
+- **Per-app datasets** — restore snapshots for `vm-pool/apps/services/<app>` to recover `data/` directories (databases, state files, certificates)
+- **App `data/` directories** — these are bind-mounted from `services/<app>/data/` within the `vm-pool/apps` dataset, so they are restored automatically when a ZFS snapshot of that dataset is restored alongside the compose files. No separate restoration step is needed.
 - **Database backups** — if using `tiredofit/db-backup`, restore from files in each app's `backups/` directory
 
 If no backups are available, apps will start fresh — databases will be initialised empty and ACME certificates will be re-requested from Let's Encrypt.
@@ -158,7 +158,7 @@ In the TrueNAS UI, create a Custom App (YAML) for each service. Each entry uses 
 
 ```yaml
 include:
-  - /mnt/vm-pool/apps/src/<app-name>/compose.yaml
+  - /mnt/vm-pool/apps/services/<app-name>/compose.yaml
 services: {}
 ```
 
