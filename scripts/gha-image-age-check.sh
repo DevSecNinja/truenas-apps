@@ -1,8 +1,15 @@
 #!/bin/bash
 # Called by .github/workflows/stale-images.yml (image-age-check job).
-# Reads all image: references from src/*/compose.yaml, checks the OCI creation
-# timestamp via crane, opens a GitHub issue for each image that is older than
-# THRESHOLD_DAYS, then exits 1 if any stale images were found.
+# Reads all image: references from src/*/compose.yaml, determines when each
+# tag was last pushed to its registry, opens a GitHub issue for each image
+# that has not been updated in more than THRESHOLD_DAYS days, then exits 1
+# if any stale images were found.
+#
+# Timestamp sources (in priority order):
+#   docker.io  — Docker Hub REST API `tag_last_pushed` (registry-side, always
+#                updated on push regardless of OCI `created` field)
+#   all others — OCI config `created` via crane (GHCR, LSCR, etc. set this
+#                accurately on every release)
 #
 # Required environment variables:
 #   GH_TOKEN        GitHub token with issues: write permission
@@ -21,21 +28,50 @@ while IFS= read -r full_image; do
     bare="${full_image%%@*}"
     echo "Checking ${bare}..."
 
-    # Run crane separately so a non-zero exit (auth error, rate limit, etc.)
-    # is caught explicitly rather than killing the script via pipefail.
-    if ! crane_out=$(crane config "${full_image}" 2>/dev/null); then
-        echo "  WARN: crane could not fetch config for ${full_image}, skipping"
-        continue
-    fi
-    created=$(echo "${crane_out}" | jq -r '.created // empty')
+    # Determine the "last pushed" timestamp for this image.
+    #
+    # The OCI config `created` field is a compile-time value baked into the
+    # image layers by the build system.  Some maintainers (notably official
+    # Docker Library images such as busybox) do NOT update it when rebuilding
+    # and re-pushing an existing tag for a security patch, so the field can
+    # report an age of years even for an actively maintained image.
+    #
+    # Strategy:
+    #   docker.io  — Docker Hub REST API exposes `tag_last_pushed`, a
+    #                registry-side timestamp that is always updated on push.
+    #   all others — GHCR, LSCR, etc. set OCI `created` accurately on every
+    #                release, so the crane config fallback remains reliable.
+    last_pushed=""
+    source_label="created"
+    case "${bare}" in
+    docker.io/*)
+        remainder="${bare#docker.io/}"
+        ns_repo="${remainder%%:*}"
+        tag_part="${remainder#*:}"
+        dh_url="https://hub.docker.com/v2/repositories/${ns_repo}/tags/${tag_part}"
+        if dh_out=$(curl -fsSL --max-time 10 "${dh_url}" 2>/dev/null); then
+            last_pushed=$(echo "${dh_out}" | jq -r '.tag_last_pushed // empty')
+            source_label="last_pushed"
+        fi
+        ;;
+    *) ;;
+    esac
 
-    if [ -z "${created}" ]; then
-        echo "  WARN: could not get creation date for ${full_image}, skipping"
+    if [ -z "${last_pushed}" ]; then
+        if ! crane_out=$(crane config "${bare}" 2>/dev/null); then
+            echo "  WARN: crane could not fetch config for ${bare}, skipping"
+            continue
+        fi
+        last_pushed=$(echo "${crane_out}" | jq -r '.created // empty')
+    fi
+
+    if [ -z "${last_pushed}" ]; then
+        echo "  WARN: could not determine push date for ${bare}, skipping"
         continue
     fi
 
     # Skip zero-time / reproducible-build placeholder timestamps
-    case "${created}" in
+    case "${last_pushed}" in
     "0001-01-01"* | "1970-01-01"*)
         echo "  SKIP: ${bare} has a zero-time placeholder timestamp (reproducible build image)"
         continue
@@ -43,14 +79,14 @@ while IFS= read -r full_image; do
     *) ;;
     esac
 
-    created_ts=$(date -d "${created}" +%s)
-    age_days=$((($(date +%s) - created_ts) / 86400))
+    pushed_ts=$(date -d "${last_pushed}" +%s)
+    age_days=$((($(date +%s) - pushed_ts) / 86400))
 
-    if [ "${created_ts}" -lt "${THRESHOLD}" ]; then
-        echo "  STALE: ${bare} (created: ${created}, ${age_days} days ago)"
+    if [ "${pushed_ts}" -lt "${THRESHOLD}" ]; then
+        echo "  STALE: ${bare} (${source_label}: ${last_pushed}, ${age_days} days ago)"
         STALE+=("${full_image}")
     else
-        echo "  OK:    ${bare} (created: ${created}, ${age_days} days ago)"
+        echo "  OK:    ${bare} (${source_label}: ${last_pushed}, ${age_days} days ago)"
     fi
 done < <(
     grep -rh 'image:' src/*/compose.yaml |
