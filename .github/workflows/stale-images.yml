@@ -1,0 +1,70 @@
+---
+name: Stale Image Detection
+
+on:
+  schedule:
+    - cron: "0 2 * * 6"
+  workflow_dispatch:
+    # checkov:skip=CKV_GHA_7: Not a build workflow — no artifacts are produced.
+    # threshold_days only affects a date comparison for issue creation.
+    inputs:
+      threshold_days:
+        description: "Flag images older than this many days (default: 365)"
+        required: false
+        default: "365"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  image-age-check:
+    name: Image age check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@6da1ae018866400525525ce74ff892880c099987 # v0.5
+
+      - name: Check image ages and open issues for stale images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          THRESHOLD_DAYS: ${{ inputs.threshold_days || '365' }}
+        run: bash scripts/gha-image-age-check.sh
+
+  trivy-image-scan:
+    name: Trivy image vulnerability scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.4.3
+
+      - name: Scan images and build combined SARIF
+        run: bash scripts/gha-trivy-image-scan.sh
+
+      - name: Upload combined SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy-images.sarif
+          category: trivy-images
