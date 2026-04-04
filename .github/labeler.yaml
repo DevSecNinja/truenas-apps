@@ -1,0 +1,25 @@
+---
+area/apps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/**/*
+
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**/*
+
+area/github:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**/*
+
+area/renovate:
+  - changed-files:
+      - any-glob-to-any-file:
+          - renovate.json
+
+area/scripts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - scripts/**/*
