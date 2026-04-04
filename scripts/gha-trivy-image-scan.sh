@@ -43,39 +43,20 @@ done < <(
         sort -u
 )
 
-# Collect only the validated SARIF files.
+# Check whether any validated SARIF files were produced.
 # shellcheck disable=SC2312
 mapfile -t sarif_files < <(find sarif-output -name '*.sarif' | sort)
 
 if [ "${#sarif_files[@]}" -eq 0 ]; then
     echo "No valid SARIF files produced — all scans skipped or failed."
-    # Emit a minimal valid empty SARIF so the upload step does not error.
+    # Emit a minimal valid empty SARIF into the output directory so the
+    # upload-sarif action (which receives the whole directory) does not error.
     # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
     # shellcheck disable=SC2016
-    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}\n' >trivy-images.sarif
-    exit 0
+    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}\n' >sarif-output/empty.sarif
 fi
 
-# GitHub Code Scanning rejects SARIF files with multiple runs under the same
-# category. Merge all per-image runs into a single run by combining results and
-# deduplicating rules by ID.
-#
-# Bind the input array to $all so it can be referenced inside the driver
-# sub-expression without resorting to recursive descent (.. | .runs[]?), which
-# errors when it traverses string values (e.g. rule descriptions) and tries to
-# index them with .runs.
-jq -s '
-. as $all |
-{
-  version: $all[0].version,
-  "$schema": $all[0]["$schema"],
-  runs: [{
-    tool: {
-      driver: (
-        $all[0].runs[0].tool.driver |
-        .rules = ([$all[].runs[].tool.driver.rules[]?] | unique_by(.id))
-      )
-    },
-    results: [$all[].runs[].results[]?]
-  }]
-}' "${sarif_files[@]}" >trivy-images.sarif
+# Each per-image SARIF file is uploaded individually by the workflow's
+# upload-sarif step (which accepts a directory). GitHub Code Scanning assigns
+# a unique category per file, satisfying the requirement that no two runs share
+# the same tool+category — no manual merging needed.
