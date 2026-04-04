@@ -70,6 +70,7 @@ services:
       - ./data/unbound/conf.d/a-records.conf:/usr/local/unbound/conf.d/a-records.conf:ro
       - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     healthcheck:
       # 1. Resolves the canary record from conf.d/a-records.conf — proves unbound is
       #    running, the config was loaded, and envsubst substituted ${DOMAINNAME}.
@@ -84,9 +85,9 @@ services:
       start_period: 30s
 
   # Sets ownership on the adguard-data volume and data/conf directory so the
-  # non-root adguard container can write to them. On a fresh install, seeds
-  # AdGuardHome.yaml from the repo config so AdGuard Home doesn't refuse to
-  # start as non-root. Runs once, then exits.
+  # non-root adguard container can write to them. Always overwrites
+  # AdGuardHome.yaml from the repo config — the repo is the source of truth.
+  # The UI is treated as read-only; any UI changes will be lost on next deploy.
   adguard-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: adguard-init
@@ -109,10 +110,8 @@ services:
       - "sh"
       - "-c"
       - |
-        if [ ! -f /opt/adguardhome/conf/AdGuardHome.yaml ]; then
-          cp /seed/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
-          echo 'Seeded AdGuardHome.yaml from repo config'
-        fi
+        cp /seed/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
+        echo 'Applied AdGuardHome.yaml from repo config'
         chown -Rv 3101:3101 /opt/adguardhome/work /opt/adguardhome/conf
     volumes:
       - ./data/work:/opt/adguardhome/work
