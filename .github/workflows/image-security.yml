@@ -1,5 +1,5 @@
 ---
-name: Stale Image Detection
+name: Image Security
 
 on:
   schedule:
