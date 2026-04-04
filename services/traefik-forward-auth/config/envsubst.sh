@@ -15,3 +15,13 @@ grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/templates/config.yaml" | sort -u | while rea
     val=$(printenv "${name}" 2>/dev/null) || continue
     sed -i "s|${pattern}|${val}|g" "/output/config.yaml"
 done
+
+# Verify no ${VAR} placeholders remain — catches missing secret.sops.env entries
+# before traefik-forward-auth starts with a broken config. Fails the init container loudly.
+# shellcheck disable=SC2312
+unresolved=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/config.yaml" 2>/dev/null | sort -u)
+if [ -n "${unresolved}" ]; then
+    echo "ERROR: unresolved placeholders in config.yaml:"
+    echo "${unresolved}"
+    exit 1
+fi
