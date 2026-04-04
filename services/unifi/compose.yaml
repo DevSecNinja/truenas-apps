@@ -142,7 +142,9 @@ services:
       - unifi-frontend
       - unifi-backend
     mem_limit: ${MEM_LIMIT:-2048m}
-    pids_limit: 100
+    # UniFi's JVM spawns 150+ threads at runtime; 100 is too low and causes
+    # pthread_create EAGAIN ("unable to create native thread") under load.
+    pids_limit: 300
     security_opt:
       - no-new-privileges=true
     volumes:
