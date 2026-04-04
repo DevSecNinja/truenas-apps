@@ -25,7 +25,7 @@ done
 failed=0
 for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zones.conf; do
     # shellcheck disable=SC2312
-    unresolved=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/${f}" 2>/dev/null | sort -u)
+    unresolved=$(grep -onE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/${f}" 2>/dev/null)
     if [ -n "${unresolved}" ]; then
         echo "ERROR: unresolved placeholders in ${f}:"
         echo "${unresolved}"
