@@ -16,14 +16,25 @@ mkdir -p sarif-output
 # shellcheck disable=SC2312
 while IFS= read -r full_image; do
     slug=$(echo "${full_image}" | tr '/:@' '_' | tr -cd '[:alnum:]_-')
+    outfile="sarif-output/${slug}.sarif"
     echo "Scanning ${full_image}..."
-    mise exec -- trivy image \
+    if mise exec -- trivy image \
         --scanners vuln \
         --ignore-unfixed \
         --severity CRITICAL \
         --format sarif \
-        --output "sarif-output/${slug}.sarif" \
-        "${full_image}" || echo "  WARN: trivy scan failed for ${full_image}, skipping"
+        --output "${outfile}" \
+        "${full_image}"; then
+        # Validate that the output is parseable SARIF before keeping it.
+        # Trivy may write a partial/empty file on non-fatal errors.
+        if ! jq -e '.runs[0]' "${outfile}" >/dev/null 2>&1; then
+            echo "  WARN: ${outfile} is not valid SARIF, discarding"
+            rm -f "${outfile}"
+        fi
+    else
+        echo "  WARN: trivy scan failed for ${full_image}, skipping"
+        rm -f "${outfile}"
+    fi
 done < <(
     grep -rh 'image:' src/*/compose.yaml |
         grep -v '^[[:space:]]*#' |
@@ -31,6 +42,19 @@ done < <(
         tr -d "'" |
         sort -u
 )
+
+# Collect only the validated SARIF files.
+# shellcheck disable=SC2312
+mapfile -t sarif_files < <(find sarif-output -name '*.sarif' | sort)
+
+if [ "${#sarif_files[@]}" -eq 0 ]; then
+    echo "No valid SARIF files produced — all scans skipped or failed."
+    # Emit a minimal valid empty SARIF so the upload step does not error.
+    # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
+    # shellcheck disable=SC2016
+    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}\n' >trivy-images.sarif
+    exit 0
+fi
 
 # GitHub Code Scanning rejects SARIF files with multiple runs under the same
 # category. Merge all per-image runs into a single run by combining results and
@@ -47,4 +71,4 @@ jq -s '{
     },
     results: [.[].runs[].results[]?]
   }]
-}' sarif-output/*.sarif >trivy-images.sarif
+}' "${sarif_files[@]}" >trivy-images.sarif
