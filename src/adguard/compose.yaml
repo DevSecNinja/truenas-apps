@@ -47,10 +47,12 @@ services:
     environment:
       UNBOUND_UID: 3101
       UNBOUND_GID: 3101
-      DISABLE_SET_PERMS: "true"
       EXTENDED_HEALTHCHECK: "true"
       EXTENDED_HEALTHCHECK_DOMAIN: dns.quad9.net
-    user: "3101:3101" # svc-app-adguard
+    # No user: — entrypoint starts as root, chowns dirs to UNBOUND_UID:UNBOUND_GID,
+    # then drops privileges internally. Setting user: externally breaks that.
+    # read_only is not set: image writes pidfile and auth-zone data under
+    # /usr/local/unbound/ during startup.
     restart: always
     networks:
       - adguard-frontend
@@ -60,7 +62,10 @@ services:
       - no-new-privileges=true
     cap_drop:
       - ALL
-    read_only: true
+    cap_add:
+      - CHOWN # Required for entrypoint to chown dirs to UNBOUND_UID:UNBOUND_GID
+      - SETUID # Required to drop from root to _unbound user
+      - SETGID # Required to drop from root to _unbound group
     tmpfs:
       - /tmp
     volumes:
