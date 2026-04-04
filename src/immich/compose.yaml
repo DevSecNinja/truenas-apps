@@ -218,7 +218,7 @@ services:
   # startup. cap_drop: ALL would break that privilege transition.
   # pgautoupgrade is NOT used — see database notes at top of file.
   immich-db:
-    image: ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.2.0@sha256:5b434f184ec644c4e1a4076e2e7d4bee45631646a52e956b5ff74ac51e79cc00
+    image: ghcr.io/immich-app/postgres:17-vectorchord0.5.3-pgvector0.8.1@sha256:9a52e04e2908c133235d4edce42251386124356668c442af4e8ef6dd489c339e
     container_name: immich-db
     env_file:
       - path: .env # Decrypted from secret.sops.env
