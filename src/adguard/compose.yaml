@@ -18,10 +18,15 @@ services:
     cap_drop:
       - ALL
     cap_add:
+      - CHOWN # Required to change ownership of output files to svc-app-adguard
       - DAC_OVERRIDE # Required to overwrite existing output files regardless of their permissions
     read_only: true
     command:
-      - "/templates/envsubst.sh"
+      - "sh"
+      - "-c"
+      - |
+        /templates/envsubst.sh
+        chown -R 3101:3101 /output
     volumes:
       - ./config/unbound:/templates:ro
       - ./data/unbound:/output
