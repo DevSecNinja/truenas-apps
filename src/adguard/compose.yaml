@@ -66,7 +66,8 @@ services:
       # 2. Resolves an external domain — proves forward zones and upstream TLS work.
       test:
         - "CMD-SHELL"
-        - "drill @127.0.0.1 healthcheck.${DOMAINNAME} && drill @127.0.0.1 dns.quad9.net"
+        - "drill @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill @127.0.0.1 dns.quad9.net | grep
+          -q 'rcode: NOERROR'"
       interval: 15s
       timeout: 5s
       retries: 3
