@@ -27,6 +27,10 @@
 - name: type/major
   color: "f6412d"
 # Uncategorized
+- name: bug
+  color: "d73a4a"
+- name: enhancement
+  color: "a2eeef"
 - name: hold
   color: "ee0701"
 - name: stale-dependency
