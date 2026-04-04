@@ -1,5 +1,32 @@
 ---
 services:
+  # Sets ownership on the ./data bind-mount directory so Dozzle (UID 3109) can
+  # write user profiles to /data/__default__ at startup. Runs once, then exits.
+  dozzle-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: dozzle-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3109:3109
+      - DAC_OVERRIDE # Required to traverse host dirs owned by truenas_admin
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - chown -Rv 3109:3109 /data
+    volumes:
+      - ./data:/data
+
   dozzle:
     image: docker.io/amir20/dozzle:v10.2.1@sha256:6bdfca41441987648ea2af525f61cdde316df6c433aab6ffdfc64cdd72bfe279
     container_name: dozzle
@@ -10,6 +37,8 @@ services:
       - --remote-host
       - "tcp://dozzle-docker-proxy:2375|Docker"
     depends_on:
+      dozzle-init:
+        condition: service_completed_successfully
       dozzle-docker-proxy:
         condition: service_healthy
     env_file:
@@ -32,6 +61,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - ./data:/data
     healthcheck:
       # Uses the dozzle binary's built-in healthcheck subcommand — scratch image has no shell.
       test:
