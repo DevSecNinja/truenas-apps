@@ -19,7 +19,7 @@ done
 # Verify no unresolved placeholders remain — catches missing secret.sops.env entries
 # before traefik-forward-auth starts with a broken config. Fails the init container loudly.
 # shellcheck disable=SC2312
-unresolved=$(grep -onE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/config.yaml" 2>/dev/null)
+unresolved=$(grep -onE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/config.yaml" 2>/dev/null || true)
 if [ -n "${unresolved}" ]; then
     echo "ERROR: unresolved placeholders in config.yaml:"
     echo "${unresolved}"
