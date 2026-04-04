@@ -1,7 +1,7 @@
 ---
 # Example: https://github.com/ItalyPaleAle/traefik-forward-auth/blob/main/config.sample.yaml
 # NOTE: This file is a template. The traefik-forward-auth-init container runs
-# envsubst.sh to replace ${VAR} placeholders with values from secret.sops.env.
+# envsubst.sh to replace placeholders (dollar-brace VAR dollar-brace style) with values from secret.sops.env.
 # The processed output is written to data/config.yaml (not committed to git).
 
 server:
