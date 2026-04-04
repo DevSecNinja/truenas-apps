@@ -71,17 +71,17 @@ services:
       - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
     healthcheck:
-      # healthcheck.sh is rwxrwx--- and not accessible to the root user Docker
-      # uses for healthcheck execs in this distroless image. Inline equivalent:
-      # 1. netstat check — port 5335 is open (unbound is listening)
-      # 2. drill query — wpad local-data record resolves (conf.d config was loaded)
+      # 1. Resolves the canary record from conf.d/a-records.conf — proves unbound is
+      #    running, the config was loaded, and envsubst substituted ${DOMAINNAME}.
+      # 2. Resolves an external domain — proves forward zones and upstream TLS work.
       test:
         - "CMD-SHELL"
-        - "netstat -ln | grep -q ':5335' && drill -Q -p 5335 wpad @127.0.0.1"
+        - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill -p 5335 @127.0.0.1 dns.quad9.net
+          | grep -q 'rcode: NOERROR'"
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 15s
+      retries: 3
+      start_period: 30s
 
   # Sets ownership on the adguard-data volume and data/conf directory so the
   # non-root adguard container can write to them. On a fresh install, seeds
