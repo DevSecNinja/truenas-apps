@@ -19,3 +19,17 @@ for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zone
         sed -i "s|${pattern}|${val}|g" "/output/${f}"
     done
 done
+
+# Verify no ${VAR} placeholders remain — catches missing secret.sops.env entries
+# before unbound starts with a broken config. Fails the init container loudly.
+failed=0
+for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zones.conf; do
+    # shellcheck disable=SC2312
+    unresolved=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/${f}" 2>/dev/null | sort -u)
+    if [ -n "${unresolved}" ]; then
+        echo "ERROR: unresolved placeholders in ${f}:"
+        echo "${unresolved}"
+        failed=1
+    fi
+done
+[ "${failed}" -eq 0 ] || exit 1
