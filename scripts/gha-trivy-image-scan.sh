@@ -1,11 +1,12 @@
 #!/bin/bash
-# Called by .github/workflows/stale-images.yml (trivy-image-scan job).
+# Called by .github/workflows/image-security.yml (trivy-image-scan job).
 # Reads all image: references from services/*/compose.yaml, runs a Trivy
-# vulnerability scan against each image, and merges the per-image SARIF
-# outputs into a single trivy-images.sarif file.
+# vulnerability scan against each image, and writes per-image SARIF files to
+# sarif-output/. Each SARIF run is stamped with a unique runAutomationDetails.id
+# so the github/codeql-action/upload-sarif action can upload the whole directory
+# without triggering the "multiple runs with the same category" rejection.
 #
-# A single SARIF upload with a fixed category lets GitHub auto-close findings
-# when images are removed from compose files or vulnerabilities are fixed upstream.
+# See: https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support-for-code-scanning#uploading-more-than-one-sarif-file-for-a-commit
 
 set -euo pipefail
 
@@ -30,6 +31,14 @@ while IFS= read -r full_image; do
         if ! jq -e '.runs[0]' "${outfile}" >/dev/null 2>&1; then
             echo "  WARN: ${outfile} is not valid SARIF, discarding"
             rm -f "${outfile}"
+        else
+            # Stamp each run with a unique runAutomationDetails.id so that when
+            # the upload-sarif action uploads the whole sarif-output/ directory,
+            # every run has a distinct category — GitHub rejects uploads where
+            # multiple runs share the same category.
+            jq --arg id "trivy-images/${slug}/" \
+                '.runs[0].automationDetails = {"id": $id}' \
+                "${outfile}" >"${outfile}.tmp" && mv "${outfile}.tmp" "${outfile}"
         fi
     else
         echo "  WARN: trivy scan failed for ${full_image}, skipping"
@@ -49,14 +58,8 @@ mapfile -t sarif_files < <(find sarif-output -name '*.sarif' | sort)
 
 if [ "${#sarif_files[@]}" -eq 0 ]; then
     echo "No valid SARIF files produced — all scans skipped or failed."
-    # Emit a minimal valid empty SARIF into the output directory so the
-    # upload-sarif action (which receives the whole directory) does not error.
+    # Emit a minimal valid empty SARIF so the upload-sarif action does not error.
     # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
     # shellcheck disable=SC2016
-    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}\n' >sarif-output/empty.sarif
+    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Trivy"}},"results":[]}]}\n' >sarif-output/trivy-images.sarif
 fi
-
-# Each per-image SARIF file is uploaded individually by the workflow's
-# upload-sarif step (which accepts a directory). GitHub Code Scanning assigns
-# a unique category per file, satisfying the requirement that no two runs share
-# the same tool+category — no manual merging needed.
