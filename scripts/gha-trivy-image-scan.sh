@@ -1,6 +1,6 @@
 #!/bin/bash
 # Called by .github/workflows/stale-images.yml (trivy-image-scan job).
-# Reads all image: references from src/*/compose.yaml, runs a Trivy
+# Reads all image: references from services/*/compose.yaml, runs a Trivy
 # vulnerability scan against each image, and merges the per-image SARIF
 # outputs into a single trivy-images.sarif file.
 #
@@ -36,7 +36,7 @@ while IFS= read -r full_image; do
         rm -f "${outfile}"
     fi
 done < <(
-    grep -rh 'image:' src/*/compose.yaml |
+    grep -rh 'image:' services/*/compose.yaml |
         grep -v '^[[:space:]]*#' |
         sed 's/.*image:[[:space:]]*//' |
         tr -d "'" |

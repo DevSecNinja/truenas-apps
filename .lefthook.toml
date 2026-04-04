@@ -38,7 +38,7 @@ glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 
 [pre-commit.commands.docker-compose-config]
 run = "for f in {staged_files}; do mise exec -- docker-compose -f \"$f\" config --quiet; done"
-glob = ["src/**/compose.yaml", "src/**/compose.yml", "src/**/docker-compose.yaml", "src/**/docker-compose.yml"]
+glob = ["services/**/compose.yaml", "services/**/compose.yml", "services/**/docker-compose.yaml", "services/**/docker-compose.yml"]
 
 [pre-commit.commands.dprint]
 run = "mise exec -- dprint fmt {staged_files}"
@@ -46,6 +46,6 @@ glob = ["**/*.md"]
 
 [pre-commit.commands.dotenv-linter]
 run = "uname -m | grep -qE 'aarch64|arm64' || mise exec -- dotenv-linter fix --no-backup {staged_files}"
-glob = ["src/shared/env/*.env"]
+glob = ["services/shared/env/*.env"]
 stage_fixed = true
 

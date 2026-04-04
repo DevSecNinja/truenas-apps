@@ -24,7 +24,7 @@ NO_PULL=0                                     # Skip pulling images (for local t
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
-# GATUS_URL and GATUS_CD_TOKEN can also be sourced from src/gatus/.env (already decrypted on disk)
+# GATUS_URL and GATUS_CD_TOKEN can also be sourced from services/gatus/.env (already decrypted on disk)
 _DEPLOY_ERRORS=0 # Count of deployment failures (non-fatal errors logged during deploy)
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
@@ -144,7 +144,7 @@ ensure_sops() {
 }
 
 decrypt_sops_files() {
-    local src_dir="${BASE_DIR}/src"
+    local src_dir="${BASE_DIR}/services"
 
     if [ ! -d "${src_dir}" ]; then
         return
@@ -257,7 +257,7 @@ log_image_changes() {
 }
 
 redeploy_truenas_apps() {
-    local src_dir="${BASE_DIR}/src"
+    local src_dir="${BASE_DIR}/services"
 
     if [ ! -d "${src_dir}" ]; then
         log_message "ERROR: Source directory ${src_dir} does not exist, exiting..."
@@ -599,10 +599,10 @@ usage() {
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -p              Specify if you want to prune docker images (default: don't prune)
       -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
-      -t              TrueNAS Scale mode: deploy apps from src/ using ix-<app> project names (optional)
+      -t              TrueNAS Scale mode: deploy apps from services/ using ix-<app> project names (optional)
       -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
-      -G <url>        Gatus instance URL to report CD status to (optional - falls back to GATUS_URL/GATUS_CD_TOKEN from src/gatus/.env)
+      -G <url>        Gatus instance URL to report CD status to (optional - falls back to GATUS_URL/GATUS_CD_TOKEN from services/gatus/.env)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
@@ -742,7 +742,7 @@ log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
 
 # Source the already-decrypted gatus .env to pick up GATUS_CD_TOKEN and
 # DOMAINNAME. The -G flag takes precedence over the derived URL.
-_gatus_env="${BASE_DIR}/src/gatus/.env"
+_gatus_env="${BASE_DIR}/services/gatus/.env"
 if [ -f "${_gatus_env}" ]; then
     _saved_gatus_url="${GATUS_URL}"
     set -a

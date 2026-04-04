@@ -7,7 +7,7 @@
 #   3. Set Unix permissions on the parent private dataset (/mnt/archive-pool/private):
 #        - User: truenas_admin, Group: truenas_admin, mode 770 (no access for others)
 #        - No NFSv4 ACLs needed — subdirectory access is managed by init containers
-#   4. Create the dataset vm-pool/apps/src/immich in TrueNAS
+#   4. Create the dataset vm-pool/apps/services/immich in TrueNAS
 #
 # First-run steps:
 #   1. Verify hardware transcoding works by uploading a video and checking
