@@ -333,7 +333,7 @@ redeploy_truenas_apps() {
             --build \
             --wait \
             --wait-timeout "${WAIT_TIMEOUT}"; then
-            log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'docker compose --project-name ${project_name} logs' for details"
+            log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
             _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
         fi
 
