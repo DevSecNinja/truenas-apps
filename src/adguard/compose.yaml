@@ -61,13 +61,12 @@ services:
       - ./data/unbound/a-records.conf:/opt/unbound/etc/unbound/a-records.conf:ro
       - ./data/unbound/forward-records.conf:/opt/unbound/etc/unbound/forward-records.conf:ro
     healthcheck:
-      # Resolves the canary record from a-records.conf — proves unbound is running,
-      # the config was loaded, and envsubst substituted ${DOMAINNAME} correctly.
+      # 1. Resolves the canary record from a-records.conf — proves unbound is running,
+      #    the config was loaded, and envsubst substituted ${DOMAINNAME} correctly.
+      # 2. Resolves an external domain — proves forward zones and upstream TLS work.
       test:
-        - "CMD"
-        - "drill"
-        - "@127.0.0.1"
-        - "healthcheck.${DOMAINNAME}"
+        - "CMD-SHELL"
+        - "drill @127.0.0.1 healthcheck.${DOMAINNAME} && drill @127.0.0.1 dns.quad9.net"
       interval: 15s
       timeout: 5s
       retries: 3
