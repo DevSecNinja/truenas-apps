@@ -529,7 +529,7 @@ update_compose_files() {
     # Restore ownership when running as root (e.g. on TrueNAS)
     if [ -z "${SUDO}" ]; then
         log_message "STATE: Restoring ownership to truenas_admin:truenas_admin"
-        chown -R truenas_admin:truenas_admin "${dir}"
+        chown -Rv truenas_admin:truenas_admin "${dir}"
     fi
 
     log_message "STATE: Done!"

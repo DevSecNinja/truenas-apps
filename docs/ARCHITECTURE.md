@@ -90,7 +90,7 @@ The init container runs as root, chowns the volume paths to the service's UID:GI
     - "sh"
     - "-c"
     - |-
-      chown -R <UID>:<GID> /path/a /path/b &&
+      chown -Rv <UID>:<GID> /path/a /path/b &&
       find /path/b -type d -exec chmod 775 {} + &&
       find /path/b -type f -exec chmod 664 {} +
   volumes:
@@ -100,7 +100,7 @@ The init container runs as root, chowns the volume paths to the service's UID:GI
 
 For services that only chown runtime-only paths (named Docker volumes, `./data/`), the `chmod 775/664` step and `FOWNER`/`DAC_OVERRIDE` capabilities can be omitted — only `CHOWN` is needed. Docker creates named volumes and `./data/` directories as `root:root 755`, so UID 0 is always the owner and can traverse them without `DAC_OVERRIDE`.
 
-**Exception — external bind-mount paths with non-root ownership:** If the bind-mount source is a host directory owned by a non-root user (e.g., a TrueNAS dataset with `truenas_admin:truenas_admin 770`), UID 0 inside the container matches neither owner nor group and has no permissions. Busybox `chown -R` opens the directory before chowning it, which fails without `DAC_OVERRIDE`. Add `DAC_OVERRIDE` to any init container that chowns such a path.
+**Exception — external bind-mount paths with non-root ownership:** If the bind-mount source is a host directory owned by a non-root user (e.g., a TrueNAS dataset with `truenas_admin:truenas_admin 770`), UID 0 inside the container matches neither owner nor group and has no permissions. Busybox `chown -Rv` opens the directory before chowning it, which fails without `DAC_OVERRIDE`. Add `DAC_OVERRIDE` to any init container that chowns such a path.
 
 **Exceptions — images that manage their own permissions:**
 

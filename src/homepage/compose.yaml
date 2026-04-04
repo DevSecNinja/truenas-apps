@@ -29,7 +29,7 @@ services:
       - "sh"
       - "-c"
       - |-
-        chown -R 3102:3102 /config &&
+        chown -Rv 3102:3102 /config &&
         find /config -type d -exec chmod 775 {} + &&
         find /config -type f -exec chmod 664 {} +
     volumes:
