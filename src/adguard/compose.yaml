@@ -124,7 +124,8 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "853:853/tcp"
+      # TODO: [adguard] Implement DNS over TLS with TLS certificate
+      # - "853:853/tcp"
     mem_limit: ${MEM_LIMIT:-1024m}
     pids_limit: 100
     security_opt:
