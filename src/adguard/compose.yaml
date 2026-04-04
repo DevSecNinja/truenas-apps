@@ -34,8 +34,8 @@ services:
       - /tmp
 
   adguard-unbound:
-    # Validate config with: sudo docker exec adguard-unbound unbound-checkconf
-    image: docker.io/mvance/unbound:1.22.0@sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90
+    # Validate config with: docker exec adguard-unbound unbound-checkconf
+    image: docker.io/madnuttah/unbound:1.24.2-1@sha256:47fdc01759f661b6ac3d63b6e6f1e073e6b71617a37c419624e8a3cb82534b2e
     container_name: adguard-unbound
     depends_on:
       adguard-unbound-init:
@@ -44,11 +44,13 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    # mvance/unbound starts as root and drops privileges to the _unbound user
-    # internally. Setting user: externally would break the startup process.
-    # read_only is not set because the startup script generates unbound.conf and
-    # creates dev/ and var/ directories inside /opt/unbound/etc/unbound/.
-    # cap_drop: ALL is therefore omitted.
+    environment:
+      UNBOUND_UID: 3101
+      UNBOUND_GID: 3101
+      DISABLE_SET_PERMS: "true"
+      EXTENDED_HEALTHCHECK: "true"
+      EXTENDED_HEALTHCHECK_DOMAIN: dns.quad9.net
+    user: "3101:3101" # svc-app-adguard
     restart: always
     networks:
       - adguard-frontend
@@ -56,23 +58,21 @@ services:
     pids_limit: 100
     security_opt:
       - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
     tmpfs:
       - /tmp
     volumes:
-      - ./data/unbound/a-records.conf:/opt/unbound/etc/unbound/a-records.conf:ro
-      - ./data/unbound/forward-records.conf:/opt/unbound/etc/unbound/forward-records.conf:ro
+      - ./data/unbound/conf.d/a-records.conf:/usr/local/unbound/conf.d/a-records.conf:ro
+      - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
+      - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
     healthcheck:
-      # 1. Resolves the canary record from a-records.conf — proves unbound is running,
-      #    the config was loaded, and envsubst substituted ${DOMAINNAME} correctly.
-      # 2. Resolves an external domain — proves forward zones and upstream TLS work.
-      test:
-        - "CMD-SHELL"
-        - "drill @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill @127.0.0.1 dns.quad9.net | grep
-          -q 'rcode: NOERROR'"
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      test: /usr/local/unbound/sbin/healthcheck.sh
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 15s
 
   # Sets ownership on the adguard-data volume and data/conf directory so the
   # non-root adguard container can write to them. On a fresh install, seeds

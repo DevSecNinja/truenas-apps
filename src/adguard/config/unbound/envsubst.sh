@@ -7,7 +7,9 @@
 # only requires adding the corresponding value to secret.sops.env.
 set -eu
 
-for f in a-records.conf forward-records.conf; do
+mkdir -p /output/conf.d /output/zones.d
+
+for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zones.conf; do
     cp "/templates/${f}" "/output/${f}"
     # shellcheck disable=SC2312  # grep/sort exit codes are intentionally unmasked; empty output is handled
     grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/templates/${f}" | sort -u | while read -r pattern; do
