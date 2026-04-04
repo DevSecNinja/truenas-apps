@@ -149,13 +149,9 @@ filters:
     name: NoCoin Filter List
     id: 9
   - enabled: true
-    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_71.txt
-    name: HaGeZi's DNS Rebind Protection
-    id: 10
-  - enabled: true
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_54.txt
     name: HaGeZi's DynDNS Blocklist
-    id: 11
+    id: 10
 
 # ---------------------------------------------------------------------------
 # Stage 2 — Ad & tracker blocking (general)
