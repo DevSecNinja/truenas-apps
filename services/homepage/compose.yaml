@@ -63,6 +63,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/.next/server/pages
     volumes:
       - ./config:/app/config
     healthcheck:
