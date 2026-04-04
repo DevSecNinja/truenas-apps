@@ -263,7 +263,7 @@ services:
   # See: https://github.com/linuxserver/docker-socket-proxy
   # cap_drop: ALL is therefore omitted.
   gatus-docker-proxy:
-    image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.15-r0@sha256:4e3ab628c94dfd58b5eef3847e1a0e42d8332c14983d391d585046037b373912
     container_name: gatus-docker-proxy
     env_file:
       - path: ../shared/env/tz.env
