@@ -112,6 +112,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | Service              | Init container              | Volumes chown'd                                                                    |
 | -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
+| dozzle               | `dozzle-init`               | `./data`                                                                           |
 | homepage             | `homepage-init`             | `./config`                                                                         |
 | metube               | `metube-init`               | `./data/state`                                                                     |
 | traefik              | `traefik-init`              | `./data/acme`, `./config`                                                          |
@@ -243,7 +244,7 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 | 3106    | `svc-app-immich`   | immich-server, immich-ml, immich-init       | No                  |
 | 3107    | `svc-app-metube`   | metube, metube-init                         | No                  |
 | 3108    | `svc-app-unifi`    | unifi, unifi-db-backup                      | No                  |
-| 3109    | `svc-app-dozzle`   | dozzle                                      | No                  |
+| 3109    | `svc-app-dozzle`   | dozzle, dozzle-init                         | No                  |
 
 ### Shared Purpose Groups
 
