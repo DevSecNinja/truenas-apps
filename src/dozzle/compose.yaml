@@ -64,7 +64,7 @@ services:
   # See: https://github.com/linuxserver/docker-socket-proxy
   # cap_drop: ALL is therefore omitted.
   dozzle-docker-proxy:
-    image: lscr.io/linuxserver/socket-proxy:version-3.2.4-r0@sha256:eaa680cf252ccf1dea354801f2444728fbfabb6431897aaa57d67bbf2121cce0
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: dozzle-docker-proxy
     restart: always
     networks:
