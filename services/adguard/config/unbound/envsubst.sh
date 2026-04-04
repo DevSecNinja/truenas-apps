@@ -1,9 +1,9 @@
 #!/bin/sh
-# Substitutes ${VAR} placeholders in unbound config templates with values
+# Substitutes dollar-brace VAR placeholders in unbound config templates with values
 # from the container environment (sourced from secret.sops.env at deploy time).
 # Called by the adguard-unbound-init service before unbound starts.
 #
-# Variables are discovered automatically — adding a new ${VAR} to a template
+# Variables are discovered automatically — adding a new placeholder to a template
 # only requires adding the corresponding value to secret.sops.env.
 set -eu
 
@@ -20,7 +20,7 @@ for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zone
     done
 done
 
-# Verify no ${VAR} placeholders remain — catches missing secret.sops.env entries
+# Verify no unresolved placeholders remain — catches missing secret.sops.env entries
 # before unbound starts with a broken config. Fails the init container loudly.
 failed=0
 for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zones.conf; do
