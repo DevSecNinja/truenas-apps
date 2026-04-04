@@ -61,9 +61,12 @@ services:
     cap_drop:
       - ALL
     read_only: true
+    # Note: Next.js emits a harmless EROFS warning trying to write a prerender cache
+    # to /app/.next/server/pages/. Adding that path as tmpfs breaks startup because
+    # it shadows the pre-built JS files (e.g. _document.js) that live there.
+    # The warning is non-fatal — the app works fine without the cache write.
     tmpfs:
       - /tmp
-      - /app/.next/server/pages
     volumes:
       - ./config:/app/config
     healthcheck:
