@@ -50,7 +50,7 @@ services:
     # cap_drop: ALL is therefore omitted.
     restart: always
     networks:
-      - adguard-backend
+      - adguard-frontend
     mem_limit: ${UNBOUND_MEM_LIMIT:-512m}
     pids_limit: 100
     security_opt:
@@ -125,7 +125,6 @@ services:
     restart: always
     networks:
       - adguard-frontend
-      - adguard-backend
     ports:
       - "53:53/tcp"
       - "53:53/udp"
@@ -178,7 +177,3 @@ networks:
   adguard-frontend:
     name: adguard-frontend
     driver: bridge
-  adguard-backend:
-    name: adguard-backend
-    driver: bridge
-    internal: true
