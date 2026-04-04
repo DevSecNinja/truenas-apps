@@ -20,7 +20,12 @@ db.createUser({
   roles: [
     { db: "${MONGO_DBNAME}", role: "dbOwner" },
     { db: "${MONGO_DBNAME}_stat", role: "dbOwner" },
-    { db: "${MONGO_DBNAME}_audit", role: "dbOwner" }
+    { db: "${MONGO_DBNAME}_audit", role: "dbOwner" },
+    // UniFi restores via a temporary database named <dbname>_restore: it imports
+    // the backup there, swaps it into place, then drops it. Without dbOwner here
+    // the dropDatabase call fails with error 13 (Unauthorized) and the restore
+    // silently rolls back with no data changes applied.
+    { db: "${MONGO_DBNAME}_restore", role: "dbOwner" }
   ]
 })
 db.grantRolesToUser("${MONGO_USER}", [{ role: "clusterMonitor", db: "${MONGO_AUTHSOURCE}" }]);
