@@ -34,6 +34,11 @@
     {
       "matchDepNames": ["pgautoupgrade/pgautoupgrade", "postgres", "docker.io/library/postgres"],
       "groupName": "postgres"
+    },
+    {
+      "description": "Use custom versioning for linuxserver images",
+      "versioning": "regex:^(version)(?<compatibility>.*?)-(?<major>v?\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)[\\.-]*r?(?<build>\\d+)*-*r?(?<release>\\w+)|^latest*",
+      "matchPackageNames": ["/^lscr\\.io\\/linuxserver\\//"]
     }
   ],
   "customManagers": [
