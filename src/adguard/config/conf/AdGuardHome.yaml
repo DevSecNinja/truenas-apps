@@ -16,7 +16,7 @@ dns:
     - 0.0.0.0
   port: 53
   anonymize_client_ip: false
-  ratelimit: 20
+  ratelimit: 100
   ratelimit_subnet_len_ipv4: 24
   ratelimit_subnet_len_ipv6: 56
   ratelimit_whitelist: []
@@ -63,7 +63,7 @@ dns:
   ipset: []
   ipset_file: ""
   bootstrap_prefer_ipv6: false
-  upstream_timeout: 10s
+  upstream_timeout: 5s
   private_networks: []
   use_private_ptr_resolvers: true
   local_ptr_upstreams:
@@ -94,15 +94,16 @@ tls:
 querylog:
   dir_path: ""
   ignored: []
-  interval: 2160h
+  interval: 720h
   size_memory: 1000
   enabled: true
   ignored_enabled: false
   file_enabled: true
+# NOTE: On less performant hardware, consider reducing statistics.interval to 24h
 statistics:
   dir_path: ""
   ignored: []
-  interval: 24h
+  interval: 720h
   enabled: true
   ignored_enabled: false
 filters:
@@ -242,10 +243,10 @@ clients:
 log:
   enabled: true
   file: ""
-  max_backups: 0
+  max_backups: 3
   max_size: 100
   max_age: 3
-  compress: false
+  compress: true
   local_time: false
   verbose: false
 os:
