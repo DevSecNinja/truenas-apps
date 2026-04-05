@@ -1,0 +1,60 @@
+#!/bin/sh
+# Shell aliases and helper functions for TrueNAS NAS administration.
+#
+# Source this file from ~/.zshrc with a one-time addition:
+#   echo 'source /mnt/vm-pool/apps/scripts/aliases.sh' >> ~/.zshrc
+#
+# After that, dccd.sh keeps this file up-to-date automatically on every git pull.
+
+########################################
+# Docker
+########################################
+
+# Show all containers with their health status
+alias dps='sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'
+
+# Show only unhealthy or exited containers
+alias dps-bad='sudo docker ps -a --format "table {{.Names}}\t{{.Status}}" --filter "health=unhealthy" --filter "status=exited"'
+
+# Follow logs for a container: dlog <container-name>
+dlog() {
+    sudo docker logs -f --tail 100 "$1"
+}
+
+# Restart a compose stack by app name: dre <appname>
+# Example: dre gatus
+dre() {
+    sudo docker compose -f /mnt/vm-pool/apps/services/"$1"/compose.yaml restart
+}
+
+# Pull and redeploy a single app via dccd: ddeploy <appname>
+# Example: ddeploy gatus
+ddeploy() {
+    sudo bash /mnt/vm-pool/apps/scripts/dccd.sh \
+        -d /mnt/vm-pool/apps \
+        -k /mnt/vm-pool/apps/age.key \
+        -f -t -a "$1"
+}
+
+# Prune unused images
+alias dprune='sudo docker image prune --all --force'
+
+########################################
+# Help
+########################################
+
+# Show all available aliases and functions
+halp() {
+    cat <<'EOF'
+Docker:
+  dps               Show all containers (name, status, image)
+  dps-bad           Show only unhealthy or exited containers
+  dlog <name>       Follow logs for a container
+  dre  <app>        Restart a compose stack by app name
+  ddeploy <app>     Force-redeploy a single app via dccd
+  dprune            Prune all unused images
+
+Help:
+  halp              Show this help message
+EOF
+}
