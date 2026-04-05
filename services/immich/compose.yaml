@@ -245,7 +245,7 @@ services:
     #   - /tmp
     #   - /run
     volumes:
-      - ./data/db:/var/lib/postgresql/data
+      - ./data/db:/var/lib/postgresql
     healthcheck:
       test:
         - "CMD-SHELL"
