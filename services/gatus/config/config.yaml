@@ -36,6 +36,22 @@ endpoint-defaults: &defaults
     - type: email
       description: "Health check failed"
 
+# Use a public resolver for external endpoints so that a temporary AdGuard
+# outage doesn't cause false-positive failures via Docker's 127.0.0.11 fallback.
+external-defaults: &external-defaults
+  group: External
+  interval: 1m
+  client:
+    timeout: 5s
+    dns-resolver: "udp://1.1.1.1:53"
+  conditions:
+    - "[STATUS] == 200"
+    - "[CERTIFICATE_EXPIRATION] > 48h"
+    - "[RESPONSE_TIME] < 1000"
+  alerts:
+    - type: email
+      description: "Health check failed"
+
 tcp-udp-defaults: &tcp-udp-defaults
   group: Internal
   interval: 1m
@@ -73,12 +89,11 @@ endpoints:
   #
 
   - name: DevSecNinja - HTTP
-    <<: *defaults
+    <<: *external-defaults
     url: "https://devsecninja.com/"
-    group: External
 
   - name: hadiscover - HTTP
-    <<: *defaults
+    <<: *external-defaults
     url: "https://hadiscover.com/"
     group: External
     interval: 1m
@@ -89,9 +104,8 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: hadiscover WWW - HTTP
-    <<: *defaults
+    <<: *external-defaults
     url: "https://www.hadiscover.com/"
-    group: External
     interval: 1m
     conditions:
       - "[BODY] == pat(*Built with 💙 for the Home Assistant community*)"
@@ -100,9 +114,8 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: hadiscover API - HTTP
-    <<: *defaults
+    <<: *external-defaults
     url: "https://api.hadiscover.com/api/v1/statistics"
-    group: External
     method: GET
     headers:
       Accept: application/json
@@ -117,7 +130,7 @@ endpoints:
       - "[BODY].total_automations > 10"
 
   - name: V60 - HTTP
-    <<: *defaults
+    <<: *external-defaults
     url: "https://v60.${DOMAINNAME}"
     group: External
     conditions:
@@ -127,9 +140,8 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: Bing - HTTP
-    <<: *defaults
+    <<: *external-defaults
     url: "https://bing.com/"
-    group: External
 
   #
   # Internal HTTP
