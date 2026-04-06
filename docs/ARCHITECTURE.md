@@ -330,16 +330,24 @@ Each media service (e.g., MeTube) runs under its own dedicated UID so file owner
 
 ### Dataset Layout
 
-All media and future download data lives under a **single** ZFS dataset `archive-pool/content`, mounted at `/mnt/archive-pool/content/`. No child datasets are created beneath it — everything is plain directories.
+All media and download data lives under a **single** ZFS dataset `archive-pool/content`, mounted at `/mnt/archive-pool/content/`. No child datasets are created beneath it — everything is plain directories.
 
 **Why one dataset?** Hardlinks only work within the same filesystem. When an arr app (Radarr, Sonarr) imports a finished download, it can create a hardlink from `downloads/` to `media/` instead of copying the file — but only if both paths are on the same ZFS dataset. Child datasets would act as separate filesystems and break this.
 
 ```
 /mnt/archive-pool/content/
-├── downloads/           ← download clients (future arr stack)
-│   ├── movies/
-│   ├── music/
-│   └── tv/
+├── downloads/           ← download clients (arr stack)
+│   ├── isos/
+│   ├── torrents/        ← torrent client (qBittorrent, Deluge, etc.)
+│   │   ├── movies/
+│   │   ├── music/
+│   │   └── tv/
+│   └── usenet/          ← Usenet client (SABnzbd, NZBGet, etc.)
+│       ├── incomplete/
+│       └── complete/
+│           ├── movies/
+│           ├── music/
+│           └── tv/
 └── media/               ← final library; Plex reads this
     ├── audiobooks/
     ├── movies/
