@@ -153,7 +153,7 @@ endpoints:
 
   - name: UniFi Guest - HTTP
     <<: *defaults
-    url: "https://unifi-guest.${DOMAINNAME}:8843/guest/s/default/"
+    url: "https://unifi-guest.${DOMAINNAME}/guest/s/default/"
 
   - name: UniFi - Inform (TCP)
     <<: *tcp-udp-defaults
