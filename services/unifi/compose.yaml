@@ -185,6 +185,13 @@ services:
       - "traefik.http.services.unifi.loadbalancer.server.scheme=https"
       - "traefik.http.services.unifi.loadbalancer.server.port=8443"
       - "traefik.http.services.unifi.loadbalancer.serverstransport=insecure-skip-verify@file"
+      ## Guest Portal — no authentication so WiFi guests can access the captive portal
+      - "traefik.http.routers.unifi-guest-rtr.rule=Host(`unifi-guest.${DOMAINNAME}`)"
+      - "traefik.http.routers.unifi-guest-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.unifi-guest-rtr.service=unifi-guest"
+      - "traefik.http.services.unifi-guest.loadbalancer.server.scheme=https"
+      - "traefik.http.services.unifi-guest.loadbalancer.server.port=8843"
+      - "traefik.http.services.unifi-guest.loadbalancer.serverstransport=insecure-skip-verify@file"
 
 networks:
   unifi-frontend:
