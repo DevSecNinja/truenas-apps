@@ -111,6 +111,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 | Service              | Init container              | Volumes chown'd                                                                    |
 | -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
 | dozzle               | `dozzle-init`               | `./data`                                                                           |
 | homepage             | `homepage-init`             | `./config`                                                                         |
@@ -327,6 +328,30 @@ All services that interact with media datasets share a single `media` group (GID
 
 Each media service (e.g., MeTube) runs under its own dedicated UID so file ownership is auditable — `ls -la` shows which service wrote a file.
 
+### Dataset Layout
+
+All media and future download data lives under a **single** ZFS dataset `archive-pool/content`, mounted at `/mnt/archive-pool/content/`. No child datasets are created beneath it — everything is plain directories.
+
+**Why one dataset?** Hardlinks only work within the same filesystem. When an arr app (Radarr, Sonarr) imports a finished download, it can create a hardlink from `downloads/` to `media/` instead of copying the file — but only if both paths are on the same ZFS dataset. Child datasets would act as separate filesystems and break this.
+
+```
+/mnt/archive-pool/content/
+├── downloads/           ← download clients (future arr stack)
+│   ├── movies/
+│   ├── music/
+│   └── tv/
+└── media/               ← final library; Plex reads this
+    ├── audiobooks/
+    ├── movies/
+    ├── music/
+    ├── study/
+    ├── tv/
+    └── youtube/
+        └── metube/      ← MeTube writes here
+```
+
+All folder names are lowercase — Linux is case-sensitive and lowercase avoids ambiguity.
+
 ### TrueNAS Scale Setup
 
 On the TrueNAS host, create or confirm:
@@ -341,27 +366,21 @@ On the TrueNAS host, create or confirm:
   - To add a new media service: create its user with primary group `media` — no dataset permission changes needed
 - Add `truenas_admin` as an auxiliary group member of `media` for admin access
 
-On each media dataset under `/mnt/archive-pool/media/`:
+Create the `archive-pool/content` dataset via the TrueNAS GUI as a **Dataset** (not a zvol) with the following settings:
 
-1. Set `acltype=off` and `aclmode=discard` on the dataset (disables NFSv4, enables plain Unix perms):
+| Setting      | Value   | Why                                                                                       |
+| ------------ | ------- | ----------------------------------------------------------------------------------------- |
+| ACL Type     | Off     | Plain Unix permissions; NFSv4 adds complexity with no benefit                             |
+| ACL Mode     | Discard | Ensures `chmod` works cleanly without ACL interference                                    |
+| Compression  | `zstd`  | Free compression on metadata and small files; video/audio files are already compressed    |
+| Enable Atime | Off     | Prevents a write on every read; useless for media workloads                               |
+| Exec         | Off     | No binaries run from this path; init containers use their own image layer, not this mount |
 
-   ```sh
-   zfs set acltype=off archive-pool/media/<dataset>
-   zfs set aclmode=discard archive-pool/media/<dataset>
-   ```
+Do **not** create child datasets beneath it — everything under `content/` must be plain directories on the same filesystem for hardlinks and atomic moves to work.
 
-2. Set group ownership and permissions on the dataset root and all existing files:
+The `content-init` container (in the `_bootstrap` service) creates the full directory tree, sets group ownership to `media` (GID 3200), and applies the setgid bit (`2775`) on all directories on every deploy. The `_bootstrap` service deploys first because its directory name sorts before all other services alphabetically. No manual shell setup is needed after the dataset exists.
 
-   ```sh
-   chown -R :3200 /mnt/archive-pool/media/<dataset>
-   chmod -R g+rw /mnt/archive-pool/media/<dataset>
-   find /mnt/archive-pool/media/<dataset> -type d -exec chmod g+s {} +
-   chmod 2775 /mnt/archive-pool/media/<dataset>
-   ```
-
-   The **setgid bit** (`2775`) on each directory causes new files and subdirectories to inherit the `media` group automatically — equivalent to NFSv4 file+directory inherit. `UMASK=002` in writing services ensures new files are created as `664` (group-readable).
-
-3. Apply these steps with **Apply permissions recursively** and include child datasets where applicable.
+The **setgid bit** (`2775`) on every directory causes new files and subdirectories to inherit the `media` group automatically. `UMASK=002` in writing services ensures new files are created as `664` (group-readable).
 
 ### Container Configuration
 
@@ -372,7 +391,7 @@ environment:
   - PUID=911
   - PGID=3200 # media group — all media-touching services use this GID
 volumes:
-  - /mnt/archive-pool/media/Movies:/media/movies:ro
+  - /mnt/archive-pool/content/media/movies:/media/movies:ro
 ```
 
 Media-writing services omit `:ro` and set `UMASK=002` so created files are group-readable (`664`) and directories group-traversable (`775`):
@@ -382,7 +401,14 @@ user: "3107:3200" # svc-app-metube:media
 environment:
   - UMASK=002
 volumes:
-  - /mnt/archive-pool/media/Movies:/media/movies  # read-write; no :ro
+  - /mnt/archive-pool/content/media/youtube/metube:/downloads  # read-write; no :ro
+```
+
+Future arr apps (Radarr, Sonarr) must mount the entire `/mnt/archive-pool/content/` root so that `downloads/` and `media/` are on the same filesystem inside the container — this is what enables hardlinks and atomic moves:
+
+```yaml
+volumes:
+  - /mnt/archive-pool/content:/data  # downloads/ and media/ both visible; hardlinks work
 ```
 
 > **Plex exception:** The LinuxServer Plex image starts as root and drops to `PUID:PGID` via s6-overlay — `read_only: true` breaks this silently, so it is omitted. `user:` is also omitted for the same reason. Despite this, Plex ends up running as 911:3200 matching the dataset group ownership. **UID 911 is reserved for Plex** — no other service may use it unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.

@@ -98,12 +98,12 @@ services:
       # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
       - /dev/shm:/data/transcode
       # Media datasets (ZFS on TrueNAS)
-      - /mnt/archive-pool/media/audiobooks:/media/audiobooks:ro
-      - /mnt/archive-pool/media/movies:/media/movies:ro
-      - /mnt/archive-pool/media/music:/media/music:ro
-      - /mnt/archive-pool/media/study:/media/study:ro
-      - /mnt/archive-pool/media/tv:/media/tv:ro
-      - /mnt/archive-pool/media/youtube:/media/youtube:ro
+      - /mnt/archive-pool/content/media/audiobooks:/media/audiobooks:ro
+      - /mnt/archive-pool/content/media/movies:/media/movies:ro
+      - /mnt/archive-pool/content/media/music:/media/music:ro
+      - /mnt/archive-pool/content/media/study:/media/study:ro
+      - /mnt/archive-pool/content/media/tv:/media/tv:ro
+      - /mnt/archive-pool/content/media/youtube:/media/youtube:ro
     healthcheck:
       test:
         - "CMD"
