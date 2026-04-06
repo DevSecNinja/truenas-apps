@@ -69,6 +69,7 @@ services:
     volumes:
       - ./data/unbound/conf.d/a-records.conf:/usr/local/unbound/conf.d/a-records.conf:ro
       - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
+      - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     healthcheck:
