@@ -66,10 +66,9 @@ services:
         condition: service_healthy
       immich-redis:
         condition: service_healthy
-    # TODO: [immich] Re-enable hardware acceleration
-    # extends:
-    #   file: ./config/hwaccel.transcoding.yml
-    #   service: quicksync # set to one of [cpu, nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
+    extends:
+      file: ./config/hwaccel.transcoding.yml
+      service: quicksync # set to one of [cpu, nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
