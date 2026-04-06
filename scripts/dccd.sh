@@ -330,16 +330,31 @@ redeploy_truenas_apps() {
 
         # Deploy
         log_message "STATE: Starting containers for ${app_name}"
-        if ! ${SUDO} docker compose \
-            --project-name "${project_name}" \
-            --file "${compose_file}" \
-            up \
-            -d \
-            --build \
-            --wait \
-            --wait-timeout "${WAIT_TIMEOUT}"; then
-            log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
-            _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+        if [[ "${project_name}" == *bootstrap* ]]; then
+            # One-shot project: run in foreground and abort when the container exits.
+            # --abort-on-container-exit is incompatible with -d, which is fine — we
+            # want to block until the init work is done before deploying later apps.
+            if ! ${SUDO} docker compose \
+                --project-name "${project_name}" \
+                --file "${compose_file}" \
+                up \
+                --build \
+                --abort-on-container-exit; then
+                log_message "ERROR: ${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+            fi
+        else
+            if ! ${SUDO} docker compose \
+                --project-name "${project_name}" \
+                --file "${compose_file}" \
+                up \
+                -d \
+                --build \
+                --wait \
+                --wait-timeout "${WAIT_TIMEOUT}"; then
+                log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+            fi
         fi
 
         # Report which images changed (or not)
