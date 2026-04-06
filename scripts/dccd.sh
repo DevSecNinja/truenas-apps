@@ -341,6 +341,15 @@ redeploy_truenas_apps() {
             # One-shot project: start detached to avoid streaming verbose init logs
             # to the dccd console, then block with 'docker compose wait' until the
             # container exits. Logs remain accessible via 'docker compose logs'.
+            # 'docker compose wait' requires explicit service names (no default-all).
+            local _bs_services
+            # shellcheck disable=SC2312  # docker compose config exit code in process substitution is non-fatal
+            mapfile -t _bs_services < <(
+                ${SUDO} docker compose \
+                    --project-name "${project_name}" \
+                    --file "${compose_file}" \
+                    config --services
+            )
             if ! ${SUDO} docker compose \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
@@ -353,7 +362,7 @@ redeploy_truenas_apps() {
             elif ! ${SUDO} docker compose \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
-                wait; then
+                wait "${_bs_services[@]}"; then
                 log_message "ERROR: ${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
