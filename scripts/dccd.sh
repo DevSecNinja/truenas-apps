@@ -2,10 +2,19 @@
 # Source: https://github.com/loganmarchione/dccd/blob/d5aef3f684e5f63e8ec348652c6dc24e7447336c/dccd.sh
 # Usage in TrueNAS Scale:
 #   Command: bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f
-#   Run As User: root
+#   Run As User: truenas_admin (requires passwordless sudo for /usr/bin/docker)
 #   Unselect 'Hide Standard Output' and 'Hide Standard Error'
 
 set -euo pipefail
+
+# Guard: refuse to run as root to prevent git/file ownership issues
+# shellcheck disable=SC2312  # id -u always succeeds
+if [ "$(id -u)" -eq 0 ]; then
+    echo "ERROR: Do not run this script as root. Run as truenas_admin instead." >&2
+    echo "       Ensure passwordless sudo is configured for docker:" >&2
+    echo "       truenas_admin ALL=(ALL) NOPASSWD: /usr/bin/docker" >&2
+    exit 1
+fi
 
 ########################################
 # Default configuration values
@@ -65,13 +74,8 @@ log_message() {
     logger -t dccd "${message}"
 }
 
-# Use sudo only when not already running as root
-# shellcheck disable=SC2312  # id -u always succeeds
-if [ "$(id -u)" -eq 0 ]; then
-    SUDO=""
-else
-    SUDO="sudo"
-fi
+# Non-root execution: always use sudo for docker commands
+SUDO="sudo"
 
 ensure_sops() {
     mkdir -p "${SOPS_INSTALL_DIR}"
@@ -334,15 +338,22 @@ redeploy_truenas_apps() {
         # Deploy
         log_message "STATE: Starting containers for ${app_name}"
         if [[ "${project_name}" == *bootstrap* ]]; then
-            # One-shot project: run in foreground and abort when the container exits.
-            # --abort-on-container-exit is incompatible with -d, which is fine — we
-            # want to block until the init work is done before deploying later apps.
+            # One-shot project: start detached to avoid streaming verbose init logs
+            # to the dccd console, then block with 'docker compose wait' until the
+            # container exits. Logs remain accessible via 'docker compose logs'.
             if ! ${SUDO} docker compose \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 up \
-                --build \
-                --abort-on-container-exit; then
+                -d \
+                --build; then
+                log_message "ERROR: ${app_name} one-shot container failed to start - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+                _DEPLOY_FAILED_APPS+=("${app_name}")
+            elif ! ${SUDO} docker compose \
+                --project-name "${project_name}" \
+                --file "${compose_file}" \
+                wait; then
                 log_message "ERROR: ${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
@@ -551,6 +562,15 @@ update_compose_files() {
     if [ "${GRACEFUL}" -eq 1 ]; then
         rm -f "${TMPRESTART}"
     fi
+
+    # # Restore ownership when running as root (e.g. on TrueNAS).
+    # # Git fetch/pull and SOPS decryption create files as root. Fix everything
+    # # except data/ and backups/ which are managed by init containers.
+    # if [ -z "${SUDO}" ]; then
+    #     log_message "STATE: Restoring ownership to truenas_admin:truenas_admin (excluding data/ and backups/)"
+    #     find "${dir}" \( -name data -o -name backups \) -prune -o -user root -print0 |
+    #         xargs -0 -r chown truenas_admin:truenas_admin
+    # fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
         local sep="========================================"
