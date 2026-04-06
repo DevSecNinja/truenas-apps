@@ -1,38 +1,8 @@
 ---
-# Manual work to implement on a new server:
-#
-# First-run steps:
-#   1. Plex claim token must be refreshed (only 4 minutes valid) (get it from https://www.plex.tv/claim/)
-#   2. Spin up the Plex container
-#   3. In Settings → Network:
-#        - Set 'Custom server access URLs' to https://plex.<DOMAINNAME>
-#          (this is what allows Traefik-proxied requests to be accepted)
-#        - Set 'LAN Networks' to 192.168.0.0/16,172.16.0.0/16 (Traefik uses 172.16.0.0/16 network)
-#          You should now see streams mentioned as 'Local' instead of 'Remote'. Note that within the Plex
-#          portal in the server settings, you'll still see 'Remote' being mentioned, but this seems normal)
-#   4. In Settings → Remote Access:
-#        - Enable 'Remote Access' (this is required for your plex.<domain> to be exposed to plex.tv.)
-#        - Select 'Manually specify public port' and set it to 443 (this is your Traefik port)
-#
-# Remaining setup steps:
-# - Enable automatic library scanning in Plex settings
-# - Set 'Transcoder temporary directory' to /data/transcode in Plex settings
-# - Set backup directory in Plex settings under Scheduled Tasks to /backups
+# See README.md for first-run setup, networking notes, and volume details.
 
 services:
-  # s6-overlay exception (see ARCHITECTURE.md § "Exceptions — s6-overlay and root-start containers"):
-  # - read_only is omitted: s6-overlay writes /etc/passwd and /etc/group for PUID/PGID during startup;
-  #   these writes fail silently with read_only=true, causing PUID/PGID to be ignored entirely.
-  # - user: is omitted: s6-overlay handles the privilege drop internally.
-  # - cap_drop: ALL is still applied; only the four capabilities s6-overlay needs are re-added.
-  # PUID=911 (LinuxServer Plex UID) and PGID=3200 (media GID) are set explicitly so that
-  # Plex runs as 911:3200, matching the TrueNAS dataset Unix permissions that grant media group read access.
-  # /run is mounted as tmpfs (with exec) for s6-overlay's service files.
-
-  # Pre-sets ownership on the ./data/config bind-mount directory to PUID:PGID before plex starts.
-  # This is a belt-and-suspenders measure for fresh deploys or ACL resets on ZFS.
-  # The main guard is DAC_OVERRIDE on the plex container itself (see below).
-  # Runs once, then exits.
+  # s6-overlay exception — see ARCHITECTURE.md and README.md for details.
   plex-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: plex-init
@@ -63,31 +33,31 @@ services:
       plex-init:
         condition: service_completed_successfully
     env_file:
-      - path: .env # Decrypted from secret.sops.env
+      - path: .env
         required: false
       - path: ../shared/env/tz.env
     environment:
-      - PUID=911 # LinuxServer Plex default UID
-      - PGID=3200 # media group — all media-touching services use this GID
+      - PUID=911
+      - PGID=3200
       - HOSTNAME=plex
       - VERSION=docker
-      - PLEX_CLAIM=${PLEX_CLAIM_TOKEN} # Get it from: https://www.plex.tv/claim/
+      - PLEX_CLAIM=${PLEX_CLAIM_TOKEN}
     restart: always
     tmpfs:
       - /run:exec
     networks:
       - plex-frontend
     mem_limit: ${MEM_LIMIT:-2048m}
-    pids_limit: 500 # Plex spawns many threads for plugins, DB, and transcoding
+    pids_limit: 500
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # s6-overlay chowns /config to PUID:PGID at startup
-      - DAC_OVERRIDE # s6-overlay runs as root before dropping privs; needed to write into /config even when it's owned by PUID:PGID
-      - KILL # init-plex-claim (root) signals the temporary Plex process (UID 911) during server claiming
-      - SETGID # s6-overlay drops from root GID to PGID
-      - SETUID # s6-overlay drops from root UID to PUID
-      - SETPCAP # s6-overlay clears the bounding capability set before exec-ing Plex
+      - CHOWN
+      - DAC_OVERRIDE
+      - KILL
+      - SETGID
+      - SETUID
+      - SETPCAP
     security_opt:
       - no-new-privileges=true
     ulimits:
@@ -99,11 +69,8 @@ services:
       - /dev/dri/renderD128:/dev/dri/renderD128
     volumes:
       - ./data/config:/config
-      # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
       - /dev/shm:/data/transcode
-      # Note: set backup directory to /backups in Plex settings under Scheduled Tasks
       - ./backups:/backups
-      # Media datasets (ZFS on TrueNAS)
       - /mnt/archive-pool/content/media:/media:ro
     healthcheck:
       test:
@@ -125,12 +92,8 @@ services:
       # Traefik
       - "traefik.enable=true"
       - "traefik.docker.network=plex-frontend"
-      ## HTTP Routers
       - "traefik.http.routers.plex-rtr.rule=Host(`plex.${DOMAINNAME}`)"
-      ## Middlewares — no-auth because Plex has its own authentication;
-      ## uses plex-specific chain with relaxed CSP (Plex web app needs plex.tv access)
       - "traefik.http.routers.plex-rtr.middlewares=chain-no-auth-plex@file"
-      ## HTTP Services
       - "traefik.http.routers.plex-rtr.service=plex"
       - "traefik.http.services.plex.loadbalancer.server.scheme=https"
       - "traefik.http.services.plex.loadbalancer.server.port=32400"
