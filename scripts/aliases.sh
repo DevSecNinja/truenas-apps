@@ -30,7 +30,7 @@ dre() {
 # Pull and redeploy a single app via dccd: ddeploy <appname>
 # Example: ddeploy gatus
 ddeploy() {
-    sudo bash /mnt/vm-pool/apps/scripts/dccd.sh \
+    bash /mnt/vm-pool/apps/scripts/dccd.sh \
         -d /mnt/vm-pool/apps \
         -k /mnt/vm-pool/apps/age.key \
         -f -t -a "$1"
@@ -47,15 +47,15 @@ alias dprune='sudo docker image prune --all --force'
 ########################################
 
 # Force-deploy all apps (TrueNAS mode, excluding shared)
-alias dccd-all='sudo bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -x shared -t -f'
+alias dccd-all='bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -x shared -t -f'
 
 # Graceful deploy: only restart containers that changed
-alias dccd-graceful='sudo bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -x shared -t -g'
+alias dccd-graceful='bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -x shared -t -g'
 
 # Force-deploy a single app: dccd-app <appname>
 # Example: dccd-app traefik
 dccd_app() {
-    sudo bash /mnt/vm-pool/apps/scripts/dccd.sh \
+    bash /mnt/vm-pool/apps/scripts/dccd.sh \
         -d /mnt/vm-pool/apps \
         -k /mnt/vm-pool/apps/age.key \
         -x shared -t -f -a "$1"
