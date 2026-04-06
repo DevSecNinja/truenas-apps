@@ -36,6 +36,9 @@ ddeploy() {
         -f -t -a "$1"
 }
 
+# Show resource usage of all containers
+alias dstats='sudo docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}"'
+
 # Prune unused images
 alias dprune='sudo docker image prune --all --force'
 
@@ -72,6 +75,7 @@ Docker:
   dlog <name>       Follow logs for a container
   dre  <app>        Restart a compose stack by app name
   ddeploy <app>     Force-redeploy a single app via dccd
+  dstats            Show resource usage of all containers
   dprune            Prune all unused images
 
 DCCD:
