@@ -91,19 +91,19 @@ services:
       nproc: 131072
       nofile: 60000
       core: 0
-    # devices:
-    #   - /dev/dri/renderD128:/dev/dri/renderD128
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
     volumes:
       - ./data/config:/config
       # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
       - /dev/shm:/data/transcode
       # Media datasets (ZFS on TrueNAS)
-      - /mnt/archive-pool/media/Audiobooks:/media/audiobooks:ro
-      - /mnt/archive-pool/media/Movies:/media/movies:ro
-      - /mnt/archive-pool/media/Music:/media/music:ro
-      - /mnt/archive-pool/media/Study:/media/study:ro
-      - /mnt/archive-pool/media/TV:/media/tv:ro
-      - /mnt/archive-pool/media/YouTube:/media/youtube:ro
+      - /mnt/archive-pool/media/audiobooks:/media/audiobooks:ro
+      - /mnt/archive-pool/media/movies:/media/movies:ro
+      - /mnt/archive-pool/media/music:/media/music:ro
+      - /mnt/archive-pool/media/study:/media/study:ro
+      - /mnt/archive-pool/media/tv:/media/tv:ro
+      - /mnt/archive-pool/media/youtube:/media/youtube:ro
     healthcheck:
       test:
         - "CMD"
