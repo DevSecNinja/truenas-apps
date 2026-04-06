@@ -16,6 +16,7 @@
 services:
   # Creates the archive-pool/content directory tree and sets permissions:
   #   - mkdir -p for all media/ and downloads/ subdirectories
+  #   - downloads split by client type (torrents/ and usenet/) per Trash Guides
   #   - Group ownership set to media (GID 3200) on the entire tree
   #   - Setgid bit (2775) on all directories so new files/subdirs inherit the group
   content-init:
@@ -39,9 +40,14 @@ services:
       - "-c"
       - |-
         mkdir -pv \
-          /content/downloads/movies \
-          /content/downloads/music \
-          /content/downloads/tv \
+          /content/downloads/torrents/movies \
+          /content/downloads/torrents/music \
+          /content/downloads/torrents/tv \
+          /content/downloads/usenet/incomplete \
+          /content/downloads/usenet/complete/movies \
+          /content/downloads/usenet/complete/music \
+          /content/downloads/usenet/complete/tv \
+          /content/downloads/isos \
           /content/media/audiobooks \
           /content/media/movies \
           /content/media/music \
