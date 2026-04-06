@@ -250,16 +250,15 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-| GID  | Group               | Purpose                                      | Used as primary group by |
-| ---- | ------------------- | -------------------------------------------- | ------------------------ |
-| 3200 | `media-readers`     | Read access to media datasets                | Plex (UID 911)           |
-| 3201 | `media-writers`     | Write access to media/download dir           | MeTube (UID 3107)        |
-| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)        |
-| 3203 | `private-documents` | Access to private documents (reserved)       | —                        |
+| GID  | Group               | Purpose                                      | Used as primary group by          |
+| ---- | ------------------- | -------------------------------------------- | --------------------------------- |
+| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107) |
+| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                 |
+| 3203 | `private-documents` | Access to private documents (reserved)       | —                                 |
 
 ### Plex Exception
 
-Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media-readers`). The s6-overlay init system manages permissions internally. UID 911 is reserved exclusively for Plex — no other service may use it. For naming consistency, create a `svc-app-plex` user on TrueNAS with UID 911 and primary group `media-readers` (GID 3200).
+Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media`). The s6-overlay init system manages permissions internally. UID 911 is reserved exclusively for Plex — no other service may use it. For naming consistency, create a `svc-app-plex` user on TrueNAS with UID 911 and primary group `media` (GID 3200).
 
 ### TrueNAS Host Setup
 
@@ -271,12 +270,12 @@ Creation order for each app service account:
 2. Create user `svc-app-<name>` with UID matching the GID (e.g., UID 3100), primary group set to the group from step 1
 3. Add `truenas_admin` to the group — this grants group-write access to chown'd config files, allowing `git pull` without permission conflicts
 
-For shared purpose groups (`media-readers`, `media-writers`, `private-photos`, `private-documents`):
+For shared purpose groups (`media`, `private-photos`, `private-documents`):
 
-1. Create the group with the designated GID (3200, 3201, 3202, 3203)
+1. Create the groups with the designated GIDs (3200, 3202, 3203).
 2. Configure the relevant service accounts' group memberships:
-   - `svc-app-plex` (911): primary group `media-readers` (3200)
-   - `svc-app-metube` (3107): primary group `media-writers` (3201), auxiliary group `media-readers` (3200)
+   - `svc-app-plex` (911): primary group `media` (3200)
+   - `svc-app-metube` (3107): primary group `media` (3200)
    - `svc-app-immich` (3106): primary group `private-photos` (3202)
 3. Add `truenas_admin` as an auxiliary group member of each group if admin access to those datasets is needed
 
@@ -318,73 +317,82 @@ Reusable env files live in `services/shared/env/` and are referenced via relativ
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See § UID/GID Allocation for the full allocation table.
 
-## Media Access: Consumer/Producer Model
+## Media Access
 
-Services that interact with media datasets are divided into two roles:
+> **Troubleshooting:** If a container cannot read or write media files, see [TROUBLESHOOTING.md § Permissions](TROUBLESHOOTING.md#permissions).
 
-**Consumers** (e.g., Plex) only read media files. All media bind-mounts carry `:ro`, enforcing this at the kernel level regardless of filesystem permissions. Consumers run with the shared `media-readers` group (GID 3200) so that dataset ACLs grant them read access.
+All services that interact with media datasets share a single `media` group (GID 3200). Every media-touching service account on TrueNAS has `media` as its primary group. Unix permissions replace NFSv4 ACLs on these datasets.
 
-**Producers** (e.g., download clients) write new media files. Each producer runs under its own dedicated UID so file ownership is auditable — `ls -la` shows which service created a file. All producers share the `media-writers` group (GID 3201) as their primary group, so dataset write access is controlled by a single ACL entry per dataset. Adding a new producer tool only requires joining it to the group on TrueNAS — no dataset ACL edits needed.
+**Why not separate reader/writer groups?** Consumer services (e.g., Plex) are already restricted to read-only at the kernel level via `:ro` Docker volume mounts — a filesystem-level write restriction would only be a secondary layer for a modest risk. The same `media` group for all services keeps the model simple, debuggable with plain `ls -la`, and trivially extensible to SMB (add a user to the group, done).
 
-Producers are also members of the `media-readers` group (as an auxiliary group on the user) on the TrueNAS host. This is set at the OS level and applies at the filesystem layer regardless of what the container knows about its groups — so consumers can read whatever a producer writes without any additional configuration.
+Each media service (e.g., MeTube) runs under its own dedicated UID so file ownership is auditable — `ls -la` shows which service wrote a file.
 
 ### TrueNAS Scale Setup
 
 On the TrueNAS host, create or confirm:
 
-- A `media-readers` group (GID 3200) — for all consumers
-- A `media-writers` group (GID 3201) — for all producers
-- A `svc-app-plex` user (UID 911) with primary group `media-readers`
-  - UID 911 is fixed by the LinuxServer image when `read_only: true`; it cannot be changed via `PUID`
-  - **UID 911 is reserved exclusively for Plex.** No other service may use this UID unless strictly necessary, and any exception must be documented with a comment in the relevant compose file explaining why.
-- A dedicated user per producer (e.g., `svc-app-metube` at UID 3107)
-  - Primary group: `media-writers` (controls write access via ACL)
-  - Auxiliary group: `media-readers` (ensures consumers can read files the producer writes)
-  - Use a distinct UID per producer tool so file ownership is unambiguous in `ls -la`
-  - To add a new producer tool: create its user, set primary group to `media-writers`, add `media-readers` as an auxiliary group — no dataset ACL changes needed
+- A `media` group (GID 3200) — for all media-touching services
+- A `svc-app-plex` user (UID 911) with primary group `media` (GID 3200)
+  - UID 911 is fixed by the LinuxServer image; it cannot be changed via `PUID`
+  - **UID 911 is reserved exclusively for Plex.** No other service may use this UID unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
+- A dedicated user per media service (e.g., `svc-app-metube` at UID 3107)
+  - Primary group: `media` (GID 3200)
+  - Use a distinct UID per tool so file ownership is unambiguous in `ls -la`
+  - To add a new media service: create its user with primary group `media` — no dataset permission changes needed
+- Add `truenas_admin` as an auxiliary group member of `media` for admin access
 
-On each media dataset under `/mnt/archive-pool/Media/`:
+On each media dataset under `/mnt/archive-pool/media/`:
 
-1. Set the owning group to `media-writers` and enable **Apply Group**
-2. Configure NFSv4 ACLs (TrueNAS Scale default on ZFS datasets) using Basic presets:
-   - `owner@`: **Full Control** — dataset owner (root)
-   - `group@` (= `media-writers`, GID 3201): **Modify** — all producers; because `media-writers` is the owning group, `group@` covers it — no separate named ACL entry needed
-   - Named entry for `media-readers` group (GID 3200): **Read** — all consumers, including Plex
-3. Enable ACL inheritance on both the `group@` and the named `media-readers` group ACL entries. In the TrueNAS dataset ACL editor, edit each entry and enable **File Inherit** and **Directory Inherit**. This ensures new files and subdirectories created inside the dataset automatically receive the correct ACL entries.
-4. Select **Apply permissions recursively** and **Apply permissions to child datasets** when appropriate.
+1. Set `acltype=off` and `aclmode=discard` on the dataset (disables NFSv4, enables plain Unix perms):
+
+   ```sh
+   zfs set acltype=off archive-pool/media/<dataset>
+   zfs set aclmode=discard archive-pool/media/<dataset>
+   ```
+
+2. Set group ownership and permissions on the dataset root and all existing files:
+
+   ```sh
+   chown -R :3200 /mnt/archive-pool/media/<dataset>
+   chmod -R g+rw /mnt/archive-pool/media/<dataset>
+   find /mnt/archive-pool/media/<dataset> -type d -exec chmod g+s {} +
+   chmod 2775 /mnt/archive-pool/media/<dataset>
+   ```
+
+   The **setgid bit** (`2775`) on each directory causes new files and subdirectories to inherit the `media` group automatically — equivalent to NFSv4 file+directory inherit. `UMASK=002` in writing services ensures new files are created as `664` (group-readable).
+
+3. Apply these steps with **Apply permissions recursively** and include child datasets where applicable.
 
 ### Container Configuration
 
-**Consumers** hardcode the media GID in their `user:` directive or `PGID` environment variable. Mount all media paths `:ro`:
+All media-touching services hardcode GID 3200 (`media`). Consumer services mount paths `:ro`:
 
 ```yaml
 environment:
   - PUID=911
-  - PGID=3200 # media-readers group — consumers read media datasets via this GID
+  - PGID=3200 # media group — all media-touching services use this GID
 volumes:
-  - /mnt/archive-pool/Media/Movies:/media/movies:ro
+  - /mnt/archive-pool/media/Movies:/media/movies:ro
 ```
 
-**Producers** hardcode the media-writers GID. Set `UMASK=002` so created files are group-writable (`664`) and directories group-traversable (`775`). The supplementary `media-readers` group membership is configured on the TrueNAS host at the OS level — no container-side config needed for consumers to read produced files:
+Media-writing services omit `:ro` and set `UMASK=002` so created files are group-readable (`664`) and directories group-traversable (`775`):
 
 ```yaml
-user: "3107:3201" # svc-app-metube:media-writers
+user: "3107:3200" # svc-app-metube:media
 environment:
   - UMASK=002
 volumes:
-  - /mnt/archive-pool/Media/Movies:/media/movies  # read-write; no :ro
+  - /mnt/archive-pool/media/Movies:/media/movies  # read-write; no :ro
 ```
 
-> **Plex exception:** The LinuxServer Plex image forces UID/GID 911:911 internally when `read_only: true`, so `PUID`/`PGID` env vars have no effect. The host-level ACL entry for `svc-app-plex` (UID 911) on each media dataset handles access instead. **UID 911 is reserved for Plex** — no other service may use it unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
+> **Plex exception:** The LinuxServer Plex image starts as root and drops to `PUID:PGID` via s6-overlay — `read_only: true` breaks this silently, so it is omitted. `user:` is also omitted for the same reason. Despite this, Plex ends up running as 911:3200 matching the dataset group ownership. **UID 911 is reserved for Plex** — no other service may use it unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
 
-### Role Summary
+### Service Summary
 
-| Role     | Example service | UID                | Primary group            | Auxiliary group         | Media mount | UMASK |
-| -------- | --------------- | ------------------ | ------------------------ | ----------------------- | ----------- | ----- |
-| Role     | Example service | UID                | Primary group            | Auxiliary group         | Media mount | UMASK |
-| -------- | --------------- | ------------------ | ------------------------ | ----------------------- | ----------- | ----- |
-| Consumer | Plex            | 911 (image-fixed)  | 3200 (`media-readers`)   | —                       | `:ro`       | —     |
-| Producer | MeTube          | 3107               | 3201 (`media-writers`)   | 3200 (`media-readers`)  | read-write  | `002` |
+| Service | UID               | Primary group  | Media mount | UMASK |
+| ------- | ----------------- | -------------- | ----------- | ----- |
+| Plex    | 911 (image-fixed) | 3200 (`media`) | `:ro`       | —     |
+| MeTube  | 3107              | 3200 (`media`) | read-write  | `002` |
 
 ## Private Storage: Access Model
 

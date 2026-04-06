@@ -22,8 +22,8 @@ services:
   #   these writes fail silently with read_only=true, causing PUID/PGID to be ignored entirely.
   # - user: is omitted: s6-overlay handles the privilege drop internally.
   # - cap_drop: ALL is still applied; only the four capabilities s6-overlay needs are re-added.
-  # PUID=911 (LinuxServer Plex UID) and PGID=3200 (media-readers GID) are set explicitly so that
-  # Plex runs as 911:3200, matching the TrueNAS dataset ACL that grants media-readers read access.
+  # PUID=911 (LinuxServer Plex UID) and PGID=3200 (media GID) are set explicitly so that
+  # Plex runs as 911:3200, matching the TrueNAS dataset Unix permissions that grant media group read access.
   # /run is mounted as tmpfs (with exec) for s6-overlay's service files.
 
   # Pre-sets ownership on the ./data/config bind-mount directory to PUID:PGID before plex starts.
@@ -64,7 +64,7 @@ services:
       - path: ../shared/env/tz.env
     environment:
       - PUID=911 # LinuxServer Plex default UID
-      - PGID=3200 # media-readers group — consumers read media datasets via this GID
+      - PGID=3200 # media group — all media-touching services use this GID
       - HOSTNAME=plex
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM_TOKEN} # Get it from: https://www.plex.tv/claim/
@@ -98,12 +98,12 @@ services:
       # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
       - /dev/shm:/data/transcode
       # Media datasets (ZFS on TrueNAS)
-      - /mnt/archive-pool/Media/Audiobooks:/media/audiobooks:ro
-      - /mnt/archive-pool/Media/Movies:/media/movies:ro
-      - /mnt/archive-pool/Media/Music:/media/music:ro
-      - /mnt/archive-pool/Media/Study:/media/study:ro
-      - /mnt/archive-pool/Media/TV:/media/tv:ro
-      - /mnt/archive-pool/Media/YouTube:/media/youtube:ro
+      - /mnt/archive-pool/media/Audiobooks:/media/audiobooks:ro
+      - /mnt/archive-pool/media/Movies:/media/movies:ro
+      - /mnt/archive-pool/media/Music:/media/music:ro
+      - /mnt/archive-pool/media/Study:/media/study:ro
+      - /mnt/archive-pool/media/TV:/media/tv:ro
+      - /mnt/archive-pool/media/YouTube:/media/youtube:ro
     healthcheck:
       test:
         - "CMD"
