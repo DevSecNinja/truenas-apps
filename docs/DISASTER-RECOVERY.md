@@ -132,7 +132,7 @@ If no backups are available, apps will start fresh — databases will be initial
 
 ## Step 6: Configure Media and Private Dataset Permissions (If Applicable)
 
-If the archive pool was also lost or reformatted, recreate the media and private dataset permissions. See [ARCHITECTURE.md](ARCHITECTURE.md#media-access-consumerprovider-model) for the full ACL configuration for media datasets and [Private Storage](ARCHITECTURE.md#private-storage-access-model) for private datasets.
+If the archive pool was also lost or reformatted, recreate the media and private dataset permissions. See [ARCHITECTURE.md § Media Access](ARCHITECTURE.md#media-access) for the Unix permissions setup for media datasets (`media` group, setgid dirs, UMASK=002) and [Private Storage](ARCHITECTURE.md#private-storage-access-model) for private datasets.
 
 ---
 

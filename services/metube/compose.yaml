@@ -3,7 +3,7 @@ services:
   # Sets ownership on the ./data/state bind-mount directory and pre-creates the
   # subdirectories inside the /downloads bind-mount so MeTube can write on first boot.
   # Runs once, then exits.
-  # GID is hardcoded to 3201 (media-writers) because env_file entries are
+  # GID is hardcoded to 3200 (media) because env_file entries are
   # injected into the container environment and do not feed into compose
   # variable substitution (user:, tmpfs gid=, etc.).
   metube-init:
@@ -21,27 +21,27 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # Required to chown volumes to 3107:3201
+      - CHOWN # Required to chown volumes to 3107:3200
       - DAC_OVERRIDE # Required to create subdirs inside the /downloads bind-mount
     read_only: true
     command:
       - "sh"
       - "-c"
       - |-
-        chown -Rv 3107:3201 /metube-state-dir &&
+        chown -Rv 3107:3200 /metube-state-dir &&
         mkdir -pv /downloads/video /downloads/audio &&
-        chown -v 3107:3201 /downloads/video /downloads/audio
+        chown -v 3107:3200 /downloads/video /downloads/audio
     volumes:
       - ./data/state:/metube-state-dir
-      - /mnt/archive-pool/Media/YouTube/metube:/downloads
+      - /mnt/archive-pool/media/YouTube/metube:/downloads
 
   # alexta69/metube is a standard Python/aiohttp application; it does not use
   # gosu or s6-overlay. The container can start directly as ${PUID}:${PGID}
   # with cap_drop: ALL and read_only: true fully supported.
   # UID/GID env vars instruct yt-dlp to set that ownership on downloaded files;
   # the composed user: field ensures the process itself runs as non-root.
-  # UMASK=002 produces group-writable files (664/775) so the media-readers group
-  # (GID 3200) can read files written by the media-writers group (GID 3201).
+  # UMASK=002 produces group-writable files (664/775) so all media group
+  # (GID 3200) members can read files written by MeTube.
   metube:
     image: ghcr.io/alexta69/metube:2026.04.03@sha256:4a773d993edf3d3d03ccb6c91e3bcca221ae634a008417be95921062c6a4a864
     container_name: metube
@@ -54,9 +54,9 @@ services:
       - path: ../shared/env/tz.env
     environment:
       - UID=3107
-      # GID hardcoded to 3201 (media-writers) — env_file cannot supply ${PGID} for
+      # GID hardcoded to 3200 (media) — env_file cannot supply ${PGID} for
       # compose-level variable substitution (user:, tmpfs gid=), so we hardcode it.
-      - GID=3201
+      - GID=3200
       - UMASK=002 # Producers write group-writable files (664/775) for media consumers
       - AUDIO_DOWNLOAD_DIR=/downloads/audio
       - DOWNLOAD_DIR=/downloads/video
@@ -64,7 +64,7 @@ services:
       - STATE_DIR=/metube-state-dir
       - DOWNLOAD_MODE=limited
       - MAX_CONCURRENT_DOWNLOADS=1
-    user: "3107:3201" # svc-app-metube:media-writers
+    user: "3107:3200" # svc-app-metube:media
     restart: always
     networks:
       - metube-frontend
@@ -79,10 +79,10 @@ services:
     tmpfs:
       - /tmp
       # temp download dir: size-capped, accessible only by the metube user (mode=1700)
-      - /metube-temp-dir:size=4G,uid=3107,gid=3201,mode=1700
+      - /metube-temp-dir:size=4G,uid=3107,gid=3200,mode=1700
     volumes:
       # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
-      - /mnt/archive-pool/Media/YouTube/metube:/downloads
+      - /mnt/archive-pool/media/YouTube/metube:/downloads
       - ./data/state:/metube-state-dir
     healthcheck:
       test:
