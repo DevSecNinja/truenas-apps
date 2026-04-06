@@ -14,7 +14,7 @@
 # Remaining setup steps:
 # - Enable automatic library scanning in Plex settings
 # - Set 'Transcoder temporary directory' to /data/transcode in Plex settings
-# - Set backup directory in Plex settings under Scheduled Tasks
+# - Set backup directory in Plex settings under Scheduled Tasks to /backups
 
 services:
   # s6-overlay exception (see ARCHITECTURE.md § "Exceptions — s6-overlay and root-start containers"):
@@ -48,9 +48,10 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv 911:3200 /config"
+      - "chown -Rv 911:3200 /config /backups"
     volumes:
       - ./data/config:/config
+      - ./backups:/backups
 
   plex:
     image: lscr.io/linuxserver/plex:version-1.43.0.10492-121068a07@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
@@ -97,6 +98,8 @@ services:
       - ./data/config:/config
       # Note: set "Transcoder temporary directory" to /data/transcode in Plex settings
       - /dev/shm:/data/transcode
+      # Note: set backup directory to /backups in Plex settings under Scheduled Tasks
+      - ./backups:/backups
       # Media datasets (ZFS on TrueNAS)
       - /mnt/archive-pool/content/media:/media:ro
     healthcheck:
