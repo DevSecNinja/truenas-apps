@@ -552,13 +552,6 @@ update_compose_files() {
         rm -f "${TMPRESTART}"
     fi
 
-    # Note: we have set ownership with init containers in the compose files, so we should not need to set ownership here.s
-    # # Restore ownership when running as root (e.g. on TrueNAS)
-    # if [ -z "${SUDO}" ]; then
-    #     log_message "STATE: Restoring ownership to truenas_admin:truenas_admin"
-    #     chown -Rv truenas_admin:truenas_admin "${dir}"
-    # fi
-
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
         local sep="========================================"
         log_message "${sep}"
