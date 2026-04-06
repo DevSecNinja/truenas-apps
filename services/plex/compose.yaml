@@ -47,7 +47,7 @@ services:
       - /run:exec
     networks:
       - plex-frontend
-    mem_limit: ${MEM_LIMIT:-2048m}
+    mem_limit: ${MEM_LIMIT:-4096m}
     pids_limit: 500
     cap_drop:
       - ALL
