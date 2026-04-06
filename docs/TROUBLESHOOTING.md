@@ -60,11 +60,11 @@ zfs get aclmode <pool>/<dataset>
 
 ### Dataset ACL Summary
 
-| Dataset                       | ACL type   | Rationale                                                                                   |
-| ----------------------------- | ---------- | ------------------------------------------------------------------------------------------- |
-| `vm-pool/apps`                | Unix perms | Init containers use `chown`/`chmod` freely; simple model matches the init-container pattern |
-| `/mnt/archive-pool/media/*`   | Unix perms | Single `media` group (GID 3200); setgid dirs + UMASK=002 handle new-file inheritance        |
-| `/mnt/archive-pool/private/*` | Unix perms | Per-category group isolation (photos, documents) via init-container chown                   |
+| Dataset                       | ACL type   | Rationale                                                                                    |
+| ----------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `vm-pool/apps`                | Unix perms | Init containers use `chown`/`chmod` freely; simple model matches the init-container pattern  |
+| `archive-pool/content`        | Unix perms | Single dataset for media + future downloads; single `media` group (GID 3200); setgid + UMASK |
+| `/mnt/archive-pool/private/*` | Unix perms | Per-category group isolation (photos, documents) via init-container chown                    |
 
 ### "Permission Denied" on a Media Dataset
 
@@ -74,14 +74,14 @@ Media datasets use plain Unix permissions (`acltype=off`). The full picture is v
 
 ```sh
 # Check dataset acltype is off (should show 'off')
-zfs get acltype archive-pool/media/<dataset>
+zfs get acltype archive-pool/content
 
 # Check ownership and mode
-ls -la /mnt/archive-pool/media/
+ls -la /mnt/archive-pool/content/media/
 
 # Test access as the specific service UID
-sudo -u '#3107' ls /mnt/archive-pool/media/YouTube/metube   # MeTube write test
-sudo -u '#911'  ls /mnt/archive-pool/media/Movies           # Plex read test
+sudo -u '#3107' ls /mnt/archive-pool/content/media/youtube/metube   # MeTube write test
+sudo -u '#911'  ls /mnt/archive-pool/content/media/movies           # Plex read test
 ```
 
 **Expected state for each media dataset:**
@@ -93,10 +93,9 @@ sudo -u '#911'  ls /mnt/archive-pool/media/Movies           # Plex read test
 **Fix if ownership or mode is wrong:**
 
 ```sh
-chown -R :3200 /mnt/archive-pool/media/<dataset>
-chmod -R g+rw /mnt/archive-pool/media/<dataset>
-find /mnt/archive-pool/media/<dataset> -type d -exec chmod g+s {} +
-chmod 2775 /mnt/archive-pool/media/<dataset>
+chown -R :3200 /mnt/archive-pool/content
+find /mnt/archive-pool/content -type d -exec chmod 2775 {} +
+find /mnt/archive-pool/content -type f -exec chmod 664 {} +
 ```
 
 ### New Files Created by MeTube Are Unreadable by Plex
@@ -107,7 +106,7 @@ Two things must both be true:
 
    ```sh
    # Look for 's' in the group execute column (e.g. drwxrwsr-x)
-   ls -la /mnt/archive-pool/media/YouTube/
+   ls -la /mnt/archive-pool/content/media/youtube/
    ```
 
    Without the setgid bit, new files and subdirectories inherit MeTube's primary group (`media`, GID 3200) only because MeTube's primary group IS `media`. If the primary group ever changes, inheritance breaks. The setgid bit makes this unconditional.
@@ -140,7 +139,7 @@ When a container cannot read or write a file on a TrueNAS dataset:
 5. **Test access from the host.** Switch to the service account's UID and try the operation:
 
    ```sh
-   sudo -u '#3107' ls /mnt/archive-pool/media/YouTube/metube
+   sudo -u '#3107' ls /mnt/archive-pool/content/media/youtube/metube
    ```
 
 6. **Check the Compose mount mode.** A volume mounted `:ro` blocks writes at the kernel level regardless of filesystem permissions.

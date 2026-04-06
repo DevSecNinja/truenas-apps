@@ -1,16 +1,14 @@
 ---
 services:
-  # Sets ownership on the ./data/state bind-mount directory and pre-creates the
-  # subdirectories inside the /downloads bind-mount so MeTube can write on first boot.
+  # Sets ownership on the ./data/state bind-mount directory to the metube UID:GID.
+  # The content directory tree and media permissions are handled by the _bootstrap
+  # service (content-init), which deploys first alphabetically.
   # Runs once, then exits.
-  # GID is hardcoded to 3200 (media) because env_file entries are
-  # injected into the container environment and do not feed into compose
-  # variable substitution (user:, tmpfs gid=, etc.).
   metube-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: metube-init
     env_file:
-      - path: .env # Decrypted from secret.sops.env — provides PUID
+      - path: .env # Decrypted from secret.sops.env
         required: false
     restart: "no"
     network_mode: none
@@ -21,19 +19,14 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # Required to chown volumes to 3107:3200
-      - DAC_OVERRIDE # Required to create subdirs inside the /downloads bind-mount
+      - CHOWN # Required to chown ./data/state to 3107:3200
     read_only: true
     command:
       - "sh"
       - "-c"
-      - |-
-        chown -Rv 3107:3200 /metube-state-dir &&
-        mkdir -pv /downloads/video /downloads/audio &&
-        chown -v 3107:3200 /downloads/video /downloads/audio
+      - "chown -Rv 3107:3200 /metube-state-dir"
     volumes:
       - ./data/state:/metube-state-dir
-      - /mnt/archive-pool/media/YouTube/metube:/downloads
 
   # alexta69/metube is a standard Python/aiohttp application; it does not use
   # gosu or s6-overlay. The container can start directly as ${PUID}:${PGID}
@@ -82,7 +75,7 @@ services:
       - /metube-temp-dir:size=4G,uid=3107,gid=3200,mode=1700
     volumes:
       # TrueNAS ZFS dataset — video/ and audio/ subdirs are pre-created by metube-init
-      - /mnt/archive-pool/media/YouTube/metube:/downloads
+      - /mnt/archive-pool/content/media/youtube/metube:/downloads
       - ./data/state:/metube-state-dir
     healthcheck:
       test:

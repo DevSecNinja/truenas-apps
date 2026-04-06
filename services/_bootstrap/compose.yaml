@@ -1,0 +1,55 @@
+---
+# _bootstrap runs before every other service (underscore sorts first alphabetically
+# in dccd.sh's service directory iteration). It sets up shared host-level directory
+# trees and permissions that other services depend on.
+#
+# All operations are idempotent — safe to re-run on every deploy cycle.
+#
+# Currently bootstraps:
+#   - archive-pool/content: media + downloads directory tree
+#     (single dataset; no child datasets — required for hardlinks/atomic moves)
+#
+# Note: depends_on cannot span separate Docker Compose stacks. The alphabetical
+# deploy order is the enforcement mechanism. After the first deploy the directories
+# exist and have correct permissions, so order is irrelevant on subsequent cycles.
+
+services:
+  # Creates the archive-pool/content directory tree and sets permissions:
+  #   - mkdir -p for all media/ and downloads/ subdirectories
+  #   - Group ownership set to media (GID 3200) on the entire tree
+  #   - Setgid bit (2775) on all directories so new files/subdirs inherit the group
+  content-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: content-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown the content tree to :3200
+      - FOWNER # Required to chmod (setgid) after chown
+      - DAC_OVERRIDE # Required to traverse/create dirs owned by truenas_admin
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        mkdir -pv \
+          /content/downloads/movies \
+          /content/downloads/music \
+          /content/downloads/tv \
+          /content/media/audiobooks \
+          /content/media/movies \
+          /content/media/music \
+          /content/media/study \
+          /content/media/tv \
+          /content/media/youtube/metube/video \
+          /content/media/youtube/metube/audio &&
+        chown -Rv :3200 /content &&
+        find /content -type d -exec chmod 2775 {} +
+    volumes:
+      - /mnt/archive-pool/content:/content
