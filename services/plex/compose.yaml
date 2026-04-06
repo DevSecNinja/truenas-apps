@@ -10,6 +10,9 @@
 #        - Set 'LAN Networks' to 192.168.0.0/16,172.16.0.0/16 (Traefik uses 172.16.0.0/16 network)
 #          You should now see streams mentioned as 'Local' instead of 'Remote'. Note that within the Plex
 #          portal in the server settings, you'll still see 'Remote' being mentioned, but this seems normal)
+#   4. In Settings → Remote Access:
+#        - Enable 'Remote Access' (this is required for your plex.<domain> to be exposed to plex.tv.)
+#        - Select 'Manually specify public port' and set it to 443 (this is your Traefik port)
 #
 # Remaining setup steps:
 # - Enable automatic library scanning in Plex settings
