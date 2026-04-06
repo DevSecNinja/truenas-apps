@@ -267,8 +267,13 @@ redeploy_truenas_apps() {
     for app_dir in "${src_dir}"/*/; do
         local app_name
         app_name=$(basename "${app_dir}")
-        local project_name="ix-${app_name}"
-        local app_config_dir="${TRUENAS_APPS_BASE}/${app_name}/versions"
+
+        # TrueNAS does not allow underscores in app names. Strip leading
+        # underscores so directory names like _bootstrap map to the TrueNAS
+        # app name "bootstrap" while preserving the sort-first behaviour.
+        local truenas_app_name="${app_name#_}"
+        local project_name="ix-${truenas_app_name}"
+        local app_config_dir="${TRUENAS_APPS_BASE}/${truenas_app_name}/versions"
 
         # If APP_FILTER is set, only deploy the matching app
         if [ -n "${APP_FILTER}" ] && [ "${app_name}" != "${APP_FILTER}" ]; then
