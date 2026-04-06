@@ -40,6 +40,26 @@ ddeploy() {
 alias dprune='sudo docker image prune --all --force'
 
 ########################################
+# DCCD (Docker Compose Continuous Deploy)
+########################################
+
+# Force-deploy all apps (TrueNAS mode, excluding shared)
+alias dccd-all='sudo bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -x shared -t -f'
+
+# Graceful deploy: only restart containers that changed
+alias dccd-graceful='sudo bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -x shared -t -g'
+
+# Force-deploy a single app: dccd-app <appname>
+# Example: dccd-app traefik
+dccd_app() {
+    sudo bash /mnt/vm-pool/apps/scripts/dccd.sh \
+        -d /mnt/vm-pool/apps \
+        -k /mnt/vm-pool/apps/age.key \
+        -x shared -t -f -a "$1"
+}
+alias dccd-app='dccd_app'
+
+########################################
 # Help
 ########################################
 
@@ -53,6 +73,11 @@ Docker:
   dre  <app>        Restart a compose stack by app name
   ddeploy <app>     Force-redeploy a single app via dccd
   dprune            Prune all unused images
+
+DCCD:
+  dccd-all          Force-deploy all apps (TrueNAS mode)
+  dccd-graceful     Graceful deploy (only restart changed)
+  dccd-app <app>    Force-deploy a single app by name
 
 Help:
   halp              Show this help message

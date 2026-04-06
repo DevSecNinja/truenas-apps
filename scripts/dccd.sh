@@ -25,7 +25,9 @@ APP_FILTER=""                                 # Only deploy this specific app (e
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
 # GATUS_URL and GATUS_CD_TOKEN can also be sourced from services/gatus/.env (already decrypted on disk)
-_DEPLOY_ERRORS=0 # Count of deployment failures (non-fatal errors logged during deploy)
+_DEPLOY_ERRORS=0       # Count of deployment failures (non-fatal errors logged during deploy)
+_DEPLOY_ATTEMPTED=0    # Count of deployment attempts
+_DEPLOY_FAILED_APPS=() # Names of failed apps
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
@@ -311,6 +313,7 @@ redeploy_truenas_apps() {
         local version
         version=$(basename "${version_dir}")
         log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
+        _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
         # Capture image state before pulling so we can report what changed
         local img_before
@@ -342,6 +345,7 @@ redeploy_truenas_apps() {
                 --abort-on-container-exit; then
                 log_message "ERROR: ${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+                _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
         else
             if ! ${SUDO} docker compose \
@@ -354,6 +358,7 @@ redeploy_truenas_apps() {
                 --wait-timeout "${WAIT_TIMEOUT}"; then
                 log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+                _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
         fi
 
@@ -452,6 +457,9 @@ update_compose_files() {
         else
             redeploy_compose_file() {
                 local file=$1
+                local app_name
+                app_name=$(basename "$(dirname "${file}")")
+                _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
                 # Build the command as an array to avoid eval and command injection
                 run_compose_command() {
@@ -484,6 +492,7 @@ update_compose_files() {
                         if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
                             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                             _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+                            _DEPLOY_FAILED_APPS+=("${app_name}")
                         fi
                     else
                         log_message "GRACEFUL: Skipping Redeploying compose file for ${file} (no change)"
@@ -494,6 +503,7 @@ update_compose_files() {
                     if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
                         log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                         _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+                        _DEPLOY_FAILED_APPS+=("${app_name}")
                     fi
                 fi
             }
@@ -552,6 +562,24 @@ update_compose_files() {
     #     log_message "STATE: Restoring ownership to truenas_admin:truenas_admin"
     #     chown -Rv truenas_admin:truenas_admin "${dir}"
     # fi
+
+    if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
+        local sep="========================================"
+        log_message "${sep}"
+        local succeeded
+        succeeded=$((_DEPLOY_ATTEMPTED - _DEPLOY_ERRORS))
+        if [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
+            log_message "RESULT: All ${_DEPLOY_ATTEMPTED} app(s) deployed successfully"
+        else
+            log_message "RESULT: ${succeeded}/${_DEPLOY_ATTEMPTED} app(s) deployed successfully, ${_DEPLOY_ERRORS} failed:"
+            if [ "${#_DEPLOY_FAILED_APPS[@]}" -gt 0 ]; then
+                for app in "${_DEPLOY_FAILED_APPS[@]}"; do
+                    log_message "RESULT:   FAILED: ${app}"
+                done
+            fi
+        fi
+        log_message "${sep}"
+    fi
 
     log_message "STATE: Done!"
 }
