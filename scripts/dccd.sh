@@ -405,7 +405,6 @@ update_compose_files() {
 
         local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
         remote_hash=$(git "${GIT_OPTS[@]}" rev-parse "origin/${REMOTE_BRANCH}")
-        log_message "INFO:  Remote hash is ${remote_hash}"
 
         # Check for uncommitted local changes
         uncommitted_changes=$(git "${GIT_OPTS[@]}" status --porcelain)
@@ -415,36 +414,33 @@ update_compose_files() {
         fi
 
         # Ensure we are on the expected branch before comparing hashes or pulling
-        if ! git "${GIT_OPTS[@]}" checkout "${REMOTE_BRANCH}"; then
+        if ! git "${GIT_OPTS[@]}" checkout --quiet "${REMOTE_BRANCH}"; then
             log_message "ERROR: Unable to checkout branch ${REMOTE_BRANCH}. Verify the branch exists and there are no uncommitted changes."
             exit 1
         fi
 
         # Re-read local hash now that we are confirmed on the correct branch
         local_hash=$(git "${GIT_OPTS[@]}" rev-parse HEAD)
-        log_message "INFO:  Local hash is  ${local_hash} (after checkout)"
+        local short_local="${local_hash:0:7}"
+        local short_remote="${remote_hash:0:7}"
 
         # Check if the local hash matches the remote hash (skip check in force mode)
         if [ "${FORCE}" -eq 1 ] || [ "${local_hash}" != "${remote_hash}" ]; then
-            if [ "${FORCE}" -eq 1 ]; then
-                log_message "STATE: Force mode enabled, skipping hash check..."
-            else
-                log_message "STATE: Hashes don't match, updating..."
-            fi
-
             # Pull any changes in the Git repository
             if [ "${local_hash}" != "${remote_hash}" ]; then
+                log_message "STATE: New commits available on origin/${REMOTE_BRANCH} — pulling (local: ${short_local}, remote: ${short_remote})"
                 if ! git "${GIT_OPTS[@]}" pull --quiet origin "${REMOTE_BRANCH}"; then
                     log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
                     exit 1
-                else
-                    log_message "INFO:  Successfully pulled changes from origin/${REMOTE_BRANCH}"
                 fi
+                log_message "INFO:  Pulled latest commits from origin/${REMOTE_BRANCH} (now at ${short_remote})"
+            else
+                log_message "INFO:  Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — force mode, redeploying"
             fi
 
             SHOULD_DEPLOY=1
         else
-            log_message "STATE: Hashes match, so nothing to do"
+            log_message "STATE: Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — nothing to do"
         fi
     fi
 
