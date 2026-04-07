@@ -616,14 +616,22 @@ report_cd_status_to_gatus() {
     [ -n "${error_msg}" ] && query="${query}&error=$(url_encode_simple "${error_msg}")"
     [ -n "${duration}" ] && query="${query}&duration=${duration}"
 
-    local -a curl_opts=(-fsSL -X POST -H "Authorization: Bearer ${GATUS_CD_TOKEN}")
-    [ -n "${GATUS_DNS_SERVER}" ] && curl_opts+=(--dns-servers "${GATUS_DNS_SERVER}")
+    local -a curl_opts=(-fsSL --max-time 30 -X POST -H "Authorization: Bearer ${GATUS_CD_TOKEN}")
+    # --dns-servers requires curl built with c-ares (AsynchDNS), which is not universal.
+    # Instead, pre-resolve the hostname via dig and use --resolve (works on all curl builds).
+    if [ -n "${GATUS_DNS_SERVER}" ]; then
+        local gatus_host gatus_ip
+        gatus_host=$(printf '%s' "${GATUS_URL%/}" | sed 's|^https\?://||' | cut -d'/' -f1 | cut -d':' -f1)
+        gatus_ip=$(dig +short "${gatus_host}" "@${GATUS_DNS_SERVER}" 2>/dev/null | grep -E '^[0-9]{1,3}\.' | head -n1) || true
+        [ -n "${gatus_ip}" ] && curl_opts+=(--resolve "${gatus_host}:443:${gatus_ip}" --resolve "${gatus_host}:80:${gatus_ip}")
+    fi
 
-    if curl "${curl_opts[@]}" \
-        "${GATUS_URL%/}/api/v1/endpoints/${key}/external?${query}" >/dev/null 2>&1; then
+    local curl_output
+    if curl_output=$(curl "${curl_opts[@]}" \
+        "${GATUS_URL%/}/api/v1/endpoints/${key}/external?${query}" 2>&1 >/dev/null); then
         log_message "INFO:  CD status (success=${success}) reported to Gatus"
     else
-        log_message "WARNING: Failed to report CD status to Gatus"
+        log_message "WARNING: Failed to report CD status to Gatus${curl_output:+: ${curl_output}}"
     fi
 }
 
