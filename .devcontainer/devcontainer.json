@@ -11,12 +11,13 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "redhat.vscode-yaml",
-        "ms-azuretools.vscode-docker",
-        "timonwong.shellcheck",
-        "foxundermoon.shell-format",
+        "blueglassblock.better-json5",
         "dprint.dprint",
-        "signageos.signageos-vscode-sops"
+        "foxundermoon.shell-format",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "signageos.signageos-vscode-sops",
+        "timonwong.shellcheck"
       ],
       "settings": {
         "git.postCommitCommand": "none"
