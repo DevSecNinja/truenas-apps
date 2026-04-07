@@ -20,14 +20,15 @@ All updates must meet a minimum release age before Renovate opens a PR, giving t
 
 | Update type            | Manager / datasource       | Minimum age           |
 | ---------------------- | -------------------------- | --------------------- |
-| minor / patch / digest | `actions/*` GitHub Actions | 3 days, auto-merged   |
-| minor / patch / digest | All other GitHub Actions   | 14 days, auto-merged  |
+| minor / patch          | `actions/*` GitHub Actions | 3 days, auto-merged   |
+| digest                 | All GitHub Actions         | 14 days, auto-merged  |
+| minor / patch          | All other GitHub Actions   | 14 days, manual merge |
 | major                  | Everything                 | 14 days, manual merge |
 | minor / patch / digest | Docker images              | 14 days, manual merge |
 | minor / patch / digest | GitHub Releases            | 14 days, manual merge |
 | minor / patch / digest | `mise` tools               | 14 days, manual merge |
 
-Auto-merges use `automergeType: "branch"` (direct push, no PR). Major updates always require a manual merge regardless of datasource.
+Auto-merges use `automergeType: "branch"` (direct push, no PR) and require CI to pass. Major updates always require a manual merge regardless of datasource.
 
 ### Rule precedence note
 
