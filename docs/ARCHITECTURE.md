@@ -246,16 +246,17 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 | 3107    | `svc-app-metube`   | metube, metube-init                         | No                  |
 | 3108    | `svc-app-unifi`    | unifi, unifi-db-backup                      | No                  |
 | 3109    | `svc-app-dozzle`   | dozzle, dozzle-init                         | No                  |
+| 3110    | `svc-app-radarr`   | radarr                                      | No                  |
 
 ### Shared Purpose Groups
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-| GID  | Group               | Purpose                                      | Used as primary group by          |
-| ---- | ------------------- | -------------------------------------------- | --------------------------------- |
-| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107) |
-| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                 |
-| 3203 | `private-documents` | Access to private documents (reserved)       | —                                 |
+| GID  | Group               | Purpose                                      | Used as primary group by                             |
+| ---- | ------------------- | -------------------------------------------- | ---------------------------------------------------- |
+| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107), Radarr (UID 3110) |
+| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                                    |
+| 3203 | `private-documents` | Access to private documents (reserved)       | —                                                    |
 
 ### Plex Exception
 
@@ -427,6 +428,7 @@ volumes:
 | ------- | ----------------- | -------------- | ----------- | ----- |
 | Plex    | 911 (image-fixed) | 3200 (`media`) | `:ro`       | —     |
 | MeTube  | 3107              | 3200 (`media`) | read-write  | `002` |
+| Radarr  | 3110              | 3200 (`media`) | read-write  | `002` |
 
 ## Private Storage: Access Model
 

@@ -1,10 +1,9 @@
 ---
 services:
-  # Init container: validates VLAN 70 macvlan egress before deploying Radarr.
-  # Resolves DDNS_DOMAIN (the home public IP) and compares it against the
-  # container's external IP via api4.ipify.org. Exits non-zero — blocking any
-  # dependent service — if the IPs match, meaning the container is egressing
-  # through the home connection instead of VLAN 70.
+  # Init: validates VLAN 70 macvlan egress before deploying Radarr.
+  # Resolves DDNS_DOMAIN (home public IP) and compares against the container's
+  # api4.ipify.org egress IP. Exits non-zero — blocking radarr — if the IPs match,
+  # meaning the container is egressing through the home connection, not VLAN 70.
   radarr-init:
     image: docker.io/library/alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
     container_name: radarr-init
@@ -41,7 +40,7 @@ services:
         fi
         echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — VLAN 70 confirmed"
     networks:
-      radarr-frontend:
+      radarr-vlan70:
         ipv4_address: ${VLAN70_CONTAINER_IP}
     mem_limit: 64m
     pids_limit: 10
@@ -51,9 +50,87 @@ services:
       - ALL
     read_only: true
 
+  # s6-overlay exception — see ARCHITECTURE.md for the full rationale.
+  # LinuxServer Radarr starts as root and uses s6-overlay to drop to PUID:PGID.
+  # read_only: true is omitted (s6-overlay writes to the root fs at startup).
+  # user: is omitted (s6-overlay requires root to chown /config to PUID:PGID).
+  # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for s6-overlay.
+  #
+  # Network design: radarr-vlan70 is listed FIRST so Docker sets it as eth0 and uses
+  # VLAN70_GATEWAY as the default route — all internet traffic exits through VLAN 70.
+  # radarr-frontend (bridge) is listed SECOND; Docker adds only a specific route for
+  # the 172.x.x.x bridge subnet so Traefik can reach Radarr without overriding the
+  # VLAN 70 default route. Traefik is NOT joined to radarr-vlan70 (macvlan) to avoid
+  # assigning Traefik an unnecessary VLAN 70 IP.
+  radarr:
+    image: lscr.io/linuxserver/radarr:version-6.0.4.10291@sha256:c8a55bd83672d3b63dc20edf325277ce7dc3b69d4400568cc5bbc9e6a227ebf4
+    container_name: radarr
+    hostname: radarr # Identifies the container on VLAN 70; visible in ARP/mDNS and UniFi client list
+    depends_on:
+      radarr-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - PUID=3110 # svc-app-radarr
+      - PGID=3200 # media group — shared with Plex, MeTube, and other arr apps
+      - UMASK=002 # group-writable files for media group (664 files, 775 dirs)
+    restart: always
+    networks:
+      radarr-vlan70: # FIRST — becomes default route; all internet traffic via VLAN 70
+        ipv4_address: ${VLAN70_RADARR_IP}
+        mac_address: ${RADARR_MAC_ADDRESS} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
+      radarr-frontend: # SECOND — bridge for Traefik; specific route only, no default GW change
+    mem_limit: ${MEM_LIMIT:-2048m}
+    pids_limit: 200
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # s6-overlay chowns /config to PUID:PGID at startup
+      - SETUID # s6-overlay drops from root to PUID
+      - SETGID # s6-overlay drops from root to PGID
+      - SETPCAP # s6-overlay clears bounding capabilities before exec-ing Radarr
+    tmpfs:
+      - /run:exec # s6-overlay places executables in /run during init
+      - /tmp
+    volumes:
+      - ./data/config:/config
+      - /mnt/archive-pool/content:/data # downloads/ and media/ on same filesystem for hardlinks
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://localhost:7878/ping"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      # Homepage
+      - homepage.group=Media
+      - homepage.name=Radarr
+      - homepage.icon=radarr.svg
+      - homepage.href=https://radarr.$DOMAINNAME
+      - homepage.description=Movie Collection Manager
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=radarr-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.radarr-rtr.rule=Host(`radarr.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.radarr-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.radarr-rtr.service=radarr"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+
 networks:
-  radarr-frontend:
-    name: radarr-frontend
+  radarr-vlan70:
+    name: radarr-vlan70
     driver: macvlan
     driver_opts:
       parent: ${VLAN70_PARENT_INTERFACE}
@@ -62,3 +139,7 @@ networks:
       config:
         - subnet: ${VLAN70_SUBNET}
           gateway: ${VLAN70_GATEWAY}
+  radarr-frontend:
+    name: radarr-frontend
+    driver: bridge
+    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use radarr-vlan70
