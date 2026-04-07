@@ -41,7 +41,7 @@ services:
         echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — VLAN 70 confirmed"
     networks:
       radarr-vlan70:
-        ipv4_address: ${VLAN70_CONTAINER_IP}
+        ipv4_address: ${VLAN70_RADARR_INIT_IP}
     mem_limit: 64m
     pids_limit: 10
     security_opt:
