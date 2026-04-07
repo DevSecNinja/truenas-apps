@@ -30,19 +30,10 @@ services:
     command:
       - "sh"
       - "-c"
-      # chown -R on /usr/src/app/upload traverses the archive-pool filesystem tree, which is
-      # empty on first boot. The overlay mount points (thumbs, encoded-video) are NOT entries in
-      # that tree's readdir output, so they must be chowned by direct path reference. Without this,
-      # the directories stay root:root and Immich cannot write its .immich sentinel files on startup.
-      - "chown -Rv 3106:3202 /usr/src/app/upload /usr/src/app/upload/thumbs /usr/src/app/upload/encoded-video /model-cache
-        && /templates/envsubst.sh"
+      - "chown -Rv 3106:3202 /usr/src/app/upload /model-cache && /templates/envsubst.sh"
     volumes:
       - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
       - ./data/model-cache:/model-cache
-      # Overlay mounts: vm-pool SSD paths mounted inside the archive-pool upload tree.
-      # Immich writes caches to these subdirectory paths, which the kernel redirects to vm-pool.
-      - ./data/thumbs:/usr/src/app/upload/thumbs
-      - ./data/encoded-video:/usr/src/app/upload/encoded-video
       - ./config:/templates:ro
       - ./data:/output
 
@@ -95,12 +86,7 @@ services:
       - /tmp
     volumes:
       - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
-      # Overlay mounts: vm-pool SSD paths mounted at the subdirectories Immich writes caches to.
-      # Docker honors the more specific mount — thumbnails and encoded video land on vm-pool SSD
-      # while originals (written under library/) stay on archive-pool.
-      - ./data/thumbs:/usr/src/app/upload/thumbs
-      - ./data/encoded-video:/usr/src/app/upload/encoded-video
-      # Processed config file (written by immich-config-init, contains substituted secrets)
+      # Processed config file (written by immich-init envsubst, contains substituted secrets)
       - ./data/immich.yaml:/config/immich.yaml:ro
     healthcheck:
       test:
