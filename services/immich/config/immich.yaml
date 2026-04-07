@@ -167,7 +167,9 @@ oauth:
   mobileOverrideEnabled: true
   mobileRedirectUri: https://photos-mobile.${DOMAINNAME}/api/oauth/mobile-redirect
   profileSigningAlgorithm: none
-  roleClaim: roles
+  # roleClaim is intentionally omitted: Entra ID emits app roles as a JSON array ["admin"],
+  # but Immich's getClaim validator requires a scalar string — the check silently fails and
+  # falls back to 'user'. Admin access is managed manually via the Immich web UI instead.
   scope: openid email profile
   signingAlgorithm: RS256
   storageLabelClaim: preferred_username

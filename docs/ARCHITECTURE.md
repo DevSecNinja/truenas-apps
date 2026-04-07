@@ -1,5 +1,15 @@
 # Architecture
 
+## Commit Message Convention
+
+All commits follow the [Conventional Commits](https://www.conventionalcommits.org) specification:
+
+```
+<type>(<scope>): <description>
+```
+
+Common types: `feat`, `fix`, `chore`, `docs`, `refactor`, `ci`. The scope is typically the service folder name (e.g. `feat(immich):`, `fix(traefik):`). Compliance is enforced locally by a lefthook `commit-msg` hook using `cog verify`.
+
 ## Compose File Standards
 
 Every service in this repo follows these conventions:
