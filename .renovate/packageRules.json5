@@ -7,13 +7,13 @@
       addLabels: ["stale-dependency"],
     },
     {
+      matchUpdateTypes: ["major"],
+      minimumReleaseAge: "14 days",
+    },
+    {
       matchManagers: ["mise"],
       minimumReleaseAge: "14 days",
       pinDigests: false,
-    },
-    {
-      matchManagers: ["github-actions"],
-      minimumReleaseAge: "14 days",
     },
     {
       matchDatasources: ["github-releases"],
