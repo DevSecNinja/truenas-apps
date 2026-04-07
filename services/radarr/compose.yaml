@@ -1,0 +1,49 @@
+---
+services:
+  # One-shot container: reaches out to api4.ipify.org and prints the egress IP.
+  # Purpose: confirm that containers assigned to the radarr macvlan network egress
+  # via VLAN 70 (192.168.70.0/24) before the Radarr service is deployed on this VLAN.
+  # Run with: docker compose -f services/radarr/compose.yaml up --abort-on-container-exit
+  radarr:
+    image: docker.io/library/alpine:3.21@sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709
+    container_name: radarr
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: "no"
+    command:
+      - sh
+      - -c
+      - |-
+        echo "=== VLAN 70 egress test ===" &&
+        echo "Container IP:" && ip -4 addr show eth0 &&
+        echo "" &&
+        echo "External IP via api4.ipify.org:" &&
+        wget -qO- https://api4.ipify.org &&
+        echo "" &&
+        echo "=== OK ==="
+    networks:
+      radarr-frontend:
+        ipv4_address: ${VLAN70_CONTAINER_IP}
+    mem_limit: 64m
+    pids_limit: 10
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW # Required for wget to open raw sockets on a macvlan interface
+    read_only: true
+
+networks:
+  radarr-frontend:
+    name: radarr-frontend
+    driver: macvlan
+    driver_opts:
+      parent: ${VLAN70_PARENT_INTERFACE}
+    ipam:
+      driver: default
+      config:
+        - subnet: ${VLAN70_SUBNET}
+          gateway: ${VLAN70_GATEWAY}
