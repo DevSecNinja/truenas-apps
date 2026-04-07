@@ -163,9 +163,9 @@ oauth:
   defaultStorageQuota: null
   enabled: true
   issuerUrl: ${IMMICH_OAUTH_ISSUER_URL}
-  # Mobile app uses the noauth route (Immich handles its own auth there)
+  # Mobile app OAuth callback relay — bypasses Traefik forward-auth (mobile uses Bearer tokens, not browser sessions)
   mobileOverrideEnabled: true
-  mobileRedirectUri: https://photos-noauth.${DOMAINNAME}/api/oauth/mobile-redirect
+  mobileRedirectUri: https://photos-mobile.${DOMAINNAME}/api/oauth/mobile-redirect
   profileSigningAlgorithm: none
   roleClaim: roles
   scope: openid email profile

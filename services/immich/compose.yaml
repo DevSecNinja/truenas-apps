@@ -115,10 +115,10 @@ services:
       ## HTTP Services
       - "traefik.http.routers.immich-rtr.service=immich"
       - "traefik.http.services.immich.loadbalancer.server.port=2283"
-      ## No-auth endpoint for mobile apps (Immich doesn't support OAuth)
-      - "traefik.http.routers.immich-noauth-rtr.rule=Host(`photos-noauth.${DOMAINNAME}`)"
-      - "traefik.http.routers.immich-noauth-rtr.middlewares=chain-no-auth-immich@file"
-      - "traefik.http.routers.immich-noauth-rtr.service=immich"
+      ## Mobile app endpoint — bypasses Traefik forward-auth (mobile uses Bearer tokens, not browser sessions)
+      - "traefik.http.routers.immich-mobile-rtr.rule=Host(`photos-mobile.${DOMAINNAME}`)"
+      - "traefik.http.routers.immich-mobile-rtr.middlewares=chain-no-auth-immich@file"
+      - "traefik.http.routers.immich-mobile-rtr.service=immich"
 
   # Immich machine learning is a standard Python application (not s6-overlay).
   # It runs as non-root and supports user: directly.
