@@ -30,12 +30,17 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv 3106:3202 /usr/src/app/upload /model-cache && /templates/envsubst.sh"
+      # chown -R on /usr/src/app/upload traverses the archive-pool filesystem tree, which is
+      # empty on first boot. The overlay mount points (thumbs, encoded-video) are NOT entries in
+      # that tree's readdir output, so they must be chowned by direct path reference. Without this,
+      # the directories stay root:root and Immich cannot write its .immich sentinel files on startup.
+      - "chown -Rv 3106:3202 /usr/src/app/upload /usr/src/app/upload/thumbs /usr/src/app/upload/encoded-video /model-cache
+        && /templates/envsubst.sh"
     volumes:
       - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
       - ./data/model-cache:/model-cache
-      # Overlay mounts: these vm-pool SSD paths are mounted inside the archive-pool upload tree
-      # so that chown -R /usr/src/app/upload traverses into them and sets the correct ownership.
+      # Overlay mounts: vm-pool SSD paths mounted inside the archive-pool upload tree.
+      # Immich writes caches to these subdirectory paths, which the kernel redirects to vm-pool.
       - ./data/thumbs:/usr/src/app/upload/thumbs
       - ./data/encoded-video:/usr/src/app/upload/encoded-video
       - ./config:/templates:ro
