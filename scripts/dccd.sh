@@ -338,31 +338,15 @@ redeploy_truenas_apps() {
         # Deploy
         log_message "STATE: Starting containers for ${app_name}"
         if [[ "${project_name}" == *bootstrap* ]]; then
-            # One-shot project: start detached to avoid streaming verbose init logs
-            # to the dccd console, then block with 'docker compose wait' until the
-            # container exits. Logs remain accessible via 'docker compose logs'.
-            # 'docker compose wait' requires explicit service names (no default-all).
-            local _bs_services
-            # shellcheck disable=SC2312  # docker compose config exit code in process substitution is non-fatal
-            mapfile -t _bs_services < <(
-                ${SUDO} docker compose \
-                    --project-name "${project_name}" \
-                    --file "${compose_file}" \
-                    config --services
-            )
+            # One-shot project: run in foreground and abort when the container exits.
+            # --abort-on-container-exit is incompatible with -d, which is fine — we
+            # want to block until the init work is done before deploying later apps.
             if ! ${SUDO} docker compose \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 up \
-                -d \
-                --build; then
-                log_message "ERROR: ${app_name} one-shot container failed to start - check 'sudo docker compose --project-name ${project_name} logs' for details"
-                _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
-                _DEPLOY_FAILED_APPS+=("${app_name}")
-            elif ! ${SUDO} docker compose \
-                --project-name "${project_name}" \
-                --file "${compose_file}" \
-                wait "${_bs_services[@]}"; then
+                --build \
+                --abort-on-container-exit; then
                 log_message "ERROR: ${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
