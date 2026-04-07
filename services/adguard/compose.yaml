@@ -51,7 +51,11 @@ services:
     # then drops privileges internally. Setting user: externally breaks that.
     # read_only is not set: image writes pidfile and auth-zone data under
     # /usr/local/unbound/ during startup.
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - adguard-frontend
     mem_limit: ${UNBOUND_MEM_LIMIT:-512m}
@@ -132,7 +136,11 @@ services:
         required: false
       - path: ../shared/env/tz.env
     user: "3101:3101" # svc-app-adguard
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - adguard-frontend
     ports:

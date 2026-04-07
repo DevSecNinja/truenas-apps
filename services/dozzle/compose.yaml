@@ -48,7 +48,11 @@ services:
     environment:
       - DOZZLE_NO_ANALYTICS=true
     user: "3109:3109" # svc-app-dozzle
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - dozzle-frontend
       - dozzle-backend
@@ -97,7 +101,11 @@ services:
   dozzle-docker-proxy:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: dozzle-docker-proxy
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - dozzle-backend
     env_file:

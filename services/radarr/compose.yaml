@@ -78,7 +78,11 @@ services:
       - PUID=3110 # svc-app-radarr
       - PGID=3200 # media group — shared with Plex, MeTube, and other arr apps
       - UMASK=002 # group-writable files for media group (664 files, 775 dirs)
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       radarr-vlan70: # FIRST — becomes default route; all internet traffic via VLAN 70
         ipv4_address: ${VLAN70_RADARR_IP}

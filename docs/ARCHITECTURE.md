@@ -13,7 +13,11 @@ services:
       - .env                               # SOPS-decrypted secrets
       - ../shared/env/tz.env               # Shared timezone
     user: "3100:3100"                     # Hardcoded UID:GID (see § UID/GID Allocation)
-    restart: always                        # Auto-recover on failure
+    deploy:
+      restart_policy:
+        condition: on-failure             # Restart only on crash (non-zero exit)
+        max_attempts: 3                   # Stop after 3 rapid crashes within the window
+        window: 120s                      # Counter resets if the container is up > 2 min
     networks:
       - <service>-frontend                 # Traefik-facing network
     mem_limit: ${MEM_LIMIT:-<default>}     # Prevent runaway memory
