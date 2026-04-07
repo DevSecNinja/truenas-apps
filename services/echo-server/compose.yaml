@@ -11,7 +11,11 @@ services:
     environment:
       - HTTP_PORT=${HTTP_PORT:-80}
       - HTTPS_PORT=${HTTPS_PORT:-443}
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - echo-server-frontend
     mem_limit: ${MEM_LIMIT:-1024m}
