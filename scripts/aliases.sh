@@ -24,7 +24,7 @@ dlog() {
 # Restart a compose stack by app name: dre <appname>
 # Example: dre gatus
 dre() {
-    sudo docker compose -f /mnt/vm-pool/apps/services/"$1"/compose.yaml restart
+    sudo docker compose --project-name "ix-${1}" restart
 }
 
 # Pull and redeploy a single app via dccd: ddeploy <appname>
@@ -33,7 +33,13 @@ ddeploy() {
     bash /mnt/vm-pool/apps/scripts/dccd.sh \
         -d /mnt/vm-pool/apps \
         -k /mnt/vm-pool/apps/age.key \
-        -f -t -a "$1"
+        -x shared -t -f -a "$1"
+}
+
+# Bring down a compose stack by app name: ddown <appname>
+# Example: ddown gatus
+ddown() {
+    sudo docker compose --project-name "ix-${1}" down
 }
 
 # Show resource usage of all containers
@@ -74,6 +80,7 @@ Docker:
   dps-bad           Show only unhealthy or exited containers
   dlog <name>       Follow logs for a container
   dre  <app>        Restart a compose stack by app name
+  ddown <app>       Bring down a compose stack by app name
   ddeploy <app>     Force-redeploy a single app via dccd
   dstats            Show resource usage of all containers
   dprune            Prune all unused images
