@@ -42,7 +42,7 @@ services:
     networks:
       radarr-vlan70:
         ipv4_address: ${VLAN70_RADARR_INIT_IP}
-        mac_address: ${RVLAN70_RADARR_INIT_MAC_ADDRESS} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
+        mac_address: ${VLAN70_RADARR_INIT_MAC_ADDRESS} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
     mem_limit: 64m
     pids_limit: 10
     security_opt:
