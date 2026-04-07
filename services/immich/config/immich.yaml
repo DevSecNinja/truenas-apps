@@ -155,7 +155,7 @@ notifications:
 
 oauth:
   # Entra ID — issuer URL format: https://login.microsoftonline.com/<TENANT_ID>/v2.0
-  autoLaunch: false
+  autoLaunch: true
   autoRegister: true
   buttonText: Login with Microsoft
   clientId: ${IMMICH_OAUTH_CLIENT_ID}
@@ -176,9 +176,7 @@ oauth:
   tokenEndpointAuthMethod: client_secret_post
 
 passwordLogin:
-  # Keep enabled alongside OAuth until login is confirmed working.
-  # Disable once OAuth is verified to prevent password-based access.
-  enabled: true
+  enabled: false
 
 reverseGeocoding:
   enabled: true
