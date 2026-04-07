@@ -33,5 +33,18 @@
       matchManagers: ["mise"],
       addLabels: ["renovate/mise"],
     },
+    {
+      description: "Label PRs that will be auto-merged",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["digest"],
+      addLabels: ["automerge"],
+    },
+    {
+      description: "Label official actions/* minor/patch PRs that will be auto-merged",
+      matchManagers: ["github-actions"],
+      matchPackageNames: ["/^actions\//"],
+      matchUpdateTypes: ["minor", "patch"],
+      addLabels: ["automerge"],
+    },
   ],
 }
