@@ -135,36 +135,18 @@ After registration:
    - `IMMICH_OAUTH_CLIENT_SECRET` — Secret value from step 8
    - `IMMICH_OAUTH_ISSUER_URL` — `https://login.microsoftonline.com/TENANT_ID/v2.0` (substitute Directory (tenant) ID from step 5)
 
-### App Roles (admin/user assignment via token)
+### App Roles (admin/user assignment)
 
-Immich reads the `roles` claim from the Entra token to assign admin or user privileges at account
-creation time. Configure App Roles so Entra includes this claim automatically:
+Immich's `roleClaim` feature does not work with Entra ID: Entra emits app roles as a JSON
+array (e.g. `["admin"]`), but Immich's claim validator requires a scalar string. The check
+silently fails and the account is created as a regular user regardless of the assigned role.
 
-1. **App registrations → Immich → App roles → Create app role**:
+Admin access is assigned in two ways instead:
 
-   | Field                | Value                                |
-   | -------------------- | ------------------------------------ |
-   | Display Name         | `Admin`                              |
-   | Allowed member types | Users/Groups                         |
-   | Value                | `admin`                              |
-   | Description          | Full administrative access to Immich |
+- **First user**: The onboarding wizard (first boot) automatically creates an admin account
+- **Subsequent admins**: Go to **Administration → Users → Edit user → toggle Admin** in the Immich web UI
 
-2. Create a second app role:
-
-   | Field                | Value                          |
-   | -------------------- | ------------------------------ |
-   | Display Name         | `User`                         |
-   | Allowed member types | Users/Groups                   |
-   | Value                | `user`                         |
-   | Description          | Standard user access to Immich |
-
-3. **Enterprise applications → Immich → Users and groups → Add user/group**:
-   - Assign yourself the **Admin** role
-   - Assign any other users the **User** role
-
-Entra will then include `"roles": ["admin"]` or `"roles": ["user"]` in the token. Immich reads this
-via `roleClaim: roles` in `config/immich.yaml`. Note: the claim is only applied at account creation —
-changing a role assignment in Entra does not retroactively update an existing Immich account.
+No App Roles configuration in Entra is needed or useful.
 
 ## First-Run Setup
 

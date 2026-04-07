@@ -124,6 +124,7 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 
 ## Key Gotchas
 
+- **Commit messages**: Follow [Conventional Commits](https://www.conventionalcommits.org) — `type(scope): description` (e.g. `feat(immich): add hardware transcoding`, `fix(traefik): correct TLS options`). Enforced by a `commit-msg` lefthook via `cog verify`.
 - **YAML document start**: All YAML files must begin with `---` (enforced by yamlfmt).
 - **Indent**: 2 spaces for YAML; 4 spaces for Markdown and shell scripts (`.editorconfig`).
 - **Line endings**: LF only, always end files with a newline.
