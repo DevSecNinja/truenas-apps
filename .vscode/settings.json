@@ -3,7 +3,7 @@
     "editor.formatOnSave": true,
     "files.autoSave": "onWindowChange",
     "files.associations": {
-        "*.json5": "jsonc",
+        "*.json5": "json5",
         "*.y*ml.j2": "yaml",
         "*.conf.j2": "properties",
         "alert.rules": "yaml",
