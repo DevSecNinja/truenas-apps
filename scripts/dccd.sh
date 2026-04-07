@@ -572,14 +572,18 @@ update_compose_files() {
         rm -f "${TMPRESTART}"
     fi
 
-    # # Restore ownership when running as root (e.g. on TrueNAS).
-    # # Git fetch/pull and SOPS decryption create files as root. Fix everything
-    # # except data/ and backups/ which are managed by init containers.
-    # if [ -z "${SUDO}" ]; then
-    #     log_message "STATE: Restoring ownership to truenas_admin:truenas_admin (excluding data/ and backups/)"
-    #     find "${dir}" \( -name data -o -name backups \) -prune -o -user root -print0 |
-    #         xargs -0 -r chown truenas_admin:truenas_admin
-    # fi
+    # Check for root-owned files (excluding data/ and backups/).
+    # Git fetch/pull and SOPS decryption can create files owned by root when ran with root.
+    local root_owned
+    root_owned=$(find "${BASE_DIR}" \( -name data -o -name backups \) -prune -o -user root -print 2>/dev/null) || true
+    if [ -n "${root_owned}" ]; then
+        log_message "WARNING: Files owned by root detected (git fetch/pull or SOPS may have created them):"
+        while IFS= read -r f; do
+            log_message "WARNING:   ${f}"
+        done <<<"${root_owned}"
+        log_message "WARNING: To fix, run manually:"
+        log_message "WARNING:   find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown truenas_admin:truenas_admin"
+    fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
         local sep="========================================"
