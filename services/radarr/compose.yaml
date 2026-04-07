@@ -1,12 +1,13 @@
 ---
 services:
-  # One-shot container: reaches out to api4.ipify.org and prints the egress IP.
-  # Purpose: confirm that containers assigned to the radarr macvlan network egress
-  # via VLAN 70 (192.168.70.0/24) before the Radarr service is deployed on this VLAN.
-  # Run with: docker compose -f services/radarr/compose.yaml up --abort-on-container-exit
-  radarr:
+  # Init container: validates VLAN 70 macvlan egress before deploying Radarr.
+  # Resolves DDNS_DOMAIN (the home public IP) and compares it against the
+  # container's external IP via api4.ipify.org. Exits non-zero — blocking any
+  # dependent service — if the IPs match, meaning the container is egressing
+  # through the home connection instead of VLAN 70.
+  radarr-init:
     image: docker.io/library/alpine:3.21@sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709
-    container_name: radarr
+    container_name: radarr-init
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
@@ -16,24 +17,37 @@ services:
       - sh
       - -c
       - |-
-        echo "=== VLAN 70 egress test ===" &&
-        echo "Container IP:" && ip -4 addr show eth0 &&
-        echo "" &&
-        echo "External IP via api4.ipify.org:" &&
-        wget -qO- https://api4.ipify.org &&
-        echo "" &&
-        echo "=== OK ==="
+        echo "=== VLAN 70 egress check ==="
+
+        EXTERNAL_IP="$(wget -qO- https://api4.ipify.org)"
+        echo "External IP (container egress) : $${EXTERNAL_IP}"
+
+        # nslookup last Address: line is the answer; strip any trailing :port suffix
+        DDNS_IP="$(nslookup "${DDNS_DOMAIN}" | awk '/^Address:/{a=$2} END{print a}' | sed 's/:[0-9]*$//')"
+        echo "DDNS domain                    : ${DDNS_DOMAIN}"
+        echo "DDNS IP (home)                 : $${DDNS_IP}"
+
+        if [ -z "$${EXTERNAL_IP}" ]; then
+          echo "ERROR: Could not determine external IP via api4.ipify.org"
+          exit 1
+        fi
+        if [ -z "$${DDNS_IP}" ]; then
+          echo "ERROR: Could not resolve DDNS_DOMAIN=${DDNS_DOMAIN}"
+          exit 1
+        fi
+        if [ "$${EXTERNAL_IP}" = "$${DDNS_IP}" ]; then
+          echo "FAIL: Egress IP matches home IP — container is NOT on VLAN 70, aborting!"
+          exit 1
+        fi
+        echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — VLAN 70 confirmed"
     networks:
-      radarr-frontend:
-        ipv4_address: ${VLAN70_CONTAINER_IP}
+      - radarr-frontend
     mem_limit: 64m
     pids_limit: 10
     security_opt:
       - no-new-privileges=true
     cap_drop:
       - ALL
-    cap_add:
-      - NET_RAW # Required for wget to open raw sockets on a macvlan interface
     read_only: true
 
 networks:
@@ -43,7 +57,4 @@ networks:
     driver_opts:
       parent: ${VLAN70_PARENT_INTERFACE}
     ipam:
-      driver: default
-      config:
-        - subnet: ${VLAN70_SUBNET}
-          gateway: ${VLAN70_GATEWAY}
+      driver: dhcp
