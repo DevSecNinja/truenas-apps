@@ -28,6 +28,9 @@
   color: "ff9800"
 - name: type/major
   color: "f6412d"
+# Automation
+- name: automerge
+  color: "0075ca"
 # Uncategorized
 - name: bug
   color: "d73a4a"
