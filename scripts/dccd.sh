@@ -341,7 +341,7 @@ redeploy_truenas_apps() {
             # One-shot project: run in foreground and abort when the container exits.
             # --abort-on-container-exit is incompatible with -d, which is fine — we
             # want to block until the init work is done before deploying later apps.
-            # Output is suppressed; check logs via 'sudo docker compose --project-name <name> logs'.
+            log_message "INFO:  ${app_name} output suppressed — check 'sudo docker compose --project-name ${project_name} logs' if needed"
             if ! ${SUDO} docker compose \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
