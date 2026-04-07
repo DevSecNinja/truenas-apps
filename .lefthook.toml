@@ -49,3 +49,6 @@ run = "uname -m | grep -qE 'aarch64|arm64' || mise exec -- dotenv-linter fix --n
 glob = ["services/shared/env/*.env"]
 stage_fixed = true
 
+[commit-msg.commands.cocogitto]
+run = "mise exec -- cog verify \"$(cat {1})\""
+
