@@ -71,6 +71,7 @@ services:
       - metube-frontend
       - immich-frontend
       - dozzle-frontend
+      - radarr-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -196,4 +197,7 @@ networks:
     external: true
   dozzle-frontend:
     name: dozzle-frontend
+    external: true
+  radarr-frontend:
+    name: radarr-frontend
     external: true

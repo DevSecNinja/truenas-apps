@@ -41,6 +41,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Immich](https://immich.app/)                                                | Self-hosted photo and video management              |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding              |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI         |
+| [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation    |
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend    |
 | [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                      |
 
@@ -64,6 +65,7 @@ vm-pool/apps/services/echo-server
 vm-pool/apps/services/immich
 vm-pool/apps/services/plex
 vm-pool/apps/services/metube
+vm-pool/apps/services/radarr
 vm-pool/apps/services/unifi
 vm-pool/apps/services/dozzle
 # ... one dataset per app
