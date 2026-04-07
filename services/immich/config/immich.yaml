@@ -167,7 +167,7 @@ oauth:
   mobileOverrideEnabled: true
   mobileRedirectUri: https://photos-noauth.${DOMAINNAME}/api/oauth/mobile-redirect
   profileSigningAlgorithm: none
-  roleClaim: immich_role
+  roleClaim: roles
   scope: openid email profile
   signingAlgorithm: RS256
   storageLabelClaim: preferred_username
