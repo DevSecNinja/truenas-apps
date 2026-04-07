@@ -4,12 +4,10 @@ Immich is a self-hosted photo and video management solution with mobile backup, 
 
 ## Access
 
-| URL                                  | Description                                                         |
-| ------------------------------------ | ------------------------------------------------------------------- |
-| `https://photos.<DOMAINNAME>`        | Web UI and API (proxied through Traefik, forward-auth protected)    |
-| `https://photos-noauth.<DOMAINNAME>` | Mobile app endpoint (no forward-auth — Immich handles its own auth) |
-
-The dual-route setup is necessary because Immich does not support OAuth/OIDC for its mobile app clients. The `noauth` route is protected only by Immich's own authentication, not Traefik forward-auth.
+| URL                                  | Description                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `https://photos.<DOMAINNAME>`        | Web UI (Traefik forward-auth + Immich OAuth)                                          |
+| `https://photos-mobile.<DOMAINNAME>` | Mobile app endpoint (no Traefik forward-auth — Immich handles its own authentication) |
 
 ## Architecture
 
@@ -30,9 +28,10 @@ processed output to `data/immich.yaml`, which `immich-server` mounts read-only v
 
 Key settings in `config/immich.yaml`:
 
-- **`oauth`**: Microsoft Entra ID OIDC login — credentials from `secret.sops.env`, mobile redirect
-  points to the `photos-noauth` route so the Immich mobile app bypasses forward-auth
-- **`passwordLogin`**: Kept enabled alongside OAuth; disable once OAuth is confirmed working
+- **`oauth`**: Microsoft Entra ID OIDC login — credentials from `secret.sops.env`; `autoLaunch` skips
+  the login page; `roleClaim: roles` maps Entra App Roles to Immich admin/user at account creation;
+  `mobileRedirectUri` points to `photos-mobile` so the OAuth callback relay bypasses forward-auth
+- **`passwordLogin`**: Disabled — Entra OAuth is the only login method
 - **`storageTemplate`**: Enabled with `{{y}}/{{MM}}/{{filename}}` — organizes originals by year/month
   on disk, keeping the raw file tree readable by any future tool without Immich running
 - **`server.externalDomain`**: Set to `https://photos.${DOMAINNAME}` for correct share link generation
@@ -112,24 +111,29 @@ After registration:
 
 5. **Overview tab** — note the **Application (client) ID** and **Directory (tenant) ID**
 6. **Authentication tab → Add a platform → Web**:
-   - Redirect URI: `https://photos.YOURDOMAIN/auth/login`
+   - Redirect URI 1: `https://photos.YOURDOMAIN/auth/login`
+   - Redirect URI 2: `https://photos.YOURDOMAIN/user-settings` (for manually linking OAuth in the web UI)
+   - Redirect URI 3: `https://photos-mobile.YOURDOMAIN/api/oauth/mobile-redirect` (OAuth callback relay for the mobile app)
    - Click **Configure**
-7. **Authentication tab → Add a platform → Mobile and desktop applications**:
-   - Custom redirect URI: `https://photos-noauth.YOURDOMAIN/api/oauth/mobile-redirect`
-   - Click **Configure**
-8. **Authentication tab** — under **Advanced settings**, set **Allow public client flows** to **No**
-9. **Certificates & secrets tab → New client secret**:
+
+   > **Important**: All three URIs must be under the **Web** platform. The mobile relay is a
+   > server-side endpoint — Immich exchanges the code using its `client_secret`. Registering it
+   > under "Mobile and desktop applications" enables public client mode and causes Entra to reject
+   > the `client_secret` with `AADSTS700025`.
+
+7. **Authentication tab** — under **Advanced settings**, set **Allow public client flows** to **No**
+8. **Certificates & secrets tab → New client secret**:
    - Description: `Immich`
    - Expiry: choose your preferred rotation period
    - Note the **Value** immediately — it is only shown once
-10. Add all three values to `secret.sops.env`:
-    ```sh
-    sops services/immich/secret.sops.env
-    ```
-    Set:
-    - `IMMICH_OAUTH_CLIENT_ID` — Application (client) ID from step 5
-    - `IMMICH_OAUTH_CLIENT_SECRET` — Secret value from step 9
-    - `IMMICH_OAUTH_ISSUER_URL` — `https://login.microsoftonline.com/TENANT_ID/v2.0` (substitute Directory (tenant) ID from step 5)
+9. Add all three values to `secret.sops.env`:
+   ```sh
+   sops services/immich/secret.sops.env
+   ```
+   Set:
+   - `IMMICH_OAUTH_CLIENT_ID` — Application (client) ID from step 5
+   - `IMMICH_OAUTH_CLIENT_SECRET` — Secret value from step 8
+   - `IMMICH_OAUTH_ISSUER_URL` — `https://login.microsoftonline.com/TENANT_ID/v2.0` (substitute Directory (tenant) ID from step 5)
 
 ### App Roles (admin/user assignment via token)
 
