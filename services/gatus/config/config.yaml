@@ -54,8 +54,8 @@ endpoint-defaults: &defaults
   alerts:
     - type: email
       description: "Health check failed"
-      # - type: custom
-      #   description: "Health check failed"
+    - type: custom
+      description: "Health check failed"
 
 # Use a public resolver for external endpoints so that a temporary AdGuard
 # outage doesn't cause false-positive failures via Docker's 127.0.0.11 fallback.
@@ -221,7 +221,7 @@ endpoints:
   # If this fails but AdGuard NAS Direct passes → router forwarding is broken.
   # If both fail → AdGuard itself is down.
   - name: AdGuard Router - DNS
-    url: "${IP_ROUTER}"
+    url: "${IP_DNS_SERVER_1}"
     group: Internal
     dns:
       query-name: "SVLNAS.${DOMAINNAME}"
@@ -232,7 +232,7 @@ endpoints:
   # Tests: Full external resolution chain (Router → AdGuard → Unbound → Quad9).
   # If this fails but AdGuard Router - DNS passes → Unbound or upstream is broken.
   - name: Google.com - DNS
-    url: "${IP_ROUTER}"
+    url: "${IP_DNS_SERVER_1}"
     group: External
     dns:
       query-name: "google.com"
