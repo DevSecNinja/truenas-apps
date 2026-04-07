@@ -59,8 +59,6 @@ Key settings in `config/immich.yaml`:
 
 `CHOWN` is required to transfer ownership to `3106:3202`.
 
-The overlay mount points (`thumbs`, `encoded-video`) must be chowned by **direct path reference**, not only via `-R` on the parent. `chown -R /usr/src/app/upload` traverses the archive-pool filesystem's directory tree, which is empty on first boot — the overlay paths are not entries in that tree's `readdir` output. Addressing them explicitly (`chown /usr/src/app/upload/thumbs`) works because mount point paths are always accessible by direct reference even when they're not enumerable through the parent.
-
 The GID `3202` is hardcoded in the `command:` block because `env_file` values are injected into the container environment and do not feed into Docker Compose variable substitution for `user:` and `command:` fields.
 
 ### Database
@@ -73,25 +71,22 @@ The `immich-db` image is a custom Postgres build from the Immich project that bu
 
 ## Storage Layout
 
-Immich's storage is split across two pools to separate irreplaceable data (backed up) from regeneratable caches (not backed up):
+All Immich media is stored under a single bind-mount on archive-pool. Immich creates its subdirectory
+layout (`library/`, `thumbs/`, `encoded-video/`, etc.) automatically within that tree.
 
 | What              | Host Path                                 | Pool         | Backed up?                    |
 | ----------------- | ----------------------------------------- | ------------ | ----------------------------- |
-| Originals         | `/mnt/archive-pool/private/photos/immich` | archive-pool | ✅ ZFS snapshots              |
-| Thumbnails        | `./data/thumbs`                           | vm-pool SSD  | ❌ Regeneratable              |
-| Encoded video     | `./data/encoded-video`                    | vm-pool SSD  | ❌ Regeneratable              |
+| All media         | `/mnt/archive-pool/private/photos/immich` | archive-pool | ✅ ZFS snapshots              |
 | ML model cache    | `./data/model-cache`                      | vm-pool SSD  | ❌ Regeneratable              |
 | Postgres database | `./data/db`                               | vm-pool SSD  | ✅ `immich-db-backup` sidecar |
 
-`THUMBS_DIR` and `ENCODED_VIDEO_DIR` are not official Immich environment variables — Immich stores all
-media under a single internal path and creates subdirectories (`library/`, `thumbs/`, `encoded-video/`,
-etc.) relative to it automatically. The split is achieved instead via Docker overlay bind mounts: the
-archive-pool path is mounted at `/usr/src/app/upload`, then vm-pool SSD paths are mounted at the
-specific subdirectories Immich writes caches to (`/usr/src/app/upload/thumbs`,
-`/usr/src/app/upload/encoded-video`). Docker honors the more specific mount point — thumbnail and
-encoded-video writes land on vm-pool SSD while originals (written under `library/`) stay on archive-pool.
+Thumbnails and encoded video are regeneratable but stored on archive-pool alongside the originals.
+This avoids cross-pool Docker nested bind mounts, which are unreliable on TrueNAS/ZFS due to mount
+propagation constraints. The ML model cache and database are on vm-pool SSD as they are small,
+frequently accessed, and never need snapshotting.
 
-The `private-photos` group (GID 3202) on the originals path means any future tool (e.g. PhotoPrism) can be granted read access by joining that group — no ownership restructuring needed.
+The `private-photos` group (GID 3202) on the originals path means any future tool (e.g. PhotoPrism)
+can be granted read access by joining that group — no ownership restructuring needed.
 
 ## TrueNAS Host Setup
 
@@ -146,15 +141,13 @@ After registration:
 
 ## Volumes
 
-| Container Path                      | Host Path                                 | Mode | Purpose                                   |
-| ----------------------------------- | ----------------------------------------- | ---- | ----------------------------------------- |
-| `/usr/src/app/upload`               | `/mnt/archive-pool/private/photos/immich` | rw   | Originals (`library/`) + temp upload area |
-| `/usr/src/app/upload/thumbs`        | `./data/thumbs`                           | rw   | Thumbnails overlay — vm-pool SSD          |
-| `/usr/src/app/upload/encoded-video` | `./data/encoded-video`                    | rw   | Encoded video overlay — vm-pool SSD       |
-| `/config/immich.yaml`               | `./data/immich.yaml`                      | ro   | Processed config file (from envsubst)     |
-| `/cache`                            | `./data/model-cache`                      | rw   | ML model cache (vm-pool SSD)              |
-| `/var/lib/postgresql`               | `./data/db`                               | rw   | Postgres database                         |
-| `/backup`                           | `./backups/db-backup`                     | rw   | Nightly encrypted database backups        |
+| Container Path        | Host Path                                 | Mode | Purpose                                    |
+| --------------------- | ----------------------------------------- | ---- | ------------------------------------------ |
+| `/usr/src/app/upload` | `/mnt/archive-pool/private/photos/immich` | rw   | All media (library, thumbs, encoded video) |
+| `/config/immich.yaml` | `./data/immich.yaml`                      | ro   | Processed config file (from envsubst)      |
+| `/cache`              | `./data/model-cache`                      | rw   | ML model cache (vm-pool SSD)               |
+| `/var/lib/postgresql` | `./data/db`                               | rw   | Postgres database                          |
+| `/backup`             | `./backups/db-backup`                     | rw   | Nightly encrypted database backups         |
 
 ## Secrets
 
