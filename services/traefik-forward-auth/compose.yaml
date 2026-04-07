@@ -40,7 +40,11 @@ services:
         required: false
       - path: ../shared/env/tz.env
     user: "3105:3105" # svc-app-tfa
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - traefik-forward-auth-frontend
     mem_limit: ${MEM_LIMIT:-200m}

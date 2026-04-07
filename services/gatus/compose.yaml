@@ -62,7 +62,11 @@ services:
       - DB_PORT=5432
       # Gatus
       - GATUS_CONFIG_PATH=/config
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - gatus-frontend
       - gatus-backend
@@ -116,7 +120,11 @@ services:
       - POSTGRES_DB=gatus
       - POSTGRES_USER=gatus
       - POSTGRES_PASSWORD=${GATUS_DB_PASSWORD}
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - gatus-backend
     mem_limit: ${DB_MEM_LIMIT:-1024m}
@@ -245,7 +253,11 @@ services:
       - path: ../shared/env/tz.env
     environment:
       - DOCKER_HOST=tcp://gatus-docker-proxy:2375
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - gatus-backend
     mem_limit: ${SIDECAR_MEM_LIMIT:-100m}
@@ -273,7 +285,11 @@ services:
       - CONTAINERS=1 # Allow access to viewing containers
       - EVENTS=1 # Allow access to the /events stream (required for gatus-sidecar docker mode)
       - POST=0 # Disallow any POST operations (effectively read-only)
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - gatus-backend
     mem_limit: ${PROXY_MEM_LIMIT:-50m}

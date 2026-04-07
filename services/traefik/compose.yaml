@@ -58,7 +58,11 @@ services:
       TRAEFIK_PROVIDERS_DOCKER_DEFAULTRULE: >-
         Host(`{{ index .Labels "com.docker.compose.service" }}.${DOMAINNAME}`)
     user: "3100:3100" # svc-app-traefik
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - traefik-backend
       - adguard-frontend
@@ -136,7 +140,11 @@ services:
   traefik-docker-proxy:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: traefik-docker-proxy
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - traefik-backend
     env_file:

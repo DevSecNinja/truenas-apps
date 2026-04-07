@@ -69,7 +69,11 @@ services:
       # Config file path inside the container (processed by immich-config-init from config/immich.yaml)
       - IMMICH_CONFIG_FILE=/config/immich.yaml
     user: "3106:3202" # svc-app-immich:private-photos
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - immich-frontend
       - immich-backend
@@ -136,7 +140,11 @@ services:
     environment:
       - MPLCONFIGDIR=/tmp # matplotlib defaults to /.config/matplotlib which is on the read-only rootfs
     user: "3106:3202" # svc-app-immich:private-photos
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - immich-backend
     mem_limit: ${ML_MEM_LIMIT:-4096m}
@@ -172,7 +180,11 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - immich-backend
     mem_limit: ${REDIS_MEM_LIMIT:-1024m}
@@ -218,7 +230,11 @@ services:
       - POSTGRES_USER=immich
       - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD}
       - POSTGRES_INITDB_ARGS=--data-checksums
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - immich-backend
     # Recommended: https://docs.immich.app/install/requirements/

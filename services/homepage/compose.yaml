@@ -50,7 +50,11 @@ services:
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAINNAME}
     user: "3102:3102" # svc-app-homepage
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - homepage-frontend
       - homepage-backend
@@ -104,7 +108,11 @@ services:
     environment:
       - CONTAINERS=1 # Allow access to viewing containers
       - POST=0 # Disallow any POST operations (effectively read-only)
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - homepage-backend
     mem_limit: ${PROXY_MEM_LIMIT:-50m}

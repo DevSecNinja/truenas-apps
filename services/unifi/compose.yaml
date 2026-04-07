@@ -20,7 +20,11 @@ services:
       - MONGO_PASS=${UNIFI_MONGO_PASS}
       - MONGO_DBNAME=unifi
       - MONGO_AUTHSOURCE=admin
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - unifi-backend
     mem_limit: ${DB_MEM_LIMIT:-1024m}
@@ -137,7 +141,11 @@ services:
       - MONGO_DBNAME=unifi
       - MONGO_AUTHSOURCE=admin
       - MEM_LIMIT=1024
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - unifi-frontend
       - unifi-backend
