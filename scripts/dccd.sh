@@ -33,7 +33,8 @@ NO_PULL=0                                     # Skip pulling images (for local t
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
-# GATUS_URL and GATUS_CD_TOKEN can also be sourced from services/gatus/.env (already decrypted on disk)
+GATUS_DNS_SERVER=""                           # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
+# GATUS_URL, GATUS_CD_TOKEN, and GATUS_DNS_SERVER can also be sourced from services/gatus/.env (already decrypted on disk)
 _DEPLOY_ERRORS=0       # Count of deployment failures (non-fatal errors logged during deploy)
 _DEPLOY_ATTEMPTED=0    # Count of deployment attempts
 _DEPLOY_FAILED_APPS=() # Names of failed apps
@@ -614,8 +615,10 @@ report_cd_status_to_gatus() {
     [ -n "${error_msg}" ] && query="${query}&error=$(url_encode_simple "${error_msg}")"
     [ -n "${duration}" ] && query="${query}&duration=${duration}"
 
-    if curl -fsSL -X POST \
-        -H "Authorization: Bearer ${GATUS_CD_TOKEN}" \
+    local -a curl_opts=(-fsSL -X POST -H "Authorization: Bearer ${GATUS_CD_TOKEN}")
+    [ -n "${GATUS_DNS_SERVER}" ] && curl_opts+=(--dns-servers "${GATUS_DNS_SERVER}")
+
+    if curl "${curl_opts[@]}" \
         "${GATUS_URL%/}/api/v1/endpoints/${key}/external?${query}" >/dev/null 2>&1; then
         log_message "INFO:  CD status (success=${success}) reported to Gatus"
     else
@@ -660,6 +663,7 @@ usage() {
       -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
       -G <url>        Gatus instance URL to report CD status to (optional - falls back to GATUS_URL/GATUS_CD_TOKEN from services/gatus/.env)
+      -r <ip>         DNS server to use for Gatus curl calls (optional - overrides system resolver for Gatus only, requires curl with c-ares)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
@@ -673,7 +677,7 @@ EOF
 # Options
 ########################################
 
-while getopts ":a:b:d:fgG:k:hno:ps:tw:x:" opt; do
+while getopts ":a:b:d:fgG:k:hno:pr:s:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
@@ -719,6 +723,9 @@ while getopts ":a:b:d:fgG:k:hno:ps:tw:x:" opt; do
         ;;
     G)
         GATUS_URL="${OPTARG}"
+        ;;
+    r)
+        GATUS_DNS_SERVER="${OPTARG}"
         ;;
     \?)
         echo "Invalid option: -${OPTARG}" >&2
@@ -817,7 +824,11 @@ fi
 # Check if Gatus CD reporting is configured
 if [ -n "${GATUS_URL}" ]; then
     if [ -n "${GATUS_CD_TOKEN:-}" ]; then
-        log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL})"
+        if [ -n "${GATUS_DNS_SERVER}" ]; then
+            log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL}, DNS: ${GATUS_DNS_SERVER})"
+        else
+            log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL})"
+        fi
     else
         log_message "WARNING: GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
     fi
