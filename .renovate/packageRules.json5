@@ -1,0 +1,32 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  packageRules: [
+    {
+      description: "Flag dependencies where the currently-used version is over 1 year old — likely abandoned or unmaintained.",
+      matchCurrentAge: "> 1 year",
+      addLabels: ["stale-dependency"],
+    },
+    {
+      matchManagers: ["mise"],
+      minimumReleaseAge: "14 days",
+      pinDigests: false,
+    },
+    {
+      matchManagers: ["github-actions"],
+      minimumReleaseAge: "14 days",
+    },
+    {
+      matchDatasources: ["github-releases"],
+      minimumReleaseAge: "14 days",
+    },
+    {
+      matchDatasources: ["docker"],
+      minimumReleaseAge: "14 days",
+    },
+    {
+      description: "Use custom versioning for linuxserver images",
+      versioning: "regex:^(version)(?<compatibility>.*?)-(?<major>v?\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)[\\.-]*r?(?<build>\\d+)*-*r?(?<release>\\w+)|^latest*",
+      matchPackageNames: ["/^lscr\\.io\\/linuxserver\\//"],
+    },
+  ],
+}
