@@ -18,7 +18,7 @@ Each stack that uses Postgres follows this service dependency chain:
 ```text
 gatus-db-upgrade  (pgautoupgrade, restart: "no")
        ↓ service_completed_successfully
-gatus-db          (postgres, restart: always)
+gatus-db          (postgres, deploy.restart_policy: on-failure, max 3)
        ↓ service_healthy
 gatus / gatus-db-backup
 ```
