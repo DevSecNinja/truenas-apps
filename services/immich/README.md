@@ -131,13 +131,49 @@ After registration:
     - `IMMICH_OAUTH_CLIENT_SECRET` — Secret value from step 9
     - `IMMICH_OAUTH_ISSUER_URL` — `https://login.microsoftonline.com/TENANT_ID/v2.0` (substitute Directory (tenant) ID from step 5)
 
+### App Roles (admin/user assignment via token)
+
+Immich reads the `roles` claim from the Entra token to assign admin or user privileges at account
+creation time. Configure App Roles so Entra includes this claim automatically:
+
+1. **App registrations → Immich → App roles → Create app role**:
+
+   | Field                | Value                                |
+   | -------------------- | ------------------------------------ |
+   | Display Name         | `Admin`                              |
+   | Allowed member types | Users/Groups                         |
+   | Value                | `admin`                              |
+   | Description          | Full administrative access to Immich |
+
+2. Create a second app role:
+
+   | Field                | Value                          |
+   | -------------------- | ------------------------------ |
+   | Display Name         | `User`                         |
+   | Allowed member types | Users/Groups                   |
+   | Value                | `user`                         |
+   | Description          | Standard user access to Immich |
+
+3. **Enterprise applications → Immich → Users and groups → Add user/group**:
+   - Assign yourself the **Admin** role
+   - Assign any other users the **User** role
+
+Entra will then include `"roles": ["admin"]` or `"roles": ["user"]` in the token. Immich reads this
+via `roleClaim: roles` in `config/immich.yaml`. Note: the claim is only applied at account creation —
+changing a role assignment in Entra does not retroactively update an existing Immich account.
+
 ## First-Run Setup
 
 1. Complete the [Entra ID App Registration](#entra-id-app-registration) above and populate `secret.sops.env`
 2. Deploy the stack and confirm `immich-init` exits cleanly (no unresolved placeholder errors in its logs) before `immich-server` starts
-3. Verify hardware transcoding is working by uploading a test video and checking the Jobs page in the admin panel
-4. Test OAuth login via the **Login with Microsoft** button on the login page
-5. Once OAuth is confirmed working, set `passwordLogin.enabled: false` in `config/immich.yaml` and redeploy
+3. Navigate to `https://photos.<DOMAINNAME>` — you will be presented with an **onboarding wizard** asking
+   for Admin Email, Password, and Name. This is Immich's hardcoded first-boot flow that fires when there
+   are zero users in the database. It runs before `autoLaunch` applies and cannot be bypassed via config.
+   - Enter your **real email address** (must match what Entra returns as the `email` claim in your OAuth token)
+   - Set any password — it will be immediately unusable for login since `passwordLogin: false` is set in `config/immich.yaml`
+4. After completing the wizard, all subsequent visits will trigger the `autoLaunch` OAuth redirect to Microsoft
+5. Log in via OAuth — Immich links the OAuth identity to the admin account by matching the email claim
+6. Verify hardware transcoding is working by uploading a test video and checking the Jobs page in the admin panel
 
 ## Volumes
 
