@@ -58,7 +58,11 @@ services:
       - DOWNLOAD_MODE=limited
       - MAX_CONCURRENT_DOWNLOADS=1
     user: "3107:3200" # svc-app-metube:media
-    restart: always
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
     networks:
       - metube-frontend
     mem_limit: ${MEM_LIMIT:-4096m}
