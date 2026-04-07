@@ -21,6 +21,25 @@ alerting:
       send-on-resolved: true
       failure-threshold: 5
       success-threshold: 5
+  custom:
+    url: "https://home.${DOMAINNAME}/api/webhook/${HA_WEBHOOK_TOKEN}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "status": "[ALERT_TRIGGERED_OR_RESOLVED]",
+        "endpoint": "[ENDPOINT_NAME]",
+        "group": "[ENDPOINT_GROUP]",
+        "description": "[ALERT_DESCRIPTION]",
+        "errors": "[RESULT_ERRORS]"
+      }
+    client:
+      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
+    default-alert:
+      send-on-resolved: true
+      failure-threshold: 5
+      success-threshold: 5
 
 endpoint-defaults: &defaults
   group: Internal
@@ -35,6 +54,8 @@ endpoint-defaults: &defaults
   alerts:
     - type: email
       description: "Health check failed"
+      # - type: custom
+      #   description: "Health check failed"
 
 # Use a public resolver for external endpoints so that a temporary AdGuard
 # outage doesn't cause false-positive failures via Docker's 127.0.0.11 fallback.
@@ -51,6 +72,8 @@ external-defaults: &external-defaults
   alerts:
     - type: email
       description: "Health check failed"
+      # - type: custom
+      #   description: "Health check failed"
 
 tcp-udp-defaults: &tcp-udp-defaults
   group: Internal
@@ -64,6 +87,8 @@ tcp-udp-defaults: &tcp-udp-defaults
     - type: email
       description: "Health check failed"
       send-on-resolved: true
+      # - type: custom
+      #   description: "Health check failed"
 
 # Pause endpoint executions if internet is down
 connectivity:
@@ -82,6 +107,8 @@ external-endpoints:
       - type: email
         description: "CD pipeline has not reported in 25 hours"
         send-on-resolved: true
+        # - type: custom
+        #   description: "CD pipeline has not reported in 25 hours"
 
 endpoints:
   #
