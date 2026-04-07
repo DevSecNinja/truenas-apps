@@ -35,6 +35,7 @@ WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
 GATUS_DNS_SERVER=""                           # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
 # GATUS_URL, GATUS_CD_TOKEN, and GATUS_DNS_SERVER can also be sourced from services/gatus/.env (already decrypted on disk)
+# GATUS_DNS_SERVER falls back to IP_DNS_SERVER_1 from the same .env file if -r is not supplied
 _DEPLOY_ERRORS=0       # Count of deployment failures (non-fatal errors logged during deploy)
 _DEPLOY_ATTEMPTED=0    # Count of deployment attempts
 _DEPLOY_FAILED_APPS=() # Names of failed apps
@@ -809,6 +810,7 @@ log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
 _gatus_env="${BASE_DIR}/services/gatus/.env"
 if [ -f "${_gatus_env}" ]; then
     _saved_gatus_url="${GATUS_URL}"
+    _saved_gatus_dns="${GATUS_DNS_SERVER}"
     set -a
     # shellcheck disable=SC1090
     source "${_gatus_env}"
@@ -818,6 +820,13 @@ if [ -f "${_gatus_env}" ]; then
         GATUS_URL="${_saved_gatus_url}"
     elif [ -n "${DOMAINNAME:-}" ] && [ -z "${GATUS_URL}" ]; then
         GATUS_URL="https://status.${DOMAINNAME}"
+    fi
+    # Restore CLI-supplied DNS server so -r always takes precedence over the file;
+    # fall back to IP_DNS_SERVER_1 from the env file if not set via CLI
+    if [ -n "${_saved_gatus_dns}" ]; then
+        GATUS_DNS_SERVER="${_saved_gatus_dns}"
+    elif [ -z "${GATUS_DNS_SERVER}" ] && [ -n "${IP_DNS_SERVER_1:-}" ]; then
+        GATUS_DNS_SERVER="${IP_DNS_SERVER_1}"
     fi
 fi
 
