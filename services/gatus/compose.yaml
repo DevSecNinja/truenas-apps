@@ -30,9 +30,11 @@ services:
         chown -Rv 3103:3103 /config-src &&
         find /config-src -type d -exec chmod 775 {} + &&
         find /config-src -type f -exec chmod 664 {} + &&
-        cp /config-src/config.yaml /config/config.yaml &&
-        chown 3103:3103 /config/config.yaml &&
-        chmod 644 /config/config.yaml
+        if ! cmp -s /config-src/config.yaml /config/config.yaml; then
+          cp /config-src/config.yaml /config/config.yaml &&
+          chown 3103:3103 /config/config.yaml &&
+          chmod 644 /config/config.yaml;
+        fi
     volumes:
       - ./config:/config-src
       - ./data/sidecar-config:/config
