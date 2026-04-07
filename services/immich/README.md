@@ -52,12 +52,14 @@ Key settings in `config/immich.yaml`:
 
 `immich-init` runs once before the main services start and does two things in sequence:
 
-1. **Chowns all writable bind-mount paths** to `3106:3202` — recovers from any host-level permission reset (e.g. a TrueNAS dataset ACL reset) on every deploy
-2. **Runs `config/envsubst.sh`** — substitutes `${VAR}` placeholders in `config/immich.yaml` with values from `secret.sops.env` and writes the result to `data/immich.yaml`
+1. **Chowns all writable paths** to `3106:3202` — recovers from any host-level permission reset on every deploy
+2. **Runs `config/envsubst.sh`** — substitutes `${VAR}` placeholders in `config/immich.yaml` and writes the result to `data/immich.yaml`
 
-`DAC_OVERRIDE` is required because the originals path (`/mnt/archive-pool/private/photos/immich`) is owned by `truenas_admin:truenas_admin 770` — UID 0 inside the container has no permissions without it. It also allows overwriting the existing `data/immich.yaml` on redeployments.
+`DAC_OVERRIDE` is required because the originals path is owned by `truenas_admin:truenas_admin 770` — UID 0 inside the container has no permissions to traverse it without this cap. It also allows overwriting the existing `data/immich.yaml` on redeployments.
 
 `CHOWN` is required to transfer ownership to `3106:3202`.
+
+The overlay mount points (`thumbs`, `encoded-video`) must be chowned by **direct path reference**, not only via `-R` on the parent. `chown -R /usr/src/app/upload` traverses the archive-pool filesystem's directory tree, which is empty on first boot — the overlay paths are not entries in that tree's `readdir` output. Addressing them explicitly (`chown /usr/src/app/upload/thumbs`) works because mount point paths are always accessible by direct reference even when they're not enumerable through the parent.
 
 The GID `3202` is hardcoded in the `command:` block because `env_file` values are injected into the container environment and do not feed into Docker Compose variable substitution for `user:` and `command:` fields.
 
