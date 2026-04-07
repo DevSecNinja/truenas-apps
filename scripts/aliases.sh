@@ -68,6 +68,9 @@ dccd_app() {
 }
 alias dccd-app='dccd_app'
 
+# View recent dccd cron job logs from the system journal (syslog tag set by logger -t dccd)
+alias dccd-logs='sudo journalctl -t dccd -n 200 --no-pager'
+
 ########################################
 # Help
 ########################################
@@ -89,6 +92,7 @@ DCCD:
   dccd-all          Force-deploy all apps (TrueNAS mode)
   dccd-graceful     Graceful deploy (only restart changed)
   dccd-app <app>    Force-deploy a single app by name
+  dccd-logs         View recent dccd cron job logs
 
 Help:
   halp              Show this help message
