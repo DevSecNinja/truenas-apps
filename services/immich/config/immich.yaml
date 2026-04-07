@@ -1,6 +1,6 @@
 ---
 # Immich configuration template.
-# ${VAR} placeholders are replaced at deploy time by the immich-config-init container
+# dollar-brace VAR placeholders are replaced at deploy time by the immich-config-init container
 # using values from secret.sops.env. The processed file is written to data/immich.yaml
 # which immich-server mounts read-only via IMMICH_CONFIG_FILE.
 
