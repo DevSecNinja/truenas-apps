@@ -1,28 +1,10 @@
 ---
-# Manual work to implement on a new server:
-#
-# TrueNAS host setup:
-#   1. Create a `private-photos` group (GID 3202), add `truenas_admin` as auxiliary member
-#   2. Create a dedicated `svc-app-immich` user (UID 3106) with primary group `private-photos` (GID 3202)
-#   3. Set Unix permissions on the parent private dataset (/mnt/archive-pool/private):
-#        - User: truenas_admin, Group: truenas_admin, mode 770 (no access for others)
-#        - No NFSv4 ACLs needed — subdirectory access is managed by init containers
-#   4. Create the dataset vm-pool/apps/services/immich in TrueNAS
-#
-# First-run steps:
-#   1. Verify hardware transcoding works by uploading a video and checking
-#      the Jobs page in the Immich admin panel
-#
-# Database notes:
-#   - pgautoupgrade is NOT used for Immich because the custom
-#     ghcr.io/immich-app/postgres image bundles pgvecto.rs and vectorchord
-#     extensions that are not available in standard pgautoupgrade images.
-#     Database major version upgrades must follow the Immich docs:
-#     https://immich.app/docs/administration/postgres-upgrade
+# See README.md for TrueNAS host setup, storage layout, first-run steps, and volume details.
 
 services:
-  # Sets ownership on the upload directory and model cache volume so the
-  # non-root containers can write on first boot. Runs once, then exits.
+  # Sets ownership on writable volumes and substitutes ${VAR} placeholders in
+  # config/immich.yaml, writing the processed file to data/immich.yaml.
+  # Runs once before all main services start, then exits.
   # GID is hardcoded to 3202 (private-photos) because env_file entries are injected
   # into the container environment and do not feed into compose variable
   # substitution (user:, tmpfs gid=, etc.).
@@ -30,7 +12,7 @@ services:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: immich-init
     env_file:
-      - path: .env # Decrypted from secret.sops.env — provides PUID
+      - path: .env # Decrypted from secret.sops.env — provides OAuth credentials and DOMAINNAME
         required: false
     restart: "no"
     network_mode: none
@@ -48,10 +30,16 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv 3106:3202 /upload /model-cache"
+      - "chown -Rv 3106:3202 /usr/src/app/upload /model-cache && /templates/envsubst.sh"
     volumes:
-      - /mnt/archive-pool/private/photos/immich:/upload
+      - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
       - ./data/model-cache:/model-cache
+      # Overlay mounts: these vm-pool SSD paths are mounted inside the archive-pool upload tree
+      # so that chown -R /usr/src/app/upload traverses into them and sets the correct ownership.
+      - ./data/thumbs:/usr/src/app/upload/thumbs
+      - ./data/encoded-video:/usr/src/app/upload/encoded-video
+      - ./config:/templates:ro
+      - ./data:/output
 
   # Immich server is a standard Node.js application (not s6-overlay).
   # It runs as non-root and supports user: directly.
@@ -80,6 +68,10 @@ services:
       - DB_PASSWORD=${IMMICH_DB_PASSWORD}
       - REDIS_HOSTNAME=immich-redis
       - REDIS_PASSWORD=${IMMICH_REDIS_PASSWORD}
+      # Trust X-Forwarded-For from Traefik (Docker bridge networks are auto-assigned in 172.16.0.0/12)
+      - IMMICH_TRUSTED_PROXIES=172.16.0.0/12
+      # Config file path inside the container (processed by immich-config-init from config/immich.yaml)
+      - IMMICH_CONFIG_FILE=/config/immich.yaml
     user: "3106:3202" # svc-app-immich:private-photos
     restart: always
     networks:
@@ -98,6 +90,13 @@ services:
       - /tmp
     volumes:
       - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
+      # Overlay mounts: vm-pool SSD paths mounted at the subdirectories Immich writes caches to.
+      # Docker honors the more specific mount — thumbnails and encoded video land on vm-pool SSD
+      # while originals (written under library/) stay on archive-pool.
+      - ./data/thumbs:/usr/src/app/upload/thumbs
+      - ./data/encoded-video:/usr/src/app/upload/encoded-video
+      # Processed config file (written by immich-config-init, contains substituted secrets)
+      - ./data/immich.yaml:/config/immich.yaml:ro
     healthcheck:
       test:
         - "CMD"
