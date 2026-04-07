@@ -21,21 +21,18 @@ dns:
   ratelimit_subnet_len_ipv6: 56
   ratelimit_whitelist: []
   refuse_any: true
+  # [adguard] Enable support for IPv6
   upstream_dns:
     - udp://adguard-unbound:5335
   upstream_dns_file: ""
   bootstrap_dns:
     - 127.0.0.11
-    - 9.9.9.10
-    - 149.112.112.10
-    - 1.1.1.1
-    - 1.0.0.1
-    # [adguard] Enable support for IPv6
-    # - 2620:fe::10
-    # - 2620:fe::fe:10
+  # IP-literal DoH URLs avoid bootstrap DNS lookups
   fallback_dns:
-    - https://dns10.quad9.net/dns-query
-    - https://cloudflare-dns.com/dns-query
+    - https://9.9.9.9/dns-query
+    - https://149.112.112.112/dns-query
+    - https://1.1.1.1/dns-query
+    - https://1.0.0.1/dns-query
   upstream_mode: load_balance
   fastest_timeout: 1s
   allowed_clients: []
