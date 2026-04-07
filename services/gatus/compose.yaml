@@ -269,6 +269,7 @@ services:
       - path: ../shared/env/tz.env
     environment:
       - CONTAINERS=1 # Allow access to viewing containers
+      - EVENTS=1 # Allow access to the /events stream (required for gatus-sidecar docker mode)
       - POST=0 # Disallow any POST operations (effectively read-only)
     restart: always
     networks:
