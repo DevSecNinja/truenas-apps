@@ -41,7 +41,8 @@ services:
         fi
         echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — VLAN 70 confirmed"
     networks:
-      - radarr-frontend
+      radarr-frontend:
+        ipv4_address: ${VLAN70_CONTAINER_IP}
     mem_limit: 64m
     pids_limit: 10
     security_opt:
@@ -57,4 +58,7 @@ networks:
     driver_opts:
       parent: ${VLAN70_PARENT_INTERFACE}
     ipam:
-      driver: dhcp
+      driver: default
+      config:
+        - subnet: ${VLAN70_SUBNET}
+          gateway: ${VLAN70_GATEWAY}
