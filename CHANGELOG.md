@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-04-08
+
+### Bug Fixes
+
+- **prompt**: Clarify instructions for adding app subdomains in A records ([`2ddd46a`](https://github.com/DevSecNinja/truenas-apps/commit/2ddd46a5ba9e20f452ee56739bc59484b38e75b6))
+- **adguard**: Update A records for draw, excalidraw, and speedtest to point to SVLNAS ([`72e01c3`](https://github.com/DevSecNinja/truenas-apps/commit/72e01c36da6bf72e517944d527de14b412662fdf))
+- **excalidraw**: Update healthcheck command from wget to curl for improved reliability ([`225c1a3`](https://github.com/DevSecNinja/truenas-apps/commit/225c1a32fbd52865b56a12fccb0c019020d07388))
+
+### Documentation
+
+- Add guide for writing Conventional Commit messages and creating releases ([`088a3e0`](https://github.com/DevSecNinja/truenas-apps/commit/088a3e00b93eeed19ce334981af103f5218aedb9))
+
+### Features
+
+- **traefik**: Add frontend services for Excalidraw, OpenSpeedTest, Draw.io, and TubeSync ([`441f1a0`](https://github.com/DevSecNinja/truenas-apps/commit/441f1a0b4f48ea11ea3a145ccec48fee42481d40))
+- **openspeedtest**: Add OpenSpeedTest service configuration and secrets management ([`f5a22f1`](https://github.com/DevSecNinja/truenas-apps/commit/f5a22f1a85f6156b09b98be32fdda35c1faab199))
+- **excalidraw**: Add Excalidraw service configuration and secrets management ([`19f9a1b`](https://github.com/DevSecNinja/truenas-apps/commit/19f9a1be962dcb742a67ee674439926df13da97a))
+- **drawio**: Add Draw.io service configuration and secrets management ([`80dc4c7`](https://github.com/DevSecNinja/truenas-apps/commit/80dc4c7bb2f57b5fd4cf668c2417b369cd9e98e6))
+- **tubesync**: Add new service configuration and secrets management ([`a0cb6ae`](https://github.com/DevSecNinja/truenas-apps/commit/a0cb6ae0037144abd36ba9410898d2ac9655f34f))
+
 ## [0.11.0] - 2026-04-08
 
 ### Bug Fixes
