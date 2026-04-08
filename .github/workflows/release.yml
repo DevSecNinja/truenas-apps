@@ -1,0 +1,43 @@
+---
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          cache: false
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.4.3
+
+      - name: Generate release notes
+        run: mise exec -- git-cliff --latest --strip all > /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |-
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file /tmp/release-notes.md

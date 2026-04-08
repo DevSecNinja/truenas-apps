@@ -186,6 +186,38 @@ url = "https://github.com/dprint/dprint/releases/download/0.53.2/dprint-x86_64-a
 checksum = "sha256:f18910879d6796b05b0666513391ab7963b346723c041dc4d777d3f43179e416"
 url = "https://github.com/dprint/dprint/releases/download/0.53.2/dprint-x86_64-pc-windows-msvc.zip"
 
+[[tools.git-cliff]]
+version = "2.12.0"
+backend = "aqua:orhun/git-cliff"
+
+[tools.git-cliff."platforms.linux-arm64"]
+checksum = "sha256:a2d262b389aed349e0564aaaa38a44015c98a951048923b086d6cf732f6dbbaf"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-aarch64-unknown-linux-musl.tar.gz"
+
+[tools.git-cliff."platforms.linux-arm64-musl"]
+checksum = "sha256:a2d262b389aed349e0564aaaa38a44015c98a951048923b086d6cf732f6dbbaf"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-aarch64-unknown-linux-musl.tar.gz"
+
+[tools.git-cliff."platforms.linux-x64"]
+checksum = "sha256:c89a7bc55f3c51f391938aa3fa560125109695c1930d927879daea68dd786420"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-unknown-linux-musl.tar.gz"
+
+[tools.git-cliff."platforms.linux-x64-musl"]
+checksum = "sha256:c89a7bc55f3c51f391938aa3fa560125109695c1930d927879daea68dd786420"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-unknown-linux-musl.tar.gz"
+
+[tools.git-cliff."platforms.macos-arm64"]
+checksum = "sha256:2ae72a0061bee98d0e375f2ea8e0f4b23b4915ac2e37fa45a705066de49b43a0"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-aarch64-apple-darwin.tar.gz"
+
+[tools.git-cliff."platforms.macos-x64"]
+checksum = "sha256:fd4bce35ea8a6f3af6ac4891073781ca24c654c36c83c865bc30bab332c05a14"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-apple-darwin.tar.gz"
+
+[tools.git-cliff."platforms.windows-x64"]
+checksum = "sha256:f2b8c692d9488c3313d7786e2099976151c10fd8f76580b12d045bb9683a8379"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-pc-windows-msvc.zip"
+
 [[tools.gitleaks]]
 version = "8.30.1"
 backend = "aqua:gitleaks/gitleaks"

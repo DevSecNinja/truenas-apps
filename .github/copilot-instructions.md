@@ -64,6 +64,8 @@ To auto-fix formatting, replace `--diff` / `check` / `-lint` with the write vari
 dprint.json             # dprint config (Markdown plugin only)
 trivy.yaml              # Trivy config (skips age.key)
 renovate.json           # Renovate config (digest-pinning, grouped Postgres updates)
+cog.toml                # cocogitto config (bump hooks, tag prefix)
+cliff.toml              # git-cliff config (changelog template and commit groups)
 
 services/
   <app>/
@@ -94,6 +96,7 @@ docs/
     todo-to-issue.yml    # Converts TODO comments to GitHub issues on push to main
     labeler.yml          # Auto-labels PRs based on changed paths
     label-sync.yml       # Syncs repo labels from .github/labels.yaml
+    release.yml          # Triggered on v* tag push: generates changelog and creates GitHub Release
   prompts/
     new-docker-app.prompt.md  # Reusable prompt for adding a new app
 ```
@@ -125,6 +128,7 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 ## Key Gotchas
 
 - **Commit messages**: Follow [Conventional Commits](https://www.conventionalcommits.org) — `type(scope): description` (e.g. `feat(immich): add hardware transcoding`, `fix(traefik): correct TLS options`). Enforced by a `commit-msg` lefthook via `cog verify`.
+- **Releases**: Run `cog bump --minor` (or `--patch`) to create a release. It regenerates `CHANGELOG.md` via git-cliff, commits, tags, and pushes. The tag push triggers `release.yml` which auto-creates the GitHub Release. Preview with `cog bump --minor --dry-run`.
 - **YAML document start**: All YAML files must begin with `---` (enforced by yamlfmt).
 - **Indent**: 2 spaces for YAML; 4 spaces for Markdown and shell scripts (`.editorconfig`).
 - **Line endings**: LF only, always end files with a newline.
