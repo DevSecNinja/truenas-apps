@@ -1,0 +1,63 @@
+---
+services:
+  # jgraph/drawio is a stateless Jetty-based web application. It has no
+  # persistent volumes and requires no init container — all writable paths are
+  # covered by tmpfs mounts. The image does not support PUID/PGID env vars;
+  # the process is launched under the hardcoded user: directive instead.
+  drawio:
+    image: docker.io/jgraph/drawio:29.3.6@sha256:c7c7f7912c2eb5e747978ad4d62a7f21c129df457d2e9711d0abc235993fdfa2
+    container_name: drawio
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3119:3119" # svc-app-drawio
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - drawio-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      # Java / Jetty write temp and work files to /tmp at runtime
+      - /tmp
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:8080"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Draw.io
+      - homepage.icon=sh-draw-io
+      - homepage.href=https://draw.${DOMAINNAME}
+      - homepage.description=Flowchart & Diagram Maker
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=drawio-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.drawio-rtr.rule=Host(`draw.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.drawio-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.drawio-rtr.service=drawio"
+      - "traefik.http.services.drawio.loadbalancer.server.port=8080"
+
+networks:
+  drawio-frontend:
+    name: drawio-frontend

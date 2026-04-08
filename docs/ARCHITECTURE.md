@@ -342,6 +342,7 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3109    | `svc-app-dozzle`   | dozzle, dozzle-init                         | No                  |
 | 3110    | `svc-app-radarr`   | radarr                                      | No                  |
 | 3118    | `svc-app-tubesync` | tubesync                                    | No                  |
+| 3119    | `svc-app-drawio`   | drawio                                      | No                  |
 
 ### Shared Purpose Groups
 

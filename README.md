@@ -43,7 +43,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
-| [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation          |
+| [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation         |
 | [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
 | [qBittorrent](https://www.qbittorrent.org/)                                  | BitTorrent client with web interface                 |
 | [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation     |
@@ -52,6 +52,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Spottarr](https://github.com/Spottarr/Spottarr)                             | Spotnet Usenet indexer                               |
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
 | [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
+| [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
 
 ---
 
@@ -84,6 +85,7 @@ vm-pool/apps/services/spottarr
 vm-pool/apps/services/tubesync
 vm-pool/apps/services/unifi
 vm-pool/apps/services/dozzle
+vm-pool/apps/services/drawio
 # ... one dataset per app
 ```
 
