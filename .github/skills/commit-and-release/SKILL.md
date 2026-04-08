@@ -96,7 +96,15 @@ Exit code 0 = valid. The `commit-msg` lefthook runs this automatically on every 
 
 ## Creating a release
 
-**Prerequisites:** working tree must be clean (all changes committed).
+**Prerequisites:** working tree must be clean (all changes committed) and in sync with `origin`.
+
+### Pull latest changes first
+
+Always sync before releasing to avoid push rejections:
+
+```sh
+git pull origin main
+```
 
 ### Dry-run first
 
@@ -123,3 +131,11 @@ mise exec -- cog bump --minor   # or --patch for bug-fix releases
 6. Pushes the commit and tag to `origin`
 
 The tag push triggers `.github/workflows/release.yml`, which generates release-scoped notes with `git-cliff --latest --strip all` and auto-creates the GitHub Release — no manual steps on GitHub.com needed.
+
+---
+
+## Release complete
+
+After every successful release, end with a celebrative message. Be enthusiastic, reference the version number, and congratulate the team on shipping. Make it fun — this is a milestone worth celebrating! Example:
+
+> "SHIP IT! v0.12.0 is now LIVE and sailing into production! The stacks are deployed, the changelog is fresh, and the CI is green. Take a beer — you've earned it!"
