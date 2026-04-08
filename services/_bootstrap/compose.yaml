@@ -1,13 +1,16 @@
 ---
 # _bootstrap runs before every other service (underscore sorts first alphabetically
 # in dccd.sh's service directory iteration). It sets up shared host-level directory
-# trees and permissions that other services depend on.
+# trees, networks, and permissions that other services depend on.
 #
 # All operations are idempotent — safe to re-run on every deploy cycle.
 #
 # Currently bootstraps:
 #   - archive-pool/content: media + downloads directory tree
 #     (single dataset; no child datasets — required for hardlinks/atomic moves)
+#   - arr-egress: shared macvlan network for arr stack internet egress
+#   - arr-stack-backend: internal bridge network for arr app inter-communication
+#   - arr-egress-init: validates egress IP differs from home IP before arr apps start
 #
 # Note: depends_on cannot span separate Docker Compose stacks. The alphabetical
 # deploy order is the enforcement mechanism. After the first deploy the directories
@@ -59,3 +62,69 @@ services:
         find /content -type d -exec chmod 2775 {} +
     volumes:
       - /mnt/archive-pool/content:/content
+
+  # Validates that the arr-egress macvlan network routes traffic through the
+  # isolated egress network, not the home connection. Resolves DDNS_DOMAIN
+  # (home public IP) and compares against the container's api4.ipify.org egress
+  # IP. Exits non-zero if the IPs match — blocking all arr apps that depend on
+  # this check via the alphabetical deploy order of _bootstrap.
+  arr-egress-init:
+    image: docker.io/library/alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    container_name: arr-egress-init
+    env_file:
+      - path: .env
+        required: false
+    restart: "no"
+    command:
+      - sh
+      - -c
+      - |-
+        echo "=== Egress network check ==="
+
+        EXTERNAL_IP="$(wget -qO- https://api4.ipify.org)"
+        echo "External IP (container egress) : $${EXTERNAL_IP}"
+
+        DDNS_IP="$(nslookup "${DDNS_DOMAIN}" | awk '/^Address:/{a=$2} END{print a}' | sed 's/:[0-9]*$//')"
+        echo "DDNS domain                    : ${DDNS_DOMAIN}"
+        echo "DDNS IP (home)                 : $${DDNS_IP}"
+
+        if [ -z "$${EXTERNAL_IP}" ]; then
+          echo "ERROR: Could not determine external IP via api4.ipify.org"
+          exit 1
+        fi
+        if [ -z "$${DDNS_IP}" ]; then
+          echo "ERROR: Could not resolve DDNS_DOMAIN=${DDNS_DOMAIN}"
+          exit 1
+        fi
+        if [ "$${EXTERNAL_IP}" = "$${DDNS_IP}" ]; then
+          echo "FAIL: Egress IP matches home IP — macvlan is NOT on the isolated network, aborting!"
+          exit 1
+        fi
+        echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — isolated egress confirmed"
+    networks:
+      arr-egress:
+        ipv4_address: ${EGRESS_INIT_IP}
+        mac_address: ${EGRESS_INIT_MAC}
+    mem_limit: 64m
+    pids_limit: 10
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+
+networks:
+  arr-egress:
+    name: arr-egress
+    driver: macvlan
+    driver_opts:
+      parent: ${EGRESS_PARENT_INTERFACE}
+    ipam:
+      driver: default
+      config:
+        - subnet: ${EGRESS_SUBNET}
+          gateway: ${EGRESS_GATEWAY}
+  arr-stack-backend:
+    name: arr-stack-backend
+    driver: bridge
+    internal: true # No internet access — arr apps egress via the shared arr-egress macvlan

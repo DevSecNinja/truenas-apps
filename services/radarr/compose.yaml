@@ -1,75 +1,21 @@
 ---
 services:
-  # Init: validates egress network macvlan egress before deploying Radarr.
-  # Resolves DDNS_DOMAIN (home public IP) and compares against the container's
-  # api4.ipify.org egress IP. Exits non-zero — blocking radarr — if the IPs match,
-  # meaning the container is egressing through the home connection, not egress network.
-  radarr-init:
-    image: docker.io/library/alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
-    container_name: radarr-init
-    env_file:
-      - path: .env # Decrypted from secret.sops.env
-        required: false
-      - path: ../shared/env/tz.env
-    restart: "no"
-    command:
-      - sh
-      - -c
-      - |-
-        echo "=== egress network egress check ==="
-
-        EXTERNAL_IP="$(wget -qO- https://api4.ipify.org)"
-        echo "External IP (container egress) : $${EXTERNAL_IP}"
-
-        # nslookup last Address: line is the answer; strip any trailing :port suffix
-        DDNS_IP="$(nslookup "${DDNS_DOMAIN}" | awk '/^Address:/{a=$2} END{print a}' | sed 's/:[0-9]*$//')"
-        echo "DDNS domain                    : ${DDNS_DOMAIN}"
-        echo "DDNS IP (home)                 : $${DDNS_IP}"
-
-        if [ -z "$${EXTERNAL_IP}" ]; then
-          echo "ERROR: Could not determine external IP via api4.ipify.org"
-          exit 1
-        fi
-        if [ -z "$${DDNS_IP}" ]; then
-          echo "ERROR: Could not resolve DDNS_DOMAIN=${DDNS_DOMAIN}"
-          exit 1
-        fi
-        if [ "$${EXTERNAL_IP}" = "$${DDNS_IP}" ]; then
-          echo "FAIL: Egress IP matches home IP — container is NOT on egress network, aborting!"
-          exit 1
-        fi
-        echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — egress network confirmed"
-    networks:
-      radarr-egress:
-        ipv4_address: ${EGRESS_INIT_IP}
-        mac_address: ${EGRESS_INIT_MAC} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
-    mem_limit: 64m
-    pids_limit: 10
-    security_opt:
-      - no-new-privileges=true
-    cap_drop:
-      - ALL
-    read_only: true
-
   # s6-overlay exception — see ARCHITECTURE.md for the full rationale.
   # LinuxServer Radarr starts as root and uses s6-overlay to drop to PUID:PGID.
   # read_only: true is omitted (s6-overlay writes to the root fs at startup).
   # user: is omitted (s6-overlay requires root to chown /config to PUID:PGID).
   # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for s6-overlay.
   #
-  # Network design: radarr-egress is listed FIRST so Docker sets it as eth0 and uses
+  # Network design: arr-egress is listed FIRST so Docker sets it as eth0 and uses
   # EGRESS_GATEWAY as the default route — all internet traffic exits through egress network.
   # radarr-frontend (bridge) is listed SECOND; Docker adds only a specific route for
   # the 172.x.x.x bridge subnet so Traefik can reach Radarr without overriding the
-  # egress network default route. Traefik is NOT joined to radarr-egress (macvlan) to avoid
+  # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   radarr:
     image: lscr.io/linuxserver/radarr:version-6.0.4.10291@sha256:c8a55bd83672d3b63dc20edf325277ce7dc3b69d4400568cc5bbc9e6a227ebf4
     container_name: radarr
     hostname: radarr # Identifies the container on egress network; visible in ARP/mDNS and UniFi client list
-    depends_on:
-      radarr-init:
-        condition: service_completed_successfully
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
@@ -84,9 +30,10 @@ services:
         max_attempts: 3
         window: 120s
     networks:
-      radarr-egress: # FIRST — becomes default route; all internet traffic via egress network
+      arr-egress: # FIRST — becomes default route; all internet traffic via egress network
         ipv4_address: ${EGRESS_IP}
         mac_address: ${EGRESS_MAC} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
+      arr-stack-backend: # Internal bridge for arr-to-arr communication
       radarr-frontend: # SECOND — bridge for Traefik; specific route only, no default GW change
     mem_limit: ${MEM_LIMIT:-2048m}
     pids_limit: 200
@@ -134,17 +81,11 @@ services:
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
 
 networks:
-  radarr-egress:
-    name: radarr-egress
-    driver: macvlan
-    driver_opts:
-      parent: ${EGRESS_PARENT_INTERFACE}
-    ipam:
-      driver: default
-      config:
-        - subnet: ${EGRESS_SUBNET}
-          gateway: ${EGRESS_GATEWAY}
+  arr-egress:
+    external: true
+  arr-stack-backend:
+    external: true
   radarr-frontend:
     name: radarr-frontend
     driver: bridge
-    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use radarr-egress
+    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use arr-egress

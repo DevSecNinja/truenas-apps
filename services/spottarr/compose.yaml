@@ -1,55 +1,5 @@
 ---
 services:
-  # Init: validates egress network macvlan egress before deploying Spottarr.
-  # Resolves DDNS_DOMAIN (home public IP) and compares against the container's
-  # api4.ipify.org egress IP. Exits non-zero — blocking spottarr — if the IPs match,
-  # meaning the container is egressing through the home connection, not egress network.
-  spottarr-init:
-    image: docker.io/library/alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
-    container_name: spottarr-init
-    env_file:
-      - path: .env
-        required: false
-      - path: ../shared/env/tz.env
-    restart: "no"
-    command:
-      - sh
-      - -c
-      - |-
-        echo "=== egress network egress check ==="
-
-        EXTERNAL_IP="$(wget -qO- https://api4.ipify.org)"
-        echo "External IP (container egress) : $${EXTERNAL_IP}"
-
-        DDNS_IP="$(nslookup "${DDNS_DOMAIN}" | awk '/^Address:/{a=$2} END{print a}' | sed 's/:[0-9]*$//')"
-        echo "DDNS domain                    : ${DDNS_DOMAIN}"
-        echo "DDNS IP (home)                 : $${DDNS_IP}"
-
-        if [ -z "$${EXTERNAL_IP}" ]; then
-          echo "ERROR: Could not determine external IP via api4.ipify.org"
-          exit 1
-        fi
-        if [ -z "$${DDNS_IP}" ]; then
-          echo "ERROR: Could not resolve DDNS_DOMAIN=${DDNS_DOMAIN}"
-          exit 1
-        fi
-        if [ "$${EXTERNAL_IP}" = "$${DDNS_IP}" ]; then
-          echo "FAIL: Egress IP matches home IP — container is NOT on egress network, aborting!"
-          exit 1
-        fi
-        echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — egress network confirmed"
-    networks:
-      spottarr-egress:
-        ipv4_address: ${EGRESS_INIT_IP}
-        mac_address: ${EGRESS_INIT_MAC}
-    mem_limit: 64m
-    pids_limit: 10
-    security_opt:
-      - no-new-privileges=true
-    cap_drop:
-      - ALL
-    read_only: true
-
   # Sets ownership on the ./data bind-mount directory so the non-root spottarr
   # container can write its database. Runs once, then exits.
   # Required because spottarr runs as 3117:3117 with cap_drop: ALL, meaning
@@ -79,19 +29,17 @@ services:
   # The container runs directly as user 3117:3117 with cap_drop: ALL and
   # read_only: true. The spottarr-chown init container sets volume ownership.
   #
-  # Network design: spottarr-egress is listed FIRST so Docker sets it as eth0 and uses
+  # Network design: arr-egress is listed FIRST so Docker sets it as eth0 and uses
   # EGRESS_GATEWAY as the default route — all internet traffic exits through egress network.
   # spottarr-frontend (bridge) is listed SECOND; Docker adds only a specific route for
   # the 172.x.x.x bridge subnet so Traefik can reach Spottarr without overriding the
-  # egress network default route. Traefik is NOT joined to spottarr-egress (macvlan) to avoid
+  # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   spottarr:
     image: ghcr.io/spottarr/spottarr:1.16.0@sha256:bf4663c5d54d47b2beb888bf980f9d6d26457e6939759c193229a2ebff2cbecc
     container_name: spottarr
     hostname: spottarr
     depends_on:
-      spottarr-init:
-        condition: service_completed_successfully
       spottarr-chown:
         condition: service_completed_successfully
     env_file:
@@ -117,7 +65,7 @@ services:
         max_attempts: 3
         window: 120s
     networks:
-      spottarr-egress: # FIRST — becomes default route; all internet traffic via egress network
+      arr-egress: # FIRST — becomes default route; all internet traffic via egress network
         ipv4_address: ${EGRESS_IP}
         mac_address: ${EGRESS_MAC}
       spottarr-frontend: # SECOND — bridge for Traefik; specific route only, no default GW change
@@ -162,20 +110,13 @@ services:
       - "traefik.http.services.spottarr.loadbalancer.server.port=8383"
 
 networks:
-  spottarr-egress:
-    name: spottarr-egress
-    driver: macvlan
-    driver_opts:
-      parent: ${EGRESS_PARENT_INTERFACE}
-    ipam:
-      driver: default
-      config:
-        - subnet: ${EGRESS_SUBNET}
-          gateway: ${EGRESS_GATEWAY}
+  arr-egress:
+    name: arr-egress
+    external: true
   spottarr-frontend:
     name: spottarr-frontend
     driver: bridge
-    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use spottarr-egress
+    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use arr-egress
   arr-stack-backend:
     name: arr-stack-backend
     external: true
