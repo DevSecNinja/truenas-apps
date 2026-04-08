@@ -5,7 +5,7 @@ services:
   # covered by tmpfs mounts. The image does not support PUID/PGID env vars;
   # the process is launched under the hardcoded user: directive instead.
   drawio:
-    image: docker.io/jgraph/drawio:29.3.6@sha256:c7c7f7912c2eb5e747978ad4d62a7f21c129df457d2e9711d0abc235993fdfa2
+    image: docker.io/jgraph/drawio:29.6.5@sha256:80cd09f2ae4bf92579e1512de7c382ee1ba26cd529a666f5e940fb17d01becd3
     container_name: drawio
     env_file:
       - path: .env # Decrypted from secret.sops.env
