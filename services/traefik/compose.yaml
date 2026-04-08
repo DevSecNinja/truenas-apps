@@ -67,6 +67,7 @@ services:
       - traefik-backend
       - adguard-frontend
       - echo-server-frontend
+      - excalidraw-frontend
       - gatus-frontend
       - homepage-frontend
       - traefik-forward-auth-frontend
@@ -83,6 +84,9 @@ services:
       - sabnzbd-frontend
       - sonarr-frontend
       - spottarr-frontend
+      - openspeedtest-frontend
+      - tubesync-frontend
+      - drawio-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -236,4 +240,16 @@ networks:
     external: true
   spottarr-frontend:
     name: spottarr-frontend
+    external: true
+  openspeedtest-frontend:
+    name: openspeedtest-frontend
+    external: true
+  excalidraw-frontend:
+    name: excalidraw-frontend
+    external: true
+  drawio-frontend:
+    name: drawio-frontend
+    external: true
+  tubesync-frontend:
+    name: tubesync-frontend
     external: true
