@@ -167,6 +167,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | traefik              | `traefik-init`              | `./data/acme`, `./config`                                                          |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
+| spottarr             | `spottarr-chown`            | `./data`                                                                           |
 
 ---
 
@@ -222,6 +223,10 @@ Each service gets its own frontend network (e.g., `echo-server-frontend`, `homep
 Network-level isolation. With per-service networks, containers cannot communicate with each other — only with Traefik. A shared network would let any compromised container reach every other service. The trade-off is that adding a new service requires adding its network to Traefik's compose file.
 
 Services that need Docker API access get a dedicated **internal** backend network with a socket proxy (e.g., `homepage-backend`). The same pattern applies to databases and other backing services — they sit on an internal backend network with `internal: true`, preventing external routing and ensuring only the application container can reach them.
+
+### Exception: arr-stack-backend
+
+The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
 
 ## Docker Socket Proxy
 
@@ -280,6 +285,8 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 | 3100–3199 | Per-app service accounts (UID = GID)             |
 | 3200+     | Shared purpose groups (no matching user account) |
 
+Each service account has a matching `svc-app-<name>` group created at the same GID as its UID. These groups are **GID reservations only** — they exist to prevent TrueNAS from assigning the GID to an unrelated group in the future. The app's _functional_ primary group is typically a shared purpose group (e.g., `media` at GID 3200), not the `svc-app-*` placeholder. There is no need to add `truenas_admin` or other users to the `svc-app-*` groups.
+
 ### App Service Accounts
 
 | UID/GID | TrueNAS user       | Service(s)                                  | Git-tracked config? |
@@ -300,11 +307,11 @@ TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-tra
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-| GID  | Group               | Purpose                                      | Used as primary group by                             |
-| ---- | ------------------- | -------------------------------------------- | ---------------------------------------------------- |
-| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107), Radarr (UID 3110) |
-| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                                    |
-| 3203 | `private-documents` | Access to private documents (reserved)       | —                                                    |
+| GID  | Group               | Purpose                                      | Used as primary group by                                                                                                                                  |
+| ---- | ------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107), Radarr (UID 3110), Bazarr (UID 3111), Lidarr (UID 3112), qBittorrent (UID 3114), SABnzbd (UID 3115), Sonarr (UID 3116) |
+| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                                                                                                                                         |
+| 3203 | `private-documents` | Access to private documents (reserved)       | —                                                                                                                                                         |
 
 ### Plex Exception
 
@@ -316,9 +323,9 @@ Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media`). The 
 
 Creation order for each app service account:
 
-1. Create group `svc-app-<name>` with GID matching the UID (e.g., GID 3100)
-2. Create user `svc-app-<name>` with UID matching the GID (e.g., UID 3100), primary group set to the group from step 1
-3. Add `truenas_admin` to the group — this grants group-write access to chown'd config files, allowing `git pull` without permission conflicts
+1. Create group `svc-app-<name>` with GID matching the UID (e.g., GID 3100) — this is a GID reservation to prevent conflicts
+2. Create user `svc-app-<name>` with UID matching the GID (e.g., UID 3100), primary group set to the app's functional group (e.g., `media` for media apps, or the `svc-app-*` placeholder for apps that don't need shared access)
+3. For apps with git-tracked config (`./config`): add `truenas_admin` to the app's functional primary group — this grants group-write access to chown'd config files, allowing `git pull` without permission conflicts
 
 For shared purpose groups (`media`, `private-photos`, `private-documents`):
 
@@ -472,11 +479,16 @@ volumes:
 
 ### Service Summary
 
-| Service | UID               | Primary group  | Media mount | UMASK |
-| ------- | ----------------- | -------------- | ----------- | ----- |
-| Plex    | 911 (image-fixed) | 3200 (`media`) | `:ro`       | —     |
-| MeTube  | 3107              | 3200 (`media`) | read-write  | `002` |
-| Radarr  | 3110              | 3200 (`media`) | read-write  | `002` |
+| Service     | UID               | Primary group  | Media mount | UMASK |
+| ----------- | ----------------- | -------------- | ----------- | ----- |
+| Plex        | 911 (image-fixed) | 3200 (`media`) | `:ro`       | —     |
+| MeTube      | 3107              | 3200 (`media`) | read-write  | `002` |
+| Radarr      | 3110              | 3200 (`media`) | read-write  | `002` |
+| Bazarr      | 3111              | 3200 (`media`) | read-write  | `002` |
+| Lidarr      | 3112              | 3200 (`media`) | read-write  | `002` |
+| qBittorrent | 3114              | 3200 (`media`) | read-write  | `002` |
+| SABnzbd     | 3115              | 3200 (`media`) | read-write  | `002` |
+| Sonarr      | 3116              | 3200 (`media`) | read-write  | `002` |
 
 ## Private Storage: Access Model
 

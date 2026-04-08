@@ -30,20 +30,27 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 
 ## 🐳 Apps
 
-| App                                                                          | Purpose                                             |
-| ---------------------------------------------------------------------------- | --------------------------------------------------- |
-| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)            | DNS filtering and ad blocking with Unbound resolver |
-| [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS |
-| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID           |
-| [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page   |
-| [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services        |
-| [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing        |
-| [Immich](https://immich.app/)                                                | Self-hosted photo and video management              |
-| [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding              |
-| [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI         |
-| [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation    |
-| [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend    |
-| [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                      |
+| App                                                                          | Purpose                                              |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)            | DNS filtering and ad blocking with Unbound resolver  |
+| [Bazarr](https://www.bazarr.media/)                                          | Subtitle manager for Sonarr and Radarr               |
+| [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS  |
+| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID            |
+| [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page    |
+| [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services         |
+| [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
+| [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
+| [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
+| [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
+| [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
+| [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
+| [qBittorrent](https://www.qbittorrent.org/)                                  | BitTorrent client with web interface                 |
+| [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation     |
+| [SABnzbd](https://sabnzbd.org/)                                              | Usenet download client                               |
+| [Sonarr](https://sonarr.tv/)                                                 | TV series collection manager and download automation |
+| [Spottarr](https://github.com/Spottarr/Spottarr)                             | Spotnet Usenet indexer                               |
+| [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
+| [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
 
 ---
 
@@ -57,15 +64,22 @@ Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and ba
 vm-pool/apps          # root — holds the git repo
 vm-pool/apps/services      # parent for all app datasets
 vm-pool/apps/services/adguard
+vm-pool/apps/services/bazarr
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth
 vm-pool/apps/services/gatus
 vm-pool/apps/services/homepage
 vm-pool/apps/services/echo-server
 vm-pool/apps/services/immich
+vm-pool/apps/services/lidarr
 vm-pool/apps/services/plex
 vm-pool/apps/services/metube
+vm-pool/apps/services/prowlarr
+vm-pool/apps/services/qbittorrent
 vm-pool/apps/services/radarr
+vm-pool/apps/services/sabnzbd
+vm-pool/apps/services/sonarr
+vm-pool/apps/services/spottarr
 vm-pool/apps/services/unifi
 vm-pool/apps/services/dozzle
 # ... one dataset per app

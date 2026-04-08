@@ -19,6 +19,6 @@ Requirements:
 - Validate the compose file by running `docker compose config` in the app directory.
 - Update `README.md`: add the app to the Apps table and the dataset list.
 - Update `docs/ARCHITECTURE.md`: add init container table entries, shared env entries, or new access model sections as needed.
-- Create a `secret.sops.env` template listing every secret variable the app requires (unencrypted — the user will encrypt it with SOPS).
+- Create a `secret.sops.env` template listing every secret variable the app requires, then encrypt it in-place with `sops -e -i services/<app>/secret.sops.env`.
 - Output a summary table of all secrets/variables that need to be populated in `secret.sops.env`.
 - Document any manual steps required on the TrueNAS host (creating groups, users, dataset ACLs, etc.).
