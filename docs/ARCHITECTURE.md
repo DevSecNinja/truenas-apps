@@ -217,6 +217,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **LinuxServer socket-proxy** — runs as root by design to proxy the Docker socket. Does not support custom users, mods, or scripts. Omit `cap_drop: ALL`; `no-new-privileges` and `read_only` are still applied.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
+- **meeb/tubesync** — uses its own `start.sh` init script to create the `PUID:PGID` user, chown `/config`, and launch supervisord; omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 
@@ -340,16 +341,17 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3108    | `svc-app-unifi`    | unifi, unifi-db-backup                      | No                  |
 | 3109    | `svc-app-dozzle`   | dozzle, dozzle-init                         | No                  |
 | 3110    | `svc-app-radarr`   | radarr                                      | No                  |
+| 3118    | `svc-app-tubesync` | tubesync                                    | No                  |
 
 ### Shared Purpose Groups
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-| GID  | Group               | Purpose                                      | Used as primary group by                                                                                                                                  |
-| ---- | ------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107), Radarr (UID 3110), Bazarr (UID 3111), Lidarr (UID 3112), qBittorrent (UID 3114), SABnzbd (UID 3115), Sonarr (UID 3116) |
-| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                                                                                                                                         |
-| 3203 | `private-documents` | Access to private documents (reserved)       | —                                                                                                                                                         |
+| GID  | Group               | Purpose                                      | Used as primary group by                                                                                                                                                       |
+| ---- | ------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107), Radarr (UID 3110), Bazarr (UID 3111), Lidarr (UID 3112), qBittorrent (UID 3114), SABnzbd (UID 3115), Sonarr (UID 3116), TubeSync (UID 3118) |
+| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                                                                                                                                                              |
+| 3203 | `private-documents` | Access to private documents (reserved)       | —                                                                                                                                                                              |
 
 ### Plex Exception
 
@@ -527,6 +529,7 @@ volumes:
 | qBittorrent | 3114              | 3200 (`media`) | read-write  | `002` |
 | SABnzbd     | 3115              | 3200 (`media`) | read-write  | `002` |
 | Sonarr      | 3116              | 3200 (`media`) | read-write  | `002` |
+| TubeSync    | 3118              | 3200 (`media`) | read-write  | —     |
 
 ## Private Storage: Access Model
 

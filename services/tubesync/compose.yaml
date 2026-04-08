@@ -1,0 +1,74 @@
+---
+services:
+  # meeb/tubesync uses a startup init script (start.sh) that creates the PUID:PGID user,
+  # chowns /config to PUID:PGID, and starts supervisord before dropping privileges.
+  # This is the same root-start pattern as LinuxServer/s6-overlay images.
+  # read_only: true is omitted (init script writes to the root fs during startup).
+  # user: is omitted (init script requires root to chown /config to PUID:PGID).
+  # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for init privilege drop.
+  tubesync:
+    image: ghcr.io/meeb/tubesync:v0.16.3@sha256:cc5815b0cfe4338ec76bab475f184e1691ad4825484a7422de3b22691cdbdc98
+    container_name: tubesync
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - PUID=3118 # svc-app-tubesync
+      - PGID=3200 # media group — shared with Plex, MeTube, and other media apps
+      - UMASK=002 # group-writable files (664/775) for media group consumers
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - tubesync-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # init script chowns /config to PUID:PGID at startup
+      - SETUID # init script drops from root to PUID
+      - SETGID # init script drops from root to PGID
+      - SETPCAP # clears the bounding capability set before exec-ing TubeSync
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/config:/config
+      - /mnt/archive-pool/content/media/youtube/tubesync:/downloads
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://localhost:4848"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Media
+      - homepage.name=TubeSync
+      - homepage.icon=sh-tubesync
+      - homepage.href=https://tubesync.${DOMAINNAME}
+      - homepage.description=YouTube Library
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=tubesync-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.tubesync-rtr.rule=Host(`tubesync.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.tubesync-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.tubesync-rtr.service=tubesync"
+      - "traefik.http.services.tubesync.loadbalancer.server.port=4848"
+
+networks:
+  tubesync-frontend:
+    name: tubesync-frontend
+    driver: bridge

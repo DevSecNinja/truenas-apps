@@ -43,6 +43,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
+| [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation          |
 | [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
 | [qBittorrent](https://www.qbittorrent.org/)                                  | BitTorrent client with web interface                 |
 | [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation     |
@@ -80,6 +81,7 @@ vm-pool/apps/services/radarr
 vm-pool/apps/services/sabnzbd
 vm-pool/apps/services/sonarr
 vm-pool/apps/services/spottarr
+vm-pool/apps/services/tubesync
 vm-pool/apps/services/unifi
 vm-pool/apps/services/dozzle
 # ... one dataset per app
@@ -118,10 +120,10 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) and [Age](htt
 
 ```sh
 # Encrypt
-sops -e -i secret.sops.env
+sops -e -i $(full-path)secret.sops.env
 
 # Decrypt (manual)
-sops -d secret.sops.env > .env
+sops -d $(full-path)secret.sops.env > .env
 ```
 
 The Age private key is stored on the TrueNAS host and referenced via the `-k` flag in `dccd.sh`.
