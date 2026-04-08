@@ -42,9 +42,8 @@ services:
     healthcheck:
       test:
         - "CMD"
-        - "wget"
-        - "--spider"
-        - "-q"
+        - "curl"
+        - "-f"
         - "http://localhost:80"
       interval: 15s
       timeout: 5s
