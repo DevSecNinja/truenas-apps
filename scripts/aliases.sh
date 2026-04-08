@@ -11,7 +11,8 @@
 ########################################
 
 # Show all containers with their health status
-alias dps='sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'
+# shellcheck disable=SC2154 # $header is assigned by read inside the alias at runtime
+alias dps='sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | (read -r header; echo "$header"; sort)'
 
 # Show only unhealthy or exited containers
 alias dps-bad='sudo docker ps -a --format "table {{.Names}}\t{{.Status}}" --filter "health=unhealthy" --filter "status=exited"'

@@ -74,8 +74,15 @@ services:
       - plex-frontend
       - metube-frontend
       - immich-frontend
+      - bazarr-frontend
       - dozzle-frontend
+      - lidarr-frontend
+      - prowlarr-frontend
+      - qbittorrent-frontend
       - radarr-frontend
+      - sabnzbd-frontend
+      - sonarr-frontend
+      - spottarr-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -206,6 +213,27 @@ networks:
   dozzle-frontend:
     name: dozzle-frontend
     external: true
+  bazarr-frontend:
+    name: bazarr-frontend
+    external: true
+  lidarr-frontend:
+    name: lidarr-frontend
+    external: true
+  prowlarr-frontend:
+    name: prowlarr-frontend
+    external: true
+  qbittorrent-frontend:
+    name: qbittorrent-frontend
+    external: true
   radarr-frontend:
     name: radarr-frontend
+    external: true
+  sabnzbd-frontend:
+    name: sabnzbd-frontend
+    external: true
+  sonarr-frontend:
+    name: sonarr-frontend
+    external: true
+  spottarr-frontend:
+    name: spottarr-frontend
     external: true
