@@ -49,6 +49,10 @@ run = "uname -m | grep -qE 'aarch64|arm64' || mise exec -- dotenv-linter fix --n
 glob = ["services/shared/env/*.env"]
 stage_fixed = true
 
+[pre-commit.commands.sops-encryption-check]
+run = "for f in {staged_files}; do grep -q '^sops_mac=' \"$f\" || { echo \"ERROR: $f is not SOPS-encrypted\"; exit 1; }; done"
+glob = ["**/secret.sops.env"]
+
 [commit-msg.commands.cocogitto]
 run = "mise exec -- cog verify \"$(cat {1})\""
 
