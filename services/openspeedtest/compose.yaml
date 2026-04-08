@@ -1,0 +1,66 @@
+---
+services:
+  # OpenSpeedTest is based on nginx and the image's entrypoint script modifies
+  # /etc/nginx/conf.d/OpenSpeedTest-Server.conf at startup via sed -i to adapt
+  # listener directives to the available network stack. This prevents read_only: true.
+  # All other security hardening remains in place: cap_drop: ALL, no-new-privileges,
+  # pids_limit, mem_limit.
+  #
+  # The image ships with a built-in non-root 'nginx' user (UID 101, GID 101).
+  # There are no persistent volumes and therefore no TrueNAS service account is
+  # required and no init container is needed.
+  openspeedtest:
+    image: docker.io/openspeedtest/latest:v2.0.6@sha256:a6a7e3b3e9e93cfe7b9b2eb49c60b2a93644149a0a600845d4df57148b193ff6
+    container_name: openspeedtest
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - openspeedtest-frontend
+    mem_limit: 1024m
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp # nginx PID file location (/tmp/nginx.pid per image nginx.conf)
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:3000/"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Speedtest
+      - homepage.icon=sh-openspeedtest
+      - homepage.href=https://speedtest.${DOMAINNAME}
+      - homepage.description=Network Speedtest
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=openspeedtest-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.openspeedtest-rtr.rule=Host(`speedtest.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.openspeedtest-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.openspeedtest-rtr.service=openspeedtest"
+      - "traefik.http.services.openspeedtest.loadbalancer.server.port=3000"
+
+networks:
+  openspeedtest-frontend:
+    name: openspeedtest-frontend
+    driver: bridge

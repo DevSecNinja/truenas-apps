@@ -53,6 +53,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
 | [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
 | [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
+| [OpenSpeedTest](https://openspeedtest.com/)                                  | Browser-based network speed test                     |
 
 ---
 
@@ -76,6 +77,7 @@ vm-pool/apps/services/immich
 vm-pool/apps/services/lidarr
 vm-pool/apps/services/plex
 vm-pool/apps/services/metube
+vm-pool/apps/services/openspeedtest
 vm-pool/apps/services/prowlarr
 vm-pool/apps/services/qbittorrent
 vm-pool/apps/services/radarr
