@@ -1,14 +1,14 @@
 ---
 services:
-  # Init: validates egress network macvlan egress before deploying Radarr.
+  # Init: validates egress network macvlan egress before deploying Lidarr.
   # Resolves DDNS_DOMAIN (home public IP) and compares against the container's
-  # api4.ipify.org egress IP. Exits non-zero — blocking radarr — if the IPs match,
+  # api4.ipify.org egress IP. Exits non-zero — blocking lidarr — if the IPs match,
   # meaning the container is egressing through the home connection, not egress network.
-  radarr-init:
+  lidarr-init:
     image: docker.io/library/alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
-    container_name: radarr-init
+    container_name: lidarr-init
     env_file:
-      - path: .env # Decrypted from secret.sops.env
+      - path: .env
         required: false
       - path: ../shared/env/tz.env
     restart: "no"
@@ -21,7 +21,6 @@ services:
         EXTERNAL_IP="$(wget -qO- https://api4.ipify.org)"
         echo "External IP (container egress) : $${EXTERNAL_IP}"
 
-        # nslookup last Address: line is the answer; strip any trailing :port suffix
         DDNS_IP="$(nslookup "${DDNS_DOMAIN}" | awk '/^Address:/{a=$2} END{print a}' | sed 's/:[0-9]*$//')"
         echo "DDNS domain                    : ${DDNS_DOMAIN}"
         echo "DDNS IP (home)                 : $${DDNS_IP}"
@@ -40,9 +39,9 @@ services:
         fi
         echo "OK: Egress IP ($${EXTERNAL_IP}) != home IP ($${DDNS_IP}) — egress network confirmed"
     networks:
-      radarr-egress:
+      lidarr-egress:
         ipv4_address: ${EGRESS_INIT_IP}
-        mac_address: ${EGRESS_INIT_MAC} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
+        mac_address: ${EGRESS_INIT_MAC}
     mem_limit: 64m
     pids_limit: 10
     security_opt:
@@ -52,30 +51,30 @@ services:
     read_only: true
 
   # s6-overlay exception — see ARCHITECTURE.md for the full rationale.
-  # LinuxServer Radarr starts as root and uses s6-overlay to drop to PUID:PGID.
+  # LinuxServer Lidarr starts as root and uses s6-overlay to drop to PUID:PGID.
   # read_only: true is omitted (s6-overlay writes to the root fs at startup).
   # user: is omitted (s6-overlay requires root to chown /config to PUID:PGID).
   # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for s6-overlay.
   #
-  # Network design: radarr-egress is listed FIRST so Docker sets it as eth0 and uses
+  # Network design: lidarr-egress is listed FIRST so Docker sets it as eth0 and uses
   # EGRESS_GATEWAY as the default route — all internet traffic exits through egress network.
-  # radarr-frontend (bridge) is listed SECOND; Docker adds only a specific route for
-  # the 172.x.x.x bridge subnet so Traefik can reach Radarr without overriding the
-  # egress network default route. Traefik is NOT joined to radarr-egress (macvlan) to avoid
+  # lidarr-frontend (bridge) is listed SECOND; Docker adds only a specific route for
+  # the 172.x.x.x bridge subnet so Traefik can reach Lidarr without overriding the
+  # egress network default route. Traefik is NOT joined to lidarr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
-  radarr:
-    image: lscr.io/linuxserver/radarr:version-6.0.4.10291@sha256:c8a55bd83672d3b63dc20edf325277ce7dc3b69d4400568cc5bbc9e6a227ebf4
-    container_name: radarr
-    hostname: radarr # Identifies the container on egress network; visible in ARP/mDNS and UniFi client list
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:version-3.1.0.4875@sha256:dbffcf91da47d48e09e613857032c95a62755b928a71a7718688e3ab03fbbd26
+    container_name: lidarr
+    hostname: lidarr
     depends_on:
-      radarr-init:
+      lidarr-init:
         condition: service_completed_successfully
     env_file:
-      - path: .env # Decrypted from secret.sops.env
+      - path: .env
         required: false
       - path: ../shared/env/tz.env
     environment:
-      - PUID=3110 # svc-app-radarr
+      - PUID=3112 # svc-app-lidarr
       - PGID=3200 # media group — shared with Plex, MeTube, and other arr apps
       - UMASK=002 # group-writable files for media group (664 files, 775 dirs)
     deploy:
@@ -84,10 +83,11 @@ services:
         max_attempts: 3
         window: 120s
     networks:
-      radarr-egress: # FIRST — becomes default route; all internet traffic via egress network
+      lidarr-egress: # FIRST — becomes default route; all internet traffic via egress network
         ipv4_address: ${EGRESS_IP}
-        mac_address: ${EGRESS_MAC} # Stable MAC so UniFi always shows the same device entry; set a DHCP reservation on this MAC
-      radarr-frontend: # SECOND — bridge for Traefik; specific route only, no default GW change
+        mac_address: ${EGRESS_MAC}
+      lidarr-frontend: # SECOND — bridge for Traefik; specific route only, no default GW change
+      arr-stack-backend: # Internal bridge for arr app inter-communication
     mem_limit: ${MEM_LIMIT:-2048m}
     pids_limit: 200
     security_opt:
@@ -98,7 +98,7 @@ services:
       - CHOWN # s6-overlay chowns /config to PUID:PGID at startup
       - SETUID # s6-overlay drops from root to PUID
       - SETGID # s6-overlay drops from root to PGID
-      - SETPCAP # s6-overlay clears bounding capabilities before exec-ing Radarr
+      - SETPCAP # s6-overlay clears bounding capabilities before exec-ing Lidarr
     tmpfs:
       - /run:exec # s6-overlay places executables in /run during init
       - /tmp
@@ -110,7 +110,7 @@ services:
         - "CMD"
         - "curl"
         - "-f"
-        - "http://localhost:7878/ping"
+        - "http://localhost:8686/ping"
       interval: 15s
       timeout: 5s
       retries: 3
@@ -118,24 +118,24 @@ services:
     labels:
       # Homepage
       - homepage.group=Media
-      - homepage.name=Radarr
-      - homepage.icon=radarr.svg
-      - homepage.href=https://radarr.$DOMAINNAME
-      - homepage.description=Movie Collection Manager
+      - homepage.name=Lidarr
+      - homepage.icon=lidarr.svg
+      - homepage.href=https://lidarr.$DOMAINNAME
+      - homepage.description=Music Collection Manager
       # Traefik
       - "traefik.enable=true"
-      - "traefik.docker.network=radarr-frontend"
+      - "traefik.docker.network=lidarr-frontend"
       ## HTTP Routers
-      - "traefik.http.routers.radarr-rtr.rule=Host(`radarr.${DOMAINNAME}`)"
+      - "traefik.http.routers.lidarr-rtr.rule=Host(`lidarr.${DOMAINNAME}`)"
       ## Middlewares
-      - "traefik.http.routers.radarr-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.lidarr-rtr.middlewares=chain-auth@file"
       ## HTTP Services
-      - "traefik.http.routers.radarr-rtr.service=radarr"
-      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      - "traefik.http.routers.lidarr-rtr.service=lidarr"
+      - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
 
 networks:
-  radarr-egress:
-    name: radarr-egress
+  lidarr-egress:
+    name: lidarr-egress
     driver: macvlan
     driver_opts:
       parent: ${EGRESS_PARENT_INTERFACE}
@@ -144,7 +144,10 @@ networks:
       config:
         - subnet: ${EGRESS_SUBNET}
           gateway: ${EGRESS_GATEWAY}
-  radarr-frontend:
-    name: radarr-frontend
+  lidarr-frontend:
+    name: lidarr-frontend
     driver: bridge
-    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use radarr-egress
+    internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use lidarr-egress
+  arr-stack-backend:
+    name: arr-stack-backend
+    external: true

@@ -21,7 +21,7 @@ dns:
   ratelimit_subnet_len_ipv6: 56
   ratelimit_whitelist: []
   refuse_any: true
-  # [adguard] Enable support for IPv6
+  # TODO: [adguard] Enable support for IPv6
   upstream_dns:
     - udp://adguard-unbound:5335
   upstream_dns_file: ""
