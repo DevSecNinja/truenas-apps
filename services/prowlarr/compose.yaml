@@ -149,4 +149,5 @@ networks:
     internal: true # Blocks internet egress via the Traefik bridge — all outbound traffic must use prowlarr-egress
   arr-stack-backend:
     name: arr-stack-backend
-    external: true
+    driver: bridge
+    internal: true # No internet access — arr apps egress via their own dedicated macvlan networks

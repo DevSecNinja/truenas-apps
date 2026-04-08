@@ -8,7 +8,6 @@
 # Currently bootstraps:
 #   - archive-pool/content: media + downloads directory tree
 #     (single dataset; no child datasets — required for hardlinks/atomic moves)
-#   - arr-stack-backend: internal bridge network for arr app inter-communication
 #
 # Note: depends_on cannot span separate Docker Compose stacks. The alphabetical
 # deploy order is the enforcement mechanism. After the first deploy the directories
@@ -60,9 +59,3 @@ services:
         find /content -type d -exec chmod 2775 {} +
     volumes:
       - /mnt/archive-pool/content:/content
-
-networks:
-  arr-stack-backend:
-    name: arr-stack-backend
-    driver: bridge
-    internal: true # No internet access — arr apps egress via their own dedicated macvlan networks
