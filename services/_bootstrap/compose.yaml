@@ -105,6 +105,7 @@ services:
       arr-egress:
         ipv4_address: ${EGRESS_INIT_IP}
         mac_address: ${EGRESS_INIT_MAC}
+      arr-stack-backend:
     mem_limit: 64m
     pids_limit: 10
     security_opt:
