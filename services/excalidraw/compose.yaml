@@ -1,0 +1,74 @@
+---
+services:
+  # nginx exception — excalidraw/excalidraw is a standard nginx:alpine image serving
+  # static files. The nginx master process starts as root to bind port 80 and drops
+  # to the internal 'nginx' user for worker processes; user: cannot be set for the
+  # same reason as LinuxServer s6-overlay images.
+  # read_only: true is supported here via tmpfs mounts for nginx's writable paths.
+  # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP and NET_BIND_SERVICE
+  # re-added for nginx's internal privilege-dropping and privileged port binding.
+  # No persistent data or git-tracked config — no init container required.
+  excalidraw:
+    image: docker.io/excalidraw/excalidraw:latest@sha256:3c2513e830bb6e195147c05b34ecf8393d0ba2b1cc86e93b407a5777d6135c6c
+    container_name: excalidraw
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - excalidraw-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # nginx chowns its temp dirs and pid file at startup
+      - SETUID # nginx master drops from root to nginx user for worker processes
+      - SETGID # nginx master drops from root to nginx group for worker processes
+      - SETPCAP # nginx clears bounding capabilities before exec-ing worker processes
+      - NET_BIND_SERVICE # nginx binds to port 80 (privileged) before dropping privileges
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx # nginx proxy and temp file cache
+      - /var/run # nginx.pid and unix socket files
+      - /tmp # temporary request body storage
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:80"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Excalidraw
+      - homepage.icon=sh-excalidraw
+      - homepage.href=https://excalidraw.${DOMAINNAME}
+      - homepage.description=Virtual Whiteboard
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=excalidraw-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.excalidraw-rtr.rule=Host(`excalidraw.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.excalidraw-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.excalidraw-rtr.service=excalidraw"
+      - "traefik.http.services.excalidraw.loadbalancer.server.port=80"
+
+networks:
+  excalidraw-frontend:
+    name: excalidraw-frontend
+    driver: bridge
