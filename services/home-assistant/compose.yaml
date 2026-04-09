@@ -1,16 +1,17 @@
 ---
 services:
-  # ghcr.io/home-assistant/home-assistant is a Python application that runs as
-  # root (UID 0) inside the container. It does not support PUID/PGID env vars
-  # and has no s6-overlay init system.
-  # read_only: true is omitted — HA writes Python bytecache files into the
-  # image layer's site-packages at startup, and writes state files outside
-  # of /config in some integration paths.
-  # user: is omitted — HA launches as root and manages its own /config
-  # directory permissions internally. No init container is required.
-  # cap_drop: ALL is applied; no capabilities are re-added because HA runs on
-  # port 8123 (> 1024, so NET_BIND_SERVICE is not needed) and only requires
-  # standard file I/O on /config and TCP networking.
+  # ghcr.io/home-assistant/home-assistant uses s6-overlay (confirmed by s6-rc
+  # log lines at startup). s6-overlay starts as root and drops privileges
+  # internally, so user: and read_only: are omitted per the s6-overlay pattern.
+  # cap_drop: ALL is applied; the following caps are re-added:
+  #   CHOWN      — s6-overlay chowns /config to the runtime user at startup
+  #   SETUID     — s6-overlay drops from root to the runtime UID
+  #   SETGID     — s6-overlay drops from root to the runtime GID
+  #   SETPCAP    — s6-overlay clears the bounding capability set before exec
+  #   NET_RAW    — required by HA's DHCP watcher integration (raw packet
+  #                capture via AF_PACKET sockets); without it HA logs
+  #                "[Errno 1] Operation not permitted" and the DHCP
+  #                integration silently stops tracking devices.
   # NOTE: The Traefik container's IP must be added to trusted_proxies in the
   # Home Assistant http: configuration block so that X-Forwarded-For headers
   # are trusted and the real client IP is visible in HA logs and automations.
@@ -34,6 +35,12 @@ services:
       - no-new-privileges=true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN # s6-overlay chowns /config to the runtime user at startup
+      - SETUID # s6-overlay drops from root to the runtime UID
+      - SETGID # s6-overlay drops from root to the runtime GID
+      - SETPCAP # s6-overlay clears the bounding capability set before exec
+      - NET_RAW # Required by HA's DHCP watcher integration (raw packet capture)
     tmpfs:
       - /tmp
     volumes:
