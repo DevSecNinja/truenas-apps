@@ -58,6 +58,7 @@ services:
       - DEFAULT_LANGUAGE=en_US
       - RATE_LIMITER_ENABLED=false # Already enabled on Traefik
       ## Authentication
+      - EMAIL_LOGIN_DISABLED=true
       - AZURE_CLIENT_ID=${OUTLINE_AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${OUTLINE_AZURE_CLIENT_SECRET}
       - AZURE_RESOURCE_APP_ID=${OUTLINE_AZURE_RESOURCE_APP_ID}
@@ -71,7 +72,7 @@ services:
       - SMTP_USERNAME=${NOTIFICATIONS_EMAIL_USERNAME}
       - SMTP_PASSWORD=${NOTIFICATIONS_EMAIL_PASSWORD}
       - SMTP_FROM_EMAIL=${NOTIFICATIONS_EMAIL_FROM}
-      - SMTP_SECURE=true
+      - SMTP_SECURE=false # false = STARTTLS (port 587); true = implicit SSL (port 465 = better, come on MSFT...)
       ## Storage
       - FILE_STORAGE=local
       - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
