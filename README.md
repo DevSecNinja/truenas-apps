@@ -37,6 +37,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS  |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID            |
 | [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page    |
+| [Home Assistant](https://www.home-assistant.io/)                             | Open source home automation platform                 |
 | [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services         |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
 | [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
@@ -71,6 +72,7 @@ vm-pool/apps/services/bazarr
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth
 vm-pool/apps/services/gatus
+vm-pool/apps/services/home-assistant
 vm-pool/apps/services/homepage
 vm-pool/apps/services/echo-server
 vm-pool/apps/services/immich

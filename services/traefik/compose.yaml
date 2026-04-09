@@ -87,6 +87,7 @@ services:
       - openspeedtest-frontend
       - tubesync-frontend
       - drawio-frontend
+      - home-assistant-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -252,4 +253,7 @@ networks:
     external: true
   tubesync-frontend:
     name: tubesync-frontend
+    external: true
+  home-assistant-frontend:
+    name: home-assistant-frontend
     external: true

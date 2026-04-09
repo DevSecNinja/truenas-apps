@@ -218,6 +218,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 - **meeb/tubesync** — uses its own `start.sh` init script to create the `PUID:PGID` user, chown `/config`, and launch supervisord; omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
+- **ghcr.io/home-assistant/home-assistant** — a Python application that runs as root (UID 0) with no PUID/PGID support and no init system. It writes Python bytecache files into the image layer and state files outside `/config` at startup. Omit `user:` and `read_only:`. No `cap_add` is required since HA only uses file I/O and normal TCP networking (port 8123 > 1024). No init container is needed — HA manages its own `/config` directory permissions. No TrueNAS service account is required; data files in `./data/config` will be owned by `root:root` on the host.
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 
