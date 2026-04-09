@@ -123,7 +123,7 @@ services:
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
   outline-db-upgrade:
-    image: docker.io/pgautoupgrade/pgautoupgrade:17-alpine3.21@sha256:11c37cbd180686925286c8fd51be992f5f4d1f641af150a671b56f542567fbe7
+    image: docker.io/pgautoupgrade/pgautoupgrade:18.3-alpine@sha256:fadc9788ee25f7acc040bbf485a880ce7ca9021575bd6e45b0ca4cf7edb50d5b
     container_name: outline-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env
