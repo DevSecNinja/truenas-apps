@@ -36,7 +36,7 @@ services:
   # UMASK=002 produces group-writable files (664/775) so all media group
   # (GID 3200) members can read files written by MeTube.
   metube:
-    image: ghcr.io/alexta69/metube:2026.04.03@sha256:4a773d993edf3d3d03ccb6c91e3bcca221ae634a008417be95921062c6a4a864
+    image: ghcr.io/alexta69/metube:2026.04.09@sha256:2ad2f7b064afc87184ce45466634048fd5c690de7c0f776bdbdf98de430173e5
     container_name: metube
     depends_on:
       metube-init:
