@@ -28,6 +28,7 @@ COMPOSE_OPTS=""                               # Additional options for docker co
 EXCLUDE=""                                    # Exclude pattern for directories
 TRUENAS=0                                     # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
+DECRYPT_ONLY=0                                # Decrypt SOPS files and exit (skip deploy)
 FORCE=0                                       # Force redeploy, skip hash check
 NO_PULL=0                                     # Skip pulling images (for local testing)
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
@@ -674,6 +675,7 @@ usage() {
       -a <name>       Only deploy the specified app (optional - matches directory name)
       -b <name>       Specify the remote branch to track (default: main)
       -d <path>       Specify the base directory of the git repository (required)
+      -D              Decrypt-only: decrypt all SOPS secret files and exit without deploying
       -f              Force redeploy, skip the hash comparison check (optional)
       -g              Graceful, only restart containers that will be recreated (optional)
       -h              Show this help message
@@ -700,7 +702,7 @@ EOF
 # Options
 ########################################
 
-while getopts ":a:b:d:fgG:k:hno:pr:s:tw:x:" opt; do
+while getopts ":a:b:d:DfgG:k:hno:pr:s:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
@@ -710,6 +712,9 @@ while getopts ":a:b:d:fgG:k:hno:pr:s:tw:x:" opt; do
         ;;
     d)
         BASE_DIR="${OPTARG}"
+        ;;
+    D)
+        DECRYPT_ONLY=1
         ;;
     f)
         FORCE=1
@@ -863,6 +868,13 @@ if [ -n "${GATUS_URL}" ]; then
     else
         log_message "WARNING: GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
     fi
+fi
+
+# Decrypt-only mode: skip git sync and deployment
+if [ "${DECRYPT_ONLY}" -eq 1 ]; then
+    log_message "INFO:  Decrypt-only mode enabled, skipping git sync and deployment"
+    decrypt_sops_files
+    exit 0
 fi
 
 _CD_START_TIME=$(date +%s)

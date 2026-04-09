@@ -69,6 +69,9 @@ dccd_app() {
 }
 alias dccd-app='dccd_app'
 
+# Decrypt all SOPS-encrypted env files without deploying
+alias dccd-decrypt='bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -D'
+
 # View recent dccd cron job logs from the system journal (syslog tag set by logger -t dccd)
 alias dccd-logs='sudo journalctl -t dccd -n 200 --no-pager'
 
@@ -93,6 +96,7 @@ DCCD:
   dccd-all          Force-deploy all apps (TrueNAS mode)
   dccd-graceful     Graceful deploy (only restart changed)
   dccd-app <app>    Force-deploy a single app by name
+  dccd-decrypt      Decrypt all SOPS env files (no deploy)
   dccd-logs         View recent dccd cron job logs
 
 Help:
