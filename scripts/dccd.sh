@@ -460,6 +460,11 @@ update_compose_files() {
         fi
     fi
 
+    # In decrypt-only mode always run decryption, even when there are no new commits
+    if [ "${DECRYPT_ONLY}" -eq 1 ]; then
+        SHOULD_DEPLOY=1
+    fi
+
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
         # Decrypt SOPS-encrypted secret files before deploying
         decrypt_sops_files
