@@ -1,5 +1,32 @@
 ---
 services:
+  # Seeds ./config/configuration.yaml into ./data/config/ on first deploy only
+  # (cp -n never overwrites). This ensures the http: trusted_proxies block is
+  # present from the very first startup without clobbering any subsequent edits
+  # the user or HA itself makes to configuration.yaml inside the container.
+  # Runs as root (no user:) — data/config is root:root so no CHOWN is needed.
+  home-assistant-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: home-assistant-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        mkdir -p /data &&
+        cp -n /templates/configuration.yaml /data/configuration.yaml
+    volumes:
+      - ./config:/templates:ro
+      - ./data/config:/data
+
   # ghcr.io/home-assistant/home-assistant uses s6-overlay (confirmed by s6-rc
   # log lines at startup). s6-overlay starts as root and drops privileges
   # internally, so user: and read_only: are omitted per the s6-overlay pattern.
@@ -12,12 +39,12 @@ services:
   #                capture via AF_PACKET sockets); without it HA logs
   #                "[Errno 1] Operation not permitted" and the DHCP
   #                integration silently stops tracking devices.
-  # NOTE: The Traefik container's IP must be added to trusted_proxies in the
-  # Home Assistant http: configuration block so that X-Forwarded-For headers
-  # are trusted and the real client IP is visible in HA logs and automations.
   home-assistant:
     image: ghcr.io/home-assistant/home-assistant:beta@sha256:8848691147f01a6eee7753de2ade21b04d6168fcd2e2a7089f6f84e3b7b86960
     container_name: home-assistant
+    depends_on:
+      home-assistant-init:
+        condition: service_completed_successfully
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false

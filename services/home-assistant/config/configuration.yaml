@@ -1,0 +1,25 @@
+---
+# Home Assistant base configuration.
+# This file is seeded into ./data/config/ by the home-assistant-init container
+# on first deploy (cp -n — never overwrites). Edit ./data/config/configuration.yaml
+# on the TrueNAS host for subsequent changes; they will be preserved across deploys.
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  # Trust X-Forwarded-For headers from Traefik.
+  # Without this HA logs "not set-up for reverse proxies" and rejects the headers.
+  # 172.16.0.0/12 covers the full Docker bridge range (172.16.x.x – 172.31.x.x).
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - 172.16.0.0/12

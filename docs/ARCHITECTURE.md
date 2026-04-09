@@ -206,6 +206,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
 | spottarr             | `spottarr-chown`            | `./data`                                                                           |
+| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
 
 ---
