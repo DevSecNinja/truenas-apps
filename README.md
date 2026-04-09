@@ -34,28 +34,28 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | ---------------------------------------------------------------------------- | ---------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)            | DNS filtering and ad blocking with Unbound resolver  |
 | [Bazarr](https://www.bazarr.media/)                                          | Subtitle manager for Sonarr and Radarr               |
-| [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS  |
-| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID            |
+| [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
+| [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
+| [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
 | [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page    |
 | [Home Assistant](https://www.home-assistant.io/)                             | Open source home automation platform                 |
 | [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services         |
-| [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
 | [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
 | [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
-| [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
-| [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation         |
+| [OpenSpeedTest](https://openspeedtest.com/)                                  | Browser-based network speed test                     |
+| [Outline](https://www.getoutline.com/)                                       | Knowledge base and wiki with Azure AD authentication |
+| [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
 | [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
 | [qBittorrent](https://www.qbittorrent.org/)                                  | BitTorrent client with web interface                 |
 | [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation     |
 | [SABnzbd](https://sabnzbd.org/)                                              | Usenet download client                               |
 | [Sonarr](https://sonarr.tv/)                                                 | TV series collection manager and download automation |
 | [Spottarr](https://github.com/Spottarr/Spottarr)                             | Spotnet Usenet indexer                               |
+| [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS  |
+| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID            |
+| [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation         |
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
-| [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
-| [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
-| [Outline](https://www.getoutline.com/)                                       | Knowledge base and wiki with Azure AD authentication |
-| [OpenSpeedTest](https://openspeedtest.com/)                                  | Browser-based network speed test                     |
 
 ---
 
@@ -70,28 +70,28 @@ vm-pool/apps          # root — holds the git repo
 vm-pool/apps/services      # parent for all app datasets
 vm-pool/apps/services/adguard
 vm-pool/apps/services/bazarr
-vm-pool/apps/services/traefik
-vm-pool/apps/services/traefik-forward-auth
+vm-pool/apps/services/dozzle
+vm-pool/apps/services/drawio
+vm-pool/apps/services/echo-server
 vm-pool/apps/services/gatus
 vm-pool/apps/services/home-assistant
 vm-pool/apps/services/homepage
-vm-pool/apps/services/echo-server
 vm-pool/apps/services/immich
 vm-pool/apps/services/lidarr
-vm-pool/apps/services/plex
 vm-pool/apps/services/metube
 vm-pool/apps/services/openspeedtest
+vm-pool/apps/services/outline
+vm-pool/apps/services/plex
 vm-pool/apps/services/prowlarr
 vm-pool/apps/services/qbittorrent
 vm-pool/apps/services/radarr
 vm-pool/apps/services/sabnzbd
 vm-pool/apps/services/sonarr
 vm-pool/apps/services/spottarr
+vm-pool/apps/services/traefik
+vm-pool/apps/services/traefik-forward-auth
 vm-pool/apps/services/tubesync
 vm-pool/apps/services/unifi
-vm-pool/apps/services/dozzle
-vm-pool/apps/services/drawio
-vm-pool/apps/services/outline
 # ... one dataset per app
 ```
 
