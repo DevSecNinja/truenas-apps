@@ -1,9 +1,14 @@
 ---
 services:
-  # Seeds ./config/configuration.yaml into ./data/config/ on first deploy only
-  # (cp -n never overwrites). This ensures the http: trusted_proxies block is
-  # present from the very first startup without clobbering any subsequent edits
-  # the user or HA itself makes to configuration.yaml inside the container.
+  # Seeds ./config/ template files into ./data/config/ on first deploy only
+  # (cp -n never overwrites existing files). Seeds:
+  #   configuration.yaml — main config with http: trusted_proxies for Traefik
+  #   automations.yaml   — empty list required by automation: !include
+  #   scripts.yaml       — empty list required by script: !include
+  #   scenes.yaml        — empty list required by scene: !include
+  # Without these stubs HA cannot parse configuration.yaml and enters recovery
+  # mode, ignoring the http: block and logging the "not set-up for reverse
+  # proxies" error on every request.
   # Runs as root (no user:) — data/config is root:root so no CHOWN is needed.
   home-assistant-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
@@ -22,7 +27,10 @@ services:
       - "-c"
       - |-
         mkdir -p /data &&
-        cp -n /templates/configuration.yaml /data/configuration.yaml
+        cp -n /templates/configuration.yaml /data/configuration.yaml &&
+        cp -n /templates/automations.yaml /data/automations.yaml &&
+        cp -n /templates/scripts.yaml /data/scripts.yaml &&
+        cp -n /templates/scenes.yaml /data/scenes.yaml
     volumes:
       - ./config:/templates:ro
       - ./data/config:/data
