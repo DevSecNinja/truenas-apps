@@ -29,7 +29,7 @@ services:
       - ./data/data:/data
 
   outline:
-    image: docker.io/outlinewiki/outline:0.87.4@sha256:659a8bf588ef2d914ef4e519409f38e472145369383c0a5aa89b286b4dfe860c
+    image: docker.io/outlinewiki/outline:1.6.1@sha256:a750f764080ce28d4a7393176011c8e2e4170b41689a8f6d91327dadf4904eb6
     container_name: outline
     depends_on:
       outline-init:
