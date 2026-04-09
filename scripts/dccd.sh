@@ -318,6 +318,13 @@ redeploy_truenas_apps() {
 
         local version
         version=$(basename "${version_dir}")
+
+        # Validate the compose file before touching any running containers
+        if ! ${SUDO} docker compose --project-name "${project_name}" --file "${compose_file}" config --quiet 2>/dev/null; then
+            log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
+            continue
+        fi
+
         log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
         _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
@@ -463,6 +470,13 @@ update_compose_files() {
                 local file=$1
                 local app_name
                 app_name=$(basename "$(dirname "${file}")")
+
+                # Validate the compose file before touching any running containers
+                if ! ${SUDO} docker compose -f "${file}" config --quiet 2>/dev/null; then
+                    log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
+                    return 0
+                fi
+
                 _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
                 # Build the command as an array to avoid eval and command injection
