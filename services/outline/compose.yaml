@@ -256,7 +256,7 @@ services:
   # command line because the REDIS_PASSWORD env var is not always picked up by the
   # Redis default configuration.
   outline-redis:
-    image: docker.io/library/redis:8.2.1-alpine@sha256:987c376c727652f99625c7d205a1cba3cb2c53b92b0b62aade2bd48ee1593232
+    image: docker.io/library/redis:8.6.2-alpine@sha256:81b6f81d6a6c5b9019231a2e8eb10085e3a139a34f833dcc965a8a959b040b72
     container_name: outline-redis
     # --save "" disables RDB snapshots — Redis is a session/cache store here,
     # not a data source. All persistent state lives in Postgres.
