@@ -55,7 +55,7 @@ services:
       ## HTTP Routers
       - "traefik.http.routers.openspeedtest-rtr.rule=Host(`speedtest.${DOMAINNAME}`)"
       ## Middlewares
-      - "traefik.http.routers.openspeedtest-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.openspeedtest-rtr.middlewares=chain-auth-openspeedtest@file"
       ## HTTP Services
       - "traefik.http.routers.openspeedtest-rtr.service=openspeedtest"
       - "traefik.http.services.openspeedtest.loadbalancer.server.port=3000"
