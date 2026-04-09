@@ -464,6 +464,11 @@ update_compose_files() {
         # Decrypt SOPS-encrypted secret files before deploying
         decrypt_sops_files
 
+        if [ "${DECRYPT_ONLY}" -eq 1 ]; then
+            log_message "INFO:  Decrypt-only mode enabled, skipping deployment"
+            return 0
+        fi
+
         if [ "${TRUENAS}" -eq 1 ]; then
             redeploy_truenas_apps
         else
@@ -675,7 +680,7 @@ usage() {
       -a <name>       Only deploy the specified app (optional - matches directory name)
       -b <name>       Specify the remote branch to track (default: main)
       -d <path>       Specify the base directory of the git repository (required)
-      -D              Decrypt-only: decrypt all SOPS secret files and exit without deploying
+      -D              Decrypt-only: git sync then decrypt all SOPS secret files, skip deploying
       -f              Force redeploy, skip the hash comparison check (optional)
       -g              Graceful, only restart containers that will be recreated (optional)
       -h              Show this help message
@@ -868,13 +873,6 @@ if [ -n "${GATUS_URL}" ]; then
     else
         log_message "WARNING: GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
     fi
-fi
-
-# Decrypt-only mode: skip git sync and deployment
-if [ "${DECRYPT_ONLY}" -eq 1 ]; then
-    log_message "INFO:  Decrypt-only mode enabled, skipping git sync and deployment"
-    decrypt_sops_files
-    exit 0
 fi
 
 _CD_START_TIME=$(date +%s)
