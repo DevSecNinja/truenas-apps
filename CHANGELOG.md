@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-04-09
+
+### Bug Fixes
+
+- **container**: Update image docker.io/jgraph/drawio ( 29.6.5 ➔ 29.6.10 ) ([`bb1c248`](https://github.com/DevSecNinja/truenas-apps/commit/bb1c2489432155d6384e99688fc20453bf1504be))
+- **container**: Update image ghcr.io/alexta69/metube ( 2026.04.03 ➔ 2026.04.09 ) ([`e488c74`](https://github.com/DevSecNinja/truenas-apps/commit/e488c743ee9c1f5c0e1890069c5326ed3da3c2b7))
+- **README**: Reorder app list and organization in services section ([`213dc49`](https://github.com/DevSecNinja/truenas-apps/commit/213dc498208837098b109e4d107472570ab8a417))
+
+### Documentation
+
+- **release**: Update prerequisites and add instructions for syncing before release ([`9c7aa37`](https://github.com/DevSecNinja/truenas-apps/commit/9c7aa37486ca2d6a7ff69a1eb417d3dd6c7c2b34))
+
+### Features
+
+- **outline**: Disable email login and update SMTP security settings ([`a0c906a`](https://github.com/DevSecNinja/truenas-apps/commit/a0c906ad5c88aff520ee82a792fc31fe8154b0ec))
+- **home-assistant**: Add template files for configuration, automations, scripts, and scenes ([`7a14392`](https://github.com/DevSecNinja/truenas-apps/commit/7a14392ecb9823b43239d5b0d5c8ed2300271ccf))
+- **container**: Update pgautoupgrade image to version 18.3-alpine ([`4c07223`](https://github.com/DevSecNinja/truenas-apps/commit/4c072238744b8bd8c270ee25ba87feeec8be1c0d))
+- **container**: Update image ghcr.io/meeb/tubesync ( v0.16.3 ➔ v0.17.1 ) ([`be53613`](https://github.com/DevSecNinja/truenas-apps/commit/be536130e3e8127767db475a4065206d07940db1))
+- **container**: Update image docker.io/library/postgres ( 16.10 ➔ 18.3 ) ([`c79c6b9`](https://github.com/DevSecNinja/truenas-apps/commit/c79c6b97ed0c832227e655b849ac091d41abbb2f))
+- **container**: Update image docker.io/outlinewiki/outline ( 0.87.4 ➔ 1.6.1 ) ([`103ae64`](https://github.com/DevSecNinja/truenas-apps/commit/103ae64686b87778dfbb7c10b7644ad0d2f5b67d))
+- **container**: Update image docker.io/pgautoupgrade/pgautoupgrade ( 16 ➔ 17 ) ([`3832bb9`](https://github.com/DevSecNinja/truenas-apps/commit/3832bb9f7a78d397bd8f7e3c47fca2c2ee86afa9))
+- **home-assistant**: Add initialization service and base configuration for first deploy ([`4eea5ef`](https://github.com/DevSecNinja/truenas-apps/commit/4eea5ef15d1c38822e48ae9fc73e0ea54f458868))
+- **container**: Update image docker.io/library/redis ( 8.2.1 ➔ 8.6.2 ) ([`da122eb`](https://github.com/DevSecNinja/truenas-apps/commit/da122eb0ae77876ae5e14ba563192414ed48e223))
+- **dccd**: Ensure decryption occurs in decrypt-only mode regardless of new commits ([`d58e998`](https://github.com/DevSecNinja/truenas-apps/commit/d58e9982ccebf9aad76c7a57e611f15310742f5b))
+- **outline**: Update Redis configuration to improve session handling and security ([`e9ae85a`](https://github.com/DevSecNinja/truenas-apps/commit/e9ae85aaf785735f75ee7ba9a84d0c6a93ff0277))
+- **dccd**: Enhance decrypt-only mode to perform a git sync before decrypt ([`8e8af2a`](https://github.com/DevSecNinja/truenas-apps/commit/8e8af2a5e597351b2af98c56ae6864f04abed032))
+- **dccd**: Add decrypt-only option for SOPS-encrypted env files ([`ffb739e`](https://github.com/DevSecNinja/truenas-apps/commit/ffb739e52df0f963e5274d409c05a90e837858ba))
+- **dccd**: Add validation for Docker Compose files before deployment ([`aac1f22`](https://github.com/DevSecNinja/truenas-apps/commit/aac1f22c00051248986e13be485ff275eca8c560))
+- **outline**: Add Outline service with initial configuration and secrets ([`3946bf1`](https://github.com/DevSecNinja/truenas-apps/commit/3946bf12a30407c19a8b135ac3289f4f9a2f3c72))
+- **home-assistant**: Update service configuration to support s6-overlay and DHCP watcher integration ([`a3ac6b8`](https://github.com/DevSecNinja/truenas-apps/commit/a3ac6b8f6cc6a05d2013ee72afd02d2b20e8a9d6))
+- **openspeedtest**: Add OpenSpeedTest-specific middleware and update Traefik configuration ([`a26fa84`](https://github.com/DevSecNinja/truenas-apps/commit/a26fa8490b2b5ed1640f13b50ef71f91c13de678))
+- **home-assistant**: Add Home Assistant service and update configurations ([`e32ff03`](https://github.com/DevSecNinja/truenas-apps/commit/e32ff0329b8e1f23b4e788360e6f573e34b7a4f3))
+
 ## [0.12.0] - 2026-04-08
 
 ### Bug Fixes
@@ -16,11 +49,16 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- **container**: Update image docker.io/jgraph/drawio ( 29.3.6 ➔ 29.6.5 ) ([`b056b96`](https://github.com/DevSecNinja/truenas-apps/commit/b056b96204a88d59a527c3f5c4e34c68c752c0a3))
 - **traefik**: Add frontend services for Excalidraw, OpenSpeedTest, Draw.io, and TubeSync ([`441f1a0`](https://github.com/DevSecNinja/truenas-apps/commit/441f1a0b4f48ea11ea3a145ccec48fee42481d40))
 - **openspeedtest**: Add OpenSpeedTest service configuration and secrets management ([`f5a22f1`](https://github.com/DevSecNinja/truenas-apps/commit/f5a22f1a85f6156b09b98be32fdda35c1faab199))
 - **excalidraw**: Add Excalidraw service configuration and secrets management ([`19f9a1b`](https://github.com/DevSecNinja/truenas-apps/commit/19f9a1be962dcb742a67ee674439926df13da97a))
 - **drawio**: Add Draw.io service configuration and secrets management ([`80dc4c7`](https://github.com/DevSecNinja/truenas-apps/commit/80dc4c7bb2f57b5fd4cf668c2417b369cd9e98e6))
 - **tubesync**: Add new service configuration and secrets management ([`a0cb6ae`](https://github.com/DevSecNinja/truenas-apps/commit/a0cb6ae0037144abd36ba9410898d2ac9655f34f))
+
+### Miscellaneous
+
+- **version**: V0.12.0 ([`38a1d9f`](https://github.com/DevSecNinja/truenas-apps/commit/38a1d9fca6fd1d3ff21b9cf2576a176cee3fa8e8))
 
 ## [0.11.0] - 2026-04-08
 
