@@ -88,6 +88,7 @@ services:
       - tubesync-frontend
       - drawio-frontend
       - home-assistant-frontend
+      - outline-frontend
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -256,4 +257,7 @@ networks:
     external: true
   home-assistant-frontend:
     name: home-assistant-frontend
+    external: true
+  outline-frontend:
+    name: outline-frontend
     external: true

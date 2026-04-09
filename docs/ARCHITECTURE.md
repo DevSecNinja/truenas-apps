@@ -206,6 +206,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
 | spottarr             | `spottarr-chown`            | `./data`                                                                           |
+| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
 
 ---
 
@@ -301,6 +302,10 @@ services/<service>/
 
 **`data/`** holds files that are produced or mutated by the running container: databases, certificates, caches, state files, and other dynamic output. This directory lives only on the host machine and is excluded from Git via `.gitignore`. It is mounted read-write so the container can persist its runtime state across restarts.
 
+**Named Docker volumes are not used in this repo.** All persistent container data uses bind mounts to `./data/` (or a subdirectory of it). This ensures that TrueNAS ZFS snapshots — taken at the dataset level — capture all container state without needing to snapshot opaque Docker-managed volumes. It also makes data locations explicit and auditable from the host filesystem.
+
+**ZFS datasets do not need to be created manually for individual services.** The full dataset hierarchy is established once during initial setup (see `README.md § Setup`). Each `services/<app>/` directory lives on the `vm-pool/apps` dataset (or a child dataset created at setup time). TrueNAS handles snapshots and replication of these datasets automatically — no per-service backup containers are needed for file-level data (only for databases, which require consistent pg_dump / mongodump exports).
+
 **`backups/`** holds database backup files produced by the backup sidecar container (e.g., `tiredofit/db-backup`). Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
 
 ## Secret Management
@@ -344,6 +349,14 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3110    | `svc-app-radarr`   | radarr                                      | No                  |
 | 3118    | `svc-app-tubesync` | tubesync                                    | No                  |
 | 3119    | `svc-app-drawio`   | drawio                                      | No                  |
+| 3120    | `svc-app-outline`  | outline-db-backup†                          | No                  |
+
+† The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
+image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
+db-backup sidecar. The Outline server itself runs without a `user:` directive;
+an `outline-init` container pre-chowns `./data/data` to UID 1000 so the node
+process can write to the bind-mount path. See:
+https://github.com/outline/outline/discussions/9452
 
 ### Shared Purpose Groups
 

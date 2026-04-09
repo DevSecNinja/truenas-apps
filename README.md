@@ -54,6 +54,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
 | [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
 | [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
+| [Outline](https://www.getoutline.com/)                                       | Knowledge base and wiki with Azure AD authentication |
 | [OpenSpeedTest](https://openspeedtest.com/)                                  | Browser-based network speed test                     |
 
 ---
@@ -90,6 +91,7 @@ vm-pool/apps/services/tubesync
 vm-pool/apps/services/unifi
 vm-pool/apps/services/dozzle
 vm-pool/apps/services/drawio
+vm-pool/apps/services/outline
 # ... one dataset per app
 ```
 

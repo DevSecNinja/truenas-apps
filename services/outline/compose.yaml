@@ -1,0 +1,297 @@
+---
+services:
+  # outlinewiki/outline does not support PUID/PGID — the image manages its own
+  # internal nodejs user (UID/GID 1000, the standard Alpine "node" user).
+  # See: https://github.com/outline/outline/discussions/9452
+  # The init container pre-chowns ./data/data to 1000:1000 so the node process
+  # can write uploaded files and attachments to the bind-mount path.
+  # read_only: true applies; only /tmp requires tmpfs.
+  outline-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: outline-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data/data to the image-internal node user (UID 1000)
+      - DAC_OVERRIDE # Required to traverse ./data/data if previously chowned away from root
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -Rv 1000:1000 /data"
+    volumes:
+      - ./data/data:/data
+
+  outline:
+    image: docker.io/outlinewiki/outline:0.87.4@sha256:659a8bf588ef2d914ef4e519409f38e472145369383c0a5aa89b286b4dfe860c
+    container_name: outline
+    depends_on:
+      outline-init:
+        condition: service_completed_successfully
+      outline-db:
+        condition: service_healthy
+      outline-redis:
+        condition: service_healthy
+    user: "1000:1000" # image-internal node user — no PUID/PGID support (see comment above)
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      # Outline config
+      - SECRET_KEY=${OUTLINE_SECRET_KEY}
+      - UTILS_SECRET=${OUTLINE_UTILS_SECRET}
+      - REDIS_URL=redis://:${OUTLINE_REDIS_PASSWORD}@outline-redis:6379
+      - URL=https://docs.${DOMAINNAME}
+      - PORT=3000
+      - NODE_ENV=production
+      - FORCE_HTTPS=true
+      - ENABLE_UPDATES=false
+      - WEB_CONCURRENCY=1
+      - LOG_LEVEL=info
+      - DEFAULT_LANGUAGE=en_US
+      - RATE_LIMITER_ENABLED=false # Already enabled on Traefik
+      ## Authentication
+      - AZURE_CLIENT_ID=${OUTLINE_AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${OUTLINE_AZURE_CLIENT_SECRET}
+      - AZURE_RESOURCE_APP_ID=${OUTLINE_AZURE_RESOURCE_APP_ID}
+      - AZURE_TENANT_ID=${OUTLINE_AZURE_TENANT_ID}
+      ## Database
+      - DATABASE_URL=postgresql://outline:${OUTLINE_DB_PASSWORD}@outline-db:5432/outline?connect_timeout=300
+      - PGSSLMODE=disable
+      ## SMTP — required for @mention notifications, share invitations, and workspace invites
+      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
+      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
+      - SMTP_USERNAME=${NOTIFICATIONS_EMAIL_USERNAME}
+      - SMTP_PASSWORD=${NOTIFICATIONS_EMAIL_PASSWORD}
+      - SMTP_FROM_EMAIL=${NOTIFICATIONS_EMAIL_FROM}
+      - SMTP_SECURE=true
+      ## Storage
+      - FILE_STORAGE=local
+      - FILE_STORAGE_LOCAL_ROOT_DIR=/var/lib/outline/data
+      - FILE_STORAGE_UPLOAD_MAX_SIZE=262144000
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - outline-frontend
+      - outline-backend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/data:/var/lib/outline/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -qO- http://localhost:3000/_health || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Outline
+      - homepage.icon=si-outline
+      - homepage.href=https://docs.${DOMAINNAME}
+      - homepage.description=Documentation
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=outline-frontend"
+      ## Middlewares
+      - "traefik.http.routers.outline-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.outline-rtr.rule=Host(`docs.${DOMAINNAME}`)"
+      ## HTTP Services
+      - "traefik.http.routers.outline-rtr.service=outline-svc"
+      - "traefik.http.services.outline-svc.loadbalancer.server.port=3000"
+
+  # pgautoupgrade starts as root to perform data-directory upgrade operations
+  # before handing off to Postgres. cap_drop: ALL would break that process.
+  outline-db-upgrade:
+    image: docker.io/pgautoupgrade/pgautoupgrade:16-alpine3.21@sha256:90e1e41c91b65366bb32ae6aff81ed436a112bcbd9105ee12232309a1be523ed
+    container_name: outline-db-upgrade
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - POSTGRES_DB=outline
+      - POSTGRES_USER=outline
+      - POSTGRES_PASSWORD=${OUTLINE_DB_PASSWORD}
+      - PGAUTO_ONESHOT=yes
+    restart: "no"
+    network_mode: none
+    mem_limit: ${DB_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./data/db:/var/lib/postgresql
+
+  # Postgres starts as root and uses gosu to switch to the postgres user during
+  # startup. cap_drop: ALL would break that privilege transition.
+  outline-db:
+    image: docker.io/library/postgres:16.10-alpine@sha256:1c6d2f6e4d30d49c529e09a627e8178db5011dde88d955eb08db2e135e64aa09
+    container_name: outline-db
+    depends_on:
+      outline-db-upgrade:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - POSTGRES_DB=outline
+      - POSTGRES_USER=outline
+      - POSTGRES_PASSWORD=${OUTLINE_DB_PASSWORD}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - outline-backend
+    mem_limit: ${DB_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - ./data/db:/var/lib/postgresql
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
+  # read_only is not set because s6-overlay needs extensive writable paths.
+  # cap_drop: ALL is therefore omitted.
+  # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
+  # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
+  outline-db-backup:
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: outline-db-backup
+    depends_on:
+      outline-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      - USER_DBBACKUP=3120 # svc-app-outline
+      - GROUP_DBBACKUP=3120 # svc-app-outline
+      - CONTAINER_NAME=outline-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      # Run once and exit — restarted nightly by dccd.sh
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
+      # Notification settings
+      - ENABLE_NOTIFICATIONS=TRUE
+      - NOTIFICATION_TYPE=EMAIL
+      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
+      - SMTP_DOMAIN=${NOTIFICATIONS_EMAIL_DOMAIN}
+      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
+      - SMTP_USER=${NOTIFICATIONS_EMAIL_USERNAME}
+      - SMTP_PASS=${NOTIFICATIONS_EMAIL_PASSWORD}
+      - MAIL_TO=${NOTIFICATIONS_EMAIL_TO}
+      - MAIL_FROM=${NOTIFICATIONS_EMAIL_FROM}
+      - SMTP_AUTHENTICATION=on
+      - SMTP_TLSCERTCHECK=TRUE
+      - SMTP_STARTTLS=on
+      - SMTP_TLS=on
+      # Backup defaults
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_CLEANUP_TIME=2880
+      # Encryption
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      # Database
+      - DB01_TYPE=pgsql
+      - DB01_HOST=outline-db
+      - DB01_NAME=outline
+      - DB01_USER=outline
+      - DB01_PORT=5432
+      - DB01_PASS=${OUTLINE_DB_PASSWORD}
+    restart: "no"
+    networks:
+      - outline-backend
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./backups/db-backup:/backup
+
+  # Redis with requirepass (OUTLINE_REDIS_PASSWORD). The password is set on the
+  # command line because the REDIS_PASSWORD env var is not always picked up by the
+  # Redis default configuration.
+  outline-redis:
+    image: docker.io/library/redis:8.2.1-alpine@sha256:987c376c727652f99625c7d205a1cba3cb2c53b92b0b62aade2bd48ee1593232
+    container_name: outline-redis
+    command: >
+      --requirepass ${OUTLINE_REDIS_PASSWORD}
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - outline-backend
+    mem_limit: ${REDIS_MEM_LIMIT:-256m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'redis-cli --no-auth-warning -a "$OUTLINE_REDIS_PASSWORD" ping | grep -q PONG || exit 1'
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  outline-frontend:
+    name: outline-frontend
+  outline-backend:
+    name: outline-backend
+    internal: true
