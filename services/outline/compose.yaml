@@ -258,8 +258,15 @@ services:
   outline-redis:
     image: docker.io/library/redis:8.2.1-alpine@sha256:987c376c727652f99625c7d205a1cba3cb2c53b92b0b62aade2bd48ee1593232
     container_name: outline-redis
-    command: >
-      --requirepass ${OUTLINE_REDIS_PASSWORD}
+    # --save "" disables RDB snapshots — Redis is a session/cache store here,
+    # not a data source. All persistent state lives in Postgres.
+    # read_only: true would prevent writing dump.rdb without this flag.
+    # --requirepass sets the password; env var interpolation works in list form.
+    command:
+      - "--save"
+      - ""
+      - "--requirepass"
+      - "${OUTLINE_REDIS_PASSWORD}"
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
