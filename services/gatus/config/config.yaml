@@ -34,8 +34,6 @@ alerting:
         "description": "[ALERT_DESCRIPTION]",
         "errors": "[RESULT_ERRORS]"
       }
-    client:
-      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
     default-alert:
       send-on-resolved: true
       failure-threshold: 5
@@ -44,9 +42,6 @@ alerting:
 endpoint-defaults: &defaults
   group: Internal
   interval: 1m
-  client:
-    timeout: 5s
-    dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
   conditions:
     - "[STATUS] == 200"
     - "[CERTIFICATE_EXPIRATION] > 48h"
@@ -54,26 +49,10 @@ endpoint-defaults: &defaults
   alerts:
     - type: email
       description: "Health check failed"
+      send-on-resolved: true
     - type: custom
       description: "Health check failed"
-
-# Use a public resolver for external endpoints so that a temporary AdGuard
-# outage doesn't cause false-positive failures via Docker's 127.0.0.11 fallback.
-external-defaults: &external-defaults
-  group: External
-  interval: 1m
-  client:
-    timeout: 5s
-    dns-resolver: "udp://1.1.1.1:53"
-  conditions:
-    - "[STATUS] == 200"
-    - "[CERTIFICATE_EXPIRATION] > 48h"
-    - "[RESPONSE_TIME] < 1000"
-  alerts:
-    - type: email
-      description: "Health check failed"
-      # - type: custom
-      #   description: "Health check failed"
+      send-on-resolved: true
 
 tcp-udp-defaults: &tcp-udp-defaults
   group: Internal
@@ -87,8 +66,9 @@ tcp-udp-defaults: &tcp-udp-defaults
     - type: email
       description: "Health check failed"
       send-on-resolved: true
-      # - type: custom
-      #   description: "Health check failed"
+    - type: custom
+      description: "Health check failed"
+      send-on-resolved: true
 
 # Pause endpoint executions if internet is down
 connectivity:
@@ -116,11 +96,11 @@ endpoints:
   #
 
   - name: DevSecNinja - HTTP
-    <<: *external-defaults
+    <<: *defaults
     url: "https://devsecninja.com/"
 
   - name: hadiscover - HTTP
-    <<: *external-defaults
+    <<: *defaults
     url: "https://hadiscover.com/"
     group: External
     interval: 1m
@@ -131,7 +111,7 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: hadiscover WWW - HTTP
-    <<: *external-defaults
+    <<: *defaults
     url: "https://www.hadiscover.com/"
     interval: 1m
     conditions:
@@ -141,7 +121,7 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: hadiscover API - HTTP
-    <<: *external-defaults
+    <<: *defaults
     url: "https://api.hadiscover.com/api/v1/statistics"
     method: GET
     headers:
@@ -157,7 +137,7 @@ endpoints:
       - "[BODY].total_automations > 10"
 
   - name: V60 - HTTP
-    <<: *external-defaults
+    <<: *defaults
     url: "https://v60.${DOMAINNAME}"
     group: External
     conditions:
@@ -185,7 +165,7 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
 
   - name: Bing - HTTP
-    <<: *external-defaults
+    <<: *defaults
     url: "https://bing.com/"
 
   #
