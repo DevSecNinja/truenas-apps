@@ -53,6 +53,14 @@ stage_fixed = true
 run = "for f in {staged_files}; do grep -q '^sops_mac=' \"$f\" || { echo \"ERROR: $f is not SOPS-encrypted\"; exit 1; }; done"
 glob = ["**/secret.sops.env"]
 
+[pre-commit.commands.validate-servers-schema]
+run = "mise exec -- check-jsonschema --schemafile servers.schema.json servers.yaml"
+glob = ["servers.yaml", "servers.schema.json"]
+
+[pre-commit.commands.validate-servers-apps]
+run = "mise exec -- yq -r '.servers[].apps[]' servers.yaml | sort -u | while IFS= read -r app; do [ -d \"services/${app}\" ] || { echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; }; done"
+glob = ["servers.yaml", "services/**/compose.yaml"]
+
 [commit-msg.commands.cocogitto]
 run = "mise exec -- cog verify \"$(cat {1})\""
 

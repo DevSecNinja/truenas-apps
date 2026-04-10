@@ -124,6 +124,15 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 5. Update `README.md` (apps table + dataset list)
 6. Update `docs/ARCHITECTURE.md` (UID/GID table, init container table)
 7. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
+8. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
+9. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
+
+## Multi-Server Deployment
+
+- **`servers.yaml`**: Maps servers to their apps. Validated by `servers.schema.json`. TrueNAS (svlnas) is NOT listed — it uses TrueNAS mode (`-t`).
+- **`-S <server>` flag**: Deploys only apps assigned to a server. Mutually exclusive with `-a` and `-t`. Requires `yq` on PATH.
+- **Compose overrides**: `services/<app>/compose.<server>.yaml` files are auto-detected and applied as Docker Compose overrides. Use these for server-specific network lists, labels, or ports.
+- **Per-server Age keys**: `.sops.yaml` creation_rules scope decryption access per server. Run `scripts/generate-sops-rules.sh` after changing server-app mappings.
 
 ## Key Gotchas
 

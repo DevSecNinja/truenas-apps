@@ -1,0 +1,40 @@
+---
+# Server-specific compose override for svlazext (Azure DNS/VPN VM).
+# Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
+#
+# Overrides:
+# - Traefik network list: only traefik-backend + adguard-frontend
+# - Labels: removes svlnas-specific redirect, adjusts dashboard hostname
+services:
+  traefik:
+    networks: !override
+      - traefik-backend
+      - adguard-frontend
+    labels: !override
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Traefik (svlazext)
+      - homepage.icon=traefik.svg
+      - homepage.href=https://traefik-ext.$DOMAINNAME
+      - homepage.description=Application Proxy (svlazext)
+      # Traefik
+      - "traefik.enable=true"
+      ## TLS
+      - "traefik.http.routers.traefik-rtr.tls.certresolver=dns-cloudflare"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].main=${DOMAINNAME}"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].sans=*.${DOMAINNAME}"
+      ## Middlewares
+      - "traefik.http.routers.traefik-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.traefik-rtr.rule=Host(`traefik-ext.${DOMAINNAME}`)"
+      - "traefik.http.routers.traefik-rtr.service=api@internal"
+
+# Only declare networks relevant to this server
+networks:
+  traefik-backend:
+    name: traefik-backend
+    driver: bridge
+    internal: true
+  adguard-frontend:
+    name: adguard-frontend
+    external: true

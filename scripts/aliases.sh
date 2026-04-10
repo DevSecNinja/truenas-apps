@@ -69,6 +69,22 @@ dccd_app() {
 }
 alias dccd-app='dccd_app'
 
+########################################
+# DCCD — Server Mode (non-TrueNAS)
+########################################
+
+# Force-deploy apps assigned to this server (uses hostname as server name)
+# Example: on svlazext, just run: dccd-server
+dccd_server() {
+    local server
+    server=$(hostname -s) || true
+    bash /opt/apps/scripts/dccd.sh \
+        -d /opt/apps \
+        -k /opt/apps/age.key \
+        -x shared -S "${server}" -f
+}
+alias dccd-server='dccd_server'
+
 # Decrypt all SOPS-encrypted env files without deploying
 alias dccd-decrypt='bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -D'
 

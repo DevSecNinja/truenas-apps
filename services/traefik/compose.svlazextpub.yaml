@@ -1,0 +1,40 @@
+---
+# Server-specific compose override for svlazextpub (Azure public web server).
+# Applied automatically by dccd.sh -S svlazextpub on top of compose.yaml.
+#
+# Overrides:
+# - Traefik network list: only traefik-backend (no app frontend networks yet)
+# - Labels: removes svlnas-specific redirect, adjusts dashboard hostname
+#
+# When adding public app services to svlazextpub in servers.yaml, add their
+# frontend networks here in both the services.traefik.networks list and the
+# top-level networks section (as external: true).
+services:
+  traefik:
+    networks: !override
+      - traefik-backend
+    labels: !override
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Traefik (svlazextpub)
+      - homepage.icon=traefik.svg
+      - homepage.href=https://traefik-pub.$DOMAINNAME
+      - homepage.description=Application Proxy (svlazextpub)
+      # Traefik
+      - "traefik.enable=true"
+      ## TLS
+      - "traefik.http.routers.traefik-rtr.tls.certresolver=dns-cloudflare"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].main=${DOMAINNAME}"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].sans=*.${DOMAINNAME}"
+      ## Middlewares
+      - "traefik.http.routers.traefik-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.traefik-rtr.rule=Host(`traefik-pub.${DOMAINNAME}`)"
+      - "traefik.http.routers.traefik-rtr.service=api@internal"
+
+# Only declare networks relevant to this server
+networks:
+  traefik-backend:
+    name: traefik-backend
+    driver: bridge
+    internal: true

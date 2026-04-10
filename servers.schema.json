@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "servers.schema.json",
+  "title": "Multi-Server Deployment Configuration",
+  "description": "Maps servers to the apps they should deploy. Used by dccd.sh -S <server>.",
+  "type": "object",
+  "required": ["servers"],
+  "additionalProperties": false,
+  "properties": {
+    "servers": {
+      "type": "object",
+      "description": "Map of server names to their configuration. Each key is a server hostname.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description", "age_public_key", "apps"],
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the server's purpose.",
+            "minLength": 1
+          },
+          "age_public_key": {
+            "type": "string",
+            "description": "Age public key for SOPS encryption. The corresponding private key is stored on the server. Empty string means key not yet generated.",
+            "pattern": "^(age1[a-z0-9]{58})?$"
+          },
+          "apps": {
+            "type": "array",
+            "description": "List of app directory names under services/ to deploy on this server.",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "App directory name under services/ (lowercase, alphanumeric, hyphens)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

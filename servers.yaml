@@ -1,0 +1,24 @@
+---
+# Server-to-app mapping for multi-server deployments.
+# Used by dccd.sh -S <server> to deploy only the apps assigned to a server.
+#
+# TrueNAS (svlnas) is NOT listed here — it uses TrueNAS mode (-t) which has
+# its own app discovery via /mnt/.ix-apps/app_configs/.
+#
+# Schema: servers.schema.json
+# Validated by: check-jsonschema --schemafile servers.schema.json servers.yaml
+
+servers:
+  svlazext:
+    description: "Azure VM — DNS (AdGuard + Unbound) and VPN (Wireguard, planned)"
+    # Age public key for this server (private key stored on the server at age.key)
+    age_public_key: ""
+    apps:
+      - adguard
+
+  svlazextpub:
+    description: "Azure VM — Public web server (Traefik reverse proxy + public app backends)"
+    # Age public key for this server (private key stored on the server at age.key)
+    age_public_key: ""
+    apps:
+      - traefik
