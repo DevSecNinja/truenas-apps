@@ -2,7 +2,7 @@
 bin/**
 
 # Secrets
-age.key
+*.key
 secret.env
 .env
 .decrypted~*
