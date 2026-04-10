@@ -546,7 +546,15 @@ update_compose_files() {
 
             SHOULD_DEPLOY=1
         else
-            log_message "STATE: Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — nothing to do"
+            # Even when up-to-date, deploy if no containers are running (fresh server)
+            local running_containers
+            running_containers=$(${SUDO} docker ps --quiet 2>/dev/null | head -1) || true
+            if [ -z "${running_containers}" ]; then
+                log_message "STATE: Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) but no containers running — deploying"
+                SHOULD_DEPLOY=1
+            else
+                log_message "STATE: Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — nothing to do"
+            fi
         fi
     fi
 
