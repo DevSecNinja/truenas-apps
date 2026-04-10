@@ -6,7 +6,8 @@
   },
   "postCreateCommand": "sh -c \"$(curl -fsLS https://get.chezmoi.io)\" -- init --apply DevSecNinja && curl https://mise.run | sh && echo 'eval \"$(~/.local/bin/mise activate bash)\"' >> ~/.bashrc && ~/.local/bin/mise install && ~/.local/bin/mise exec -- lefthook install",
   "remoteEnv": {
-    "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
+    "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin",
+    "SOPS_AGE_KEY_FILE": "${containerWorkspaceFolder}/age.key"
   },
   "customizations": {
     "vscode": {
