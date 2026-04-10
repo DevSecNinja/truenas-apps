@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "sh -c \"$(curl -fsLS https://get.chezmoi.io)\" -- init --apply DevSecNinja && curl https://mise.run | sh && echo 'eval \"$(~/.local/bin/mise activate bash)\"' >> ~/.bashrc && ~/.local/bin/mise install && ~/.local/bin/mise exec -- lefthook install",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteEnv": {
     "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin",
     "SOPS_AGE_KEY_FILE": "${containerWorkspaceFolder}/age.key"
