@@ -154,6 +154,25 @@ Run it as a TrueNAS cron job:
 bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /mnt/vm-pool/apps/age.key
 ```
 
+### Multi-Server Deployment
+
+Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings are defined in `servers.yaml`:
+
+| Server      | Platform        | Apps        | Purpose                          |
+| ----------- | --------------- | ----------- | -------------------------------- |
+| svlnas      | TrueNAS         | All 26 apps | Primary home lab (TrueNAS mode)  |
+| svlazext    | Azure VM Debian | AdGuard     | DNS filtering + Unbound resolver |
+| svlazextpub | Azure VM Debian | Traefik     | Public reverse proxy             |
+
+Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:
+
+```sh
+# Example: Azure DNS server
+bash /opt/apps/scripts/dccd.sh -d /opt/apps -S svlazext -k /opt/apps/age.key -x shared -f
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#multi-server-deployment) for full details on compose overrides, per-server Age keys, and Ansible integration.
+
 ---
 
 ## 🤖 Renovate

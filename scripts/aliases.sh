@@ -69,11 +69,51 @@ dccd_app() {
 }
 alias dccd-app='dccd_app'
 
+########################################
+# DCCD — Server Mode (non-TrueNAS)
+########################################
+
+# Force-deploy apps assigned to this server (uses hostname as server name)
+# Example: on svlazext, just run: dccd-server
+dccd_server() {
+    local server
+    server=$(hostname -s) || true
+    bash /opt/apps/scripts/dccd.sh \
+        -d /opt/apps \
+        -k /opt/apps/age.key \
+        -x shared -S "${server}" -f
+}
+alias dccd-server='dccd_server'
+
 # Decrypt all SOPS-encrypted env files without deploying
 alias dccd-decrypt='bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -k /mnt/vm-pool/apps/age.key -D'
 
 # View recent dccd cron job logs from the system journal (syslog tag set by logger -t dccd)
 alias dccd-logs='sudo journalctl -t dccd -n 200 --no-pager'
+
+########################################
+# SOPS
+########################################
+
+# Regenerate .sops.yaml from servers.yaml and re-encrypt all secrets
+# Run this after changing server-app mappings or Age keys
+sops_rekey() {
+    local base_dir
+    base_dir="${1:-$(pwd)}"
+    bash "${base_dir}/scripts/generate-sops-rules.sh" -d "${base_dir}" || return 1
+    echo ""
+    echo "Re-encrypting all secret.sops.env files..."
+    for f in "${base_dir}"/services/*/secret.sops.env; do
+        [ -f "${f}" ] || continue
+        echo "  ${f}"
+        sops updatekeys -y "${f}" || {
+            echo "FAILED: ${f}"
+            return 1
+        }
+    done
+    echo "Done. Review changes with: git diff"
+}
+alias sops-rekey='sops_rekey'
 
 ########################################
 # Help
@@ -98,6 +138,9 @@ DCCD:
   dccd-app <app>    Force-deploy a single app by name
   dccd-decrypt      Decrypt all SOPS env files (no deploy)
   dccd-logs         View recent dccd cron job logs
+
+SOPS:
+  sops-rekey [dir]  Regenerate .sops.yaml and re-encrypt all secrets
 
 Help:
   halp              Show this help message

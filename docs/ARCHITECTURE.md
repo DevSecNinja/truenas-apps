@@ -606,3 +606,103 @@ user: "3106:3202" # svc-app-immich:private-photos
 3. Create the service account user with its UID and the new group as primary
 4. Add an init container that chowns the service's specific subdirectory under `/mnt/archive-pool/private/`
 5. Bind-mount only that subdirectory into the container — never the parent `private/` path
+
+## Multi-Server Deployment
+
+This repository supports deploying apps to multiple servers beyond the primary TrueNAS host. Server-app mappings are defined in `servers.yaml` at the repo root.
+
+### servers.yaml
+
+The `servers.yaml` file maps servers to the apps they should deploy. Schema is validated by `servers.schema.json`.
+
+```yaml
+servers:
+  svlazext:
+    description: "Azure VM — DNS (AdGuard + Unbound) and VPN"
+    age_public_key: "age1..."
+    apps:
+      - adguard
+  svlazextpub:
+    description: "Azure VM — Public web server"
+    age_public_key: "age1..."
+    apps:
+      - traefik
+```
+
+**TrueNAS (svlnas)** uses TrueNAS mode (`-t`) which has its own app discovery, but is listed in `servers.yaml` for SOPS key scoping.
+
+### Deploying to a Server
+
+Use the `-S <server>` flag with `dccd.sh`:
+
+```sh
+# Deploy only apps assigned to svlazext
+bash scripts/dccd.sh -d /opt/apps -S svlazext -k /opt/apps/age.key -x shared -f
+
+# Cron job example (runs every 5 minutes)
+*/5 * * * * bash /opt/apps/scripts/dccd.sh -d /opt/apps -S svlazext -k /opt/apps/age.key -x shared
+```
+
+The `-S` flag:
+
+- Reads `servers.yaml` and resolves the app list for the named server
+- Only decrypts `secret.sops.env` files for those apps (not all apps)
+- Only deploys compose stacks for those apps
+- Auto-detects server-specific compose overrides (`compose.<server>.yaml`)
+- Is mutually exclusive with `-a` (single app filter) and `-t` (TrueNAS mode)
+- Requires `yq` on `PATH`
+
+### Compose Overrides
+
+Some apps (notably Traefik) need different configurations per server. Server-specific compose override files use the naming convention:
+
+```text
+services/<app>/compose.<server>.yaml
+```
+
+When `dccd.sh -S <server>` detects a matching override file, it automatically applies it using Docker Compose's multi-file syntax (`-f compose.yaml -f compose.<server>.yaml`). Docker Compose's list-replacement semantics mean the override cleanly replaces sections like the network list.
+
+**Example**: Traefik on svlnas joins 25+ app frontend networks, but Traefik on svlazext only needs `adguard-frontend`. The override at `services/traefik/compose.svlazext.yaml` replaces the network list and adjusts labels.
+
+Shared config (traefik.yml, rules/, TLS options) is reused via the same volume mounts — no config duplication.
+
+### Per-Server Age Keys
+
+Each server has its own Age keypair for SOPS decryption. The `.sops.yaml` creation_rules scope which servers can decrypt which app secrets:
+
+```yaml
+creation_rules:
+  # adguard runs on svlnas + svlazext
+  - path_regex: services/adguard/secret\.sops\.env$
+    age: "deploy_key,svlnas_key,svlazext_key"
+  # traefik runs on svlnas + svlazextpub
+  - path_regex: services/traefik/secret\.sops\.env$
+    age: "deploy_key,svlnas_key,svlazextpub_key"
+  # fallback: new apps default to deploy + svlnas
+  - path_regex: secret\.sops\.env$
+    age: "deploy_key,svlnas_key"
+```
+
+**Key roles**:
+
+- **Deploy key**: Lives on your dev machine. Can decrypt everything. Used for `sops -e` / `sops -d` during development.
+- **Server keys**: Each server stores only its own private key at `age.key`. It can only decrypt secrets for apps assigned to it.
+
+Generate rules from `servers.yaml` using:
+
+```sh
+bash scripts/generate-sops-rules.sh -d /path/to/repo
+```
+
+The script reads the deploy key from `age.key` (the `# public key:` comment) and all server keys from `servers.yaml`. Servers without an `apps` list are treated as all-access.
+
+After updating rules, re-encrypt all files: `sops updatekeys services/<app>/secret.sops.env` for each app.
+
+### Ansible Integration
+
+Each remote server (Azure VMs) is managed by Ansible-pull which:
+
+1. Clones this repository to the configured directory (e.g., `/opt/apps`)
+2. Installs `yq` (required for server mode)
+3. Places the server's Age private key at `<base_dir>/age.key`
+4. Sets up a cron job running `dccd.sh -S <server>` at the desired interval

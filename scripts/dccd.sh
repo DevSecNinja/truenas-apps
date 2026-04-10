@@ -32,6 +32,8 @@ DECRYPT_ONLY=0                                # Decrypt SOPS files and exit (ski
 FORCE=0                                       # Force redeploy, skip hash check
 NO_PULL=0                                     # Skip pulling images (for local testing)
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
+SERVER_NAME=""                                # Server name from servers.yaml (empty = deploy all)
+SERVER_APPS=()                                # Apps assigned to the server (populated by parse_server_apps)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
 GATUS_DNS_SERVER=""                           # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
@@ -152,6 +154,59 @@ ensure_sops() {
     log_message "INFO:  SOPS ${SOPS_VERSION} installed to ${sops_bin}"
 }
 
+# Parse the apps assigned to a server from servers.yaml.
+# Populates the global SERVER_APPS array.
+# Requires yq on PATH.
+parse_server_apps() {
+    if ! command -v yq >/dev/null 2>&1; then
+        log_message "ERROR: yq is required for server mode (-S) but not found on PATH"
+        log_message "ERROR: Install yq: https://github.com/mikefarah/yq or run 'mise install'"
+        exit 1
+    fi
+
+    local servers_yaml="${BASE_DIR}/servers.yaml"
+    if [ ! -f "${servers_yaml}" ]; then
+        log_message "ERROR: servers.yaml not found at ${servers_yaml}"
+        exit 1
+    fi
+
+    # Validate the server name exists in servers.yaml
+    local server_exists
+    server_exists=$(yq -r ".servers.\"${SERVER_NAME}\" // \"\"" "${servers_yaml}")
+    if [ -z "${server_exists}" ] || [ "${server_exists}" = "null" ]; then
+        log_message "ERROR: Server '${SERVER_NAME}' not found in ${servers_yaml}"
+        local available
+        available=$(yq -r '.servers | keys | .[]' "${servers_yaml}" | paste -sd', ') || true
+        log_message "ERROR: Available servers: ${available}"
+        exit 1
+    fi
+
+    # Read apps into array (if the server has an explicit apps list)
+    local has_apps
+    has_apps=$(yq -r ".servers.\"${SERVER_NAME}\" | has(\"apps\")" "${servers_yaml}")
+    if [ "${has_apps}" != "true" ]; then
+        log_message "INFO:  Server '${SERVER_NAME}' has no apps list — deploying all apps"
+        return
+    fi
+
+    local app_list
+    app_list=$(yq -r ".servers.\"${SERVER_NAME}\".apps[]" "${servers_yaml}")
+    if [ -z "${app_list}" ]; then
+        log_message "ERROR: Server '${SERVER_NAME}' has an empty apps list in ${servers_yaml}"
+        exit 1
+    fi
+
+    while IFS= read -r app; do
+        if [ ! -d "${BASE_DIR}/services/${app}" ]; then
+            log_message "ERROR: App '${app}' listed for server '${SERVER_NAME}' but services/${app}/ does not exist"
+            exit 1
+        fi
+        SERVER_APPS+=("${app}")
+    done <<<"${app_list}"
+
+    log_message "INFO:  Server '${SERVER_NAME}' has ${#SERVER_APPS[@]} app(s): ${SERVER_APPS[*]}"
+}
+
 decrypt_sops_files() {
     local src_dir="${BASE_DIR}/services"
 
@@ -160,7 +215,26 @@ decrypt_sops_files() {
     fi
 
     local sops_files
-    sops_files=$(find "${src_dir}" \( -name config -o -name data -o -name backups \) -prune -o -name '*.sops.env' -type f -print)
+    if [ "${#SERVER_APPS[@]}" -gt 0 ]; then
+        # Server mode: only decrypt SOPS files for apps assigned to this server
+        sops_files=""
+        for app in "${SERVER_APPS[@]}"; do
+            local app_dir="${src_dir}/${app}"
+            if [ -d "${app_dir}" ]; then
+                local found
+                found=$(find "${app_dir}" \( -name config -o -name data -o -name backups \) -prune -o -name '*.sops.env' -type f -print)
+                if [ -n "${found}" ]; then
+                    if [ -n "${sops_files}" ]; then
+                        sops_files="${sops_files}"$'\n'"${found}"
+                    else
+                        sops_files="${found}"
+                    fi
+                fi
+            fi
+        done
+    else
+        sops_files=$(find "${src_dir}" \( -name config -o -name data -o -name backups \) -prune -o -name '*.sops.env' -type f -print)
+    fi
 
     if [ -z "${sops_files}" ]; then
         log_message "INFO:  No *.sops.env files found, skipping decryption"
@@ -479,11 +553,18 @@ update_compose_files() {
         else
             redeploy_compose_file() {
                 local file=$1
+                local -a extra_files=("${@:2}") # Optional override compose files
                 local app_name
                 app_name=$(basename "$(dirname "${file}")")
 
-                # Validate the compose file before touching any running containers
-                if ! ${SUDO} docker compose -f "${file}" config --quiet 2>/dev/null; then
+                # Build the compose file arguments
+                local -a compose_file_args=(-f "${file}")
+                for ef in "${extra_files[@]}"; do
+                    compose_file_args+=(-f "${ef}")
+                done
+
+                # Validate the compose file(s) before touching any running containers
+                if ! ${SUDO} docker compose "${compose_file_args[@]}" config --quiet 2>/dev/null; then
                     log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
                     return 0
                 fi
@@ -508,17 +589,17 @@ update_compose_files() {
 
                 # Pull images unless NO_PULL is set
                 if [ "${NO_PULL}" -eq 0 ]; then
-                    run_compose_command -f "${file}" pull --quiet
+                    run_compose_command "${compose_file_args[@]}" pull --quiet
                 else
                     log_message "STATE: Skipping image pull for ${file} (no-pull mode)"
                 fi
 
                 if [ "${GRACEFUL}" -eq 1 ]; then
-                    run_compose_command -f "${file}" up -d --dry-run &>"${TMPRESTART}"
+                    run_compose_command "${compose_file_args[@]}" up -d --dry-run &>"${TMPRESTART}"
                     if grep -q "Recreate" "${TMPRESTART}"; then
                         log_message "GRACEFUL: Redeploying compose file for ${file}"
                         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                        if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
+                        if ! run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull; then
                             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                             _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                             _DEPLOY_FAILED_APPS+=("${app_name}")
@@ -529,7 +610,7 @@ update_compose_files() {
                 else
                     log_message "STATE: Redeploying compose file for ${file}"
                     # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                    if ! run_compose_command -f "${file}" up -d --build --quiet-pull; then
+                    if ! run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull; then
                         log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                         _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                         _DEPLOY_FAILED_APPS+=("${app_name}")
@@ -541,14 +622,32 @@ update_compose_files() {
             # attaches to networks created by other projects.
             local -a traefik_files=()
             local -a other_files=()
-            # shellcheck disable=SC2312  # find/sort exit codes in process substitution are non-fatal
-            while IFS= read -r file; do
-                if [[ "${file}" == */traefik/* ]]; then
-                    traefik_files+=("${file}")
-                else
-                    other_files+=("${file}")
-                fi
-            done < <(find . \( -name data -o -name backups \) -prune -o -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) -print | sort)
+
+            if [ "${#SERVER_APPS[@]}" -gt 0 ]; then
+                # Server mode: build file list from the server's app list only
+                for app in "${SERVER_APPS[@]}"; do
+                    local compose_file="./services/${app}/compose.yaml"
+                    if [ ! -f "${compose_file}" ]; then
+                        log_message "WARNING: ${app}: compose.yaml not found, skipping"
+                        continue
+                    fi
+                    if [[ "${app}" == *traefik* ]]; then
+                        traefik_files+=("${compose_file}")
+                    else
+                        other_files+=("${compose_file}")
+                    fi
+                done
+            else
+                # Default mode: discover all compose files via find
+                # shellcheck disable=SC2312  # find/sort exit codes in process substitution are non-fatal
+                while IFS= read -r file; do
+                    if [[ "${file}" == */traefik/* ]]; then
+                        traefik_files+=("${file}")
+                    else
+                        other_files+=("${file}")
+                    fi
+                done < <(find . \( -name data -o -name backups \) -prune -o -type f \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yaml' -o -name 'compose.yml' \) -print | sort)
+            fi
 
             for file in "${other_files[@]}" "${traefik_files[@]}"; do
                 # Extract the directory containing the file
@@ -564,12 +663,22 @@ update_compose_files() {
                 # If EXCLUDE is set
                 if [ -n "${EXCLUDE}" ]; then
                     # If the directory does not contain the exclude pattern
-                    if [[ "${dir}" != *"${EXCLUDE}"* ]]; then
-                        redeploy_compose_file "${file}"
+                    if [[ "${dir}" == *"${EXCLUDE}"* ]]; then
+                        continue
                     fi
-                else
-                    redeploy_compose_file "${file}"
                 fi
+
+                # Check for a server-specific compose override file
+                local -a override_args=()
+                if [ -n "${SERVER_NAME}" ]; then
+                    local override_file="${dir}/compose.${SERVER_NAME}.yaml"
+                    if [ -f "${override_file}" ]; then
+                        log_message "INFO:  Applying server override: ${override_file}"
+                        override_args=("${override_file}")
+                    fi
+                fi
+
+                redeploy_compose_file "${file}" "${override_args[@]}"
             done
         fi
     fi
@@ -699,10 +808,12 @@ usage() {
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
       -G <url>        Gatus instance URL to report CD status to (optional - falls back to GATUS_URL/GATUS_CD_TOKEN from services/gatus/.env)
       -r <ip>         DNS server to use for Gatus curl calls (optional - overrides system resolver for Gatus only, requires curl with c-ares)
+      -S <server>     Server mode: deploy only apps assigned to <server> in servers.yaml (mutually exclusive with -a and -t)
 
     Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
     Local:   /path/to/dccd.sh -d /path/to/git_repo -f -n -a plex
+    Server:  /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f
 
 EOF
     exit 1
@@ -712,7 +823,7 @@ EOF
 # Options
 ########################################
 
-while getopts ":a:b:d:DfgG:k:hno:pr:s:tw:x:" opt; do
+while getopts ":a:b:d:DfgG:k:hno:pr:s:S:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
@@ -749,6 +860,9 @@ while getopts ":a:b:d:DfgG:k:hno:pr:s:tw:x:" opt; do
         ;;
     s)
         SOPS_INSTALL_DIR="${OPTARG}"
+        ;;
+    S)
+        SERVER_NAME="${OPTARG}"
         ;;
     t)
         TRUENAS=1
@@ -823,6 +937,19 @@ if [ -n "${APP_FILTER}" ]; then
     log_message "INFO:  Will only deploy app '${APP_FILTER}'"
 fi
 
+# Check if SERVER_NAME is provided and validate mutual exclusivity
+if [ -n "${SERVER_NAME}" ]; then
+    if [ -n "${APP_FILTER}" ]; then
+        log_message "ERROR: -S (server mode) and -a (app filter) are mutually exclusive"
+        exit 1
+    fi
+    if [ "${TRUENAS}" -eq 1 ]; then
+        log_message "ERROR: -S (server mode) and -t (TrueNAS mode) are mutually exclusive"
+        exit 1
+    fi
+    log_message "INFO:  Server mode enabled for '${SERVER_NAME}'"
+fi
+
 # Resolve SOPS install directory now that BASE_DIR is known
 if [ -z "${SOPS_INSTALL_DIR}" ]; then
     SOPS_INSTALL_DIR="${BASE_DIR}/bin"
@@ -878,6 +1005,11 @@ if [ -n "${GATUS_URL}" ]; then
     else
         log_message "WARNING: GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
     fi
+fi
+
+# Parse server app list if server mode is enabled
+if [ -n "${SERVER_NAME}" ]; then
+    parse_server_apps
 fi
 
 _CD_START_TIME=$(date +%s)

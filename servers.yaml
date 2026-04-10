@@ -1,0 +1,31 @@
+---
+# Server-to-app mapping for multi-server deployments.
+# Used by dccd.sh -S <server> to deploy only the apps assigned to a server.
+#
+# TrueNAS (svlnas) uses TrueNAS mode (-t) which has its own app discovery
+# via /mnt/.ix-apps/app_configs/, but is listed here for SOPS key scoping.
+#
+# Schema: servers.schema.json
+# Validated by: check-jsonschema --schemafile servers.schema.json servers.yaml
+
+servers:
+  svlnas:
+    description: "NAS running TrueNAS SCALE — All apps running directly on the NAS (TrueNAS mode)"
+    # Age public key for this server (private key stored on the server at age.key)
+    # No 'apps' list — TrueNAS mode (-t) discovers apps automatically
+    age_public_key: "age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n"
+
+  svlazext:
+    description: "Azure VM — DNS (AdGuard + Unbound) and VPN (Wireguard, planned)"
+    # Age public key for this server (private key stored on the server at age.key)
+    age_public_key: "age1xmc30s0v8m4eng93d4lmdzvcsrhvtmm57nfgrwwjsew2nu2svgzqmgssvg"
+    apps:
+      - adguard
+      - traefik
+
+  svlazextpub:
+    description: "Azure VM — Public web server (Traefik reverse proxy + public app backends)"
+    # Age public key for this server (private key stored on the server at age.key)
+    age_public_key: "age1fghfh92lw7eyytut75us2l2n4ayfm0yzy8vuny3jtua08vuljc9quqgafj"
+    apps:
+      - traefik
