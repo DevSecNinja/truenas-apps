@@ -166,6 +166,15 @@ endpoints:
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
+  - name: svlazext - HTTP
+    <<: *defaults
+    url: "https://svlazext.${DOMAINNAME}"
+    group: External
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
   - name: Bing - HTTP
     <<: *external-defaults
     url: "https://bing.com/"
