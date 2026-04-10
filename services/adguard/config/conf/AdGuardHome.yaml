@@ -23,10 +23,11 @@ dns:
   refuse_any: true
   # TODO: [adguard] Enable support for IPv6
   upstream_dns:
-    - udp://adguard-unbound:5335
+    - udp://172.30.53.2:5335
   upstream_dns_file: ""
   bootstrap_dns:
-    - 127.0.0.11
+    - 9.9.9.9
+    - 149.112.112.112
   # IP-literal DoH URLs avoid bootstrap DNS lookups
   fallback_dns:
     - https://9.9.9.9/dns-query
