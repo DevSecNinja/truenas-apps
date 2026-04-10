@@ -751,6 +751,11 @@ update_compose_files() {
         log_message "${sep}"
     fi
 
+    local end_time elapsed_time
+    end_time=$(date +%s)
+    elapsed_time=$((end_time - _CD_START_TIME))
+    log_message "INFO:  Total execution time: ${elapsed_time}s"
+
     log_message "STATE: Done!"
 }
 
