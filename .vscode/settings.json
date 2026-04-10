@@ -63,5 +63,6 @@
           "**/Taskfile.yml",
           "./path/to/any/other/taskfile.yml"
         ]
-    }
+    },
+    "git.postCommitCommand": "sync"
 }
