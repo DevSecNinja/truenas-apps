@@ -291,7 +291,7 @@ jobs:
 
       - name: Validate app directories exist
         run: |-
-          mise exec -- yq -r '.servers[].apps[]' servers.yaml | sort -u | while IFS= read -r app; do
+          mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do
             if [ ! -d "services/${app}" ]; then
               echo "ERROR: App '${app}' in servers.yaml has no services/${app}/ directory"
               exit 1

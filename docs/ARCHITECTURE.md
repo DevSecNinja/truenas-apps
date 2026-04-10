@@ -629,7 +629,7 @@ servers:
       - traefik
 ```
 
-**TrueNAS (svlnas) is not listed** — it uses TrueNAS mode (`-t`) which has its own app discovery via the TrueNAS app store.
+**TrueNAS (svlnas)** uses TrueNAS mode (`-t`) which has its own app discovery, but is listed in `servers.yaml` for SOPS key scoping.
 
 ### Deploying to a Server
 

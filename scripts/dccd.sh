@@ -181,11 +181,18 @@ parse_server_apps() {
         exit 1
     fi
 
-    # Read apps into array
+    # Read apps into array (if the server has an explicit apps list)
+    local has_apps
+    has_apps=$(yq -r ".servers.\"${SERVER_NAME}\" | has(\"apps\")" "${servers_yaml}")
+    if [ "${has_apps}" != "true" ]; then
+        log_message "INFO:  Server '${SERVER_NAME}' has no apps list — deploying all apps"
+        return
+    fi
+
     local app_list
     app_list=$(yq -r ".servers.\"${SERVER_NAME}\".apps[]" "${servers_yaml}")
     if [ -z "${app_list}" ]; then
-        log_message "ERROR: Server '${SERVER_NAME}' has no apps defined in ${servers_yaml}"
+        log_message "ERROR: Server '${SERVER_NAME}' has an empty apps list in ${servers_yaml}"
         exit 1
     fi
 

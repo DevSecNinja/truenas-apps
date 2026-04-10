@@ -58,7 +58,7 @@ run = "mise exec -- check-jsonschema --schemafile servers.schema.json servers.ya
 glob = ["servers.yaml", "servers.schema.json"]
 
 [pre-commit.commands.validate-servers-apps]
-run = "mise exec -- yq -r '.servers[].apps[]' servers.yaml | sort -u | while IFS= read -r app; do [ -d \"services/${app}\" ] || { echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; }; done"
+run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do [ -d \"services/${app}\" ] || { echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; }; done"
 glob = ["servers.yaml", "services/**/compose.yaml"]
 
 [commit-msg.commands.cocogitto]

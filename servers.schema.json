@@ -13,7 +13,7 @@
       "minProperties": 1,
       "additionalProperties": {
         "type": "object",
-        "required": ["description", "age_public_key", "apps"],
+        "required": ["description", "age_public_key"],
         "additionalProperties": false,
         "properties": {
           "description": {
@@ -28,7 +28,7 @@
           },
           "apps": {
             "type": "array",
-            "description": "List of app directory names under services/ to deploy on this server.",
+            "description": "List of app directory names under services/ to deploy on this server. Omit for servers that discover apps automatically (e.g. TrueNAS mode).",
             "minItems": 1,
             "uniqueItems": true,
             "items": {

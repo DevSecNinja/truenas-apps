@@ -102,13 +102,19 @@ for sops_file in "${BASE_DIR}"/services/*/secret.sops.env; do
     keys="${DEPLOY_KEY},${SVLNAS_KEY}"
 
     # Add keys for any server in servers.yaml that lists this app
+    # Servers without an 'apps' list are treated as having access to all apps
     while IFS= read -r server; do
-        has_app=$(yq -r ".servers.\"${server}\".apps[] | select(. == \"${app}\")" "${SERVERS_YAML}")
-        if [ -n "${has_app}" ]; then
-            server_key="${SERVER_KEYS[${server}]:-}"
-            if [ -n "${server_key}" ]; then
-                keys="${keys},${server_key}"
+        has_apps=$(yq -r ".servers.\"${server}\" | has(\"apps\")" "${SERVERS_YAML}")
+        if [ "${has_apps}" = "true" ]; then
+            has_app=$(yq -r ".servers.\"${server}\".apps[] | select(. == \"${app}\")" "${SERVERS_YAML}")
+            if [ -z "${has_app}" ]; then
+                continue
             fi
+        fi
+        # Server either lists this app explicitly or has no apps list (all-access)
+        server_key="${SERVER_KEYS[${server}]:-}"
+        if [ -n "${server_key}" ]; then
+            keys="${keys},${server_key}"
         fi
     done <<<"${local_server_list}"
 
