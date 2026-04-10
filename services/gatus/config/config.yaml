@@ -166,9 +166,18 @@ endpoints:
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
-  - name: svlazext - HTTP
+  - name: traefik-ext - HTTP
     <<: *defaults
-    url: "https://svlazext.${DOMAINNAME}"
+    url: "https://traefik-ext.${DOMAINNAME}"
+    group: External
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: adguard-ext - HTTP
+    <<: *defaults
+    url: "https://adguard-ext.${DOMAINNAME}"
     group: External
     conditions:
       - "[STATUS] == 200"
