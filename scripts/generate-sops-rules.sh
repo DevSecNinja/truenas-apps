@@ -2,17 +2,17 @@
 # generate-sops-rules.sh — Generate .sops.yaml creation_rules from servers.yaml
 #
 # Reads servers.yaml to build per-app SOPS creation rules that grant decryption
-# access only to the servers that run each app. A deploy key (your dev machine)
-# is always included so you can decrypt everything.
+# access only to the servers that run each app. The deploy key is extracted from
+# age.key (the "# public key:" comment line) and is always included so you can
+# encrypt/decrypt all secrets from your dev machine.
+#
+# Servers without an 'apps' list (e.g. svlnas) are treated as all-access — their
+# key is added to every app's rule.
 #
 # Usage:
-#   bash scripts/generate-sops-rules.sh -d /path/to/repo -D age1deploy...
+#   bash scripts/generate-sops-rules.sh -d /path/to/repo
 #
-# The deploy key is the Age public key of your development machine. It is always
-# added as a recipient to every rule so you can encrypt/decrypt all secrets.
-#
-# The svlnas key is the Age public key of the TrueNAS server. Apps not explicitly
-# assigned to any server in servers.yaml are assumed to run on svlnas (fallback).
+# Run this script whenever server-app mappings or Age keys change in servers.yaml.
 
 set -euo pipefail
 
@@ -20,30 +20,27 @@ set -euo pipefail
 # Default configuration
 ########################################
 BASE_DIR=""
-DEPLOY_KEY=""
-SVLNAS_KEY=""
 
 usage() {
     cat <<EOF
-Usage: $0 -d <base_dir> -D <deploy_age_pubkey> -N <svlnas_age_pubkey>
+Usage: $0 -d <base_dir>
 
 Options:
   -d <path>    Base directory of the git repository (required)
-  -D <key>     Age public key of the deploy/dev machine (required, always a recipient)
-  -N <key>     Age public key of the svlnas TrueNAS server (required)
   -h           Show this help message
 
+The deploy key is read from <base_dir>/age.key (the "# public key:" comment).
+Server keys are read from <base_dir>/servers.yaml (age_public_key fields).
+
 Example:
-  $0 -d /workspaces/truenas-apps -D age1abc...def -N age1nas...xyz
+  $0 -d /workspaces/truenas-apps
 EOF
     exit 1
 }
 
-while getopts ":d:D:N:h" opt; do
+while getopts ":d:h" opt; do
     case "${opt}" in
     d) BASE_DIR="${OPTARG}" ;;
-    D) DEPLOY_KEY="${OPTARG}" ;;
-    N) SVLNAS_KEY="${OPTARG}" ;;
     h) usage ;;
     \?)
         echo "Invalid option: -${OPTARG}" >&2
@@ -57,8 +54,8 @@ while getopts ":d:D:N:h" opt; do
     esac
 done
 
-if [ -z "${BASE_DIR}" ] || [ -z "${DEPLOY_KEY}" ] || [ -z "${SVLNAS_KEY}" ]; then
-    echo "ERROR: -d, -D, and -N are all required." >&2
+if [ -z "${BASE_DIR}" ]; then
+    echo "ERROR: -d is required." >&2
     usage
 fi
 
@@ -69,18 +66,38 @@ fi
 
 SERVERS_YAML="${BASE_DIR}/servers.yaml"
 SOPS_YAML="${BASE_DIR}/.sops.yaml"
+AGE_KEY="${BASE_DIR}/age.key"
 
 if [ ! -f "${SERVERS_YAML}" ]; then
     echo "ERROR: servers.yaml not found at ${SERVERS_YAML}" >&2
     exit 1
 fi
 
+if [ ! -f "${AGE_KEY}" ]; then
+    echo "ERROR: age.key not found at ${AGE_KEY}" >&2
+    exit 1
+fi
+
+########################################
+# Extract deploy key from age.key
+########################################
+
+DEPLOY_KEY=$(grep -oP '# public key: \K(age1[a-z0-9]+)' "${AGE_KEY}") || true
+if [ -z "${DEPLOY_KEY}" ]; then
+    echo "ERROR: Could not extract public key from ${AGE_KEY}" >&2
+    echo "ERROR: Expected a line like: # public key: age1..." >&2
+    exit 1
+fi
+echo "Deploy key: ${DEPLOY_KEY}"
+
 ########################################
 # Build app → server key mapping
 ########################################
 
-# Collect all server Age public keys keyed by server name
+# Collect all server Age public keys and their access mode
 declare -A SERVER_KEYS
+declare -a ALL_ACCESS_KEYS=()
+
 local_server_list=$(yq -r '.servers | keys | .[]' "${SERVERS_YAML}") || true
 while IFS= read -r server; do
     key=$(yq -r ".servers.\"${server}\".age_public_key" "${SERVERS_YAML}")
@@ -89,7 +106,23 @@ while IFS= read -r server; do
         continue
     fi
     SERVER_KEYS["${server}"]="${key}"
+
+    # Servers without an 'apps' list get access to all apps
+    has_apps=$(yq -r ".servers.\"${server}\" | has(\"apps\")" "${SERVERS_YAML}")
+    if [ "${has_apps}" != "true" ]; then
+        ALL_ACCESS_KEYS+=("${key}")
+        echo "Server '${server}': all-access (no apps list)"
+    else
+        app_count=$(yq -r ".servers.\"${server}\".apps | length" "${SERVERS_YAML}")
+        echo "Server '${server}': ${app_count} app(s)"
+    fi
 done <<<"${local_server_list}"
+
+# Build the base key set: deploy key + all-access server keys
+BASE_KEYS="${DEPLOY_KEY}"
+for k in "${ALL_ACCESS_KEYS[@]}"; do
+    BASE_KEYS="${BASE_KEYS},${k}"
+done
 
 # For each app with a secret.sops.env, determine which keys should be recipients
 declare -A APP_KEYS
@@ -98,27 +131,25 @@ for sops_file in "${BASE_DIR}"/services/*/secret.sops.env; do
     app_dir=$(dirname "${sops_file}")
     app=$(basename "${app_dir}")
 
-    # Start with deploy key + svlnas key (svlnas is the default/fallback server)
-    keys="${DEPLOY_KEY},${SVLNAS_KEY}"
+    # Start with deploy key + all-access server keys
+    keys="${BASE_KEYS}"
 
-    # Add keys for any server in servers.yaml that lists this app
-    # Servers without an 'apps' list are treated as having access to all apps
+    # Add keys for servers that explicitly list this app
     while IFS= read -r server; do
         has_apps=$(yq -r ".servers.\"${server}\" | has(\"apps\")" "${SERVERS_YAML}")
-        if [ "${has_apps}" = "true" ]; then
-            has_app=$(yq -r ".servers.\"${server}\".apps[] | select(. == \"${app}\")" "${SERVERS_YAML}")
-            if [ -z "${has_app}" ]; then
-                continue
-            fi
+        if [ "${has_apps}" != "true" ]; then
+            continue # Already included via ALL_ACCESS_KEYS
         fi
-        # Server either lists this app explicitly or has no apps list (all-access)
-        server_key="${SERVER_KEYS[${server}]:-}"
-        if [ -n "${server_key}" ]; then
-            keys="${keys},${server_key}"
+        has_app=$(yq -r ".servers.\"${server}\".apps[] | select(. == \"${app}\")" "${SERVERS_YAML}")
+        if [ -n "${has_app}" ]; then
+            server_key="${SERVER_KEYS[${server}]:-}"
+            if [ -n "${server_key}" ]; then
+                keys="${keys},${server_key}"
+            fi
         fi
     done <<<"${local_server_list}"
 
-    # Deduplicate keys (in case svlnas key was added twice)
+    # Deduplicate keys
     keys=$(echo "${keys}" | tr ',' '\n' | sort -u | paste -sd',')
     APP_KEYS["${app}"]="${keys}"
 done
@@ -127,8 +158,20 @@ done
 # Generate .sops.yaml
 ########################################
 
-# Determine the fallback key set (deploy + svlnas)
-FALLBACK_KEYS="${DEPLOY_KEY},${SVLNAS_KEY}"
+# Format comma-separated keys as multi-line YAML (one key per line under >-)
+# Usage: format_age_keys "key1,key2,key3" "      " → indented lines
+format_age_keys() {
+    local keys="${1}"
+    local indent="${2}"
+    local formatted
+    formatted=$(echo "${keys}" | tr ',' '\n' | sed '$!s/$/,/')
+    while IFS= read -r line; do
+        echo "${indent}${line}"
+    done <<<"${formatted}"
+}
+
+# Determine the fallback key set (deploy + all-access keys)
+FALLBACK_KEYS=$(echo "${BASE_KEYS}" | tr ',' '\n' | sort -u | paste -sd',')
 
 {
     echo "---"
@@ -141,18 +184,18 @@ FALLBACK_KEYS="${DEPLOY_KEY},${SVLNAS_KEY}"
         if [ "${keys}" != "${FALLBACK_KEYS}" ]; then
             echo "  - path_regex: services/${app}/secret\\.sops\\.env\$"
             echo "    age: >-"
-            echo "      ${keys}"
+            format_age_keys "${keys}" "      "
         fi
     done
 
     # Fallback rule: catches all remaining secret.sops.env files
-    # (new apps default to deploy + svlnas)
     echo "  - path_regex: secret\\.sops\\.env\$"
     echo "    age: >-"
-    echo "      ${FALLBACK_KEYS}"
+    format_age_keys "${FALLBACK_KEYS}" "      "
 } >"${SOPS_YAML}"
 
 rule_count=$(grep -c 'path_regex:' "${SOPS_YAML}") || true
+echo ""
 echo "Generated ${SOPS_YAML} with ${rule_count} rule(s)"
 echo ""
 echo "Next steps:"

@@ -691,8 +691,10 @@ creation_rules:
 Generate rules from `servers.yaml` using:
 
 ```sh
-bash scripts/generate-sops-rules.sh -d /path/to/repo -D age1deploy... -N age1svlnas...
+bash scripts/generate-sops-rules.sh -d /path/to/repo
 ```
+
+The script reads the deploy key from `age.key` (the `# public key:` comment) and all server keys from `servers.yaml`. Servers without an `apps` list are treated as all-access.
 
 After updating rules, re-encrypt all files: `sops updatekeys services/<app>/secret.sops.env` for each app.
 
