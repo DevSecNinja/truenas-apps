@@ -13,6 +13,10 @@
 			],
 			"gallery": "https://api.mcp.github.com",
 			"version": "0.33.0"
+		},
+		"microsoft-learn": {
+		"type": "http",
+		"url": "https://learn.microsoft.com/api/mcp"
 		}
 	},
 	"inputs": [
