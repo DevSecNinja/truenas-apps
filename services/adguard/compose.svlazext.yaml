@@ -1,0 +1,24 @@
+---
+# Server-specific compose override for svlazext (Azure DNS/VPN VM).
+# Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
+#
+# Overrides:
+# - Labels: adjusts dashboard hostname for the svlazext instance
+services:
+  adguard:
+    labels: !override
+      - homepage.group=Infrastructure
+      - homepage.name=AdGuard (svlazext)
+      - homepage.icon=adguard-home.svg
+      - homepage.href=https://adguard-ext.${DOMAINNAME}
+      - homepage.description=DNS Service (svlazext)
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=adguard-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.adguard-rtr.rule=Host(`adguard-ext.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.adguard-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.adguard-rtr.service=adguard"
+      - "traefik.http.services.adguard.loadbalancer.server.port=80"
