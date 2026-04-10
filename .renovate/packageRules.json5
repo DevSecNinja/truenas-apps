@@ -2,6 +2,11 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
+      description: "Disable digest-only updates — reduces PR noise and avoids auto-merging potentially hijacked tags (see Trivy CVE-2026-33634)",
+      matchUpdateTypes: ["digest"],
+      enabled: false,
+    },
+    {
       description: "Flag dependencies where the currently-used version is over 1 year old — likely abandoned or unmaintained.",
       matchCurrentAge: "> 1 year",
       addLabels: ["stale-dependency"],
