@@ -1,8 +1,9 @@
 #!/bin/sh
 # Shell aliases and helper functions for TrueNAS NAS administration.
 #
-# Source this file from ~/.zshrc with a one-time addition:
-#   echo 'source /mnt/vm-pool/apps/scripts/aliases.sh' >> ~/.zshrc
+# Source this file from your shell's RC file with a one-time addition:
+#   zsh:  echo 'source /mnt/vm-pool/apps/scripts/aliases.sh' >> ~/.zshrc
+#   bash: echo 'source /mnt/vm-pool/apps/scripts/aliases.sh' >> ~/.bashrc
 #
 # After that, dccd.sh keeps this file up-to-date automatically on every git pull.
 

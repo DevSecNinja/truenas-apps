@@ -487,6 +487,22 @@ update_compose_files() {
         # Ignore file permission changes (init containers chown/chmod volumes, which should not dirty the working tree)
         GIT_OPTS=(-c "url.https://github.com/.insteadOf=git@github.com:" -c "safe.directory=${dir}" -c "core.filemode=false")
 
+        # Pre-flight: detect .git/ files not owned by the current user (e.g. FETCH_HEAD
+        # created by a previous root run). git fetch will fail to write to these files.
+        local bad_git_files current_user
+        current_user=$(whoami) || true
+        bad_git_files=$(find "${dir}/.git" -maxdepth 2 ! -user "$(id -u)" -print 2>/dev/null) || true
+        if [ -n "${bad_git_files}" ]; then
+            log_message "ERROR: .git/ contains files not owned by the current user (${current_user}):"
+            local file_owner
+            while IFS= read -r f; do
+                file_owner=$(stat -c '%U' "${f}" 2>/dev/null) || file_owner="unknown"
+                log_message "ERROR:   ${f}  (owner: ${file_owner})"
+            done <<<"${bad_git_files}"
+            log_message "ERROR: Fix with: sudo chown -R ${current_user} ${dir}/.git"
+            exit 1
+        fi
+
         # Check if there are any changes in the Git repository
         if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
             log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
@@ -703,8 +719,10 @@ update_compose_files() {
         while IFS= read -r f; do
             log_message "WARNING:   ${f}"
         done <<<"${root_owned}"
+        local current_user
+        current_user=$(whoami) || true
         log_message "WARNING: To fix, run manually:"
-        log_message "WARNING:   find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown truenas_admin:truenas_admin"
+        log_message "WARNING:   find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown ${current_user}:${current_user}"
     fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
