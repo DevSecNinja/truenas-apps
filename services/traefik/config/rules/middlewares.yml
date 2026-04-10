@@ -131,7 +131,8 @@ http:
             'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
     middlewares-forward-auth:
       forwardAuth:
-        address: "http://traefik-forward-auth:4181"
+        # Use 'http://traefik-forward-auth:4181' when Traefik Forward Auth is running as a container in the same Docker network
+        address: "https://auth.${DOMAINNAME}"
         trustForwardHeader: true
         maxResponseBodySize: 1048576 # 1 MiB — prevents DoS via unbounded response
         authResponseHeaders:
