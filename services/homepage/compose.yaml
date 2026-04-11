@@ -62,10 +62,15 @@ services:
       ## HTTP Services
       - "traefik.http.routers.homepage-rtr.service=homepage"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+      ## Monitoring (Gatus — internal entrypoint only)
+      - "traefik.http.routers.homepage-monitor.rule=Host(`apps.${DOMAINNAME}`)"
+      - "traefik.http.routers.homepage-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.homepage-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.homepage-monitor.service=homepage"
       ## Gatus
-      - "gatus.url=https://172.30.100.6"
+      - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=apps.${DOMAINNAME}"
-      - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).

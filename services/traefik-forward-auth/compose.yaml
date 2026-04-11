@@ -71,7 +71,10 @@ services:
       - homepage.href=https://auth.${DOMAINNAME}
       - homepage.description=Authentication Service
       # Gatus
-      - gatus.url=https://auth.${DOMAINNAME}/healthz
+      - "gatus.url=http://172.30.100.6:8444/healthz"
+      - "gatus.headers.Host=auth.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
       # Traefik
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-forward-auth-frontend"
@@ -82,6 +85,11 @@ services:
       ## HTTP Services
       - "traefik.http.routers.traefik-forward-auth-rtr.service=traefik-forward-auth"
       - "traefik.http.services.traefik-forward-auth.loadbalancer.server.port=4181"
+      ## Monitoring (Gatus — internal entrypoint only)
+      - "traefik.http.routers.traefik-forward-auth-monitor.rule=Host(`auth.${DOMAINNAME}`)"
+      - "traefik.http.routers.traefik-forward-auth-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.traefik-forward-auth-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.traefik-forward-auth-monitor.service=traefik-forward-auth"
 
 networks:
   traefik-forward-auth-frontend:
