@@ -72,16 +72,7 @@ services:
       - /tmp
     volumes:
       - ./data:/app/data
-    healthcheck:
-      test:
-        - "CMD"
-        - "curl"
-        - "-fs"
-        - "http://localhost:8000/health"
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+    # Healthcheck already defined in the image
     labels:
       # Homepage
       - homepage.group=Production
