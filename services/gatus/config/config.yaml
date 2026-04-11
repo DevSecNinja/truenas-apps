@@ -99,6 +99,16 @@ endpoints:
     <<: *defaults
     url: "https://devsecninja.com/"
 
+  - name: homelab docs - HTTP
+    <<: *defaults
+    url: "https://homelab.devsecninja.com/"
+    group: External
+    conditions:
+      - "[BODY] == pat(*TrueNAS Home Lab Apps*)"
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
   - name: hadiscover - HTTP
     <<: *defaults
     url: "https://hadiscover.com/"
