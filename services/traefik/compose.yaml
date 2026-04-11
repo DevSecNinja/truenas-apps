@@ -61,30 +61,31 @@ services:
         max_attempts: 3
         window: 120s
     networks:
-      - traefik-backend
-      - adguard-frontend
-      - echo-server-frontend
-      - excalidraw-frontend
-      - gatus-frontend
-      - homepage-frontend
-      - traefik-forward-auth-frontend
-      - unifi-frontend
-      - plex-frontend
-      - metube-frontend
-      - immich-frontend
-      - bazarr-frontend
-      - dozzle-frontend
-      - lidarr-frontend
-      - prowlarr-frontend
-      - qbittorrent-frontend
-      - radarr-frontend
-      - sabnzbd-frontend
-      - sonarr-frontend
-      - spottarr-frontend
-      - tubesync-frontend
-      - drawio-frontend
-      - home-assistant-frontend
-      - outline-frontend
+      traefik-backend:
+      adguard-frontend:
+      echo-server-frontend:
+      excalidraw-frontend:
+      gatus-frontend:
+        ipv4_address: 172.30.100.2
+      homepage-frontend:
+      traefik-forward-auth-frontend:
+      unifi-frontend:
+      plex-frontend:
+      metube-frontend:
+      immich-frontend:
+      bazarr-frontend:
+      dozzle-frontend:
+      lidarr-frontend:
+      prowlarr-frontend:
+      qbittorrent-frontend:
+      radarr-frontend:
+      sabnzbd-frontend:
+      sonarr-frontend:
+      spottarr-frontend:
+      tubesync-frontend:
+      drawio-frontend:
+      home-assistant-frontend:
+      outline-frontend:
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -138,7 +139,7 @@ services:
       - "traefik.http.routers.traefik-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.traefik-monitor.service=api@internal"
       ## Gatus
-      - "gatus.url=http://traefik:8444"
+      - "gatus.url=http://172.30.100.2:8444"
       - "gatus.headers.Host=traefik.${DOMAINNAME}"
       - 'gatus.client={"ignore-redirect": true}'
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
