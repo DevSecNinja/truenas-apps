@@ -1,39 +1,8 @@
 ---
 services:
-  # Sets ownership on ./config so the non-root homepage container can write to it.
-  # Runs once, then exits.
-  # Required because homepage's entrypoint only chowns when starting as root, so by
-  # pre-chowning here we can start homepage directly as 3102:3102 without root.
-  # Config files are set to group-write (775/664) so truenas_admin (member of
-  # group 3102) can git-pull without permission conflicts.
-  homepage-init:
-    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
-    container_name: homepage-init
-    env_file:
-      - path: .env # Decrypted from secret.sops.env
-        required: false
-    restart: "no"
-    network_mode: none
-    mem_limit: 64m
-    pids_limit: 50
-    security_opt:
-      - no-new-privileges=true
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN # Required to change file ownership
-      - DAC_OVERRIDE # Required to traverse /config if it was previously chowned
-      - FOWNER # Required to chmod files/dirs not owned by root
-    read_only: true
-    command:
-      - "sh"
-      - "-c"
-      - |-
-        chown -Rv 3102:3102 /config &&
-        find /config -type d -exec chmod 775 {} + &&
-        find /config -type f -exec chmod 664 {} +
-    volumes:
-      - ./config:/config
+  # NOTE: No init container needed — ./config is git-tracked and must NOT be
+  # chowned (doing so breaks git pull). Homepage only reads its config YAML
+  # files, which are world-readable from the git checkout (644).
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v1.12.3@sha256:cc84f2f5eb3c7734353701ccbaa24ed02dacb0d119114e50e4251e2005f3990a
@@ -43,8 +12,6 @@ services:
         required: false
       - path: ../shared/env/tz.env
     depends_on:
-      homepage-init:
-        condition: service_completed_successfully
       homepage-docker-proxy:
         condition: service_healthy
     environment:

@@ -147,12 +147,13 @@ Named Docker volumes and bind-mounted directories are created as `root:root` by 
 
 The init container runs as root, chowns the volume paths to the service's UID:GID, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
 
-**Bind-mount directories (`./config`, `./data`, `./backup`) must always be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. The init container is the single recovery point that restores ownership on every deploy.
+**Bind-mount directories (`./data`, `./backups`) that are runtime-only (gitignored) must be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. The init container is the single recovery point that restores ownership on every deploy.
 
-**Git-tracked config directories** (`./config`) must be set to group-write permissions (`775` for directories, `664` for files) by the init container. This allows `truenas_admin` (who is a member of each app's primary group) to run `git pull` without permission conflicts. The init container restores both ownership and permissions on every deploy, so manual permission fixes are never needed.
+**Git-tracked `./config` directories must NEVER be chowned or chmod'd by an init container.** Doing so changes file ownership away from the deploy user and causes `git pull` to fail with `error: unable to unlink old '...': Permission denied`. Config files checked out by git are already world-readable (`644` files, `755` directories), so any container user can read them without ownership changes. If a service needs to *write* config at runtime, copy the file from `./config` to `./data` in the init container and mount the `./data` copy into the main container (see the gatus pattern).
 
 ```yaml
 # Pattern — copy this block, adjust container_name, UID:GID, command paths, and volumes
+# IMPORTANT: only chown ./data (runtime) paths — NEVER chown ./config (git-tracked)
 <app>-init:
   image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
   container_name: <app>-init
@@ -169,19 +170,14 @@ The init container runs as root, chowns the volume paths to the service's UID:GI
     - ALL
   cap_add:
     - CHOWN    # Required to chown volume paths
-    - FOWNER   # Required to chmod after ownership transfer
-    - DAC_OVERRIDE # Required to traverse previously-chowned directories
   read_only: true
   command:
     - "sh"
     - "-c"
     - |-
-      chown -Rv <UID>:<GID> /path/a /path/b &&
-      find /path/b -type d -exec chmod 775 {} + &&
-      find /path/b -type f -exec chmod 664 {} +
+      chown -Rv <UID>:<GID> /data
   volumes:
-    - <app>-volume:/path/a
-    - ./config:/path/b     # git-tracked config — group-write for truenas_admin
+    - ./data:/data
 ```
 
 For services that only chown runtime-only paths (named Docker volumes, `./data/`), the `chmod 775/664` step and `FOWNER`/`DAC_OVERRIDE` capabilities can be omitted — only `CHOWN` is needed. Docker creates named volumes and `./data/` directories as `root:root 755`, so UID 0 is always the owner and can traverse them without `DAC_OVERRIDE`.
@@ -200,12 +196,13 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
 | dozzle               | `dozzle-init`               | `./data`                                                                           |
-| homepage             | `homepage-init`             | `./config`                                                                         |
+| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                         |
 | metube               | `metube-init`               | `./data/state`                                                                     |
-| traefik              | `traefik-init`              | `./data/acme`, `./config`                                                          |
+| traefik              | `traefik-init`              | `./data/acme`                                                                      |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
 | spottarr             | `spottarr-chown`            | `./data`                                                                           |
+| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
 

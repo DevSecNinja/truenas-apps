@@ -108,7 +108,7 @@ Read `docs/ARCHITECTURE.md` before editing any compose file. Key rules:
 - **Images**: Always include explicit registry prefix (`docker.io/library/...`, `ghcr.io/...`). Always digest-pinned (`@sha256:...`). Bare names like `busybox` are forbidden.
 - **Security**: Every container must have `read_only: true`, `no-new-privileges`, `cap_drop: ALL`, `mem_limit`, `pids_limit: 100`. Add `cap_add` only when provably required with a comment explaining why.
 - **Health checks**: Mandatory on every service (required for `--wait` deploys).
-- **Init containers**: Required when a service uses `user: "UID:GID"` with writable volumes. Use the busybox init pattern from ARCHITECTURE.md. Must chown `./config` dirs with `775`/`664` permissions.
+- **Init containers**: Required when a service uses `user: "UID:GID"` with writable volumes. Use the busybox init pattern from ARCHITECTURE.md. Must only chown `./data` (runtime) paths — **never** chown `./config` (git-tracked) directories.
 - **Networks**: Each app gets its own `<app>-frontend` network. Must be added to `services/traefik/compose.yaml`.
 - **Volumes**: Mount `:ro` wherever the container only reads.
 - **Shared env**: All stacks reference `../shared/env/tz.env` for timezone.

@@ -531,6 +531,24 @@ update_compose_files() {
             exit 1
         fi
 
+        # Pre-flight: detect git-tracked files not owned by the current user.
+        # Init containers must never chown ./config (git-tracked) — but if one
+        # does, git pull fails with "unable to unlink old '...': Permission denied".
+        # Skip ./data and ./backups (runtime dirs legitimately owned by app UIDs).
+        local bad_tracked_files
+        bad_tracked_files=$(git "${GIT_OPTS[@]}" ls-files -z |
+            xargs -0 -I{} find "${dir}/{}" -maxdepth 0 ! -user "$(id -u)" -print 2>/dev/null |
+            grep -v '/data/' | grep -v '/backups/') || true
+        if [ -n "${bad_tracked_files}" ]; then
+            log_message "ERROR: Git-tracked files not owned by the current user (${current_user}):"
+            while IFS= read -r f; do
+                file_owner=$(stat -c '%U(%u)' "${f}" 2>/dev/null) || file_owner="unknown"
+                log_message "ERROR:   ${f}  (owner: ${file_owner})"
+            done <<<"${bad_tracked_files}"
+            log_message "ERROR: git pull will fail. Fix with: sudo chown -R ${current_user} <affected-dirs>"
+            exit 1
+        fi
+
         # Check if there are any changes in the Git repository
         if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
             log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
@@ -1044,12 +1062,11 @@ if [ -f "${_gatus_env}" ]; then
     elif [ -n "${DOMAINNAME:-}" ] && [ -z "${GATUS_URL}" ]; then
         GATUS_URL="https://status.${DOMAINNAME}"
     fi
-    # Restore CLI-supplied DNS server so -r always takes precedence over the file;
-    # fall back to IP_DNS_SERVER_1 from the env file if not set via CLI
+    # Restore CLI-supplied DNS server so -r always takes precedence over the file
     if [ -n "${_saved_gatus_dns}" ]; then
         GATUS_DNS_SERVER="${_saved_gatus_dns}"
-    elif [ -z "${GATUS_DNS_SERVER}" ] && [ -n "${IP_DNS_SERVER_1:-}" ]; then
-        GATUS_DNS_SERVER="${IP_DNS_SERVER_1}"
+    else
+        GATUS_DNS_SERVER=""
     fi
 fi
 

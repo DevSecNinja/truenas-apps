@@ -1,12 +1,11 @@
 ---
 services:
-  # Sets ownership on the ./config directory and copies config.yaml into the
+  # Copies config.yaml from the git-tracked ./config directory into the
   # ./data/sidecar-config directory so the non-root gatus container can read it.
   # Runs once, then exits.
-  # Docker Compose configs (non-swarm) are bind-mounted from the host, so host
-  # file permissions apply. An init container avoids that limitation.
-  # Config files are set to group-write (775/664) so truenas_admin (member of
-  # group 3103) can git-pull without permission conflicts.
+  # NOTE: ./config is git-tracked and must NOT be chowned — doing so changes
+  # file ownership away from the deploy user and breaks git pull. It is mounted
+  # :ro here; the init only writes to ./data/sidecar-config.
   gatus-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: gatus-init
@@ -19,24 +18,21 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # Required to change file ownership
+      - CHOWN # Required to change file ownership on the destination copy
       - FOWNER # Required to chmod files after chown transfers ownership away from root
-      - DAC_OVERRIDE # Required to traverse and read host files with restrictive permissions
+      - DAC_OVERRIDE # Required to overwrite the destination file owned by 3103
     read_only: true
     command:
       - "sh"
       - "-c"
       - |-
-        chown -Rv 3103:3103 /config-src &&
-        find /config-src -type d -exec chmod 775 {} + &&
-        find /config-src -type f -exec chmod 664 {} + &&
         if ! cmp -s /config-src/config.yaml /config/config.yaml; then
           cp /config-src/config.yaml /config/config.yaml &&
           chown 3103:3103 /config/config.yaml &&
           chmod 644 /config/config.yaml;
         fi
     volumes:
-      - ./config:/config-src
+      - ./config:/config-src:ro
       - ./data/sidecar-config:/config
 
   gatus:

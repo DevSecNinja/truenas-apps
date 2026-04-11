@@ -1,11 +1,12 @@
 ---
 services:
-  # Sets ownership on the ./data/acme bind-mount directory and ./config directory so the
-  # non-root traefik container can access them. Runs once, then exits.
+  # Sets ownership on the ./data/acme bind-mount directory so the non-root
+  # traefik container can access its certificate store. Runs once, then exits.
   # Required because traefik runs as 3100:3100 with cap_drop: ALL, meaning
   # it has no CAP_CHOWN and cannot fix volume ownership itself at runtime.
-  # Config files are set to group-write (775/664) so truenas_admin (member of
-  # group 3100) can git-pull without permission conflicts.
+  # NOTE: ./config is git-tracked and must NOT be chowned here — doing so
+  # changes file ownership away from the deploy user and breaks git pull.
+  # Config files are mounted :ro and are world-readable from the git checkout.
   traefik-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: traefik-init
@@ -23,7 +24,7 @@ services:
     cap_add:
       - CHOWN # Required to change file ownership
       - FOWNER # Required to chmod files after chown transfers ownership away from root
-      - DAC_OVERRIDE # Required to traverse /acme and /config if previously chowned
+      - DAC_OVERRIDE # Required to traverse /acme if previously chowned to 3100
     read_only: true
     command:
       - "sh"
@@ -32,13 +33,9 @@ services:
         touch /acme/acme.json &&
         chown -Rv 3100:3100 /acme &&
         chmod -v 700 /acme &&
-        chmod -v 600 /acme/acme.json &&
-        chown -Rv 3100:3100 /config &&
-        find /config -type d -exec chmod 775 {} + &&
-        find /config -type f -exec chmod 664 {} +
+        chmod -v 600 /acme/acme.json
     volumes:
       - ./data/acme:/acme
-      - ./config:/config
 
   traefik:
     image: docker.io/library/traefik:v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
