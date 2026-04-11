@@ -15,4 +15,12 @@
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
   suppressNotifications: ["prEditedNotification", "prIgnoreNotification"],
   pinDigests: true,
+  timezone: 'Europe/Amsterdam',
+  schedule: [
+    'every weekend',
+    'on Friday',
+  ],
+  ignorePaths: [
+    '**/*.sops.*',
+  ],
 }
