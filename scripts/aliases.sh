@@ -59,13 +59,61 @@ ddown() {
     sudo docker compose --project-name "ix-${1}" down
 }
 
-# Bring down a single app via dccd (server-aware with compose overrides): dccd-down <appname>
-# Example: dccd-down openspeedtest
+# Bring down one or more apps via dccd (server-aware with compose overrides).
+# Accepts space-separated and/or comma-separated app names, or --all for every service.
+# Examples:
+#   dccd-down openspeedtest
+#   dccd-down traefik hadiscover
+#   dccd-down traefik,hadiscover
+#   dccd-down --all
 # shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 dccd_down() {
-    bash "${APPS_DIR}/scripts/dccd.sh" \
-        -d "${APPS_DIR}" \
-        ${DCCD_MODE} -R "$1"
+    if [ -z "${APPS_DIR:-}" ]; then
+        echo "ERROR: APPS_DIR is not set." >&2
+        return 1
+    fi
+
+    if [ "$#" -eq 0 ]; then
+        echo "Usage: dccd-down <app> [<app> ...] | --all" >&2
+        return 1
+    fi
+
+    local apps="" svc_dir svc_name app arg_part arg_rest
+
+    for arg in "$@"; do
+        case "${arg}" in
+        --all)
+            for svc_dir in "${APPS_DIR}/services"/*/; do
+                svc_name="${svc_dir%/}"
+                svc_name="${svc_name##*/}"
+                [ "${svc_name}" = "shared" ] && continue
+                apps="${apps}${svc_name}
+"
+            done
+            ;;
+        *)
+            # Support comma-separated names within a single argument (e.g. "app1,app2")
+            arg_rest="${arg}"
+            while case "${arg_rest}" in *,*) true ;; *) false ;; esac do
+                arg_part="${arg_rest%%,*}"
+                arg_rest="${arg_rest#*,}"
+                apps="${apps}${arg_part}
+"
+            done
+            apps="${apps}${arg_rest}
+"
+            ;;
+        esac
+    done
+
+    while IFS= read -r app; do
+        [ -z "${app}" ] && continue
+        bash "${APPS_DIR}/scripts/dccd.sh" \
+            -d "${APPS_DIR}" \
+            ${DCCD_MODE} -R "${app}"
+    done <<EOF
+${apps}
+EOF
 }
 alias dccd-down='dccd_down'
 
