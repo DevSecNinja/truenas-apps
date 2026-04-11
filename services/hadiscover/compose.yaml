@@ -40,7 +40,7 @@ services:
   # - curl must be present in the hadiscover image for the healthcheck. Update the
   #   healthcheck path to the actual health endpoint if /health is not available.
   hadiscover-api:
-    image: ghcr.io/devsecninja/hadiscover/backend:0.2.14@sha256:cbf696794b817b6fa08345c9fda852da829323f97884b3b48dea3b316d864af4
+    image: ghcr.io/devsecninja/hadiscover/backend:0.2.16@sha256:5290f25a3cd5eb70a8be333d7ce3ac831519e0c2840bc14fa51a7d2c6ad4d634
     container_name: hadiscover-api
     depends_on:
       hadiscover-init:
