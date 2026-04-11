@@ -39,6 +39,7 @@ services:
       - "traefik.docker.network=echo-server-frontend"
       ## HTTP Routers
       - "traefik.http.routers.echo-server-rtr.rule=Host(`echo.${DOMAINNAME}`)"
+      - "traefik.http.routers.echo-server-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.echo-server-rtr.middlewares=chain-auth@file"
       ## HTTP Services

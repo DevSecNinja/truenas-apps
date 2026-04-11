@@ -52,6 +52,7 @@ services:
       - "traefik.docker.network=drawio-frontend"
       ## HTTP Routers
       - "traefik.http.routers.drawio-rtr.rule=Host(`draw.${DOMAINNAME}`)"
+      - "traefik.http.routers.drawio-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.drawio-rtr.middlewares=chain-auth@file"
       ## HTTP Services

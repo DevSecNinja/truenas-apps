@@ -91,6 +91,7 @@ services:
       - "traefik.http.routers.dozzle-rtr.middlewares=chain-auth@file"
       ## HTTP Services
       - "traefik.http.routers.dozzle-rtr.rule=Host(`logs.${DOMAINNAME}`)"
+      - "traefik.http.routers.dozzle-rtr.entrypoints=https"
       - "traefik.http.routers.dozzle-rtr.service=dozzle-svc"
       - "traefik.http.services.dozzle-svc.loadbalancer.server.port=8080"
       ## Monitoring (Gatus — no auth, internal entrypoint only)
