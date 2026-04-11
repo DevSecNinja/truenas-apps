@@ -150,8 +150,10 @@ endpoints:
     <<: *defaults
     url: "https://traefik-ext.${DOMAINNAME}"
     group: External
+    client:
+      ignore-redirect: true # Don't follow forward-auth redirect
     conditions:
-      - "[STATUS] == 200"
+      - "[STATUS] == any(200, 302, 307)"
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
@@ -159,8 +161,10 @@ endpoints:
     <<: *defaults
     url: "https://adguard-ext.${DOMAINNAME}"
     group: External
+    client:
+      ignore-redirect: true # Don't follow forward-auth redirect
     conditions:
-      - "[STATUS] == 200"
+      - "[STATUS] == any(200, 302, 307)"
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
@@ -175,7 +179,7 @@ endpoints:
 
   - name: UniFi Guest Portal - HTTP
     <<: *defaults
-    url: "http://172.30.100.6:8444"
+    url: "http://172.30.100.6:8444/guest/s/default/"
     headers:
       Host: "unifi-guest.${DOMAINNAME}"
     conditions:
