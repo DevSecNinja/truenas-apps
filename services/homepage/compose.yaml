@@ -39,7 +39,7 @@ services:
     tmpfs:
       - /tmp
     volumes:
-      - ./config:/app/config
+      - ./config:/app/config:ro
     healthcheck:
       test:
         - "CMD"
