@@ -1,0 +1,111 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount so hadiscover-api (UID/GID 3121:3121)
+  # can write its database and other runtime data. Runs once, then exits.
+  # NOTE: This service has no git-tracked ./config directory, so only ./data
+  # needs to be chown'd here.
+  hadiscover-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: hadiscover-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3121:3121 (svc-app-hadiscover)
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        chown -Rv 3121:3121 /data
+    volumes:
+      - ./data:/data
+
+  # Public-facing backend API for the hadiscover project. Runs ONLY on svlazextpub.
+  # Hardening notes:
+  # - read_only: true — assumes the hadiscover image does not write outside /app/data
+  #   and has PYTHONDONTWRITEBYTECODE=1 (or equivalent) set. If the container fails
+  #   to start, additional tmpfs mounts (e.g. /app/.cache) may be required.
+  # - user: "3121:3121" — overrides any USER directive in the image. The process
+  #   must be able to run as an arbitrary UID (standard for well-built Python images).
+  #   If the image does not support this, the image itself must be updated.
+  # - curl must be present in the hadiscover image for the healthcheck. Update the
+  #   healthcheck path to the actual health endpoint if /health is not available.
+  hadiscover-api:
+    image: ghcr.io/devsecninja/hadiscover/backend:0.2.14@sha256:cbf696794b817b6fa08345c9fda852da829323f97884b3b48dea3b316d864af4
+    container_name: hadiscover-api
+    depends_on:
+      hadiscover-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3121:3121" # svc-app-hadiscover
+    environment:
+      # Aliased from HADISCOVER_GITHUB_TOKEN (prefixed in .env to avoid conflicts
+      # with any co-located containers that also use a plain GITHUB_TOKEN variable).
+      - GITHUB_TOKEN=${HADISCOVER_GITHUB_TOKEN}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - hadiscover-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-fs"
+        - "http://localhost:8000/health"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Production
+      - homepage.name=hadiscover API
+      - homepage.href=https://api.hadiscover.com
+      - homepage.description=Home Assistant Discover API
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=hadiscover-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.hadiscover-api-rtr.rule=Host(`api.hadiscover.com`)"
+      - "traefik.http.routers.hadiscover-api-rtr.entrypoints=https"
+      ## TLS — api.hadiscover.com is not under the ${DOMAINNAME} wildcard, so a
+      ## dedicated certificate is requested via Cloudflare DNS challenge. Requires
+      ## the hadiscover.com zone to be managed by the configured Cloudflare account.
+      - "traefik.http.routers.hadiscover-api-rtr.tls=true"
+      - "traefik.http.routers.hadiscover-api-rtr.tls.certresolver=dns-cloudflare"
+      ## Middlewares — public API; no authentication required
+      - "traefik.http.routers.hadiscover-api-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.hadiscover-api-rtr.service=hadiscover-api"
+      - "traefik.http.services.hadiscover-api.loadbalancer.server.port=8000"
+
+networks:
+  hadiscover-frontend:
+    name: hadiscover-frontend
+    driver: bridge

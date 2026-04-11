@@ -14,6 +14,7 @@ services:
     networks: !override
       - traefik-backend
       - traefik-forward-auth-frontend
+      - hadiscover-frontend
     labels: !override
       - homepage.group=Infrastructure
       - homepage.name=Traefik (svlazextpub)
@@ -38,6 +39,9 @@ networks:
     name: traefik-backend
     driver: bridge
     internal: true
+  hadiscover-frontend:
+    name: hadiscover-frontend
+    external: true
   traefik-forward-auth-frontend:
     name: traefik-forward-auth-frontend
     external: true

@@ -206,6 +206,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
+| hadiscover           | `hadiscover-init`           | `./data`                                                                           |
 
 ---
 
@@ -380,22 +381,23 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user       | Service(s)                                  | Git-tracked config? |
-| ------- | ------------------ | ------------------------------------------- | ------------------- |
-| 3100    | `svc-app-traefik`  | traefik, traefik-init                       | Yes (`./config`)    |
-| 3101    | `svc-app-adguard`  | adguard, adguard-init, adguard-unbound-init | No (`./data/conf`)  |
-| 3102    | `svc-app-homepage` | homepage, homepage-init                     | Yes (`./config`)    |
-| 3103    | `svc-app-gatus`    | gatus, gatus-db-backup                      | No                  |
-| 3104    | `svc-app-echo`     | echo-server                                 | No                  |
-| 3105    | `svc-app-tfa`      | traefik-forward-auth, init                  | No (`./data`)       |
-| 3106    | `svc-app-immich`   | immich-server, immich-ml, immich-init       | No                  |
-| 3107    | `svc-app-metube`   | metube, metube-init                         | No                  |
-| 3108    | `svc-app-unifi`    | unifi, unifi-db-backup                      | No                  |
-| 3109    | `svc-app-dozzle`   | dozzle, dozzle-init                         | No                  |
-| 3110    | `svc-app-radarr`   | radarr                                      | No                  |
-| 3118    | `svc-app-tubesync` | tubesync                                    | No                  |
-| 3119    | `svc-app-drawio`   | drawio                                      | No                  |
-| 3120    | `svc-app-outline`  | outline-db-backup†                          | No                  |
+| UID/GID | TrueNAS user         | Service(s)                                  | Git-tracked config? |
+| ------- | -------------------- | ------------------------------------------- | ------------------- |
+| 3100    | `svc-app-traefik`    | traefik, traefik-init                       | Yes (`./config`)    |
+| 3101    | `svc-app-adguard`    | adguard, adguard-init, adguard-unbound-init | No (`./data/conf`)  |
+| 3102    | `svc-app-homepage`   | homepage, homepage-init                     | Yes (`./config`)    |
+| 3103    | `svc-app-gatus`      | gatus, gatus-db-backup                      | No                  |
+| 3104    | `svc-app-echo`       | echo-server                                 | No                  |
+| 3105    | `svc-app-tfa`        | traefik-forward-auth, init                  | No (`./data`)       |
+| 3106    | `svc-app-immich`     | immich-server, immich-ml, immich-init       | No                  |
+| 3107    | `svc-app-metube`     | metube, metube-init                         | No                  |
+| 3108    | `svc-app-unifi`      | unifi, unifi-db-backup                      | No                  |
+| 3109    | `svc-app-dozzle`     | dozzle, dozzle-init                         | No                  |
+| 3110    | `svc-app-radarr`     | radarr                                      | No                  |
+| 3118    | `svc-app-tubesync`   | tubesync                                    | No                  |
+| 3119    | `svc-app-drawio`     | drawio                                      | No                  |
+| 3120    | `svc-app-outline`    | outline-db-backup†                          | No                  |
+| 3121    | `svc-app-hadiscover` | hadiscover-api, hadiscover-init             | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the

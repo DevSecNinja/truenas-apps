@@ -29,5 +29,6 @@ servers:
     # Age public key for this server (private key stored on the server at age.key)
     age_public_key: "age1fghfh92lw7eyytut75us2l2n4ayfm0yzy8vuny3jtua08vuljc9quqgafj"
     apps:
+      - hadiscover
       - traefik
       - traefik-forward-auth

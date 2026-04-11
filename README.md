@@ -38,6 +38,7 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
 | [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page    |
+| [hadiscover API](https://github.com/DevSecNinja/hadiscover)                  | Home Assistant device discovery API backend          |
 | [Home Assistant](https://www.home-assistant.io/)                             | Open source home automation platform                 |
 | [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services         |
 | [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
