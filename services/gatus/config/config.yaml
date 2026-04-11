@@ -153,10 +153,9 @@ endpoints:
     url: "https://traefik-ext.${DOMAINNAME}"
     group: External
     client:
-      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
       ignore-redirect: true # Don't follow forward-auth redirect
     conditions:
-      - "[STATUS] == any(200, 302, 307)"
+      - "[STATUS] == any(200, 302, 303, 307)"
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
@@ -165,10 +164,9 @@ endpoints:
     url: "https://adguard-ext.${DOMAINNAME}"
     group: External
     client:
-      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
       ignore-redirect: true # Don't follow forward-auth redirect
     conditions:
-      - "[STATUS] == any(200, 302, 307)"
+      - "[STATUS] == any(200, 302, 303, 307)"
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
