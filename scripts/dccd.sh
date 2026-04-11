@@ -983,13 +983,14 @@ usage() {
       -x <path>       Exclude directories matching the specified pattern (optional - relative to the base directory)
       -G <url>        Gatus instance URL to report CD status to (optional - falls back to GATUS_URL/GATUS_CD_TOKEN from services/gatus/.env)
       -r <ip>         DNS server to use for Gatus curl calls (optional - overrides system resolver for Gatus only, requires curl with c-ares)
-      -S <server>     Server mode: deploy only apps assigned to <server> in servers.yaml (mutually exclusive with -a and -t)
+      -S <server>     Server mode: deploy only apps assigned to <server> in servers.yaml (mutually exclusive with -t; combine with -a to target a single app)
 
-    Example: /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
-    TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
-    Local:   /path/to/dccd.sh -d /path/to/git_repo -f -n -a plex
-    Server:  /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f
-    Remove:  /path/to/dccd.sh -d /path/to/git_repo -R openspeedtest
+    Example:    /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
+    TrueNAS:    /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
+    Local:      /path/to/dccd.sh -d /path/to/git_repo -f -n -a plex
+    Server:     /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f
+    Server+app: /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f -a plex
+    Remove:     /path/to/dccd.sh -d /path/to/git_repo -R openspeedtest
 
 EOF
     exit 1
@@ -1118,10 +1119,6 @@ fi
 
 # Check if SERVER_NAME is provided and validate mutual exclusivity
 if [ -n "${SERVER_NAME}" ]; then
-    if [ -n "${APP_FILTER}" ]; then
-        log_message "ERROR: -S (server mode) and -a (app filter) are mutually exclusive"
-        exit 1
-    fi
     if [ "${TRUENAS}" -eq 1 ]; then
         log_message "ERROR: -S (server mode) and -t (TrueNAS mode) are mutually exclusive"
         exit 1
@@ -1188,6 +1185,25 @@ fi
 # Parse server app list if server mode is enabled
 if [ -n "${SERVER_NAME}" ]; then
     parse_server_apps
+
+    # If APP_FILTER is set and SERVER_APPS is populated, verify the requested
+    # app is actually assigned to this server. An app not in the list would
+    # cause a silent no-op, so fail early with a clear message instead.
+    if [ -n "${APP_FILTER}" ] && [ "${#SERVER_APPS[@]}" -gt 0 ]; then
+        _filter_found=0
+        for _srv_app in "${SERVER_APPS[@]}"; do
+            if [ "${_srv_app}" = "${APP_FILTER}" ]; then
+                _filter_found=1
+                break
+            fi
+        done
+        if [ "${_filter_found}" -eq 0 ]; then
+            log_message "ERROR: App '${APP_FILTER}' is not assigned to server '${SERVER_NAME}' in servers.yaml"
+            log_message "ERROR: Assigned apps: ${SERVER_APPS[*]}"
+            exit 1
+        fi
+        unset _filter_found _srv_app
+    fi
 fi
 
 _CD_START_TIME=$(date +%s)
