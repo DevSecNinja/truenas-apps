@@ -1,6 +1,14 @@
 ---
 http:
   middlewares:
+    # Restricts the monitoring entrypoint (:8444) to the gatus-frontend subnet.
+    # Applied at the entrypoint level in traefik.yml so it covers all -monitor
+    # routers automatically. If the gatus-frontend IPAM subnet changes, update
+    # the sourceRange here to match.
+    monitoring-ipallowlist:
+      ipAllowList:
+        sourceRange:
+          - "172.30.100.0/29"
     middlewares-rate-limit:
       rateLimit:
         average: 100

@@ -93,6 +93,17 @@ services:
       - "traefik.http.routers.dozzle-rtr.rule=Host(`logs.${DOMAINNAME}`)"
       - "traefik.http.routers.dozzle-rtr.service=dozzle-svc"
       - "traefik.http.services.dozzle-svc.loadbalancer.server.port=8080"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.dozzle-monitor.rule=Host(`logs.${DOMAINNAME}`)"
+      - "traefik.http.routers.dozzle-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.dozzle-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.dozzle-monitor.service=dozzle-svc"
+      ## Gatus
+      - "gatus.url=http://traefik:8444"
+      - "gatus.headers.Host=logs.${DOMAINNAME}"
+      - 'gatus.client={"ignore-redirect": true}'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
   # It does not support custom users, mods, or scripts.

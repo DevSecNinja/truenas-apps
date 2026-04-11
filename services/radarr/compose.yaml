@@ -79,6 +79,9 @@ services:
       ## HTTP Services
       - "traefik.http.routers.radarr-rtr.service=radarr"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      ## Gatus
+      - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
 networks:
   arr-egress:

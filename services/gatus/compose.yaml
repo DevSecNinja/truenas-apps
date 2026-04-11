@@ -312,6 +312,9 @@ networks:
   gatus-frontend:
     name: gatus-frontend
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.100.0/29
   gatus-backend:
     name: gatus-backend
     driver: bridge

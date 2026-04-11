@@ -268,6 +268,52 @@ Services that need Docker API access get a dedicated **internal** backend networ
 
 The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
 
+### Gatus Internal Monitoring Entrypoint
+
+Auth-protected services (those using `chain-auth@file`) redirect Gatus health checks to the OAuth login page, causing false-negative alerts. To monitor these services without bypassing network isolation, Traefik exposes a dedicated **monitoring entrypoint** on port 8444.
+
+**How it works:**
+
+1. Each auth-protected service declares a secondary Traefik router (`<app>-monitor`) that listens on the `monitoring` entrypoint and uses `chain-no-auth@file` instead of `chain-auth@file`.
+2. Gatus sends HTTP requests to `http://traefik:8444` with the appropriate `Host` header.
+3. Traefik routes the request to the target container over that service's dedicated frontend network.
+4. Gatus endpoints also set `client.ignore-redirect: true` as defense-in-depth — if the monitoring router were misconfigured, Gatus would still detect a redirect rather than silently passing.
+
+**Security model — three independent layers:**
+
+1. **Unpublished port.** Port 8444 does not appear in Traefik's `ports:` mapping — the internet cannot reach it regardless of middleware misconfiguration.
+2. **Docker network isolation.** Only containers that share a Docker network with Traefik can open a TCP connection to it. However, Traefik joins every service's frontend network, so this alone is insufficient — any container could reach `:8444`.
+3. **Entrypoint-level `ipAllowList`.** The `monitoring` entrypoint in `traefik.yml` applies `monitoring-ipallowlist@file` (defined in `middlewares.yml`) which restricts source IPs to the `gatus-frontend` subnet (`172.30.100.0/29`). This runs before any router-level middleware, so it blocks all traffic from other frontend subnets. The `gatus-frontend` network uses a fixed IPAM subnet in `gatus/compose.yaml` to make this deterministic.
+
+All three layers must be defeated for a container on another frontend network to bypass auth via the monitoring entrypoint.
+
+**Why not a shared secret header instead of an IP allowlist?** Any container with a socket proxy (Dozzle, Homepage) could read the secret from `docker inspect` labels, so the secret is only as strong as the weakest socket-proxy consumer. The IP allowlist is infrastructure-derived, not stored anywhere a container can read it, and cannot be brute-forced.
+
+**Traffic flow comparison:**
+
+```text
+Browser request (authenticated):
+  Browser → Host:443 → Traefik :443 → chain-auth → (sonarr-frontend) → Sonarr
+
+Gatus health check (internal monitoring):
+  Gatus → (gatus-frontend 172.30.100.0/29) → Traefik :8444
+    → ipAllowList ✓ → chain-no-auth → (sonarr-frontend) → Sonarr
+
+Other container attempting to use monitoring entrypoint:
+  Sonarr → (sonarr-frontend 172.x.x.x) → Traefik :8444
+    → ipAllowList ✗ (403 Forbidden)
+```
+
+**Services with monitoring routers:** Only auth-protected services need the `-monitor` router. Services already using `chain-no-auth@file` (Gatus, Homepage, Home Assistant, UniFi, Plex, Radarr) are monitored directly via their public HTTPS endpoint.
+
+**Configuration locations (keep in sync when changing the subnet):**
+
+| File                                            | What to update                                   |
+| ----------------------------------------------- | ------------------------------------------------ |
+| `services/gatus/compose.yaml`                   | `gatus-frontend` network `ipam.config[0].subnet` |
+| `services/traefik/config/rules/middlewares.yml` | `monitoring-ipallowlist.ipAllowList.sourceRange` |
+| `services/traefik/config/traefik.yml`           | Comment documenting the subnet (for reference)   |
+
 ## Docker Socket Proxy
 
 Services never mount `/var/run/docker.sock` directly. Instead, each gets its own [LinuxServer socket-proxy](https://github.com/linuxserver/docker-socket-proxy) instance with minimal permissions:

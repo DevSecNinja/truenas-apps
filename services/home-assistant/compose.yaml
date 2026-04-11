@@ -110,6 +110,9 @@ services:
       ## HTTP Services
       - "traefik.http.routers.home-assistant-rtr.service=home-assistant"
       - "traefik.http.services.home-assistant.loadbalancer.server.port=8123"
+      ## Gatus
+      - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
 networks:
   home-assistant-frontend:

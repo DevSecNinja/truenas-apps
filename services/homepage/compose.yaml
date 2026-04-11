@@ -62,6 +62,9 @@ services:
       ## HTTP Services
       - "traefik.http.routers.homepage-rtr.service=homepage"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+      ## Gatus
+      - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
   # It does not support custom users, mods, or scripts.

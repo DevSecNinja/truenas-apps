@@ -169,16 +169,8 @@ endpoints:
     url: "https://bing.com/"
 
   #
-  # Internal HTTP
+  # Internal HTTP (non-Docker or special protocol endpoints)
   #
-
-  - name: Home Assistant - HTTP
-    <<: *defaults
-    url: "https://home.${DOMAINNAME}"
-
-  - name: UniFi Guest - HTTP
-    <<: *defaults
-    url: "https://unifi-guest.${DOMAINNAME}/guest/s/default/"
 
   - name: UniFi - Inform (TCP)
     <<: *tcp-udp-defaults

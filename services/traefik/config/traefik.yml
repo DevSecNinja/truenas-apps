@@ -21,6 +21,16 @@ entryPoints:
     address: ":443"
     http:
       tls: {}
+  # Internal-only entrypoint for Gatus health checks. Not published to the host
+  # (no ports: entry in compose.yaml), so it is only reachable from containers
+  # that share a Docker network with Traefik. An entrypoint-level ipAllowList
+  # restricts access to the gatus-frontend subnet (172.30.100.0/29), ensuring
+  # no other container can use this entrypoint to bypass forward-auth.
+  monitoring:
+    address: ":8444"
+    http:
+      middlewares:
+        - monitoring-ipallowlist@file
 
 metrics:
   prometheus:
