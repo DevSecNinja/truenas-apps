@@ -114,7 +114,7 @@ services:
       - "traefik.http.routers.spottarr-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.spottarr-monitor.service=spottarr"
       ## Gatus
-      - "gatus.url=http://172.30.100.2:8444"
+      - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=spottarr.${DOMAINNAME}"
       - 'gatus.client={"ignore-redirect": true}'
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'

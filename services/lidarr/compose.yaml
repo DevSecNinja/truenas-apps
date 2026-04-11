@@ -85,7 +85,7 @@ services:
       - "traefik.http.routers.lidarr-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.lidarr-monitor.service=lidarr"
       ## Gatus
-      - "gatus.url=http://172.30.100.2:8444"
+      - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=lidarr.${DOMAINNAME}"
       - 'gatus.client={"ignore-redirect": true}'
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'

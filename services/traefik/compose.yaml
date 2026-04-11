@@ -66,7 +66,7 @@ services:
       echo-server-frontend:
       excalidraw-frontend:
       gatus-frontend:
-        ipv4_address: 172.30.100.2
+        ipv4_address: 172.30.100.6
       homepage-frontend:
       traefik-forward-auth-frontend:
       unifi-frontend:
@@ -139,7 +139,7 @@ services:
       - "traefik.http.routers.traefik-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.traefik-monitor.service=api@internal"
       ## Gatus
-      - "gatus.url=http://172.30.100.2:8444"
+      - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=traefik.${DOMAINNAME}"
       - 'gatus.client={"ignore-redirect": true}'
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'

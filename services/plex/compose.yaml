@@ -103,7 +103,7 @@ services:
       - "traefik.http.services.plex.loadbalancer.server.port=32400"
       - "traefik.http.services.plex.loadbalancer.serverstransport=insecure-skip-verify@file"
       ## Gatus
-      - "gatus.url=https://172.30.100.2"
+      - "gatus.url=https://172.30.100.6"
       - "gatus.headers.Host=plex.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
