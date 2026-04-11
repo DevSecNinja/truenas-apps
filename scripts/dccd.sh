@@ -398,6 +398,12 @@ redeploy_truenas_apps() {
             continue
         fi
 
+        # Skip empty directories (stale dataset mount points after a service is retired)
+        if [ ! -f "${app_dir}/compose.yaml" ] && [ ! -f "${app_dir}/compose.yml" ] &&
+            [ ! -f "${app_dir}/docker-compose.yaml" ] && [ ! -f "${app_dir}/docker-compose.yml" ]; then
+            continue
+        fi
+
         if [ ! -d "${app_config_dir}" ]; then
             log_message "ERROR: TrueNAS app config directory not found: ${app_config_dir}, skipping..."
             continue
