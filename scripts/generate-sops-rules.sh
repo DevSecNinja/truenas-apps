@@ -20,13 +20,15 @@ set -euo pipefail
 # Default configuration
 ########################################
 BASE_DIR=""
+UPDATE_KEYS=0
 
 usage() {
     cat <<EOF
-Usage: $0 -d <base_dir>
+Usage: $0 -d <base_dir> [-u]
 
 Options:
   -d <path>    Base directory of the git repository (required)
+  -u           Run 'sops updatekeys' on all secret files after generating rules
   -h           Show this help message
 
 The deploy key is read from <base_dir>/age.key (the "# public key:" comment).
@@ -34,13 +36,15 @@ Server keys are read from <base_dir>/servers.yaml (age_public_key fields).
 
 Example:
   $0 -d /workspaces/truenas-apps
+  $0 -d /workspaces/truenas-apps -u
 EOF
     exit 1
 }
 
-while getopts ":d:h" opt; do
+while getopts ":d:uh" opt; do
     case "${opt}" in
     d) BASE_DIR="${OPTARG}" ;;
+    u) UPDATE_KEYS=1 ;;
     h) usage ;;
     \?)
         echo "Invalid option: -${OPTARG}" >&2
@@ -253,10 +257,45 @@ FALLBACK_KEYS=$(echo "${BASE_KEYS}" | tr ',' '\n' | sort -u | paste -sd',')
 rule_count=$(grep -c 'path_regex:' "${SOPS_YAML}") || true
 echo ""
 echo "Generated ${SOPS_YAML} with ${rule_count} rule(s)"
-echo ""
-echo "Next steps:"
-echo "  1. Review the generated .sops.yaml"
-echo "  2. Run 'sops updatekeys services/<app>/secret.sops.env' for each app with changed keys"
-echo "  3. For new per-server files, create them plaintext then encrypt:"
-echo "     sops -e -i services/<app>/secret.<server>.sops.env"
-echo "  4. Commit the updated .sops.yaml and re-encrypted secret files"
+
+########################################
+# Update keys on existing encrypted files
+########################################
+
+if [ "${UPDATE_KEYS}" -eq 1 ]; then
+    if ! command -v sops >/dev/null 2>&1; then
+        echo "ERROR: sops is required for -u but not found on PATH" >&2
+        exit 1
+    fi
+
+    echo ""
+    echo "Updating keys on all secret files..."
+    update_count=0
+    update_errors=0
+
+    for sops_file in "${BASE_DIR}"/services/*/secret*.sops.env; do
+        [ -f "${sops_file}" ] || continue
+        echo "  Updating: ${sops_file}"
+        if sops updatekeys -y "${sops_file}"; then
+            update_count=$((update_count + 1))
+        else
+            echo "  WARNING: Failed to update keys for ${sops_file}" >&2
+            update_errors=$((update_errors + 1))
+        fi
+    done
+
+    echo ""
+    if [ "${update_errors}" -eq 0 ]; then
+        echo "Updated keys on ${update_count} file(s)"
+    else
+        echo "Updated keys on ${update_count} file(s), ${update_errors} failed"
+    fi
+else
+    echo ""
+    echo "Next steps:"
+    echo "  1. Review the generated .sops.yaml"
+    echo "  2. Run '$0 -d ${BASE_DIR} -u' or 'sops updatekeys' on each secret file"
+    echo "  3. For new per-server files, create them plaintext then encrypt:"
+    echo "     sops -e -i services/<app>/secret.<server>.sops.env"
+    echo "  4. Commit the updated .sops.yaml and re-encrypted secret files"
+fi
