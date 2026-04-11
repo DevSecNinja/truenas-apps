@@ -284,14 +284,24 @@ dccd_graceful() {
 }
 alias dccd-graceful='dccd_graceful'
 
-# Force-deploy a single app: dccd-app <appname>
-# Example: dccd-app traefik
+# Force-deploy one or more apps: dccd-app <app1> <app2> ... or dccd-app app1,app2,...
+# Example: dccd-app traefik   or   dccd-app dozzle drawio traefik   or   dccd-app dozzle,drawio,traefik
 # shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 dccd_app() {
-    bash "${APPS_DIR}/scripts/dccd.sh" \
-        -d "${APPS_DIR}" \
-        -k "${APPS_DIR}/age.key" \
-        -x shared ${DCCD_MODE} -f -a "$1"
+    if [ "$#" -eq 0 ]; then
+        echo "Usage: dccd-app <app1> [app2 ...] or dccd-app app1,app2,..."
+        return 1
+    fi
+
+    # Normalize: replace commas with spaces, then iterate over each app
+    local all_apps
+    all_apps=$(printf '%s\n' "$@" | tr ',' ' ')
+    for app in ${all_apps}; do
+        bash "${APPS_DIR}/scripts/dccd.sh" \
+            -d "${APPS_DIR}" \
+            -k "${APPS_DIR}/age.key" \
+            -x shared ${DCCD_MODE} -f -a "${app}"
+    done
 }
 alias dccd-app='dccd_app'
 
@@ -351,7 +361,7 @@ Docker:
 DCCD:
   dccd-all          Force-deploy all apps
   dccd-graceful     Graceful deploy (only restart changed)
-  dccd-app <app>    Force-deploy a single app by name
+  dccd-app <apps>   Force-deploy one or more apps (space or comma separated)
   dccd-decrypt      Decrypt all SOPS env files (no deploy)
   dccd-logs         View recent dccd cron job logs
 
