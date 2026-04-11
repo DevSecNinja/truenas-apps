@@ -170,7 +170,14 @@ endpoints:
 
   #
   # Internal HTTP (non-Docker or special protocol endpoints)
+  # These can't be discovered via sidecar labels (e.g. secondary routers on the same container).
   #
+
+  - name: UniFi Guest Portal - HTTPS
+    <<: *defaults
+    url: "https://traefik"
+    headers:
+      Host: "unifi-guest.${DOMAINNAME}"
 
   - name: UniFi - Inform (TCP)
     <<: *tcp-udp-defaults
