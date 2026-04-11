@@ -304,7 +304,7 @@ Other container attempting to use monitoring entrypoint:
     → ipAllowList ✗ (403 Forbidden)
 ```
 
-**Services with monitoring routers:** Only auth-protected services need the `-monitor` router. Services already using `chain-no-auth@file` (Gatus, Homepage, Home Assistant, UniFi, Plex, Radarr) are monitored directly via their public HTTPS endpoint.
+**Services with monitoring routers:** All services monitored by Gatus have a `-monitor` router on the monitoring entrypoint. This includes both auth-protected services (which need it to bypass forward-auth) and no-auth services (which need it to avoid TLS/SNI issues when checking by IP address). Only the Gatus service itself is excluded (`gatus.enabled=false`).
 
 **Configuration locations (keep in sync when changing the subnet):**
 

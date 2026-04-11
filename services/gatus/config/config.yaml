@@ -173,11 +173,14 @@ endpoints:
   # These can't be discovered via sidecar labels (e.g. secondary routers on the same container).
   #
 
-  - name: UniFi Guest Portal - HTTPS
+  - name: UniFi Guest Portal - HTTP
     <<: *defaults
-    url: "https://172.30.100.6"
+    url: "http://172.30.100.6:8444"
     headers:
       Host: "unifi-guest.${DOMAINNAME}"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1000"
 
   - name: UniFi - Inform (TCP)
     <<: *tcp-udp-defaults
