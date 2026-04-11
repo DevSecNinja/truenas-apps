@@ -750,3 +750,13 @@ Each remote server (Azure VMs) is managed by Ansible-pull which:
 2. Installs `yq` (required for server mode)
 3. Places the server's Age private key at `<base_dir>/age.key`
 4. Sets up a cron job running `dccd.sh -S <server>` at the desired interval
+
+## Retiring an App
+
+Retirement is the inverse of adding an app. Use the prompt at `.github/prompts/retire-docker-app.prompt.md` for the full checklist — it covers removing compose files, Traefik networks/middleware, DNS records, documentation entries, and post-merge host cleanup.
+
+Key mechanisms:
+
+- **`dccd-down <app>`** (or `dccd.sh -R <app>`): Server-aware teardown that applies compose overrides and uses the correct project name for each deployment mode.
+- **Auto-cleanup**: When `dccd.sh` pulls new commits that remove a service directory, it automatically detects the orphaned compose project and tears it down — no manual intervention needed on any server.
+- **Retired services log**: Add an entry to `docs/RETIRED-SERVICES.md` with the retirement date, reason, and the last active commit hash so the old configuration is easy to find.

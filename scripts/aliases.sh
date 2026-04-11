@@ -59,6 +59,16 @@ ddown() {
     sudo docker compose --project-name "ix-${1}" down
 }
 
+# Bring down a single app via dccd (server-aware with compose overrides): dccd-down <appname>
+# Example: dccd-down openspeedtest
+# shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
+dccd_down() {
+    bash "${APPS_DIR}/scripts/dccd.sh" \
+        -d "${APPS_DIR}" \
+        ${DCCD_MODE} -R "$1"
+}
+alias dccd-down='dccd_down'
+
 # Show resource usage of all containers
 alias dstats='sudo docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}"'
 
@@ -148,6 +158,7 @@ Docker:
   dlog <name>       Follow logs for a container
   dre  <app>        Restart a compose stack by app name
   ddown <app>       Bring down a compose stack by app name
+  dccd-down <app>   Bring down via dccd (server-aware, applies overrides)
   ddeploy <app>     Force-redeploy a single app via dccd
   dstats            Show resource usage of all containers
   dprune            Prune all unused images

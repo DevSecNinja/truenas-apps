@@ -87,6 +87,7 @@ docs/
   ARCHITECTURE.md        # Compose conventions, security rules, UID/GID allocation
   DATABASE-UPGRADES.md   # PostgreSQL upgrade procedures (pgautoupgrade)
   DISASTER-RECOVERY.md   # Full rebuild procedures
+  RETIRED-SERVICES.md    # Log of retired services with reasoning and last active commit
 
 .github/
   workflows/
@@ -98,7 +99,8 @@ docs/
     label-sync.yml       # Syncs repo labels from .github/labels.yaml
     release.yml          # Triggered on v* tag push: generates changelog and creates GitHub Release
   prompts/
-    new-docker-app.prompt.md  # Reusable prompt for adding a new app
+    new-docker-app.prompt.md      # Reusable prompt for adding a new app
+    retire-docker-app.prompt.md   # Reusable prompt for retiring an app
 ```
 
 ## Compose File Conventions (MUST follow)
@@ -127,6 +129,15 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 7. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
 8. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
 9. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
+
+## Retiring an App
+
+Use the prompt at `.github/prompts/retire-docker-app.prompt.md` as a checklist. Key mechanisms:
+
+- `dccd.sh -R <app>` tears down a single app (server-aware, applies compose overrides)
+- Auto-cleanup in `dccd.sh` detects removed service directories after `git pull` and tears down orphaned projects automatically
+- Add an entry to `docs/RETIRED-SERVICES.md` with reason and last active commit
+- Post-merge: destroy the TrueNAS dataset and remove the service account manually
 
 ## Multi-Server Deployment
 

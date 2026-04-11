@@ -32,6 +32,7 @@ DECRYPT_ONLY=0                                # Decrypt SOPS files and exit (ski
 FORCE=0                                       # Force redeploy, skip hash check
 NO_PULL=0                                     # Skip pulling images (for local testing)
 APP_FILTER=""                                 # Only deploy this specific app (empty = all)
+REMOVE_APP=""                                 # Tear down this specific app (empty = none)
 SERVER_NAME=""                                # Server name from servers.yaml (empty = deploy all)
 SERVER_APPS=()                                # Apps assigned to the server (populated by parse_server_apps)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
@@ -488,6 +489,70 @@ redeploy_truenas_apps() {
     done
 }
 
+# Remove a compose project by stopping its containers and removing its networks.
+# Works even after the compose file has been deleted (uses Docker labels).
+# Arguments: $1 = project name (e.g. "openspeedtest" or "ix-openspeedtest")
+remove_compose_project() {
+    local project="$1"
+    local containers
+    containers=$(${SUDO} docker ps -aq --filter "label=com.docker.compose.project=${project}" 2>/dev/null) || true
+
+    if [ -z "${containers}" ]; then
+        log_message "INFO:  No containers found for project '${project}'"
+        return 0
+    fi
+
+    log_message "STATE: Stopping and removing containers for project '${project}'"
+    # shellcheck disable=SC2086  # intentional word splitting on container IDs
+    ${SUDO} docker stop ${containers} 2>/dev/null || true
+    # shellcheck disable=SC2086
+    ${SUDO} docker rm -f ${containers} 2>/dev/null || true
+
+    # Remove project networks (named <project>-* or exact match)
+    local networks
+    networks=$(${SUDO} docker network ls --filter "label=com.docker.compose.project=${project}" -q 2>/dev/null) || true
+    if [ -n "${networks}" ]; then
+        log_message "STATE: Removing networks for project '${project}'"
+        # shellcheck disable=SC2086
+        ${SUDO} docker network rm ${networks} 2>/dev/null || true
+    fi
+
+    log_message "INFO:  Project '${project}' cleaned up"
+}
+
+# Detect compose projects that were running before a git pull but whose
+# compose files no longer exist after the pull. Tears them down automatically.
+# Arguments: $1 = base directory, $2 = newline-separated list of app names that existed before the pull
+cleanup_orphaned_projects() {
+    local dir="$1"
+    local before_apps="$2"
+
+    if [ -z "${before_apps}" ]; then
+        return 0
+    fi
+
+    while IFS= read -r app; do
+        [ -z "${app}" ] && continue
+
+        # Skip if the compose file still exists (app was not removed)
+        if [ -f "${dir}/services/${app}/compose.yaml" ] ||
+            [ -f "${dir}/services/${app}/compose.yml" ] ||
+            [ -f "${dir}/services/${app}/docker-compose.yaml" ] ||
+            [ -f "${dir}/services/${app}/docker-compose.yml" ]; then
+            continue
+        fi
+
+        # App was removed — determine the project name by mode
+        local project_name="${app}"
+        if [ "${TRUENAS}" -eq 1 ]; then
+            project_name="ix-${app#_}"
+        fi
+
+        log_message "STATE: Detected removed service '${app}' — tearing down project '${project_name}'"
+        remove_compose_project "${project_name}"
+    done <<<"${before_apps}"
+}
+
 update_compose_files() {
     local dir="$1"
 
@@ -505,6 +570,7 @@ update_compose_files() {
     fi
 
     local SHOULD_DEPLOY=0
+    local _pre_pull_apps=""
 
     if [ "${NO_PULL}" -eq 1 ]; then
         log_message "STATE: No-pull mode enabled, skipping git sync..."
@@ -549,6 +615,11 @@ update_compose_files() {
             exit 1
         fi
 
+        # Snapshot service directories before pulling — used by cleanup_orphaned_projects
+        # to detect services that were removed by the incoming commits.
+        _pre_pull_apps=$(find "${dir}/services" -maxdepth 2 -name 'compose.yaml' -o -name 'compose.yml' -o -name 'docker-compose.yaml' -o -name 'docker-compose.yml' 2>/dev/null |
+            sed 's|.*/services/||; s|/[^/]*$||' | sort -u) || true
+
         # Check if there are any changes in the Git repository
         if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
             log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
@@ -586,6 +657,9 @@ update_compose_files() {
                     exit 1
                 fi
                 log_message "INFO:  Pulled latest commits from origin/${REMOTE_BRANCH} (now at ${short_remote})"
+
+                # Clean up any services that were removed by the incoming commits
+                cleanup_orphaned_projects "${dir}" "${_pre_pull_apps}"
             else
                 log_message "INFO:  Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — force mode, redeploying"
             fi
@@ -879,6 +953,7 @@ usage() {
       -n              No-pull mode: skip pulling images, use local images only (optional)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
       -p              Specify if you want to prune docker images (default: don't prune)
+      -R <name>       Tear down the specified app (server-aware: applies compose overrides, uses correct project name)
       -s <path>       Specify the directory to install the SOPS binary (default: <BASE_DIR>/bin)
       -t              TrueNAS Scale mode: deploy apps from services/ using ix-<app> project names (optional)
       -w <seconds>    Timeout in seconds to wait for containers to become healthy (default: 60, 0 = no timeout)
@@ -891,6 +966,7 @@ usage() {
     TrueNAS: /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
     Local:   /path/to/dccd.sh -d /path/to/git_repo -f -n -a plex
     Server:  /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f
+    Remove:  /path/to/dccd.sh -d /path/to/git_repo -R openspeedtest
 
 EOF
     exit 1
@@ -900,7 +976,7 @@ EOF
 # Options
 ########################################
 
-while getopts ":a:b:d:DfgG:k:hno:pr:s:S:tw:x:" opt; do
+while getopts ":a:b:d:DfgG:k:hno:pR:r:s:S:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
@@ -934,6 +1010,9 @@ while getopts ":a:b:d:DfgG:k:hno:pr:s:S:tw:x:" opt; do
         ;;
     p)
         PRUNE=1
+        ;;
+    R)
+        REMOVE_APP="${OPTARG}"
         ;;
     s)
         SOPS_INSTALL_DIR="${OPTARG}"
@@ -1090,5 +1169,40 @@ fi
 
 _CD_START_TIME=$(date +%s)
 trap '_handle_gatus_exit $?' EXIT
+
+# Remove mode: tear down a single app and exit
+if [ -n "${REMOVE_APP}" ]; then
+    log_message "STATE: Remove mode — tearing down '${REMOVE_APP}'"
+
+    local_compose="${BASE_DIR}/services/${REMOVE_APP}/compose.yaml"
+
+    if [ "${TRUENAS}" -eq 1 ]; then
+        project_name="ix-${REMOVE_APP#_}"
+    else
+        project_name="${REMOVE_APP}"
+    fi
+
+    # Try a clean docker compose down if the compose file still exists
+    if [ -f "${local_compose}" ]; then
+        compose_args=(-f "${local_compose}")
+        # Apply server-specific override if present
+        if [ -n "${SERVER_NAME}" ]; then
+            override="${BASE_DIR}/services/${REMOVE_APP}/compose.${SERVER_NAME}.yaml"
+            if [ -f "${override}" ]; then
+                log_message "INFO:  Applying server override: ${override}"
+                compose_args+=(-f "${override}")
+            fi
+        fi
+        log_message "STATE: Running docker compose down for '${REMOVE_APP}' (project: ${project_name})"
+        ${SUDO} docker compose "${compose_args[@]}" -p "${project_name}" down --remove-orphans || true
+    else
+        # Compose file already gone — fall back to label-based cleanup
+        log_message "INFO:  Compose file not found — using label-based cleanup"
+        remove_compose_project "${project_name}"
+    fi
+
+    log_message "STATE: Done removing '${REMOVE_APP}'"
+    exit 0
+fi
 
 update_compose_files "${BASE_DIR}"
