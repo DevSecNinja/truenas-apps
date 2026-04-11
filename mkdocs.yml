@@ -1,0 +1,56 @@
+---
+site_name: TrueNAS Home Lab Apps
+site_url: https://homelab.devsecninja.com/
+site_description: Docker Compose stacks for a TrueNAS home lab server, managed with SOPS, Renovate, and GitOps
+site_author: DevSecNinja
+repo_url: https://github.com/DevSecNinja/truenas-apps
+repo_name: DevSecNinja/truenas-apps
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  icon:
+    logo: material/server-network
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - content.action.view
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Architecture: ARCHITECTURE.md
+  - Guides:
+      - Database Upgrades: DATABASE-UPGRADES.md
+      - Disaster Recovery: DISASTER-RECOVERY.md
+      - Troubleshooting: TROUBLESHOOTING.md
+  - Retired Services: RETIRED-SERVICES.md
