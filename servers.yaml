@@ -22,6 +22,7 @@ servers:
     apps:
       - adguard
       - traefik
+      - traefik-forward-auth
 
   svlazextpub:
     description: "Azure VM — Public web server (Traefik reverse proxy + public app backends)"
@@ -29,3 +30,4 @@ servers:
     age_public_key: "age1fghfh92lw7eyytut75us2l2n4ayfm0yzy8vuny3jtua08vuljc9quqgafj"
     apps:
       - traefik
+      - traefik-forward-auth

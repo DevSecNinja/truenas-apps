@@ -10,9 +10,9 @@ services:
     networks: !override
       - traefik-backend
       - adguard-frontend
+      - traefik-forward-auth-frontend
     labels: !override
-      # Homepage
-      - homepage.group=Infrastructure
+      - homepage.group=Infrastructure # Homepage
       - homepage.name=Traefik (svlazext)
       - homepage.icon=traefik.svg
       - homepage.href=https://traefik-ext.$DOMAINNAME
@@ -37,4 +37,7 @@ networks:
     internal: true
   adguard-frontend:
     name: adguard-frontend
+    external: true
+  traefik-forward-auth-frontend:
+    name: traefik-forward-auth-frontend
     external: true

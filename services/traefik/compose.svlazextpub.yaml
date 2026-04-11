@@ -13,8 +13,8 @@ services:
   traefik:
     networks: !override
       - traefik-backend
+      - traefik-forward-auth-frontend
     labels: !override
-      # Homepage
       - homepage.group=Infrastructure
       - homepage.name=Traefik (svlazextpub)
       - homepage.icon=traefik.svg
@@ -38,3 +38,6 @@ networks:
     name: traefik-backend
     driver: bridge
     internal: true
+  traefik-forward-auth-frontend:
+    name: traefik-forward-auth-frontend
+    external: true

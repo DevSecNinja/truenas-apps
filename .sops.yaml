@@ -1,5 +1,15 @@
 ---
 creation_rules:
+  - path_regex: services/traefik-forward-auth/secret\.svlazext\.sops\.env$
+    age: >-
+      age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n,
+      age1dgw6l56j4qu7jnh06n9z7rpctgar3stk8hnxq3es9j88yqjpzdvqkrp7en,
+      age1xmc30s0v8m4eng93d4lmdzvcsrhvtmm57nfgrwwjsew2nu2svgzqmgssvg
+  - path_regex: services/traefik-forward-auth/secret\.svlazextpub\.sops\.env$
+    age: >-
+      age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n,
+      age1dgw6l56j4qu7jnh06n9z7rpctgar3stk8hnxq3es9j88yqjpzdvqkrp7en,
+      age1fghfh92lw7eyytut75us2l2n4ayfm0yzy8vuny3jtua08vuljc9quqgafj
   - path_regex: services/adguard/secret\.sops\.env$
     age: >-
       age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n,

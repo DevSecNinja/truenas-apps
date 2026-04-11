@@ -1,0 +1,29 @@
+---
+# Server-specific compose override for svlazext (Azure DNS/VPN VM).
+# Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
+#
+# Overrides:
+# - AUTH_SUBDOMAIN for the init container (auth-ext instead of auth)
+# - Labels: adjusts dashboard hostname and Traefik router rule
+services:
+  traefik-forward-auth-init:
+    environment:
+      AUTH_SUBDOMAIN: auth-ext
+
+  traefik-forward-auth:
+    labels: !override
+      - homepage.group=Infrastructure
+      - homepage.name=Traefik Forward Auth (svlazext)
+      - homepage.icon=traefik.svg
+      - homepage.href=https://auth-ext.${DOMAINNAME}
+      - homepage.description=Authentication Service (svlazext)
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-forward-auth-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.traefik-forward-auth-rtr.rule=Host(`auth-ext.${DOMAINNAME}`)"
+      ## Middlewares
+      - "traefik.http.routers.traefik-forward-auth-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.traefik-forward-auth-rtr.service=traefik-forward-auth"
+      - "traefik.http.services.traefik-forward-auth.loadbalancer.server.port=4181"

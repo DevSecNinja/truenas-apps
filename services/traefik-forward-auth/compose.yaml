@@ -9,6 +9,8 @@ services:
       - path: .env # Decrypted from secret.sops.env
         required: false
       - path: ../shared/env/tz.env
+    environment:
+      AUTH_SUBDOMAIN: auth # Override per server in compose.<server>.yaml
     restart: "no"
     network_mode: none
     mem_limit: 64m

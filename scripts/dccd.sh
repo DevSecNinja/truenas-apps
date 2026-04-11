@@ -257,11 +257,39 @@ decrypt_sops_files() {
 
     local count=0
     while IFS= read -r sops_file; do
-        local dir
+        local dir sops_basename
         dir=$(dirname "${sops_file}")
+        sops_basename=$(basename "${sops_file}")
+
+        # Per-server secret file handling:
+        #   secret.sops.env            → base secrets (all servers without a per-server file)
+        #   secret.<server>.sops.env   → server-specific secrets (credential isolation)
+        if [ -n "${SERVER_NAME}" ]; then
+            # Server mode: select the right secret file per app
+            if [ "${sops_basename}" != "secret.sops.env" ] && [ "${sops_basename}" != "secret.${SERVER_NAME}.sops.env" ]; then
+                # Skip other servers' secret files (can't decrypt with this server's key)
+                log_message "INFO:  Skipping ${sops_basename} (not for server ${SERVER_NAME})"
+                continue
+            elif [ "${sops_basename}" = "secret.sops.env" ]; then
+                local server_specific="${dir}/secret.${SERVER_NAME}.sops.env"
+                if [ -f "${server_specific}" ]; then
+                    # Skip base when server-specific exists (credential isolation)
+                    log_message "INFO:  Skipping base secret.sops.env for $(basename "${dir}") (using server-specific file)"
+                    continue
+                fi
+            fi
+        else
+            # Non-server mode: skip server-specific files (anything not named secret.sops.env)
+            if [ "${sops_basename}" != "secret.sops.env" ]; then
+                continue
+            fi
+        fi
+
+        # All secret files (base and server-specific) decrypt to .env so
+        # compose env_file references work without changes.
         local secret_env="${dir}/.env"
 
-        log_message "STATE: Decrypting $(basename "${dir}")/$(basename "${sops_file}")"
+        log_message "STATE: Decrypting $(basename "${dir}")/${sops_basename}"
         if "${SOPS_BIN}" -d "${sops_file}" >"${secret_env}"; then
             chmod 600 "${secret_env}"
             count=$((count + 1))

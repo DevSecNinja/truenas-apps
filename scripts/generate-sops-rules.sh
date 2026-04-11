@@ -126,6 +126,25 @@ done
 
 # For each app with a secret.sops.env, determine which keys should be recipients
 declare -A APP_KEYS
+
+# Detect per-server secret files (secret.<server>.sops.env) for credential isolation.
+# When a server has its own file, its key is excluded from the base secret.sops.env rule.
+declare -A HAS_SERVER_SECRETS # "app:server" → "1"
+for server_sops_file in "${BASE_DIR}"/services/*/secret.*.sops.env; do
+    [ -f "${server_sops_file}" ] || continue
+    server_basename=$(basename "${server_sops_file}")
+    # Extract server name: secret.<server>.sops.env
+    server_name="${server_basename#secret.}"
+    server_name="${server_name%.sops.env}"
+    # Validate it's a known server (not empty / not the base file)
+    if [ -z "${server_name}" ] || [ -z "${SERVER_KEYS[${server_name}]:-}" ]; then
+        continue
+    fi
+    app_name=$(basename "$(dirname "${server_sops_file}")")
+    HAS_SERVER_SECRETS["${app_name}:${server_name}"]="1"
+    echo "  Per-server secret: ${app_name}/secret.${server_name}.sops.env"
+done
+
 for sops_file in "${BASE_DIR}"/services/*/secret.sops.env; do
     [ -f "${sops_file}" ] || continue
     app_dir=$(dirname "${sops_file}")
@@ -142,6 +161,11 @@ for sops_file in "${BASE_DIR}"/services/*/secret.sops.env; do
         fi
         has_app=$(yq -r ".servers.\"${server}\".apps[] | select(. == \"${app}\")" "${SERVERS_YAML}")
         if [ -n "${has_app}" ]; then
+            # Skip servers that have their own per-server secret file
+            # (they don't need access to the base file — credential isolation)
+            if [ -n "${HAS_SERVER_SECRETS["${app}:${server}"]:-}" ]; then
+                continue
+            fi
             server_key="${SERVER_KEYS[${server}]:-}"
             if [ -n "${server_key}" ]; then
                 keys="${keys},${server_key}"
@@ -152,6 +176,28 @@ for sops_file in "${BASE_DIR}"/services/*/secret.sops.env; do
     # Deduplicate keys
     keys=$(echo "${keys}" | tr ',' '\n' | sort -u | paste -sd',')
     APP_KEYS["${app}"]="${keys}"
+done
+
+# Build per-server secret file rules: only that server's key + deploy + all-access
+declare -A SERVER_SECRET_KEYS # "app/server" → comma-separated keys
+for server_sops_file in "${BASE_DIR}"/services/*/secret.*.sops.env; do
+    [ -f "${server_sops_file}" ] || continue
+    server_basename=$(basename "${server_sops_file}")
+    server_name="${server_basename#secret.}"
+    server_name="${server_name%.sops.env}"
+
+    server_key="${SERVER_KEYS[${server_name}]:-}"
+    if [ -z "${server_key}" ]; then
+        echo "WARNING: Server '${server_name}' in filename ${server_basename} not found in servers.yaml, skipping" >&2
+        continue
+    fi
+
+    app_name=$(basename "$(dirname "${server_sops_file}")")
+
+    # Keys: deploy + all-access + this specific server only
+    keys="${BASE_KEYS},${server_key}"
+    keys=$(echo "${keys}" | tr ',' '\n' | sort -u | paste -sd',')
+    SERVER_SECRET_KEYS["${app_name}/${server_name}"]="${keys}"
 done
 
 ########################################
@@ -177,7 +223,17 @@ FALLBACK_KEYS=$(echo "${BASE_KEYS}" | tr ',' '\n' | sort -u | paste -sd',')
     echo "---"
     echo "creation_rules:"
 
-    # Per-app rules (sorted for deterministic output)
+    # Per-server-specific rules first (most specific path_regex — SOPS matches first hit)
+    for key in $(echo "${!SERVER_SECRET_KEYS[@]}" | tr ' ' '\n' | sort); do
+        keys="${SERVER_SECRET_KEYS[${key}]}"
+        app_part="${key%%/*}"
+        server_part="${key##*/}"
+        echo "  - path_regex: services/${app_part}/secret\\.${server_part}\\.sops\\.env\$"
+        echo "    age: >-"
+        format_age_keys "${keys}" "      "
+    done
+
+    # Per-app base rules (sorted for deterministic output)
     for app in $(echo "${!APP_KEYS[@]}" | tr ' ' '\n' | sort); do
         keys="${APP_KEYS[${app}]}"
         # Only emit a per-app rule if it differs from the fallback
@@ -200,5 +256,7 @@ echo "Generated ${SOPS_YAML} with ${rule_count} rule(s)"
 echo ""
 echo "Next steps:"
 echo "  1. Review the generated .sops.yaml"
-echo "  2. Run 'sops updatekeys services/<app>/secret.sops.env' for each app to re-encrypt"
-echo "  3. Commit the updated .sops.yaml and re-encrypted secret files"
+echo "  2. Run 'sops updatekeys services/<app>/secret.sops.env' for each app with changed keys"
+echo "  3. For new per-server files, create them plaintext then encrypt:"
+echo "     sops -e -i services/<app>/secret.<server>.sops.env"
+echo "  4. Commit the updated .sops.yaml and re-encrypted secret files"

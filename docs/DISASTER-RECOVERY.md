@@ -118,7 +118,95 @@ sops -d /mnt/vm-pool/apps/services/echo-server/secret.sops.env
 
 ---
 
-## Step 5: Restore Data (Optional)
+## Step 5: Create Microsoft Entra ID App Registrations
+
+Traefik Forward Auth uses Microsoft Entra ID (Azure AD) for SSO. Each server gets its **own app registration** for credential isolation — a compromised secret on one server cannot be used to authenticate against another.
+
+Three registrations are needed:
+
+| Server      | Auth Subdomain | App Registration Name (suggested)  |
+| ----------- | -------------- | ---------------------------------- |
+| svlnas      | `auth`         | `traefik-forward-auth-svlnas`      |
+| svlazext    | `auth-ext`     | `traefik-forward-auth-svlazext`    |
+| svlazextpub | `auth-pub`     | `traefik-forward-auth-svlazextpub` |
+
+### Create Each App Registration
+
+Repeat these steps for each of the three servers:
+
+1. Go to **[Azure Portal → Microsoft Entra ID → App registrations → New registration](https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps)**
+2. **Name:** Use the suggested name from the table above
+3. **Supported account types:** "Accounts in this organizational directory only (Single tenant)"
+4. **Redirect URI:**
+   - Platform: **Web**
+   - URI: `https://<auth-subdomain>.<DOMAINNAME>/oauth2/callback`
+     - svlnas: `https://auth.<DOMAINNAME>/oauth2/callback`
+     - svlazext: `https://auth-ext.<DOMAINNAME>/oauth2/callback`
+     - svlazextpub: `https://auth-pub.<DOMAINNAME>/oauth2/callback`
+5. Click **Register**
+
+### Generate Client Secrets
+
+For each app registration:
+
+1. Go to **Certificates & secrets → Client secrets → New client secret**
+2. **Description:** e.g. `traefik-forward-auth`
+3. **Expires:** Choose the maximum allowed (24 months), and set a calendar reminder to rotate before expiry
+4. Copy the secret **Value** (not the Secret ID) — it is only shown once
+
+### Collect the Values
+
+For each registration, note these values (found on the **Overview** page):
+
+| Variable              | Where to Find                                                |
+| --------------------- | ------------------------------------------------------------ |
+| `AZURE_TENANT_ID`     | Overview → Directory (tenant) ID — same for all three        |
+| `AZURE_CLIENT_ID`     | Overview → Application (client) ID — unique per registration |
+| `AZURE_CLIENT_SECRET` | Certificates & secrets → the Value you just copied           |
+
+### Store in SOPS Secret Files
+
+Each server's credentials go into its own SOPS-encrypted file:
+
+- svlnas → `services/traefik-forward-auth/secret.sops.env`
+- svlazext → `services/traefik-forward-auth/secret.svlazext.sops.env`
+- svlazextpub → `services/traefik-forward-auth/secret.svlazextpub.sops.env`
+
+Each file must contain (at minimum):
+
+```env
+DOMAINNAME=<your-domain>
+MEM_LIMIT=300m
+TRAEFIK_FORWARD_AUTH_SECRET=<random-64-char-hex-string>
+AZURE_TENANT_ID=<your-tenant-id>
+AZURE_CLIENT_ID=<per-server-client-id>
+AZURE_CLIENT_SECRET=<per-server-client-secret>
+```
+
+Generate a unique `TRAEFIK_FORWARD_AUTH_SECRET` per server (used to sign session tokens):
+
+```sh
+openssl rand -hex 32
+```
+
+Encrypt new per-server files (the `.sops.yaml` rules will scope the Age keys automatically):
+
+```sh
+sops -e -i services/traefik-forward-auth/secret.svlazext.sops.env
+sops -e -i services/traefik-forward-auth/secret.svlazextpub.sops.env
+```
+
+### Add DNS Records
+
+Create DNS A/CNAME records for each auth subdomain pointing to the correct server:
+
+- `auth.<DOMAINNAME>` → svlnas IP
+- `auth-ext.<DOMAINNAME>` → svlazext IP
+- `auth-pub.<DOMAINNAME>` → svlazextpub IP
+
+---
+
+## Step 6: Restore Data (Optional)
 
 If you have ZFS snapshots or replication backups, restore them **before** deploying apps:
 
@@ -130,13 +218,13 @@ If no backups are available, apps will start fresh — databases will be initial
 
 ---
 
-## Step 6: Configure Media and Private Dataset Permissions (If Applicable)
+## Step 7: Configure Media and Private Dataset Permissions (If Applicable)
 
 If the archive pool was also lost or reformatted, recreate the media and private dataset permissions. See [ARCHITECTURE.md § Media Access](ARCHITECTURE.md#media-access) for the Unix permissions setup for media datasets (`media` group, setgid dirs, UMASK=002) and [Private Storage](ARCHITECTURE.md#private-storage-access-model) for private datasets.
 
 ---
 
-## Step 7: Decrypt Secrets
+## Step 8: Decrypt Secrets
 
 After cloning and restoring the Age key, run the CD script to decrypt all `secret.sops.env` files to `.env`. Apps will fail to start without their decrypted secrets:
 
@@ -152,7 +240,7 @@ This also installs SOPS if not already present. At this stage no apps are create
 
 ---
 
-## Step 8: Create TrueNAS Custom Apps
+## Step 9: Create TrueNAS Custom Apps
 
 In the TrueNAS UI, create a Custom App (YAML) for each service. Each entry uses the `include` directive to point at the compose file:
 
@@ -166,7 +254,7 @@ services: {}
 
 ---
 
-## Step 9: Validate
+## Step 10: Validate
 
 After all apps are deployed via the TrueNAS UI, run the CD script once to redeploy and verify everything is healthy:
 
@@ -186,7 +274,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 ---
 
-## Step 10: Re-enable the Cron Job
+## Step 11: Re-enable the Cron Job
 
 Add a TrueNAS cron job for continuous deployment:
 
@@ -213,6 +301,8 @@ Use this as a quick reference:
 - [ ] Configure cross-group memberships (see ARCHITECTURE.md)
 - [ ] Clone the git repository via SSH (as `truenas_admin`)
 - [ ] Restore the Age private key
+- [ ] Create Entra ID app registrations (3 × traefik-forward-auth) and store credentials in SOPS
+- [ ] Add DNS records for auth subdomains (`auth`, `auth-ext`, `auth-pub`)
 - [ ] Decrypt secrets by running `dccd.sh`
 - [ ] Restore data from backups (if available)
 - [ ] Recreate media/private dataset permissions (if applicable)

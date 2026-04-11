@@ -5,8 +5,8 @@
 # The processed output is written to data/config.yaml (not committed to git).
 
 server:
-  # External hostname Traefik will use
-  hostname: "auth.${DOMAINNAME}"
+  # External hostname for OAuth redirects (AUTH_SUBDOMAIN set per server)
+  hostname: "${AUTH_SUBDOMAIN}.${DOMAINNAME}"
 
 cookies:
   # Use the main domain so sub-domains share the cookie
