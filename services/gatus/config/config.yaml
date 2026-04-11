@@ -140,8 +140,6 @@ endpoints:
     <<: *defaults
     url: "https://v60.${DOMAINNAME}"
     group: External
-    client:
-      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
     conditions:
       - "[BODY] == pat(*V60 Recipe Calculator*)"
       - "[STATUS] == 200"
