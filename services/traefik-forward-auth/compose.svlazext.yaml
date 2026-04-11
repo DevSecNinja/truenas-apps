@@ -9,6 +9,7 @@ services:
   traefik-forward-auth-init:
     environment:
       AUTH_SUBDOMAIN: auth-ext
+      COOKIE_NAME_PREFIX: _forward_auth_ext
 
   traefik-forward-auth:
     labels: !override

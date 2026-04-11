@@ -11,8 +11,9 @@ server:
 cookies:
   # Use the main domain so sub-domains share the cookie
   domain: "${DOMAINNAME}"
-  # Match your custom cookie name
-  namePrefix: "_forward_auth_home"
+  # Prefix is server-specific (set per server in compose.<server>.yaml) so cookies from
+  # different TFA instances don't collide despite sharing the same domain.
+  namePrefix: "${COOKIE_NAME_PREFIX}"
 
 tokens:
   # Keep users signed in for 12 hours instead of the 2-hour default

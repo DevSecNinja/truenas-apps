@@ -11,6 +11,7 @@ services:
       - path: ../shared/env/tz.env
     environment:
       AUTH_SUBDOMAIN: auth # Override per server in compose.<server>.yaml
+      COOKIE_NAME_PREFIX: _forward_auth_home # Override per server in compose.<server>.yaml
     restart: "no"
     network_mode: none
     mem_limit: 64m
