@@ -73,6 +73,7 @@ services:
       - "traefik.docker.network=prowlarr-frontend"
       ## HTTP Routers
       - "traefik.http.routers.prowlarr-rtr.rule=Host(`prowlarr.${DOMAINNAME}`)"
+      - "traefik.http.routers.prowlarr-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.prowlarr-rtr.middlewares=chain-auth@file"
       ## HTTP Services

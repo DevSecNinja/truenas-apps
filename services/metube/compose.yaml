@@ -103,6 +103,7 @@ services:
       - "traefik.docker.network=metube-frontend"
       ## HTTP Routers
       - "traefik.http.routers.metube-rtr.rule=Host(`metube.${DOMAINNAME}`)"
+      - "traefik.http.routers.metube-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.metube-rtr.middlewares=chain-auth@file"
       ## HTTP Services

@@ -117,6 +117,7 @@ services:
       ## Middlewares
       - "traefik.http.routers.outline-rtr.middlewares=chain-auth@file"
       - "traefik.http.routers.outline-rtr.rule=Host(`docs.${DOMAINNAME}`)"
+      - "traefik.http.routers.outline-rtr.entrypoints=https"
       ## HTTP Services
       - "traefik.http.routers.outline-rtr.service=outline-svc"
       - "traefik.http.services.outline-svc.loadbalancer.server.port=3000"

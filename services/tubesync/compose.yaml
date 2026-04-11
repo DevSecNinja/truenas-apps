@@ -62,6 +62,7 @@ services:
       - "traefik.docker.network=tubesync-frontend"
       ## HTTP Routers
       - "traefik.http.routers.tubesync-rtr.rule=Host(`tubesync.${DOMAINNAME}`)"
+      - "traefik.http.routers.tubesync-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.tubesync-rtr.middlewares=chain-auth@file"
       ## HTTP Services

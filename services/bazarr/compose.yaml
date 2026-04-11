@@ -74,6 +74,7 @@ services:
       - "traefik.docker.network=bazarr-frontend"
       ## HTTP Routers
       - "traefik.http.routers.bazarr-rtr.rule=Host(`bazarr.${DOMAINNAME}`)"
+      - "traefik.http.routers.bazarr-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.bazarr-rtr.middlewares=chain-auth@file"
       ## HTTP Services

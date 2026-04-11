@@ -76,6 +76,7 @@ services:
       - "traefik.docker.network=qbittorrent-frontend"
       ## HTTP Routers
       - "traefik.http.routers.qbittorrent-rtr.rule=Host(`qbittorrent.${DOMAINNAME}`)"
+      - "traefik.http.routers.qbittorrent-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.qbittorrent-rtr.middlewares=chain-auth@file"
       ## HTTP Services

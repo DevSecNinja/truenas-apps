@@ -74,6 +74,7 @@ services:
       - "traefik.docker.network=lidarr-frontend"
       ## HTTP Routers
       - "traefik.http.routers.lidarr-rtr.rule=Host(`lidarr.${DOMAINNAME}`)"
+      - "traefik.http.routers.lidarr-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.lidarr-rtr.middlewares=chain-auth@file"
       ## HTTP Services

@@ -114,6 +114,7 @@ services:
       - "traefik.docker.network=immich-frontend"
       ## HTTP Routers
       - "traefik.http.routers.immich-rtr.rule=Host(`photos.${DOMAINNAME}`)"
+      - "traefik.http.routers.immich-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.immich-rtr.middlewares=chain-auth-immich@file"
       ## HTTP Services

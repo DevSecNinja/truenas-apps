@@ -187,6 +187,7 @@ services:
       - "traefik.docker.network=adguard-frontend"
       ## HTTP Routers
       - "traefik.http.routers.adguard-rtr.rule=Host(`adguard.${DOMAINNAME}`)"
+      - "traefik.http.routers.adguard-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.adguard-rtr.middlewares=chain-auth@file"
       ## HTTP Services

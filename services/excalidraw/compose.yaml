@@ -61,6 +61,7 @@ services:
       - "traefik.docker.network=excalidraw-frontend"
       ## HTTP Routers
       - "traefik.http.routers.excalidraw-rtr.rule=Host(`excalidraw.${DOMAINNAME}`)"
+      - "traefik.http.routers.excalidraw-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.excalidraw-rtr.middlewares=chain-auth@file"
       ## HTTP Services

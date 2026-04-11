@@ -132,6 +132,7 @@ services:
       - "traefik.http.routers.traefik-rtr.middlewares=chain-auth@file"
       ## HTTP Services
       - "traefik.http.routers.traefik-rtr.rule=Host(`traefik.${DOMAINNAME}`)"
+      - "traefik.http.routers.traefik-rtr.entrypoints=https"
       - "traefik.http.routers.traefik-rtr.service=api@internal"
       ## Monitoring (Gatus — no auth, internal entrypoint only)
       - "traefik.http.routers.traefik-monitor.rule=Host(`traefik.${DOMAINNAME}`)"

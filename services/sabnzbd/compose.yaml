@@ -74,6 +74,7 @@ services:
       - "traefik.docker.network=sabnzbd-frontend"
       ## HTTP Routers
       - "traefik.http.routers.sabnzbd-rtr.rule=Host(`sabnzbd.${DOMAINNAME}`)"
+      - "traefik.http.routers.sabnzbd-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.sabnzbd-rtr.middlewares=chain-auth@file"
       ## HTTP Services

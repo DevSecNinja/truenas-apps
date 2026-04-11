@@ -103,6 +103,7 @@ services:
       - "traefik.docker.network=spottarr-frontend"
       ## HTTP Routers
       - "traefik.http.routers.spottarr-rtr.rule=Host(`spottarr.${DOMAINNAME}`)"
+      - "traefik.http.routers.spottarr-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.spottarr-rtr.middlewares=chain-auth@file"
       ## HTTP Services
