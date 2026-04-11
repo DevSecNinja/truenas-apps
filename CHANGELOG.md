@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2026-04-11
+
+### Bug Fixes
+
+- **theme**: Update color palette to deep purple for improved aesthetics ([`70f1b41`](https://github.com/DevSecNinja/truenas-apps/commit/70f1b41876766b6a2b44a85ac7540b51a49713f2))
+- **renovate**: Update schedule and ignorePaths for improved configuration ([`3f8a211`](https://github.com/DevSecNinja/truenas-apps/commit/3f8a211ca7fc46a3cf68db0b181dd04f99e82df7))
+
+### Features
+
+- **endpoints**: Add homelab docs endpoint with custom conditions for monitoring ([`179aa6c`](https://github.com/DevSecNinja/truenas-apps/commit/179aa6c79dff2e8b6b77dda3c0ed04380b9de103))
+- **docs**: Add MkDocs configuration and initial documentation structure ([`ca71a5d`](https://github.com/DevSecNinja/truenas-apps/commit/ca71a5d981f3c06f0203cc4f2743ed90c1ac1136))
+
 ## [0.13.1] - 2026-04-11
 
 ### Bug Fixes
@@ -70,6 +82,10 @@ All notable changes to this project will be documented in this file.
 - **mcp**: Update GitHub MCP server configuration and remove deprecated settings ([`b50dc77`](https://github.com/DevSecNinja/truenas-apps/commit/b50dc7744f9a373e2374b0b5fda522194d402f1f))
 - **CODEOWNERS**: Add default code owner for pull request reviews ([`dee7f43`](https://github.com/DevSecNinja/truenas-apps/commit/dee7f430735e97579253f83179bc21e9f55cfad9))
 - **mcp**: Add microsoft-learn server configuration ([`d140599`](https://github.com/DevSecNinja/truenas-apps/commit/d140599e803da0596854f6f239d04a4948dc50b6))
+
+### Miscellaneous
+
+- **version**: V0.13.1 ([`1f7d33e`](https://github.com/DevSecNinja/truenas-apps/commit/1f7d33ee19aa09a257089101455f7d318cb44f25))
 
 ### Refactoring
 
