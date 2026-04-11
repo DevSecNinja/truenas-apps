@@ -135,6 +135,7 @@ services:
 - `pids_limit` on every container to prevent fork-bomb DoS
 - Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`
 - Volumes mounted `:ro` wherever the container only reads
+- **`./config` volumes must always be mounted `:ro`** — config files are git-tracked and must never be modified by a container at runtime. If a service needs to write config at runtime, copy the file from `./config` to `./data` in an init container and mount the `./data` copy read-write (see the gatus pattern). Any exception requires explicit approval and a comment in the compose file explaining why
 
 ## Volume Permissions: Init Container Pattern
 
