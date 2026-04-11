@@ -2,6 +2,80 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.1] - 2026-04-11
+
+### Bug Fixes
+
+- **aliases**: Enhance dccd-down function to support multiple app names and improved error handling ([`80b2930`](https://github.com/DevSecNinja/truenas-apps/commit/80b29309954649232d787887a0a58675ac1b078f))
+- **adguard**: Reorder A records for improved clarity and organization ([`7975bde`](https://github.com/DevSecNinja/truenas-apps/commit/7975bde4f16e7f606f9a675cdb3d08f6a5a8db10))
+- **dccd**: Enhance server mode handling and app filter validation ([`9b75568`](https://github.com/DevSecNinja/truenas-apps/commit/9b7556893b24455b5786bb29910c32e5cbaa9a3a))
+- **traefik**: Add Cloudflare key with hadiscover zone permissions ([`070dbeb`](https://github.com/DevSecNinja/truenas-apps/commit/070dbeb0da9fed5d9c1ea6254b57a16ab0045d9d))
+- **hadiscover**: Remove redundant healthcheck from hadiscover-api service ([`0e8aa34`](https://github.com/DevSecNinja/truenas-apps/commit/0e8aa34184fd7ba3f9dd91b9b667fe64d0093b57))
+- **container**: Update image ghcr.io/devsecninja/hadiscover/backend ( 0.2.14 ➔ 0.2.16 ) ([`142c967`](https://github.com/DevSecNinja/truenas-apps/commit/142c967ba234523b765296aa1aebb736193a3871))
+- **dccd**: Skip empty service directories in TrueNAS mode ([`e69b13f`](https://github.com/DevSecNinja/truenas-apps/commit/e69b13f6d31f7ce7dfd2c966be710be4affc0d52))
+- Update AZURE_CLIENT_SECRET and sops metadata for consistency ([`a28b74d`](https://github.com/DevSecNinja/truenas-apps/commit/a28b74d2013a04e4636b5c44d54a04ae9179fa9c))
+- Enforce read-only mounts for git-tracked config volumes to prevent runtime modifications ([`1a33ced`](https://github.com/DevSecNinja/truenas-apps/commit/1a33cedebd43010484fe3537b8c1634b55a3779b))
+- Set config volume to read-only to enhance security ([`ec777b4`](https://github.com/DevSecNinja/truenas-apps/commit/ec777b45885224a76c568f3f4cca6080827b8a73))
+- Clarify ownership requirements for git-tracked config directories in init container documentation ([`ada590b`](https://github.com/DevSecNinja/truenas-apps/commit/ada590bd092da86c3ef2a2c4dc340b46f69b80f0))
+- Update forward auth address to use internal service URL because Treafik needs server-side reach to auth ([`0ef7c9c`](https://github.com/DevSecNinja/truenas-apps/commit/0ef7c9cb5560c1a041099e275e26618a2f794919))
+
+### Features
+
+- **dccd**: Reorder Traefik deployment to ensure it joins external networks last ([`d80cfa9`](https://github.com/DevSecNinja/truenas-apps/commit/d80cfa9c14c97f18c58e5175959c8fc195995a72))
+- **hadiscover**: Add hadiscover service with initialization and API components ([`542a29d`](https://github.com/DevSecNinja/truenas-apps/commit/542a29d0f826f9941263eeb5d3be9271b5bbbfcd))
+- **gatus**: Comment out DNS endpoint tests and add TODO for fixing internal and external resolution paths ([`a103737`](https://github.com/DevSecNinja/truenas-apps/commit/a1037371cb6bd55c59c495c8e78b35ed5d3446e9))
+- **gatus**: Remove DNS resolver configuration from V60 endpoint - hope this fixes context deadline exceeded error ([`781ae16`](https://github.com/DevSecNinja/truenas-apps/commit/781ae16f4b1320499e7b459644168127a92beeb8))
+- **adguard**: Exempt v60 subdomain from static zone for forward-zone resolution ([`1dae8f6`](https://github.com/DevSecNinja/truenas-apps/commit/1dae8f6b0f57d38d023de5ddeb7e20a9b90f7af3))
+- **gatus**: Update HTTP status conditions for external endpoints ([`e63a9ad`](https://github.com/DevSecNinja/truenas-apps/commit/e63a9adec600a3ff9e46c6cffa4b13e46586289d))
+- **adguard**: Add public IP variable for external access ([`e58c09e`](https://github.com/DevSecNinja/truenas-apps/commit/e58c09e2dd2147b0058f9fc5ff8ea3b899dcc758))
+- **gatus**: Add DNS resolver configuration for external endpoints ([`12ee3c8`](https://github.com/DevSecNinja/truenas-apps/commit/12ee3c84283bce7b7eb023a801466e4e6a5ec561))
+- **gatus**: Update endpoint conditions and add client redirect handling for external services ([`f39a0c1`](https://github.com/DevSecNinja/truenas-apps/commit/f39a0c125484b299d4230e91a46852a55331c47b))
+- **gatus**: Update conditions and URLs for health checks in multiple services ([`974f09b`](https://github.com/DevSecNinja/truenas-apps/commit/974f09bbdd6810d70545eb54c42447aef428f5f9))
+- **traefik**: Add monitoring entrypoints for unifi and unifi-guest services ([`9c24ae0`](https://github.com/DevSecNinja/truenas-apps/commit/9c24ae063d54ecb11d92bad7fd79b4e186f6d8d3))
+- **services**: Add monitoring entrypoints for Gatus in multiple services ([`7ab1b1e`](https://github.com/DevSecNinja/truenas-apps/commit/7ab1b1e9b201b3076a4d61c59dce84b0dd26ee32))
+- **aliases**: Enhance dccd-app to support multiple app deployments ([`9e025b3`](https://github.com/DevSecNinja/truenas-apps/commit/9e025b388c61c80adb64a33bd177dda98d589a24))
+- **traefik**: Add entrypoints for multiple services to enhance routing ([`15b8cb7`](https://github.com/DevSecNinja/truenas-apps/commit/15b8cb739a940c337d86e0d6f1387606a0b7c1af))
+- **traefik**: Add entrypoints for Dozzle, Drawio, and Echo Server routers ([`c2c84ed`](https://github.com/DevSecNinja/truenas-apps/commit/c2c84ed5ac059e04fadd847cebbb4e429e264f6a))
+- **aliases**: Add cleaning functions for Docker containers, images, volumes, and networks ([`4df9438`](https://github.com/DevSecNinja/truenas-apps/commit/4df9438ddb68a8dc94182c00401bbc9c803d996e))
+- Update Gatus URLs to use static IP for improved reliability across services ([`c2dcff9`](https://github.com/DevSecNinja/truenas-apps/commit/c2dcff9d91ed892a9f898ea1f1b2f07b1c287b4b))
+- Update Gatus URLs to use static IP for improved reliability ([`22964ae`](https://github.com/DevSecNinja/truenas-apps/commit/22964aeec87dab438e6788a73075cfdabf1d5acf))
+- **openspeedtest**: Retire OpenSpeedTest service ([`2cf043c`](https://github.com/DevSecNinja/truenas-apps/commit/2cf043cf9815dd60b0e293222ab1786140178189))
+- **dccd**: Add app retirement mechanism with auto-cleanup ([`d137a22`](https://github.com/DevSecNinja/truenas-apps/commit/d137a2201c5e040994112d14042f9492a874d302))
+- Add Gatus monitoring configuration for multiple services with specific headers ([`d9e67be`](https://github.com/DevSecNinja/truenas-apps/commit/d9e67bec9054b791b6650d785e9f93a349d60324))
+- Add Gatus monitoring for various services with internal entrypoint configuration ([`c8d1932`](https://github.com/DevSecNinja/truenas-apps/commit/c8d1932cd095d5210026cda0dfc09617b5ed6c5c))
+- Add COOKIE_NAME_PREFIX environment variable for server-specific cookie naming ([`e12361f`](https://github.com/DevSecNinja/truenas-apps/commit/e12361f41e933cfb5f4bdbeff858d497e0006cdd))
+- Add option to update keys on existing encrypted files in generate-sops-rules script ([`572ecf6`](https://github.com/DevSecNinja/truenas-apps/commit/572ecf672a62075cae9d7276d4c2e0b451476442))
+- Enhance secret management and server-specific configurations for traefik-forward-auth ([`a1f45d3`](https://github.com/DevSecNinja/truenas-apps/commit/a1f45d375f9b0d4955d61132ae749fe96cb87605))
+- Update forward auth address to use domain variable for improved flexibility ([`48270ca`](https://github.com/DevSecNinja/truenas-apps/commit/48270ca126066c6d33261a4a39f7d8cc59f54bf0))
+- Log total execution time in update_compose_files function ([`a733547`](https://github.com/DevSecNinja/truenas-apps/commit/a73354738282aa51b63c637a3be973a7cde93bef))
+- Update endpoints for traefik-ext and adguard-ext with new conditions and URLs ([`a451162`](https://github.com/DevSecNinja/truenas-apps/commit/a4511620c2979abe3108b9b9b3154032da5ea7eb))
+- Add svlazext A record and create compose override for AdGuard service ([`d25f770`](https://github.com/DevSecNinja/truenas-apps/commit/d25f7706606e43c87b206d34f22dad3f5dc73270))
+- Refactor aliases.sh for improved environment detection and script execution ([`596b329`](https://github.com/DevSecNinja/truenas-apps/commit/596b3291ae58308592c6e2421d4527c009008cad))
+- Add SVLAZEXT A record and update Gatus configuration for new endpoint ([`1d39eb2`](https://github.com/DevSecNinja/truenas-apps/commit/1d39eb2a4d6b03f299ef90d1c8b2317bcb8ade96))
+- Configure static IP addresses for adguard services and update DNS settings ([`9d4236e`](https://github.com/DevSecNinja/truenas-apps/commit/9d4236e1de3070a2637721d509bfcd883fa5521c))
+- Update autoMerge and packageRules for improved dependency management and security ([`d4cf421`](https://github.com/DevSecNinja/truenas-apps/commit/d4cf4219396411ccb0e19891bb1eab21553d602f))
+- Enhance deployment logic to trigger updates on fresh servers with no running containers ([`06e84ab`](https://github.com/DevSecNinja/truenas-apps/commit/06e84ab47c98e56d8aa06b7e1d54537ffedf7d35))
+- Update aliases.sh and dccd.sh for improved user instructions and ownership checks ([`2d8705c`](https://github.com/DevSecNinja/truenas-apps/commit/2d8705c1665d1bc03883c650d1527943e72e966d))
+- **mise**: Update tool yq ( 4.45.4 ➔ 4.52.5 ) ([`fe6d279`](https://github.com/DevSecNinja/truenas-apps/commit/fe6d2792a8a384a6386cfc3807df65b37180923f))
+- **mise**: Update tool pipx:check-jsonschema ( 0.33.0 ➔ 0.37.1 ) ([`4cf3edb`](https://github.com/DevSecNinja/truenas-apps/commit/4cf3edb445e7b8331182b50ed26a76cd8bc7cc2a))
+- Update devcontainer configuration and add post-create script for environment setup ([`b1f12d6`](https://github.com/DevSecNinja/truenas-apps/commit/b1f12d6c8270344fbb7f5685a1f44a99aa5e90a5))
+- Update encrypted secrets for various services in the environment configuration files to include new hosts ([`3b8f72f`](https://github.com/DevSecNinja/truenas-apps/commit/3b8f72f65783d968f0833bfd6d03c066e6c542d0))
+- Add SOPS_AGE_KEY_FILE to remote environment in devcontainer configuration ([`18b67a4`](https://github.com/DevSecNinja/truenas-apps/commit/18b67a43b92e5eb8aa6d765be32b150b94248a44))
+- Enhance SOPS rules generation and update documentation ([`5513590`](https://github.com/DevSecNinja/truenas-apps/commit/55135908b5ec088a35ece146398cee9905341657))
+- Update multi-server deployment documentation and validation logic ([`c21dd18`](https://github.com/DevSecNinja/truenas-apps/commit/c21dd18a542241fe45b324626656d9dd83e7b0d2))
+- Update .gitignore to ignore all key files ([`40b8b8f`](https://github.com/DevSecNinja/truenas-apps/commit/40b8b8f2925736ae45b6a2c2ef0759e7b04dfee5))
+- Add age tool configuration and update mise.lock ([`6179948`](https://github.com/DevSecNinja/truenas-apps/commit/617994820ceee04bf6317d6d8ffef5e660c855d1))
+- Add multi-server deployment support ([`d691bf5`](https://github.com/DevSecNinja/truenas-apps/commit/d691bf56db556c64e8601184e5a08a260bd1f290))
+- **settings**: Add git post-commit command to sync changes ([`ee22d32`](https://github.com/DevSecNinja/truenas-apps/commit/ee22d326c8540524637333abaac7b5d7dc8e5852))
+- **mcp**: Update GitHub MCP server configuration and remove deprecated settings ([`b50dc77`](https://github.com/DevSecNinja/truenas-apps/commit/b50dc7744f9a373e2374b0b5fda522194d402f1f))
+- **CODEOWNERS**: Add default code owner for pull request reviews ([`dee7f43`](https://github.com/DevSecNinja/truenas-apps/commit/dee7f430735e97579253f83179bc21e9f55cfad9))
+- **mcp**: Add microsoft-learn server configuration ([`d140599`](https://github.com/DevSecNinja/truenas-apps/commit/d140599e803da0596854f6f239d04a4948dc50b6))
+
+### Refactoring
+
+- Update init container guidelines to prevent chown on git-tracked directories and improve ownership checks ([`1f040d2`](https://github.com/DevSecNinja/truenas-apps/commit/1f040d2ffdf654aaec1aab43ce83e2ca1e9a06bb))
+- Streamline alerting and endpoint configurations by removing unused client settings and consolidating defaults ([`3d3b092`](https://github.com/DevSecNinja/truenas-apps/commit/3d3b092aeefbb3447ed979ce00a8a434adce20fb))
+
 ## [0.13.0] - 2026-04-09
 
 ### Bug Fixes
@@ -34,6 +108,10 @@ All notable changes to this project will be documented in this file.
 - **home-assistant**: Update service configuration to support s6-overlay and DHCP watcher integration ([`a3ac6b8`](https://github.com/DevSecNinja/truenas-apps/commit/a3ac6b8f6cc6a05d2013ee72afd02d2b20e8a9d6))
 - **openspeedtest**: Add OpenSpeedTest-specific middleware and update Traefik configuration ([`a26fa84`](https://github.com/DevSecNinja/truenas-apps/commit/a26fa8490b2b5ed1640f13b50ef71f91c13de678))
 - **home-assistant**: Add Home Assistant service and update configurations ([`e32ff03`](https://github.com/DevSecNinja/truenas-apps/commit/e32ff0329b8e1f23b4e788360e6f573e34b7a4f3))
+
+### Miscellaneous
+
+- **version**: V0.13.0 ([`ae7a4c0`](https://github.com/DevSecNinja/truenas-apps/commit/ae7a4c0eecbce4f21e7e332ddbebce670b06ade1))
 
 ## [0.12.0] - 2026-04-08
 
