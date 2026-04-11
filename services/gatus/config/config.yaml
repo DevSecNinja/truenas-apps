@@ -140,6 +140,8 @@ endpoints:
     <<: *defaults
     url: "https://v60.${DOMAINNAME}"
     group: External
+    client:
+      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
     conditions:
       - "[BODY] == pat(*V60 Recipe Calculator*)"
       - "[STATUS] == 200"
@@ -151,6 +153,7 @@ endpoints:
     url: "https://traefik-ext.${DOMAINNAME}"
     group: External
     client:
+      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
       ignore-redirect: true # Don't follow forward-auth redirect
     conditions:
       - "[STATUS] == any(200, 302, 307)"
@@ -162,6 +165,7 @@ endpoints:
     url: "https://adguard-ext.${DOMAINNAME}"
     group: External
     client:
+      dns-resolver: "udp://${IP_DNS_SERVER_1}:53"
       ignore-redirect: true # Don't follow forward-auth redirect
     conditions:
       - "[STATUS] == any(200, 302, 307)"
