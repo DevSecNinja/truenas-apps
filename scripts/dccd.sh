@@ -205,6 +205,23 @@ parse_server_apps() {
         SERVER_APPS+=("${app}")
     done <<<"${app_list}"
 
+    # Traefik must always deploy last: it joins external networks created by
+    # other apps (e.g. traefik-forward-auth-frontend). Move it to the end if
+    # it is present, regardless of the order in servers.yaml.
+    local traefik_present=0
+    local reordered=()
+    for app in "${SERVER_APPS[@]}"; do
+        if [ "${app}" = "traefik" ]; then
+            traefik_present=1
+        else
+            reordered+=("${app}")
+        fi
+    done
+    if [ "${traefik_present}" -eq 1 ]; then
+        reordered+=("traefik")
+        SERVER_APPS=("${reordered[@]}")
+    fi
+
     log_message "INFO:  Server '${SERVER_NAME}' has ${#SERVER_APPS[@]} app(s): ${SERVER_APPS[*]}"
 }
 
