@@ -73,7 +73,7 @@ services:
       # Gatus
       - "gatus.url=http://172.30.100.6:8444/healthz"
       - "gatus.headers.Host=auth.${DOMAINNAME}"
-      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.conditions=["[STATUS] == 204", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
       # Traefik
       - "traefik.enable=true"

@@ -89,7 +89,7 @@ services:
       - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=sabnzbd.${DOMAINNAME}"
       - 'gatus.client={"ignore-redirect": true}'
-      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.conditions=["[STATUS] == 403", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
 networks:
