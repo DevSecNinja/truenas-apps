@@ -76,6 +76,191 @@ alias dstats='sudo docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemP
 alias dprune='sudo docker image prune --all --force'
 
 ########################################
+# Cleaning (confirmation-gated)
+########################################
+
+# Remove all stopped/exited/dead containers (with confirmation)
+dclean_stopped() {
+    local ids
+    ids=$(sudo docker ps -aq --filter status=exited --filter status=dead)
+    if [ -z "${ids}" ]; then
+        echo "No stopped containers found."
+        return 0
+    fi
+    echo "Stopped containers to remove:"
+    # shellcheck disable=SC2086 # word splitting is intentional: $ids is a list of IDs
+    sudo docker ps -a --filter status=exited --filter status=dead \
+        --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+    printf "Remove all of the above? [y/N] "
+    read -r reply
+    case "${reply}" in
+    [Yy])
+        # shellcheck disable=SC2086
+        sudo docker rm ${ids}
+        echo "Done."
+        ;;
+    *)
+        echo "Aborted."
+        ;;
+    esac
+}
+alias dclean-stopped='dclean_stopped'
+
+# Remove orphaned containers — those whose Compose project has no matching
+# services/<app>/ directory, and those started outside of Compose entirely.
+dclean_orphans() {
+    if [ -z "${APPS_DIR:-}" ]; then
+        echo "ERROR: APPS_DIR is not set — cannot determine which projects are active."
+        return 1
+    fi
+
+    local orphan_ids=""
+    local orphan_names=""
+
+    local raw_containers
+    raw_containers=$(sudo docker ps -aq --format '{{.ID}}|{{.Names}}|{{index .Labels "com.docker.compose.project"}}') || true
+
+    while IFS="|" read -r cid cname project; do
+        # No compose project label → started outside Compose
+        if [ -z "${project}" ]; then
+            orphan_ids="${orphan_ids} ${cid}"
+            orphan_names="${orphan_names}\n  ${cname} (no compose project)"
+            continue
+        fi
+
+        # In TrueNAS mode strip the ix- prefix to get the service directory name
+        local app_name="${project}"
+        case "${DCCD_MODE:-}" in
+        *-t*) app_name="${project#ix-}" ;;
+        *) ;;
+        esac
+
+        # Flag the container if its services directory no longer exists
+        if [ ! -d "${APPS_DIR}/services/${app_name}" ]; then
+            orphan_ids="${orphan_ids} ${cid}"
+            orphan_names="${orphan_names}\n  ${cname} (project: ${project}, dir missing: services/${app_name})"
+        fi
+    done <<EOF
+${raw_containers}
+EOF
+
+    local trimmed_ids
+    trimmed_ids=$(echo "${orphan_ids}" | tr -s ' ' | sed 's/^ //') || true
+    orphan_ids="${trimmed_ids}"
+    if [ -z "${orphan_ids}" ]; then
+        echo "No orphaned containers found."
+        return 0
+    fi
+
+    echo "Orphaned containers to remove:"
+    printf '%b\n' "${orphan_names}"
+    printf "Remove all of the above? [y/N] "
+    read -r reply
+    case "${reply}" in
+    [Yy])
+        # shellcheck disable=SC2086
+        sudo docker rm ${orphan_ids}
+        echo "Done."
+        ;;
+    *)
+        echo "Aborted."
+        ;;
+    esac
+}
+alias dclean-orphans='dclean_orphans'
+
+# Remove dangling (unreferenced) images (with confirmation)
+dclean_images() {
+    local count
+    count=$(sudo docker images --filter dangling=true -q | wc -l) || true
+    if [ "${count}" -eq 0 ]; then
+        echo "No dangling images found."
+        return 0
+    fi
+    echo "Dangling images to remove (${count}):"
+    sudo docker images --filter dangling=true --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}"
+    printf "Remove all of the above? [y/N] "
+    read -r reply
+    case "${reply}" in
+    [Yy])
+        sudo docker image prune --force
+        echo "Done."
+        ;;
+    *)
+        echo "Aborted."
+        ;;
+    esac
+}
+alias dclean-images='dclean_images'
+
+# Remove unused (dangling) volumes (with confirmation)
+dclean_volumes() {
+    local count
+    count=$(sudo docker volume ls --filter dangling=true -q | wc -l) || true
+    if [ "${count}" -eq 0 ]; then
+        echo "No dangling volumes found."
+        return 0
+    fi
+    echo "Dangling volumes to remove (${count}):"
+    sudo docker volume ls --filter dangling=true
+    printf "Remove all of the above? [y/N] "
+    read -r reply
+    case "${reply}" in
+    [Yy])
+        sudo docker volume prune --force
+        echo "Done."
+        ;;
+    *)
+        echo "Aborted."
+        ;;
+    esac
+}
+alias dclean-volumes='dclean_volumes'
+
+# Remove unused custom networks (with confirmation)
+dclean_networks() {
+    local count
+    count=$(sudo docker network ls --filter type=custom -q | wc -l) || true
+    if [ "${count}" -eq 0 ]; then
+        echo "No custom networks found."
+        return 0
+    fi
+    echo "Custom networks (Docker will only remove those with no active endpoints):"
+    sudo docker network ls --filter type=custom
+    printf "Prune unused networks? [y/N] "
+    read -r reply
+    case "${reply}" in
+    [Yy])
+        sudo docker network prune --force
+        echo "Done."
+        ;;
+    *)
+        echo "Aborted."
+        ;;
+    esac
+}
+alias dclean-networks='dclean_networks'
+
+# Run all cleaning steps in sequence
+dclean_all() {
+    echo "=== Stopped containers ==="
+    dclean_stopped
+    echo ""
+    echo "=== Orphaned containers ==="
+    dclean_orphans
+    echo ""
+    echo "=== Dangling images ==="
+    dclean_images
+    echo ""
+    echo "=== Dangling volumes ==="
+    dclean_volumes
+    echo ""
+    echo "=== Unused networks ==="
+    dclean_networks
+}
+alias dclean-all='dclean_all'
+
+########################################
 # DCCD (Docker Compose Continuous Deploy)
 ########################################
 
@@ -172,6 +357,14 @@ DCCD:
 
 SOPS:
   sops-rekey [dir]  Regenerate .sops.yaml and re-encrypt all secrets
+
+Cleaning (confirmation-gated):
+  dclean-stopped    Remove all stopped/exited containers
+  dclean-orphans    Remove containers with no matching services/ directory
+  dclean-images     Remove dangling (unreferenced) images
+  dclean-volumes    Remove dangling (unreferenced) volumes
+  dclean-networks   Remove unused custom networks
+  dclean-all        Run all cleaning steps in sequence
 
 Help:
   halp              Show this help message
