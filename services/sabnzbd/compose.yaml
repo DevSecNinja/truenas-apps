@@ -85,7 +85,7 @@ services:
       - "traefik.http.routers.sabnzbd-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.sabnzbd-monitor.service=sabnzbd"
       ## Gatus
-      - "gatus.url=http://traefik:8444"
+      - "gatus.url=http://172.30.100.2:8444"
       - "gatus.headers.Host=sabnzbd.${DOMAINNAME}"
       - 'gatus.client={"ignore-redirect": true}'
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'

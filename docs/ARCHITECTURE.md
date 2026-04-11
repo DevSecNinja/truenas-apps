@@ -275,7 +275,7 @@ Auth-protected services (those using `chain-auth@file`) redirect Gatus health ch
 **How it works:**
 
 1. Each auth-protected service declares a secondary Traefik router (`<app>-monitor`) that listens on the `monitoring` entrypoint and uses `chain-no-auth@file` instead of `chain-auth@file`.
-2. Gatus sends HTTP requests to `http://traefik:8444` with the appropriate `Host` header.
+2. Gatus sends HTTP requests to `http://172.30.100.2:8444` with the appropriate `Host` header. The IP is Traefik's **static address** on `gatus-frontend` (set via `ipv4_address` in `traefik/compose.yaml`) to avoid Docker DNS falling through to the host's external resolver.
 3. Traefik routes the request to the target container over that service's dedicated frontend network.
 4. Gatus endpoints also set `client.ignore-redirect: true` as defense-in-depth — if the monitoring router were misconfigured, Gatus would still detect a redirect rather than silently passing.
 
@@ -296,7 +296,7 @@ Browser request (authenticated):
   Browser → Host:443 → Traefik :443 → chain-auth → (sonarr-frontend) → Sonarr
 
 Gatus health check (internal monitoring):
-  Gatus → (gatus-frontend 172.30.100.0/29) → Traefik :8444
+  Gatus → (gatus-frontend 172.30.100.0/29) → Traefik :8444 [172.30.100.2]
     → ipAllowList ✓ → chain-no-auth → (sonarr-frontend) → Sonarr
 
 Other container attempting to use monitoring entrypoint:
@@ -311,6 +311,7 @@ Other container attempting to use monitoring entrypoint:
 | File                                            | What to update                                   |
 | ----------------------------------------------- | ------------------------------------------------ |
 | `services/gatus/compose.yaml`                   | `gatus-frontend` network `ipam.config[0].subnet` |
+| `services/traefik/compose.yaml`                 | Traefik `gatus-frontend` `ipv4_address`          |
 | `services/traefik/config/rules/middlewares.yml` | `monitoring-ipallowlist.ipAllowList.sourceRange` |
 | `services/traefik/config/traefik.yml`           | Comment documenting the subnet (for reference)   |
 

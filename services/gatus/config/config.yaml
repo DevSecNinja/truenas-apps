@@ -175,7 +175,7 @@ endpoints:
 
   - name: UniFi Guest Portal - HTTPS
     <<: *defaults
-    url: "https://traefik"
+    url: "https://172.30.100.2"
     headers:
       Host: "unifi-guest.${DOMAINNAME}"
 

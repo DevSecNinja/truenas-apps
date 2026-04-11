@@ -201,7 +201,7 @@ services:
       - "traefik.http.services.unifi-guest.loadbalancer.server.port=8843"
       - "traefik.http.services.unifi-guest.loadbalancer.serverstransport=insecure-skip-verify@file"
       ## Gatus
-      - "gatus.url=https://traefik"
+      - "gatus.url=https://172.30.100.2"
       - "gatus.headers.Host=unifi.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'

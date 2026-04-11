@@ -63,7 +63,7 @@ services:
       - "traefik.http.routers.homepage-rtr.service=homepage"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
       ## Gatus
-      - "gatus.url=https://traefik"
+      - "gatus.url=https://172.30.100.2"
       - "gatus.headers.Host=apps.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 48h", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
