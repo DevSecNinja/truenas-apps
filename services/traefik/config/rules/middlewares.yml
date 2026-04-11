@@ -106,37 +106,6 @@ http:
           X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
           server: ""
           Content-Security-Policy: "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"
-    # Standalone OpenSpeedTest-specific headers middleware — replaces middlewares-secure-headers
-    # for OpenSpeedTest. The speed test runs its upload/download measurement inside an iframe
-    # loaded from the same origin. The default 'X-Frame-Options: DENY' and
-    # 'frame-ancestors: none' CSP block that iframe, breaking the test entirely.
-    # Relaxing to SAMEORIGIN / frame-ancestors 'self' is safe because the iframe
-    # is served by the same domain and only the authorised user can reach this app.
-    middlewares-openspeedtest-secure-headers:
-      headers:
-        accessControlAllowMethods:
-          - "GET"
-          - "OPTIONS"
-          - "PUT"
-        accessControlMaxAge: 100
-        hostsProxyHeaders:
-          - "X-Forwarded-Host"
-        stsSeconds: 63072000
-        stsIncludeSubdomains: true
-        stsPreload: true
-        forceSTSHeader: true
-        customFrameOptionsValue: "SAMEORIGIN"
-        contentTypeNosniff: true
-        browserXssFilter: true
-        referrerPolicy: "same-origin"
-        permissionsPolicy: "camera 'none'; geolocation 'none'; microphone 'none'; payment 'none'; usb 'none'; vr 'none';"
-        customRequestHeaders:
-          X-Forwarded-Proto: https
-        customResponseHeaders:
-          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
-          server: ""
-          Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
-            'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
     middlewares-forward-auth:
       forwardAuth:
         address: "http://traefik-forward-auth:4181"

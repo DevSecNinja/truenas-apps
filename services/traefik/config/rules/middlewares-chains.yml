@@ -28,9 +28,3 @@ http:
           - "middlewares-rate-limit"
           - "middlewares-secure-headers"
           - "middlewares-forward-auth"
-    chain-auth-openspeedtest:
-      chain:
-        middlewares:
-          - "middlewares-rate-limit"
-          - "middlewares-openspeedtest-secure-headers"
-          - "middlewares-forward-auth"

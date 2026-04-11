@@ -81,7 +81,6 @@ services:
       - sabnzbd-frontend
       - sonarr-frontend
       - spottarr-frontend
-      - openspeedtest-frontend
       - tubesync-frontend
       - drawio-frontend
       - home-assistant-frontend
@@ -250,9 +249,6 @@ networks:
     external: true
   spottarr-frontend:
     name: spottarr-frontend
-    external: true
-  openspeedtest-frontend:
-    name: openspeedtest-frontend
     external: true
   excalidraw-frontend:
     name: excalidraw-frontend

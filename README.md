@@ -43,7 +43,6 @@ The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](h
 | [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
 | [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
-| [OpenSpeedTest](https://openspeedtest.com/)                                  | Browser-based network speed test                     |
 | [Outline](https://www.getoutline.com/)                                       | Knowledge base and wiki with Azure AD authentication |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
 | [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
@@ -79,7 +78,6 @@ vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
 vm-pool/apps/services/lidarr
 vm-pool/apps/services/metube
-vm-pool/apps/services/openspeedtest
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
 vm-pool/apps/services/prowlarr
