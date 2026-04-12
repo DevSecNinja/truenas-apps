@@ -57,11 +57,11 @@ In the TrueNAS UI, go to **Datasets** and click **Add Dataset** on your pool:
 
 After creating it, set Unix permissions via **Datasets → vm-pool/iso → Edit Permissions**:
 
-| Setting | Value           |
-| ------- | --------------- |
-| User    | `truenas_admin` |
-| Group   | `truenas_admin` |
-| Mode    | `rwxr-x---`     |
+| Setting | Value           | Why                                                                                                                            |
+| ------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| User    | `truenas_admin` | Allows `truenas_admin` to upload images via SCP                                                                                |
+| Group   | `truenas_admin` |                                                                                                                                |
+| Mode    | `rwxr-xr-x`     | `libvirt-qemu` (the VM runtime user) is not in the `truenas_admin` group and needs `r-x` on this directory to read seed images |
 
 ### 1b. VM dataset
 
@@ -77,7 +77,7 @@ In the TrueNAS UI, go to **Datasets** and click **Add Dataset** on your pool:
 | Enable Atime   | Off                  | Eliminates unnecessary write I/O caused by access-time tracking         |
 | Encryption     | Inherit (or enabled) | Inherit pool-level encryption, or enable explicitly if standalone       |
 
-### 1b. VM root disk (zvol)
+### 1c. VM root disk (zvol)
 
 Still in **Datasets**, click **Add Zvol** under `vm-pool/vms`:
 
@@ -262,11 +262,20 @@ SSH into TrueNAS. Steps 3 and 4 both run in this same session — keep it open u
 ssh "${TRUENAS}"
 ```
 
-Declare all variables needed for this session. `VM_MAC` and `VM_NAME` must match what you set in step 2a:
+Declare all variables needed for this session. `VM_MAC` and `VM_NAME` must match what you set in step 2a.
+
+Find the bridge interface name the middleware recognises (the valid value for `nic_attach`):
+
+```sh
+midclt call interface.query | jq -r '.[] | select(.type == "BRIDGE") | .name'
+```
+
+Set `VM_NIC` to the name from that output, then declare the rest:
 
 ```sh
 VM_NAME=svldev
 VM_MAC=52:54:00:xx:xx:xx
+VM_NIC=br1
 VM_PATH=vm-pool/vms/${VM_NAME}
 IMAGE_PATH=/mnt/vm-pool/iso
 VM_MEMORY=$(( 4 * 1024 ))
@@ -333,15 +342,11 @@ midclt call vm.device.create '{
     "attributes": {
         "dtype":      "NIC",
         "type":       "VIRTIO",
-        "nic_attach": "br0",
+        "nic_attach": "'"${VM_NIC}"'",
         "mac":        "'"${VM_MAC}"'"
     }
 }'
 ```
-
-<!-- dprint-ignore -->
-!!! note
-    Replace `br0` with your actual bridge or NIC name. Run `ip link` on TrueNAS to find the right interface.
 
 ### 3c. Start the VM
 
