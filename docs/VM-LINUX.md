@@ -288,9 +288,11 @@ EOF
 <!-- dprint-ignore -->
 === "macOS"
 
-    `hdiutil` is built-in — no extra tools needed:
+    `hdiutil` bundles files from the current directory as-is. Cloud-init requires the config file
+    to be named exactly `user-data` inside the ISO — copy it before building:
 
     ```sh
+    cp ${VM_NAME}-seed.yaml user-data
     echo "instance-id: ${VM_NAME}" > meta-data
     echo "local-hostname: ${VM_NAME}" >> meta-data
     hdiutil makehybrid -o ${VM_NAME}-seed -hfs -joliet -iso \
@@ -458,21 +460,26 @@ midclt call vm.device.create '{
 
 ### 3c. Start the VM
 
-To watch the boot progress (recommended), open the TrueNAS UI, go to **Virtualization → svldev → Serial Shell**. You will see the boot log and cloud-init output in real time.
-
-Now start the VM:
-
 ```sh
 midclt call vm.start "${VM_ID}"
 ```
 
-A `null` response means success — `vm.start` returns nothing on success.
+A `null` response means success. To follow the boot progress, open the TrueNAS UI, go to **Virtualization → svldev**, and open **Serial Shell**. There is no supported CLI path to the serial console on TrueNAS SCALE — `virsh` requires a libvirt socket that is absent, and the pts/socket used internally by the middleware is not directly accessible.
+
+You will see cloud-init progress through its stages. Once the login prompt appears, cloud-init continues running silently in the background — `package_update` and `package_upgrade` are downloading and installing packages at this point and produce no serial output. Depending on the age of the base image, this can take **2–10 minutes**. The VM will power off automatically when cloud-init finishes successfully.
 
 ---
 
 ## Step 4: Remove the CD-ROM and start the VM
 
-Cloud-init runs on first boot, installs packages, and then powers the VM off cleanly. Watch the Serial Shell (**Virtualization → svldev → Serial Shell**) until you see the shutdown sequence complete and the TrueNAS UI shows the VM as stopped.
+Cloud-init runs on first boot and powers the VM off when done. Wait until the TrueNAS UI shows the VM as **Stopped** before continuing — this can take 5–10 minutes if package upgrades are large.
+
+<!-- dprint-ignore -->
+!!! tip "Verifying cloud-init ran correctly"
+    In the Serial Shell you should see the hostname set to your `VM_NAME` (not `localhost`) and
+    the final line should mention your `VM_NAME` datasource, not `DataSourceNone`. If you see
+    `DataSourceNone` or hostname `localhost`, the seed image was not read — most likely the
+    `user-data` file was not named correctly in the ISO (see step 2d).
 
 Once it is stopped, remove the CD-ROM device — it is no longer needed and keeping it attached would cause cloud-init to re-run on the next boot:
 
