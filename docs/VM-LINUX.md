@@ -279,16 +279,27 @@ EOF
 <!-- dprint-ignore -->
 === "macOS"
 
-    `hdiutil` bundles files from the current directory as-is. Cloud-init requires the config file
-    to be named exactly `user-data` inside the ISO — copy it before building:
+    `hdiutil` bundles files from the source directory as-is. Cloud-init requires the config file
+    to be named exactly `user-data` inside the ISO — use a dedicated subdirectory so only the two
+    required files are included and the image stays small:
 
     ```sh
-    cp ${VM_NAME}-seed.yaml user-data
-    echo "instance-id: ${VM_NAME}" > meta-data
-    echo "local-hostname: ${VM_NAME}" >> meta-data
+    mkdir seed-files
+    cp ${VM_NAME}-seed.yaml seed-files/user-data
+    echo "instance-id: ${VM_NAME}" > seed-files/meta-data
+    echo "local-hostname: ${VM_NAME}" >> seed-files/meta-data
     hdiutil makehybrid -o ${VM_NAME}-seed -hfs -joliet -iso \
-        -default-volume-name cidata .
+        -default-volume-name cidata seed-files
     mv ${VM_NAME}-seed.iso ${VM_NAME}-seed.img
+    rm -rf seed-files
+    ```
+
+    Verify the result before uploading — mount it and confirm you see exactly `user-data` and `meta-data`:
+
+    ```sh
+    hdiutil attach ${VM_NAME}-seed.img
+    ls /Volumes/cidata/
+    hdiutil detach /Volumes/cidata
     ```
 
 === "Linux"
