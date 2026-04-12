@@ -21,18 +21,6 @@
         - icon: si-renovatebot
           href: https://developer.mend.io/github/DevSecNinja/truenas-apps
 
-- Security & Privacy:
-    - Ad Blocker Tester:
-        - href: https://d3ward.github.io/toolz/adblock
-          icon: si-adblock-#e5e7eb
-    - Certificate Search:
-        - href: https://crt.sh
-          icon: si-letsencrypt-#e5e7eb
-    - AdGuard Temporary Email:
-        - abbr: temp-mail
-          icon: adguard-home.svg
-          href: https://adguard.com/en/adguard-temp-mail/overview.html
-
 - Tools:
     - Speedtest:
         - href: https://speed.cloudflare.com
@@ -43,3 +31,13 @@
     - Cronjob Schedule Maker:
         - icon: mdi-clock-outline-#e5e7eb
           href: https://crontab.guru/
+    - Ad Blocker Tester:
+        - href: https://d3ward.github.io/toolz/adblock
+          icon: si-adblock-#e5e7eb
+    - Certificate Search:
+        - href: https://crt.sh
+          icon: si-letsencrypt-#e5e7eb
+    - AdGuard Temporary Email:
+        - abbr: temp-mail
+          icon: adguard-home.svg
+          href: https://adguard.com/en/adguard-temp-mail/overview.html

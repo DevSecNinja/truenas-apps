@@ -15,8 +15,6 @@ showStats: true # Show Docker stats
 headerStyle: clean
 
 layout:
-  # Home:
-  #   icon: mdi-home-analytics
   Productivity:
     icon: mdi-briefcase
   Media:
@@ -27,15 +25,8 @@ layout:
     icon: mdi-console
   Homelab:
     icon: mdi-home-analytics
-  Security & Privacy:
-    icon: mdi-shield-lock
   Tools:
     icon: mdi-wrench
-    #   icon: mdi-graph
-    # Observability:
-    #   icon: mdi-chart-line
-    # Database:
-    #   icon: mdi-database
 
 background:
   image: https://cdnb.artstation.com/p/assets/images/images/006/897/659/large/mikael-gustafsson-wallpaper-mikael-gustafsson.jpg
