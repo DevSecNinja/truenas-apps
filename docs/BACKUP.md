@@ -446,10 +446,10 @@ A scrub reads every block on a pool, verifies checksums, and repairs any corrupt
 
 Create these tasks in TrueNAS → Data Protection → Scrub Tasks:
 
-| Pool           | Schedule          | Threshold (days) | Notes                                                    |
-| -------------- | ----------------- | ---------------- | -------------------------------------------------------- |
-| `vm-pool`      | Monthly (1st Sun) | 35               | No mirror — scrub detects but cannot self-heal           |
-| `archive-pool` | Monthly (1st Sun) | 35               | Mirror — scrub detects and auto-repairs from mirror copy |
+| Pool           | Schedule                | Threshold (days) | Notes                                                    |
+| -------------- | ----------------------- | ---------------- | -------------------------------------------------------- |
+| `vm-pool`      | Monthly (1st Sun 02:00) | 35               | No mirror — scrub detects but cannot self-heal           |
+| `archive-pool` | Monthly (1st Sun 02:00) | 35               | Mirror — scrub detects and auto-repairs from mirror copy |
 
 TrueNAS creates default scrub tasks for each pool on creation. Verify they exist and are scheduled monthly.
 
@@ -468,10 +468,12 @@ S.M.A.R.T. tests query the drive's internal health diagnostics. A short test tak
 
 Create these tasks in TrueNAS → Data Protection → S.M.A.R.T. Tests:
 
-| Test type | Schedule           | Disks     |
-| --------- | ------------------ | --------- |
-| Short     | Weekly (Sun 02:00) | All disks |
-| Long      | Monthly (1st Sat)  | All disks |
+| Test type | Schedule                | Disks     |
+| --------- | ----------------------- | --------- |
+| Short     | Weekly (Sun 02:00)      | All disks |
+| Long      | Monthly (1st Sat 01:00) | All disks |
+
+The long test runs at 01:00 on the 1st Saturday so it finishes well before the scrub starts at 02:00 the following morning (1st Sunday). Spinning disk long tests can take 4–8+ hours; the SSD long test is typically under 30 minutes.
 
 **Enable S.M.A.R.T. alerts** in TrueNAS → System → Alert Settings to receive email notifications when a drive reports errors or predictive failure.
 
@@ -491,18 +493,18 @@ smartctl -H /dev/sdX
 
 All times are local to the TrueNAS host.
 
-| Time                  | Task                                               | Type                   |
-| --------------------- | -------------------------------------------------- | ---------------------- |
-| 02:00 Sun (weekly)    | S.M.A.R.T. short test (all disks)                  | Disk Health            |
-| 1st Sat (monthly)     | S.M.A.R.T. long test (all disks)                   | Disk Health            |
-| 1st Sun (monthly)     | ZFS scrub (both pools)                             | Disk Health            |
-| Every hour            | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
-| Every day             | archive-pool snapshot                              | ZFS Periodic Snapshot  |
-| 03:00 daily           | vm-pool → archive-pool replication                 | ZFS Replication        |
-| 04:00 daily           | vm-pool/apps → Azure `vmpool-apps`                 | Cloud Sync (encrypted) |
-| 05:00 daily           | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
-| 06:00 daily           | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
-| On each `dccd.sh` run | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
+| Time                    | Task                                               | Type                   |
+| ----------------------- | -------------------------------------------------- | ---------------------- |
+| 02:00 Sun (weekly)      | S.M.A.R.T. short test (all disks)                  | Disk Health            |
+| 01:00 1st Sat (monthly) | S.M.A.R.T. long test (all disks)                   | Disk Health            |
+| 02:00 1st Sun (monthly) | ZFS scrub (both pools)                             | Disk Health            |
+| Every hour              | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
+| Every day               | archive-pool snapshot                              | ZFS Periodic Snapshot  |
+| 03:00 daily             | vm-pool → archive-pool replication                 | ZFS Replication        |
+| 04:00 daily             | vm-pool/apps → Azure `vmpool-apps`                 | Cloud Sync (encrypted) |
+| 05:00 daily             | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
+| 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
+| On each `dccd.sh` run   | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
 
 Tasks are staggered to avoid overlapping I/O on the NAS.
 
