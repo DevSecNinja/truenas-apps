@@ -550,6 +550,15 @@ You can also configure periodic auto-snapshots in the TrueNAS UI under **Data Pr
 
 ## Teardown (removing the VM)
 
+<!-- dprint-ignore -->
+!!! danger "Permanent — no undo"
+    The steps below destroy the VM, its zvol, and all ZFS snapshots. This cannot be undone.
+    Take a final snapshot first if you want a recovery point:
+
+    ```sh
+    zfs snapshot vm-pool/vms/svldev@pre-teardown
+    ```
+
 To completely remove the VM and reclaim storage, run the following from a TrueNAS SSH session. Re-declare the variables if your session has expired:
 
 ```sh
