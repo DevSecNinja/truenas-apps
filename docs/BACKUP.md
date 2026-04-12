@@ -69,11 +69,11 @@ The backup layers below protect pool data, but the TrueNAS system configuration 
 
 Export the TrueNAS config after initial setup and after every significant change:
 
-1. Go to **System → Advanced Settings → Manage Configuration → Download File**
+1. Go to **System → General Settings → Manage Configuration → Download File**
 2. Enable **Export Password Secret Seed** (required to restore on a different boot device)
-3. Save the downloaded `.db` file to your password manager or a secure off-site location
+3. Upload the downloaded `.tar` file to your online password manager, then **delete the local copy** (including from trash) — it contains sensitive credentials
 
-Also save an initial **system debug file** (System → General Settings → Save Debug) as a baseline reference.
+Also save an initial **system debug file** (~6 MB `.tgz`) via **System → Advanced Settings → Save Debug** as a baseline reference. Upload it to the same password manager entry.
 
 To include the config file in automated off-site backups, save it into the git repo tree (e.g. `/mnt/vm-pool/apps/truenas-config/`) so it gets picked up by the `vmpool-apps` Cloud Sync task. The file is client-side encrypted before upload.
 
@@ -376,7 +376,7 @@ These credentials must be stored securely outside the NAS (password manager) to 
 | `DB_ENC_PASSPHRASE`                     | Decrypts database dump files         | `tiredofit/db-backup`              |
 | Azure Storage credential                | Authenticates to Azure Blob          | TrueNAS Cloud Sync tasks           |
 | ZFS encryption passphrase               | Unlocks `vm-pool/apps` dataset       | TrueNAS (on boot or manual unlock) |
-| TrueNAS system config (`.db` file)      | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
+| TrueNAS system config (`.tar` file)     | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
 
 All secrets are stored in an **online password manager** (cloud-synced), ensuring they remain accessible during a total site loss — even if the NAS, local network, and all on-premises devices are unavailable. The password manager is accessible from any device with internet access (phone, borrowed laptop, etc.), breaking the circular dependency where encrypted backups require keys stored on the same hardware that failed.
 
