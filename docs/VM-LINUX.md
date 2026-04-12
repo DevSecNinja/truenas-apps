@@ -100,7 +100,7 @@ Still in **Datasets**, click **Add Zvol** under `vm-pool/vms`:
 
 ## Step 2: Prepare the Cloud-Init Seed (local machine)
 
-All the commands in this section run on your **local machine**, not on TrueNAS. They have been tested in **zsh** (macOS default shell); bash works too.
+All the commands in this section run on your **local machine**, not on TrueNAS. Use **bash** or **zsh** — fish shell does not support the heredoc and variable-substitution patterns used here.
 
 Start by creating a temporary working directory to keep the generated files together:
 
@@ -277,23 +277,32 @@ EOF
 
 ### 2d. Build the seed image
 
-**Linux** (`cloud-image-utils`):
+<!-- dprint-ignore -->
+=== "macOS"
 
-```sh
-echo "instance-id: ${VM_NAME}" > meta-data
-echo "local-hostname: ${VM_NAME}" >> meta-data
-cloud-localds --verbose ${VM_NAME}-seed.iso ${VM_NAME}-seed.yaml meta-data
-```
+    `hdiutil` is built-in — no extra tools needed:
 
-**macOS** (`hdiutil`, built-in — no extra tools needed):
+    ```sh
+    echo "instance-id: ${VM_NAME}" > meta-data
+    echo "local-hostname: ${VM_NAME}" >> meta-data
+    hdiutil makehybrid -o ${VM_NAME}-seed -hfs -joliet -iso \
+        -default-volume-name cidata .
+    mv ${VM_NAME}-seed.iso ${VM_NAME}-seed.img
+    ```
 
-```sh
-echo "instance-id: ${VM_NAME}" > meta-data
-echo "local-hostname: ${VM_NAME}" >> meta-data
-hdiutil makehybrid -o ${VM_NAME}-seed -hfs -joliet -iso \
-    -default-volume-name cidata .
-mv ${VM_NAME}-seed.iso ${VM_NAME}-seed.img
-```
+=== "Linux"
+
+    Install `cloud-image-utils` first if not already present:
+
+    ```sh
+    sudo apt install cloud-image-utils
+    ```
+
+    ```sh
+    echo "instance-id: ${VM_NAME}" > meta-data
+    echo "local-hostname: ${VM_NAME}" >> meta-data
+    cloud-localds --verbose ${VM_NAME}-seed.iso ${VM_NAME}-seed.yaml meta-data
+    ```
 
 <!-- dprint-ignore -->
 !!! note
@@ -326,18 +335,10 @@ rm /tmp/cloud-init/${VM_NAME}-seed.img
 
 ## Step 3: Provision the VM on TrueNAS (TrueNAS SSH)
 
-SSH into TrueNAS. Steps 3 and 4 both run in this same session — keep it open until the VM is started.
+First, query the available NIC interfaces directly from your local machine so you can set `VM_NIC` before SSHing in:
 
 ```sh
-ssh "${TRUENAS}"
-```
-
-Declare all variables needed for this session. `VM_MAC` and `VM_NAME` must match what you set in step 2a.
-
-Find the available interfaces the middleware recognises as valid values for `nic_attach`:
-
-```sh
-midclt call interface.query | jq -r '.[] | select(.type == "BRIDGE" or .type == "VLAN") | "\(.type)\t\(.name)"'
+ssh "${TRUENAS}" "midclt call interface.query | jq -r '.[] | select(.type == \"BRIDGE\" or .type == \"VLAN\") | \"\(.type)\\t\(.name)\"'"
 ```
 
 This lists both bridge and VLAN interfaces. Pick the one appropriate for your VM:
@@ -345,29 +346,19 @@ This lists both bridge and VLAN interfaces. Pick the one appropriate for your VM
 - Use a **BRIDGE** interface (`br0`, `br1`, etc.) to place the VM on the main LAN
 - Use a **VLAN** interface (e.g. `vlan60`) to place the VM on a specific VLAN
 
-Set `VM_NIC` to the name from that output, then declare the rest:
+Set `VM_NIC` locally:
 
 ```sh
-VM_NAME=svldev
-VM_MAC=52:54:00:xx:xx:xx
-VM_NIC=br1
-VM_PATH=vm-pool/vms/${VM_NAME}
-IMAGE_PATH=/mnt/vm-pool/iso
-VM_MEMORY=$(( 4 * 1024 ))
+VM_NIC=vlan60
 ```
 
-<!-- dprint-ignore -->
-=== "Debian 13 (Trixie)"
+Now SSH into TrueNAS, carrying all local variables over automatically:
 
-    ```sh
-    DEBIAN_IMAGE=debian-13-generic-amd64.qcow2
-    ```
+```sh
+ssh -t "${TRUENAS}" "export VM_NAME='${VM_NAME}' VM_MAC='${VM_MAC}' VM_NIC='${VM_NIC}' VM_PATH='vm-pool/vms/${VM_NAME}' IMAGE_PATH='${IMAGE_PATH}' DEBIAN_IMAGE='${DEBIAN_IMAGE}' VM_MEMORY='$((4 * 1024))'; exec bash"
+```
 
-=== "Debian 12 (Bookworm)"
-
-    ```sh
-    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
-    ```
+All variables are now available in the TrueNAS session — no need to re-declare them. Keep this session open until the VM is started.
 
 ### 3a. Write the disk image to the zvol
 
