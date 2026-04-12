@@ -57,6 +57,30 @@ flowchart LR
 | **2 — Local replica** | archive-pool/replication (mirror)      | SSD failure, accidental deletion |
 | **3 — Off-site**      | Azure Blob Storage (encrypted)         | Fire, theft, flood, ransomware   |
 
+<!-- TODO: [backup] Add a second off-site destination using Restic to a separate cloud provider tech & provider diversification -->
+
+---
+
+## TrueNAS Host Backup
+
+The backup layers below protect pool data, but the TrueNAS system configuration itself (users, groups, network settings, cron jobs, Cloud Sync credentials, SMART/scrub schedules) also needs to be backed up.
+
+### System Configuration File
+
+Export the TrueNAS config after initial setup and after every significant change:
+
+1. Go to **System → Advanced Settings → Manage Configuration → Download File**
+2. Enable **Export Password Secret Seed** (required to restore on a different boot device)
+3. Save the downloaded `.db` file to your password manager or a secure off-site location
+
+Also save an initial **system debug file** (System → General Settings → Save Debug) as a baseline reference.
+
+To include the config file in automated off-site backups, save it into the git repo tree (e.g. `/mnt/vm-pool/apps/truenas-config/`) so it gets picked up by the `vmpool-apps` Cloud Sync task. The file is client-side encrypted before upload.
+
+### Boot Environments
+
+Before major TrueNAS upgrades, create a boot environment (System → Boot → clone the current BE) as an OS-level rollback point. TrueNAS creates one automatically on upgrade, but a manual pre-upgrade snapshot is a safety net if the automatic one fails.
+
 ---
 
 ## Layer 1: ZFS Periodic Snapshots
@@ -175,7 +199,11 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All ta
 | B    | `/mnt/archive-pool/private`       | `archive-private` | Daily 05:00 | Sync          |
 | C    | `/mnt/archive-pool/content/media` | `archive-media`   | Daily 06:00 | Sync          |
 
+**Exclude `.zfs` directories**: On every Cloud Sync task, add `.zfs` (or `.zfs/**`) to the **Exclude** list. Without this, rclone may traverse `.zfs/snapshot/` directories and upload every historical snapshot — multiplying storage costs and upload time. This is the most common Cloud Sync misconfiguration.
+
 **Encryption**: When creating each task, enable **Encryption** in the task settings. TrueNAS will prompt for a passphrase and salt. Use the same passphrase for all three tasks (simpler key management) or unique ones per task (stronger isolation). **Store the passphrase and salt in your password manager** — without them, encrypted blobs cannot be restored.
+
+**Snapshot consistency**: Cloud Sync reads from the live filesystem, not from a ZFS snapshot. For database files, consistency is guaranteed by the `tiredofit/db-backup` sidecars — they produce application-consistent dumps before Cloud Sync runs. The raw PostgreSQL/MongoDB data directories may be in an inconsistent state on disk, but the encrypted dump files in `backups/db-backup/` are always consistent and are the primary database recovery mechanism. Media and config files are static or rarely written, so live-sync is safe for those.
 
 **Task A — vm-pool/apps:**
 
@@ -302,6 +330,9 @@ These credentials must be stored securely outside the NAS (password manager) to 
 | `DB_ENC_PASSPHRASE`                     | Decrypts database dump files         | `tiredofit/db-backup`              |
 | Azure Storage credential                | Authenticates to Azure Blob          | TrueNAS Cloud Sync tasks           |
 | ZFS encryption passphrase               | Unlocks `vm-pool/apps` dataset       | TrueNAS (on boot or manual unlock) |
+| TrueNAS system config (`.db` file)      | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
+
+All secrets are stored in an **online password manager** (cloud-synced), ensuring they remain accessible during a total site loss — even if the NAS, local network, and all on-premises devices are unavailable. The password manager is accessible from any device with internet access (phone, borrowed laptop, etc.), breaking the circular dependency where encrypted backups require keys stored on the same hardware that failed.
 
 ---
 
@@ -348,10 +379,10 @@ After a test completes, review results:
 
 ```sh
 # View latest test results for a specific disk
-smarctl -l selftest /dev/sdX
+smartctl -l selftest /dev/sdX
 
 # View overall health assessment
-smarctl -H /dev/sdX
+smartctl -H /dev/sdX
 ```
 
 ---
@@ -395,3 +426,5 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] ZFS scrub tasks exist for both pools and last run shows no errors: `zpool status`
 - [ ] S.M.A.R.T. tests are scheduled and last results show **Passed**: `smartctl -H /dev/sdX`
 - [ ] S.M.A.R.T. email alerts are enabled in TrueNAS → System → Alert Settings
+- [ ] TrueNAS system config file is exported and stored in password manager (re-export after config changes)
+- [ ] Boot environment exists as a pre-upgrade rollback point
