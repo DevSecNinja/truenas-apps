@@ -1,6 +1,11 @@
-# Deploying a Debian VM on TrueNAS SCALE
+# Deploying a Linux VM on TrueNAS SCALE
 
-This guide walks through creating a headless Debian virtual machine on TrueNAS SCALE using a cloud-init image — no VNC client or manual installer required. The VM is SSH-accessible immediately after first boot. After completing the steps here, continue with the [DevSecNinja/docker](https://github.com/DevSecNinja/docker) repository to install Docker and deploy services.
+This guide walks through creating a headless Linux virtual machine on TrueNAS SCALE using a cloud-init image — no VNC client or manual installer required. The VM is SSH-accessible immediately after first boot. After completing the steps here, continue with the [DevSecNinja/docker](https://github.com/DevSecNinja/docker) repository to install Docker and deploy services.
+
+Currently supported distributions:
+
+- **Debian 13 (Trixie)**
+- **Debian 12 (Bookworm)**
 
 ---
 
@@ -133,16 +138,16 @@ IMAGE_PATH=/mnt/vm-pool/iso
 ```
 
 <!-- dprint-ignore -->
-=== "Debian 12 (Bookworm)"
-
-    ```sh
-    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
-    ```
-
 === "Debian 13 (Trixie)"
 
     ```sh
     DEBIAN_IMAGE=debian-13-generic-amd64.qcow2
+    ```
+
+=== "Debian 12 (Bookworm)"
+
+    ```sh
+    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
     ```
 
 <!-- dprint-ignore -->
@@ -154,16 +159,16 @@ IMAGE_PATH=/mnt/vm-pool/iso
 ### 2b. Download the Debian generic cloud image
 
 <!-- dprint-ignore -->
-=== "Debian 12 (Bookworm)"
-
-    ```sh
-    wget https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
-    ```
-
 === "Debian 13 (Trixie)"
 
     ```sh
     wget https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
+    ```
+
+=== "Debian 12 (Bookworm)"
+
+    ```sh
+    wget https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
     ```
 
 <!-- dprint-ignore -->
@@ -311,16 +316,16 @@ VM_MEMORY=$(( 4 * 1024 ))
 ```
 
 <!-- dprint-ignore -->
-=== "Debian 12 (Bookworm)"
-
-    ```sh
-    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
-    ```
-
 === "Debian 13 (Trixie)"
 
     ```sh
     DEBIAN_IMAGE=debian-13-generic-amd64.qcow2
+    ```
+
+=== "Debian 12 (Bookworm)"
+
+    ```sh
+    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
     ```
 
 ### 3a. Write the disk image to the zvol
