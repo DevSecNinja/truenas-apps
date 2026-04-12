@@ -157,11 +157,22 @@ Replication copies vm-pool snapshots to the mirrored archive-pool, providing har
 
 ### Configuration
 
-1. Create the destination dataset in TrueNAS UI:
+1. Create the **parent container** dataset in TrueNAS → Datasets → Add Dataset. The replication task will create the child (`vm-pool-apps`) automatically on first run — do not pre-create it.
 
-   ```text
-   archive-pool/replication/vm-pool-apps
-   ```
+   | Setting            | Value                                                                                  |
+   | ------------------ | -------------------------------------------------------------------------------------- |
+   | Parent             | `archive-pool`                                                                         |
+   | Name               | `replication`                                                                          |
+   | Dataset Preset     | Generic                                                                                |
+   | Compression        | Inherit (LZ4 from archive-pool — adequate for a container dataset)                     |
+   | Enable Atime       | Off                                                                                    |
+   | Snapshot Directory | `--` (Inherit — resolves to Invisible; `.zfs` accessible by path but hidden from `ls`) |
+   | ACL Type           | Off (plain Unix permissions; safe — does not propagate to replicated child datasets)   |
+   | ACL Mode           | Discard                                                                                |
+   | Exec               | Off                                                                                    |
+   | Encryption         | **None** — do not encrypt the container. The replicated child receives its encryption  |
+   |                    | state from the replication stream (`vm-pool/apps` is ZFS-encrypted, so the replica     |
+   |                    | arrives encrypted automatically)                                                       |
 
 2. Create a Replication Task in TrueNAS → Data Protection → Replication Tasks:
 
