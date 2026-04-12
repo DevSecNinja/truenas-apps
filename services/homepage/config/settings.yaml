@@ -25,7 +25,12 @@ layout:
     icon: mdi-tools
   Per Server Consoles:
     icon: mdi-console
-    # Network:
+  Homelab:
+    icon: mdi-home-analytics
+  Security & Privacy:
+    icon: mdi-shield-lock
+  Tools:
+    icon: mdi-wrench
     #   icon: mdi-graph
     # Observability:
     #   icon: mdi-chart-line

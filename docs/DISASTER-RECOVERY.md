@@ -64,7 +64,7 @@ Every service runs as a dedicated non-root user. **Create groups first, then use
 
 Create these groups first since some service accounts reference them as their primary group:
 
-> See the **Shared Purpose Groups** table in [ARCHITECTURE.md](ARCHITECTURE.md#shared-purpose-groups) for the full list of GIDs and their purpose.
+> See the **Shared Purpose Groups** table in [INFRASTRUCTURE.md](INFRASTRUCTURE.md#shared-purpose-groups) for the full list of GIDs and their purpose.
 
 For each shared group: create it in the TrueNAS UI with the designated GID. Add `truenas_admin` as an auxiliary member if admin access to those datasets is needed.
 
@@ -76,11 +76,11 @@ For each app, follow this order:
 2. Create user `svc-app-<name>` with the matching UID, primary group set to the group from step 1
 3. Add `truenas_admin` to the group (grants group-write access to config files for `git pull`)
 
-> See the **App Service Accounts** table in [ARCHITECTURE.md](ARCHITECTURE.md#app-service-accounts) for the full UID/GID allocation, user names, and which services each account covers.
+> See the **App Service Accounts** table in [INFRASTRUCTURE.md](INFRASTRUCTURE.md#app-service-accounts) for the full UID/GID allocation, user names, and which services each account covers.
 
 ### Group Memberships for Media and Private Access
 
-Some service accounts need specific primary or auxiliary group memberships for media and private dataset access. See the [Shared Purpose Groups](ARCHITECTURE.md#shared-purpose-groups) and [Media Access](ARCHITECTURE.md#media-access-consumerprovider-model) sections in ARCHITECTURE.md for the full membership configuration.
+Some service accounts need specific primary or auxiliary group memberships for media and private dataset access. See the [Shared Purpose Groups](INFRASTRUCTURE.md#shared-purpose-groups) and [Media Access](INFRASTRUCTURE.md#media-access) sections in INFRASTRUCTURE.md for the full membership configuration.
 
 ---
 
@@ -220,7 +220,7 @@ If no backups are available, apps will start fresh — databases will be initial
 
 ## Step 7: Configure Media and Private Dataset Permissions (If Applicable)
 
-If the archive pool was also lost or reformatted, recreate the media and private dataset permissions. See [ARCHITECTURE.md § Media Access](ARCHITECTURE.md#media-access) for the Unix permissions setup for media datasets (`media` group, setgid dirs, UMASK=002) and [Private Storage](ARCHITECTURE.md#private-storage-access-model) for private datasets.
+If the archive pool was also lost or reformatted, recreate the media and private dataset permissions. See [INFRASTRUCTURE.md § Media Access](INFRASTRUCTURE.md#media-access) for the Unix permissions setup for media datasets (`media` group, setgid dirs, UMASK=002) and [Private Storage](INFRASTRUCTURE.md#private-storage-access-model) for private datasets.
 
 ---
 
