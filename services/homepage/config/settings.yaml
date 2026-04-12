@@ -13,6 +13,7 @@ useEqualHeights: true
 hideVersion: true
 showStats: true # Show Docker stats
 headerStyle: clean
+columns: 4
 
 layout:
   Productivity:
@@ -21,8 +22,6 @@ layout:
     icon: mdi-multimedia
   Infrastructure:
     icon: mdi-tools
-  Per Server Consoles:
-    icon: mdi-console
   Homelab:
     icon: mdi-home-analytics
   Tools:
