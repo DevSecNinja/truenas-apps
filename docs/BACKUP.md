@@ -95,8 +95,10 @@ Create these tasks in TrueNAS → Data Protection → Periodic Snapshot Tasks:
 
 | Dataset        | Recursive | Exclude                    | Hourly keep | Daily keep | Weekly keep | Monthly keep |
 | -------------- | --------- | -------------------------- | ----------- | ---------- | ----------- | ------------ |
-| `vm-pool/apps` | Yes       | —                          | 24          | 30         | 4           | 3            |
+| `vm-pool`      | Yes       | —                          | 24          | 30         | 4           | 3            |
 | `archive-pool` | Yes       | `archive-pool/replication` | —           | 30         | 8           | 3            |
+
+Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/UserHomes`, etc.) are covered automatically — including any datasets added in the future.
 
 > **Exclude replication datasets**: The archive-pool snapshot task **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively. In TrueNAS → Periodic Snapshot Task, add `archive-pool/replication` to the **Exclude** field.
 
@@ -442,7 +444,7 @@ All times are local to the TrueNAS host.
 | 02:00 Sun (weekly)    | S.M.A.R.T. short test (all disks)                  | Disk Health            |
 | 1st Sat (monthly)     | S.M.A.R.T. long test (all disks)                   | Disk Health            |
 | 1st Sun (monthly)     | ZFS scrub (both pools)                             | Disk Health            |
-| Every hour            | vm-pool/apps snapshot                              | ZFS Periodic Snapshot  |
+| Every hour            | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
 | Every day             | archive-pool snapshot                              | ZFS Periodic Snapshot  |
 | 03:00 daily           | vm-pool → archive-pool replication                 | ZFS Replication        |
 | 04:00 daily           | vm-pool/apps → Azure `vmpool-apps`                 | Cloud Sync (encrypted) |
