@@ -3,6 +3,11 @@
 # https://gethomepage.dev/latest/configs/services
 
 - Infrastructure:
+    - NAS:
+        href: https://svlnas.{{DOMAINNAME}}
+        icon: truenas
+        description: TrueNAS Scale
+        siteMonitor: https://svlnas.{{DOMAINNAME}}
     - JetKVM:
         href: http://jetkvm.MANAGEMENT
         icon: jetkvm
