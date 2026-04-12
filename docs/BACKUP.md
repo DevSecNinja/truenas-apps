@@ -4,10 +4,10 @@ This page documents the 3-2-1 backup strategy for the TrueNAS home lab: three co
 
 ## Risk Assessment
 
-| Pool           | Disks                       | Redundancy                   | Risk                                                                                          | Impact                                                               |
-| -------------- | --------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `vm-pool`      | 1 × Samsung 970 Evo 2TB SSD | **None**                     | Single-drive failure loses all app data, databases, secrets, and the git repo checkout        | **Critical** — all services down, data unrecoverable without backups |
-| `archive-pool` | 2 × 4TB mirror              | Single-drive fault tolerance | Mirror degradation or double-drive failure loses media library, private photos, and documents | **High** — irreplaceable personal data at risk                       |
+| Pool           | Disks                             | Redundancy                   | Risk                                                                                          | Impact                                                               |
+| -------------- | --------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `vm-pool`      | 1 × Samsung 970 Evo 2TB SSD       | **None**                     | Single-drive failure loses all app data, databases, secrets, and the git repo checkout        | **Critical** — all services down, data unrecoverable without backups |
+| `archive-pool` | 2 × Seagate IronWolf 4TB (mirror) | Single-drive fault tolerance | Mirror degradation or double-drive failure loses media library, private photos, and documents | **High** — irreplaceable personal data at risk                       |
 
 The vm-pool's lack of hardware redundancy makes cross-pool replication and off-site backup essential — not optional.
 
