@@ -80,3 +80,13 @@ Or format all docs at once:
 ```sh
 mise exec -- dprint fmt
 ```
+
+## Writing pasteable shell code blocks
+
+Shell code blocks in guides are often copy-pasted directly into a terminal. Write them defensively:
+
+- **No inline `#` comments** — zsh disables `interactivecomments` by default, so `# comment` on its own line or after a command causes `zsh: command not found: #`. Move explanations into prose or a table above the block.
+- **Explain variables in a table, not in comments.** Use a Markdown table with `Variable / Example / What to set` columns above the code block, then keep the block itself comment-free and pasteable.
+- **Prefer variables over hardcoded values.** Define all configurable values as shell variables at the top of a section (a single "set variables" block). All subsequent commands reference `${VAR}`. This makes guides reusable without editing individual commands.
+- **Use heredocs for generated config files** — `cat > filename << EOF … EOF` lets variable substitution happen automatically when the reader runs the block, rather than requiring manual find-and-replace in the file afterward.
+- **Split local and remote steps clearly.** If a guide switches between local machine and SSH session, make the boundary explicit in prose and re-declare required variables at the start of each remote block (don't assume the reader's shell state carries over).
