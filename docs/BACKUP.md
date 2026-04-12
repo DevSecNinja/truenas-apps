@@ -91,18 +91,30 @@ Snapshots provide instant, zero-cost local rollback. They protect against accide
 
 ### Configuration
 
-Create these tasks in TrueNAS → Data Protection → Periodic Snapshot Tasks:
+Create these tasks in TrueNAS → Data Protection → Periodic Snapshot Tasks. Use naming schema `auto-%Y-%m-%d_%H-%M` (TrueNAS default) and **Allow Empty Snapshots: Yes** on every task.
 
-| Dataset        | Recursive | Exclude                    | Hourly keep | Daily keep | Weekly keep | Monthly keep |
-| -------------- | --------- | -------------------------- | ----------- | ---------- | ----------- | ------------ |
-| `vm-pool`      | Yes       | —                          | 24          | 30         | 4           | 3            |
-| `archive-pool` | Yes       | `archive-pool/replication` | —           | 30         | 8           | 3            |
+When multiple tasks fire at the same minute (e.g. daily + weekly both at midnight Sunday), TrueNAS creates one snapshot and assigns it the longest lifetime — no duplicates.
 
-Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/UserHomes`, etc.) are covered automatically — including any datasets added in the future.
+**vm-pool** — 4 tasks, Recursive: Yes, Exclude: _(none)_
 
-> **Exclude replication datasets**: The archive-pool snapshot task **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively. In TrueNAS → Periodic Snapshot Task, add `archive-pool/replication` to the **Exclude** field.
+| Schedule | Lifetime | Effective retention |
+| -------- | -------- | ------------------- |
+| Hourly   | 1 day    | 24 rolling hourlies |
+| Daily    | 1 month  | 30 rolling dailies  |
+| Weekly   | 1 month  | 4 rolling weeklies  |
+| Monthly  | 3 months | 3 rolling monthlies |
 
-Naming schema: `auto-%Y-%m-%d_%H-%M` (TrueNAS default).
+**archive-pool** — 3 tasks, Recursive: Yes, Exclude: `archive-pool/replication`
+
+| Schedule | Lifetime | Effective retention |
+| -------- | -------- | ------------------- |
+| Daily    | 1 month  | 30 rolling dailies  |
+| Weekly   | 2 months | 8 rolling weeklies  |
+| Monthly  | 3 months | 3 rolling monthlies |
+
+Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/UserHomes`, `vm-pool/iso`, etc.) are covered automatically — including any datasets added in the future.
+
+> **Exclude replication datasets**: The archive-pool tasks **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively.
 
 ### Selective File Restore
 
