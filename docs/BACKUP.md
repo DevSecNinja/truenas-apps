@@ -174,19 +174,32 @@ Replication copies vm-pool snapshots to the mirrored archive-pool, providing har
    |                    | state from the replication stream (`vm-pool/apps` is ZFS-encrypted, so the replica     |
    |                    | arrives encrypted automatically)                                                       |
 
-2. Create a Replication Task in TrueNAS → Data Protection → Replication Tasks:
+2. Create a Replication Task in TrueNAS → Data Protection → Replication Tasks (use Advanced mode):
 
-   | Setting                        | Value                                           |
-   | ------------------------------ | ----------------------------------------------- |
-   | Direction                      | Local                                           |
-   | Source dataset                 | `vm-pool/apps`                                  |
-   | Recursive                      | Yes                                             |
-   | Destination dataset            | `archive-pool/replication/vm-pool-apps`         |
-   | Schedule                       | Daily at 03:00                                  |
-   | Destination snapshot retention | 14 snapshots                                    |
-   | Encryption                     | Inherit (vm-pool/apps is already ZFS-encrypted) |
+   | Setting                                    | Value                                                                                                                                       |
+   | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Name                                       | `vm-pool → archive-pool`                                                                                                                    |
+   | Transport                                  | LOCAL                                                                                                                                       |
+   | Allow Blocks Larger than 128KB             | Yes — improves throughput for large datasets                                                                                                |
+   | Allow Compressed WRITE Records             | Yes — sends blocks pre-compressed, faster and lower CPU                                                                                     |
+   | Source                                     | `vm-pool`                                                                                                                                   |
+   | Recursive                                  | Yes                                                                                                                                         |
+   | Include Dataset Properties                 | Yes — replicates compression, atime, etc.                                                                                                   |
+   | Full Filesystem Replication                | No                                                                                                                                          |
+   | Periodic Snapshot Tasks                    | Select all 4 vm-pool snapshot tasks                                                                                                         |
+   | Only Replicate Snapshots Matching Schedule | No — replicates all snapshots from all 4 tasks (hourly, daily, weekly, monthly); enabling this would skip all but the 03:00 daily snapshots |
+   | Save Pending Snapshots                     | No                                                                                                                                          |
+   | Destination                                | `archive-pool/replication/vm-pool` (created automatically on first run)                                                                     |
+   | Destination Dataset Read-only              | REQUIRE — prevents accidental writes to the replica                                                                                         |
+   | Encryption                                 | No — source encryption is carried in the replication stream automatically                                                                   |
+   | Replication from scratch                   | No                                                                                                                                          |
+   | Snapshot Retention Policy                  | Same as Source — replica prunes in sync with source task lifetimes                                                                          |
+   | Run Automatically                          | Yes                                                                                                                                         |
+   | Schedule                                   | Daily at 03:00                                                                                                                              |
 
-3. Run the task manually once to complete the initial full replication. Subsequent runs are incremental (only changed blocks).
+   Replication is strictly one-way: vm-pool → archive-pool/replication/vm-pool. The archive-pool snapshot tasks snapshot archive-pool's own datasets (private, content) independently — none of that flows through this task.
+
+3. Run the task manually once to complete the initial full replication (this may take a while on first run). Subsequent runs are incremental (only changed blocks).
 
 ### Restore from Replica
 
@@ -194,7 +207,7 @@ If vm-pool fails:
 
 1. Replace the failed SSD and create a new `vm-pool` pool
 2. Create the `vm-pool/apps` dataset (with encryption — see [Disaster Recovery § Step 1](DISASTER-RECOVERY.md#step-1-create-zfs-datasets))
-3. Create a one-time Replication Task in reverse: `archive-pool/replication/vm-pool-apps` → `vm-pool/apps`
+3. Create a one-time Replication Task in reverse: `archive-pool/replication/vm-pool` → `vm-pool`
 4. Continue with [Disaster Recovery § Step 2](DISASTER-RECOVERY.md#step-2-create-users-and-groups) onward
 
 ---
