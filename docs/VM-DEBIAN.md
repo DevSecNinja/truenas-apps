@@ -254,19 +254,27 @@ rm /tmp/cloud-init/${VM_NAME}-seed.img
 
 ---
 
-## Step 3: Write the Disk Image to the Zvol (TrueNAS SSH)
+## Step 3: Provision the VM on TrueNAS (TrueNAS SSH)
 
-SSH into TrueNAS and write the Debian cloud image directly onto the zvol:
+SSH into TrueNAS. Steps 3 and 4 both run in this same session — keep it open until the VM is started.
 
 ```sh
 ssh "${TRUENAS}"
 ```
 
+Declare all variables needed for this session. `VM_MAC` and `VM_NAME` must match what you set in step 2a:
+
 ```sh
 VM_NAME=svldev
+VM_MAC=52:54:00:xx:xx:xx
 VM_PATH=vm-pool/vms/${VM_NAME}
 IMAGE_PATH=/mnt/vm-pool/iso
+VM_MEMORY=$(( 4 * 1024 ))
+```
 
+### 3a. Write the disk image to the zvol
+
+```sh
 sudo qemu-img convert -O raw \
     ${IMAGE_PATH}/debian-12-generic-amd64.qcow2 \
     /dev/zvol/${VM_PATH}
@@ -274,22 +282,9 @@ sudo qemu-img convert -O raw \
 
 This expands the qcow2 image and writes it raw onto the zvol. The zvol size (50 GiB) defines the maximum usable space — Debian's `growpart` service will automatically expand the root partition to fill it on first boot.
 
----
-
-## Step 4: Create the Virtual Machine (TrueNAS SSH)
-
-Still on TrueNAS via SSH, create the VM and its devices using `midclt` (the TrueNAS middleware client).
-
-Re-declare the variables needed on the TrueNAS side — `VM_MEMORY` is in MiB, adjust upward for heavier workloads. `VM_MAC` must match exactly what you set in step 2a:
+### 3b. Create the VM and its devices
 
 ```sh
-VM_NAME=svldev
-VM_PATH=vm-pool/vms/${VM_NAME}
-IMAGE_PATH=/mnt/vm-pool/iso
-VM_MEMORY=$(( 4 * 1024 ))
-VM_MAC=52:54:00:xx:xx:xx
-
-# Create VM
 RESULT=$(midclt call vm.create '{
     "name":        "'"${VM_NAME}"'",
     "cpu_mode":    "HOST-MODEL",
@@ -300,7 +295,11 @@ RESULT=$(midclt call vm.create '{
     "autostart":   true
 }')
 VM_ID=$(echo "${RESULT}" | jq '.id')
+```
 
+Attach the root disk (zvol written above):
+
+```sh
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "DISK",
@@ -310,7 +309,11 @@ midclt call vm.device.create '{
         "type": "VIRTIO"
     }
 }'
+```
 
+Attach the cloud-init seed as a virtual CD-ROM:
+
+```sh
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "CDROM",
@@ -319,7 +322,11 @@ midclt call vm.device.create '{
         "path": "'"${IMAGE_PATH}/${VM_NAME}-seed.img"'"
     }
 }'
+```
 
+Attach the NIC:
+
+```sh
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "NIC",
@@ -336,7 +343,7 @@ midclt call vm.device.create '{
 !!! note
     Replace `br0` with your actual bridge or NIC name. Run `ip link` on TrueNAS to find the right interface.
 
-### Start the VM
+### 3c. Start the VM
 
 ```sh
 midclt call vm.start "${VM_ID}"
@@ -344,7 +351,7 @@ midclt call vm.start "${VM_ID}"
 
 ---
 
-## Step 5: Connect via SSH
+## Step 4: Connect via SSH
 
 Cloud-init runs on first boot and may take 1–2 minutes to complete (package upgrades can add more). Once done, the VM reboots automatically. Connect using the static IP configured in the cloud-init seed:
 
@@ -371,7 +378,7 @@ Or remove it manually via **Virtualization → svldev → Devices** in the TrueN
 
 ---
 
-## Step 6: Register the VM in Unbound
+## Step 5: Register the VM in Unbound
 
 Add an A record for the VM so it is reachable by hostname on your LAN. In `services/adguard/config/unbound/conf.d/a-records.conf`, add:
 
@@ -389,7 +396,7 @@ Deploy AdGuard to pick up the change. Once active, `${VM_NAME}.${VM_DOMAIN}` wil
 
 ---
 
-## Step 7: Deploy Docker
+## Step 6: Deploy Docker
 
 Continue with the [DevSecNinja/docker](https://github.com/DevSecNinja/docker) repository, which handles:
 
