@@ -83,14 +83,26 @@ mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
 
 Set these once — all subsequent commands use them:
 
+| Variable     | Example value                 | What to set                                                                |
+| ------------ | ----------------------------- | -------------------------------------------------------------------------- |
+| `VM_NAME`    | `svldev`                      | VM hostname — used for zvol, cloud-init, and DNS record                    |
+| `VM_IP`      | `192.168.1.50`                | Free static IP on your LAN                                                 |
+| `VM_GW`      | `192.168.1.1`                 | Your router / gateway IP                                                   |
+| `VM_MAC`     | `52:54:00:a1:b2:c3`           | QEMU/KVM OUI (`52:54:00`) + 3 unique octets of your choice                 |
+| `VM_USER`    | `your-user`                   | Non-root account cloud-init will create                                    |
+| `VM_DOMAIN`  | `yourdomain.com`              | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record |
+| `SSH_KEY`    | `ssh-ed25519 AAAA...`         | Full contents of `~/.ssh/id_ed25519.pub`                                   |
+| `TRUENAS`    | `truenas_admin@truenas.local` | SSH target for your TrueNAS host                                           |
+| `IMAGE_PATH` | `/mnt/vm-pool/vms`            | Path on TrueNAS where images are stored                                    |
+
 ```sh
 VM_NAME=svldev
-VM_IP=192.168.1.50       # static IP to assign — pick a free address on your LAN
-VM_GW=192.168.1.1        # your LAN gateway (usually your router)
-VM_MAC=52:54:00:xx:xx:xx # QEMU/KVM OUI — replace xx:xx:xx with unique hex digits, e.g. 52:54:00:a1:b2:c3
-VM_USER=your-user        # the non-root account cloud-init will create
-VM_DOMAIN=yourdomain.com # your internal domain — used for the FQDN and Unbound record
-SSH_KEY="ssh-ed25519 AAAA..." # paste the full contents of ~/.ssh/id_ed25519.pub here
+VM_IP=192.168.1.50
+VM_GW=192.168.1.1
+VM_MAC=52:54:00:xx:xx:xx
+VM_USER=your-user
+VM_DOMAIN=yourdomain.com
+SSH_KEY="ssh-ed25519 AAAA..."
 TRUENAS=truenas_admin@truenas.local
 IMAGE_PATH=/mnt/vm-pool/vms
 ```
@@ -243,14 +255,16 @@ This expands the qcow2 image and writes it raw onto the zvol. The zvol size (50 
 
 ## Step 4: Create the Virtual Machine (TrueNAS SSH)
 
-Still on TrueNAS via SSH, create the VM and its devices using `midclt` (the TrueNAS middleware client):
+Still on TrueNAS via SSH, create the VM and its devices using `midclt` (the TrueNAS middleware client).
+
+Re-declare the variables needed on the TrueNAS side — `VM_MEMORY` is in MiB, adjust upward for heavier workloads. `VM_MAC` must match exactly what you set in step 2a:
 
 ```sh
 VM_NAME=svldev
 VM_PATH=vm-pool/vms/${VM_NAME}
 IMAGE_PATH=/mnt/vm-pool/vms
-VM_MEMORY=$(( 4 * 1024 ))   # 4 GiB — increase for heavier workloads
-VM_MAC=52:54:00:xx:xx:xx    # must match the MAC set in your cloud-init seed (step 2a)
+VM_MEMORY=$(( 4 * 1024 ))
+VM_MAC=52:54:00:xx:xx:xx
 
 # Create VM
 RESULT=$(midclt call vm.create '{
@@ -264,7 +278,6 @@ RESULT=$(midclt call vm.create '{
 }')
 VM_ID=$(echo "${RESULT}" | jq '.id')
 
-# Root disk — the zvol written in Step 3
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "DISK",
@@ -275,7 +288,6 @@ midclt call vm.device.create '{
     }
 }'
 
-# cloud-init seed — mounted as virtual CD-ROM so cloud-init can read it
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "CDROM",
@@ -285,7 +297,6 @@ midclt call vm.device.create '{
     }
 }'
 
-# NIC — place the VM on the same LAN as TrueNAS; use the pre-defined MAC
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "NIC",
