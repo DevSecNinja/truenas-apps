@@ -369,6 +369,32 @@ Every service runs under a dedicated non-root user with a unique UID. Each user 
 
 TrueNAS service accounts follow the pattern `svc-app-<name>` (e.g., `svc-app-traefik`). This distinguishes them from human users and makes their purpose immediately clear in `ls -la` output.
 
+### VM and Host Naming Convention
+
+All servers and workstations follow a structured naming scheme:
+
+```
+<type><os>[az]<description>
+```
+
+| Segment         | Values          | Meaning                                          |
+| --------------- | --------------- | ------------------------------------------------ |
+| `<type>`        | `sv`            | Server                                           |
+|                 | `ws`            | Workstation                                      |
+| `<os>`          | `l`             | Linux                                            |
+|                 | `w`             | Windows                                          |
+| `[az]`          | `az` (optional) | Running in Azure; omit for on-premises           |
+| `<description>` | short noun      | What the machine does (e.g. `nas`, `dev`, `ext`) |
+
+**Examples:**
+
+| Name       | Meaning                                       |
+| ---------- | --------------------------------------------- |
+| `svlnas`   | Server · Linux · NAS (the TrueNAS host)       |
+| `svlazdev` | Server · Linux · Azure · development VM       |
+| `svlazext` | Server · Linux · Azure · external-facing      |
+| `wsldev`   | Workstation · Linux · development workstation |
+
 ### ID Ranges
 
 | Range     | Purpose                                          |

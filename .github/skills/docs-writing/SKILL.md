@@ -7,11 +7,12 @@ description: >
 
 ## Documentation structure
 
-| File / Path     | Rendered where | Audience                    |
-| --------------- | -------------- | --------------------------- |
-| `README.md`     | GitHub repo    | GitHub visitors, developers |
-| `docs/index.md` | MkDocs site    | MkDocs site visitors        |
-| `docs/*.md`     | MkDocs site    | MkDocs site visitors        |
+| File / Path     | Rendered where | Audience                    | Notes                                                             |
+| --------------- | -------------- | --------------------------- | ----------------------------------------------------------------- |
+| `README.md`     | GitHub repo    | GitHub visitors, developers |                                                                   |
+| `docs/index.md` | MkDocs site    | MkDocs site visitors        |                                                                   |
+| `docs/*.md`     | MkDocs site    | MkDocs site visitors        |                                                                   |
+| `CHANGELOG.md`  | GitHub repo    | Developers, release readers | **Auto-generated — do not edit manually.** Updated by `cog bump`. |
 
 ### README.md and docs/index.md must be kept in sync
 
