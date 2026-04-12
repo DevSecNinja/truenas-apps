@@ -7,7 +7,7 @@ SOPS, Renovate, and GitOps.
 
 Each app lives under `services/` with its own `compose.yaml`, environment files, and SOPS-encrypted
 secrets. A cron-driven continuous deployment script pulls changes from this repo and redeploys apps
-automatically.
+automatically — on TrueNAS and a handful of VMs (see `servers.yaml`).
 
 The setup follows
 [Techno Tim's guide on running Docker on TrueNAS like a pro](https://technotim.com/posts/truenas-docker-pro/).

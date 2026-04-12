@@ -139,7 +139,7 @@ network:
           via: 192.168.1.1  # your gateway
       nameservers:
         addresses:
-          - 192.168.1.1  # point to AdGuard/Unbound for internal DNS resolution
+          - 192.168.1.1  # point to your default gateway or AdGuard/Unbound for internal DNS resolution
 
 package_update: true
 package_upgrade: true
