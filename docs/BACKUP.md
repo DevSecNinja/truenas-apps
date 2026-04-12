@@ -112,7 +112,7 @@ When multiple tasks fire at the same minute (e.g. daily + weekly both at midnigh
 | 6 | Weekly   | 2 months | 8 rolling weeklies  | At 00:00, only on Sunday           |
 | 7 | Monthly  | 3 months | 3 rolling monthlies | At 00:00, on day 1 of the month    |
 
-Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/UserHomes`, `vm-pool/iso`, etc.) are covered automatically — including any datasets added in the future.
+Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/homes`, `vm-pool/iso`, etc.) are covered automatically — including any datasets added in the future.
 
 > **Exclude replication datasets**: The archive-pool tasks **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively.
 

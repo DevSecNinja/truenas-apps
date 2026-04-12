@@ -34,6 +34,7 @@ vm-pool/apps/services/plex
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth
 vm-pool/apps/services/unifi
+vm-pool/homes             # user home directories — per-user subdirs created automatically by TrueNAS
 ```
 
 ### apps Dataset Permissions
@@ -295,6 +296,7 @@ Add a TrueNAS cron job for continuous deployment:
 Use this as a quick reference:
 
 - [ ] Create ZFS datasets (`vm-pool/apps` hierarchy) with encryption enabled
+- [ ] Create `vm-pool/homes` dataset (Generic preset) for user home directories
 - [ ] Unlock the encrypted apps dataset (if not auto-unlocked on boot)
 - [ ] Set permissions on the apps dataset
 - [ ] Create shared purpose groups (GIDs 3200–3202)

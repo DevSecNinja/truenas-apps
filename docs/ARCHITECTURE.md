@@ -273,6 +273,8 @@ services/<service>/
 
 **ZFS datasets do not need to be created manually for individual services.** The full dataset hierarchy is established once during initial setup (see `README.md § Setup`). Each `services/<app>/` directory lives on the `vm-pool/apps` dataset (or a child dataset created at setup time). TrueNAS handles snapshots and replication of these datasets automatically — no per-service backup containers are needed for file-level data (only for databases, which require consistent pg_dump / mongodump exports).
 
+**`vm-pool/homes`** is a sibling dataset to `vm-pool/apps` (not a child). It holds user home directories. When a TrueNAS local user account has its home directory set to `/mnt/vm-pool/homes` and **Create Home Directory** is enabled, TrueNAS automatically creates a per-user subdirectory (e.g. `/mnt/vm-pool/homes/jean-paul`) with owner-only permissions (`rwx------`). Pool-level snapshots cover it automatically alongside `vm-pool/apps`.
+
 **`backups/`** holds database backup files produced by the backup sidecar container (e.g., `tiredofit/db-backup`). Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
 
 ## Secret Management
