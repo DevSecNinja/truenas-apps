@@ -37,9 +37,33 @@ The result: the VM boots, configures itself, and is reachable over SSH — all w
 
 ## Step 1: Create ZFS Datasets
 
-Create a parent dataset for VM disks, then a zvol for the VM's root disk.
+Create a dataset for VM disk images (writable by `truenas_admin`), a parent dataset for zvols, and the zvol for the VM's root disk.
 
-### 1a. VM dataset
+### 1a. ISO / images dataset
+
+This dataset holds the Debian base image and cloud-init seed files. It is kept separate from the zvols so that `truenas_admin` can write to it and so the same base image can be reused for future VMs.
+
+In the TrueNAS UI, go to **Datasets** and click **Add Dataset** on your pool:
+
+| Setting        | Value                | Why                                                   |
+| -------------- | -------------------- | ----------------------------------------------------- |
+| Name           | `iso`                | Shared location for all VM base images and seed files |
+| Path           | `vm-pool/iso`        |                                                       |
+| Dataset Preset | Generic              |                                                       |
+| Sync           | Standard             |                                                       |
+| Compression    | lz4                  |                                                       |
+| Enable Atime   | Off                  |                                                       |
+| Encryption     | Inherit (or enabled) |                                                       |
+
+After creating it, set Unix permissions via **Datasets → vm-pool/iso → Edit Permissions**:
+
+| Setting | Value           |
+| ------- | --------------- |
+| User    | `truenas_admin` |
+| Group   | `truenas_admin` |
+| Mode    | `rwxr-x---`     |
+
+### 1b. VM dataset
 
 In the TrueNAS UI, go to **Datasets** and click **Add Dataset** on your pool:
 
@@ -93,7 +117,7 @@ Set these once — all subsequent commands use them:
 | `VM_DOMAIN`  | `yourdomain.com`              | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record |
 | `SSH_KEY`    | `ssh-ed25519 AAAA...`         | Full contents of `~/.ssh/id_ed25519.pub`                                   |
 | `TRUENAS`    | `truenas_admin@truenas.local` | SSH target for your TrueNAS host                                           |
-| `IMAGE_PATH` | `/mnt/vm-pool/vms`            | Path on TrueNAS where images are stored                                    |
+| `IMAGE_PATH` | `/mnt/vm-pool/iso`            | Path on TrueNAS where images are stored (the `iso` dataset from step 1a)   |
 
 ```sh
 VM_NAME=svldev
@@ -104,7 +128,7 @@ VM_USER=your-user
 VM_DOMAIN=yourdomain.com
 SSH_KEY="ssh-ed25519 AAAA..."
 TRUENAS=truenas_admin@truenas.local
-IMAGE_PATH=/mnt/vm-pool/vms
+IMAGE_PATH=/mnt/vm-pool/iso
 ```
 
 <!-- dprint-ignore -->
@@ -239,10 +263,9 @@ ssh "${TRUENAS}"
 ```
 
 ```sh
-# Re-declare variables on the TrueNAS side
 VM_NAME=svldev
 VM_PATH=vm-pool/vms/${VM_NAME}
-IMAGE_PATH=/mnt/vm-pool/vms
+IMAGE_PATH=/mnt/vm-pool/iso
 
 sudo qemu-img convert -O raw \
     ${IMAGE_PATH}/debian-12-generic-amd64.qcow2 \
@@ -262,7 +285,7 @@ Re-declare the variables needed on the TrueNAS side — `VM_MEMORY` is in MiB, a
 ```sh
 VM_NAME=svldev
 VM_PATH=vm-pool/vms/${VM_NAME}
-IMAGE_PATH=/mnt/vm-pool/vms
+IMAGE_PATH=/mnt/vm-pool/iso
 VM_MEMORY=$(( 4 * 1024 ))
 VM_MAC=52:54:00:xx:xx:xx
 
