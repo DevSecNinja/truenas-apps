@@ -220,14 +220,51 @@ Cloud Sync tasks upload encrypted copies to Azure Blob Storage, providing geogra
 
 Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immutability **must be enabled at account creation** — it cannot be added to an existing account.
 
-| Setting                           | Value                                               |
-| --------------------------------- | --------------------------------------------------- |
-| Performance                       | Standard                                            |
-| Redundancy                        | LRS (locally redundant — cost-effective for backup) |
-| Encryption                        | Microsoft-managed keys (default)                    |
-| Default access tier               | Cool                                                |
-| Enable version-level immutability | **Yes** (Data Protection tab → Access control)      |
-| Enable versioning for blobs       | Yes (auto-enabled by immutability checkbox)         |
+**Basics tab:**
+
+| Setting          | Value                                                                                                                      |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Storage type     | Azure Blob Storage or Azure Data Lake Storage Gen 2                                                                        |
+| Primary workload | Backup & Archive                                                                                                           |
+| Performance      | Standard                                                                                                                   |
+| Redundancy       | LRS (locally redundant — cost-effective for backup; RA-GRS adds cost for no benefit since ZFS replication is the HA layer) |
+
+**Advanced tab:**
+
+| Setting                             | Value                                                              |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| Storage account key access          | Enabled (required — TrueNAS Cloud Sync only supports account keys) |
+| Permitted scope for copy operations | From storage accounts in the same Microsoft Entra tenant           |
+| Access tier                         | Cool                                                               |
+
+**Networking tab:**
+
+| Setting               | Value                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| Public network access | Enabled from selected virtual networks and IP addresses                                 |
+| IP allowlist          | Add the external IP of your home network (shared by both client and TrueNAS behind NAT) |
+| Routing preference    | Microsoft network routing                                                               |
+
+> **Dynamic IP risk**: Home ISPs typically assign dynamic IPs. If your external IP changes, Cloud Sync will fail with 403 errors. Update the firewall allowlist when your IP changes, or switch to "Enable from all networks" if this becomes a maintenance burden (still protected by account key + WORM).
+
+**Data Protection tab:**
+
+| Setting                              | Value                                                             |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| Point-in-time restore for containers | **Disabled** — incompatible with version-level immutability       |
+| Soft delete for blobs                | Enabled — 14 days                                                 |
+| Soft delete for containers           | Enabled — 7 days                                                  |
+| Soft delete for file shares          | Enabled — 7 days (not used, but harmless)                         |
+| Enable versioning for blobs          | Enabled (required for version-level immutability)                 |
+| Enable blob change feed              | Enabled, keep all logs (audit trail of all create/modify/deletes) |
+| Enable version-level immutability    | **Enabled** (Access control section) — primary ransomware defense |
+
+**Encryption tab:**
+
+| Setting                   | Value                                                                  |
+| ------------------------- | ---------------------------------------------------------------------- |
+| Encryption key management | Microsoft-managed keys                                                 |
+| Infrastructure encryption | Enabled (double encryption at infrastructure layer — defense-in-depth) |
 
 > **Important**: Version-level immutability cannot be disabled once enabled. This is intentional — it prevents a compromised credential from removing the protection. See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
 
