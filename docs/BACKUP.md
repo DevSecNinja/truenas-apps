@@ -375,61 +375,199 @@ Account keys are data-plane credentials — they grant full read/write/delete ac
 
 ### Cloud Sync Tasks
 
-Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All tasks use TrueNAS encryption** (rclone crypt) — data is encrypted on the NAS before upload.
+Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks → **Add**. Switch to **Advanced** mode. All four tasks share the same credential, encryption settings, and advanced options — only the fields listed per task differ.
 
-| Task | Source path                       | Exclude                                                                                     | Azure container   | Schedule    | Transfer mode |
-| ---- | --------------------------------- | ------------------------------------------------------------------------------------------- | ----------------- | ----------- | ------------- |
-| A    | `/mnt/vm-pool`                    | `iso/`, `.zfs/`                                                                             | `vm-pool`         | Daily 04:00 | Sync          |
-| B    | `/mnt/archive-pool/private`       | `.zfs/`                                                                                     | `archive-private` | Daily 05:00 | Sync          |
-| C    | `/mnt/archive-pool/content/media` | `.zfs/`                                                                                     | `archive-media`   | Daily 06:00 | Sync          |
-| D    | `/mnt/archive-pool`               | `replication/`, `content/media/`, `private/`, `content/downloads/`, `TimeMachine/`, `.zfs/` | `archive-pool`    | Daily 07:00 | Sync          |
+#### Task A — `vm-pool-to-azure`
 
-**Exclude `.zfs/` directories**: On every Cloud Sync task, add `.zfs/` (with trailing slash) to the **Exclude** list. The trailing slash is important — in rclone, a bare name without `/` only matches files, not directories. Without this exclude, rclone traverses `.zfs/snapshot/` directories and uploads every historical snapshot — multiplying storage costs and upload time. This is the most common Cloud Sync misconfiguration.
+**Transfer:**
 
-**Encryption**: When creating each task, enable **Remote Encryption** in Advanced Remote Options. TrueNAS will prompt for a password and salt. Use the same password for all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal, and filenames alone don't contain sensitive data. Content is still fully encrypted.
+| Field           | Value              |
+| --------------- | ------------------ |
+| Description     | `vm-pool-to-azure` |
+| Direction       | PUSH               |
+| Transfer Mode   | SYNC               |
+| Directory/Files | `/mnt/vm-pool`     |
 
-**Use Snapshot**: Leave **Use Snapshot** disabled. TrueNAS only supports this on leaf datasets with no child datasets. Since Cloud Sync sources are pool-level paths (`/mnt/vm-pool`, `/mnt/archive-pool`) with nested children, enabling it produces the error _"This option is only available for datasets that have no further nesting."_ The consistency risk is minimal — db-backup sidecars produce application-consistent dumps before Cloud Sync runs (03:00 replication, then db-backups, then Cloud Sync at 04:00+), and media/config files are rarely written mid-sync.
+**Remote:**
 
-**Advanced Options** (same for all four tasks):
+| Field      | Value                                  |
+| ---------- | -------------------------------------- |
+| Credential | _(your Azure Blob Storage credential)_ |
+| Container  | `vm-pool`                              |
+| Folder     | `/`                                    |
 
-| Setting                                 | Value     | Reason                                                |
-| --------------------------------------- | --------- | ----------------------------------------------------- |
-| Use Snapshot                            | No        | Source paths have nested child datasets               |
-| Create empty source dirs on destination | No        | Not needed for backup                                 |
-| Follow Symlinks                         | No        | Avoids traversing outside the source path             |
-| Transfers                               | 4 (Low)   | Avoids saturating home upload bandwidth               |
-| Bandwidth Limit                         | _(empty)_ | Transfers setting is sufficient                       |
-| Use --fast-list                         | No        | Safe default; enable later if API costs are a concern |
-| Filename Encryption                     | No        | Allows browsing file names in Azure Portal            |
+**Control:**
 
-**Task A — vm-pool:**
+| Field    | Value               |
+| -------- | ------------------- |
+| Schedule | Custom: `0 4 * * *` |
+| Enabled  | Yes                 |
 
-- Covers the entire `vm-pool` pool: apps, VMs, ISOs (minus the excluded `iso/` directory), db dumps, secrets, git repo
-- `iso/` excluded — installer images have no restore value and are re-downloadable
-- All content is client-side encrypted before upload — plaintext secrets never reach Azure
-- Schedule is after the 03:00 replication task and after db-backup sidecars have run
+**Advanced Options:**
 
-**Task B — archive-pool/private:**
+| Field                                   | Value            |
+| --------------------------------------- | ---------------- |
+| Use Snapshot                            | No               |
+| Create empty source dirs on destination | No               |
+| Follow Symlinks                         | No               |
+| Pre-script                              | _(empty)_        |
+| Post-script                             | _(empty)_        |
+| Exclude                                 | `iso/` ↵ `.zfs/` |
 
-- Immich photos and private documents
-- Highest WORM retention (90 days) — these are irreplaceable personal data
-- Cost is minimal at current data volumes
+**Advanced Remote Options:**
 
-**Task C — archive-pool/content/media:**
+| Field               | Value                     |
+| ------------------- | ------------------------- |
+| Use --fast-list     | No                        |
+| Remote Encryption   | Yes                       |
+| Filename Encryption | No                        |
+| Encryption Password | _(from password manager)_ |
+| Encryption Salt     | _(from password manager)_ |
+| Transfers           | Low Bandwidth (4)         |
+| Bandwidth Limit     | _(empty)_                 |
 
-- Full media library
-- Blob versioning is enabled (account-level mandate) but no WORM retention — old versions are cleaned up by lifecycle rule after 7 days
-- Lifecycle policy moves current blobs to Cold tier after 7 days for minimal storage cost
-- `downloads/` is **not** under `media/` so it is excluded automatically by path scope
+Covers the entire `vm-pool` pool: apps, VMs, db dumps, secrets, git repo. `iso/` excluded — installer images have no restore value. All content is client-side encrypted before upload. Schedule is after the 03:00 replication and db-backup sidecars.
 
-**Task D — archive-pool (catch-all):**
+---
 
-- Covers everything on `archive-pool` not captured by the dedicated `archive-private` and `archive-media` tasks
-- Excludes `replication/` (ZFS replication target, not useful as blob backup), `content/media/` (Task C), `private/` (Task B), `content/downloads/` (transient), `TimeMachine/` (already a Mac backup — back up the source, not the backup)
-- No WORM retention — content is a mix of documents and config that changes infrequently; blob versioning + soft delete provide sufficient protection
-- Scheduled last to avoid overlapping I/O with the other tasks
+#### Task B — `archive-private-to-azure`
 
-**Exclusions**: `archive-pool/content/downloads/` and `archive-pool/TimeMachine/` are excluded from all tasks — transient downloads have no backup value, and Time Machine backups are already a redundant copy of a Mac.
+**Transfer:**
+
+| Field           | Value                       |
+| --------------- | --------------------------- |
+| Description     | `archive-private-to-azure`  |
+| Direction       | PUSH                        |
+| Transfer Mode   | SYNC                        |
+| Directory/Files | `/mnt/archive-pool/private` |
+
+**Remote:**
+
+| Field      | Value                                  |
+| ---------- | -------------------------------------- |
+| Credential | _(your Azure Blob Storage credential)_ |
+| Container  | `archive-private`                      |
+| Folder     | `/`                                    |
+
+**Control:**
+
+| Field    | Value               |
+| -------- | ------------------- |
+| Schedule | Custom: `0 5 * * *` |
+| Enabled  | Yes                 |
+
+**Advanced Options:**
+
+| Field                                   | Value     |
+| --------------------------------------- | --------- |
+| Use Snapshot                            | No        |
+| Create empty source dirs on destination | No        |
+| Follow Symlinks                         | No        |
+| Pre-script                              | _(empty)_ |
+| Post-script                             | _(empty)_ |
+| Exclude                                 | `.zfs/`   |
+
+**Advanced Remote Options:** _(same as Task A)_
+
+Immich photos and private documents. Highest WORM retention (90 days) — irreplaceable personal data.
+
+---
+
+#### Task C — `archive-media-to-azure`
+
+**Transfer:**
+
+| Field           | Value                             |
+| --------------- | --------------------------------- |
+| Description     | `archive-media-to-azure`          |
+| Direction       | PUSH                              |
+| Transfer Mode   | SYNC                              |
+| Directory/Files | `/mnt/archive-pool/content/media` |
+
+**Remote:**
+
+| Field      | Value                                  |
+| ---------- | -------------------------------------- |
+| Credential | _(your Azure Blob Storage credential)_ |
+| Container  | `archive-media`                        |
+| Folder     | `/`                                    |
+
+**Control:**
+
+| Field    | Value               |
+| -------- | ------------------- |
+| Schedule | Custom: `0 6 * * *` |
+| Enabled  | Yes                 |
+
+**Advanced Options:**
+
+| Field                                   | Value     |
+| --------------------------------------- | --------- |
+| Use Snapshot                            | No        |
+| Create empty source dirs on destination | No        |
+| Follow Symlinks                         | No        |
+| Pre-script                              | _(empty)_ |
+| Post-script                             | _(empty)_ |
+| Exclude                                 | `.zfs/`   |
+
+**Advanced Remote Options:** _(same as Task A)_
+
+Full media library. No WORM retention — old versions cleaned up by lifecycle rule after 7 days. Lifecycle policy moves blobs to Cold tier after 7 days. `downloads/` is not under `media/` so it's excluded by path scope.
+
+---
+
+#### Task D — `archive-pool-to-azure`
+
+**Transfer:**
+
+| Field           | Value                   |
+| --------------- | ----------------------- |
+| Description     | `archive-pool-to-azure` |
+| Direction       | PUSH                    |
+| Transfer Mode   | SYNC                    |
+| Directory/Files | `/mnt/archive-pool`     |
+
+**Remote:**
+
+| Field      | Value                                  |
+| ---------- | -------------------------------------- |
+| Credential | _(your Azure Blob Storage credential)_ |
+| Container  | `archive-pool`                         |
+| Folder     | `/`                                    |
+
+**Control:**
+
+| Field    | Value               |
+| -------- | ------------------- |
+| Schedule | Custom: `0 7 * * *` |
+| Enabled  | Yes                 |
+
+**Advanced Options:**
+
+| Field                                   | Value                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Use Snapshot                            | No                                                                                               |
+| Create empty source dirs on destination | No                                                                                               |
+| Follow Symlinks                         | No                                                                                               |
+| Pre-script                              | _(empty)_                                                                                        |
+| Post-script                             | _(empty)_                                                                                        |
+| Exclude                                 | `replication/` ↵ `content/media/` ↵ `private/` ↵ `content/downloads/` ↵ `TimeMachine/` ↵ `.zfs/` |
+
+**Advanced Remote Options:** _(same as Task A)_
+
+Catch-all for everything on `archive-pool` not captured by Tasks B and C. Excludes: `replication/` (ZFS replication target), `content/media/` (Task C), `private/` (Task B), `content/downloads/` (transient), `TimeMachine/` (already a Mac backup). No WORM retention — blob versioning + soft delete provide sufficient protection.
+
+---
+
+#### Cloud Sync Notes
+
+**Exclude trailing slashes**: Every exclude entry must end with `/` (e.g. `.zfs/`, not `.zfs`). In rclone, the trailing slash marks it as a directory filter — without it, rclone may still recurse into the directory. The ↵ symbol above means press Enter between each exclude entry in the TrueNAS UI.
+
+**Encryption**: Use the same password and salt across all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal with no security downside (content is still fully encrypted).
+
+**Use Snapshot**: Disabled on all tasks. TrueNAS only supports this on leaf datasets with no child datasets. Pool-level paths have nested children, producing the error _"This option is only available for datasets that have no further nesting."_ The consistency risk is minimal — db-backup sidecars produce application-consistent dumps before Cloud Sync runs, and media/config files are rarely written mid-sync.
+
+**Exclusions**: `archive-pool/content/downloads/` and `archive-pool/TimeMachine/` are excluded — transient downloads have no backup value, and Time Machine backups are already a redundant copy of a Mac.
 
 **Notifications**: Enable email notifications on task failure for all four tasks.
 
