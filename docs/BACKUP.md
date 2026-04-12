@@ -38,7 +38,7 @@ flowchart LR
     end
 
     subgraph Azure["Azure Blob Storage\n(encrypted uploads)"]
-        B1["vmpool-apps\nCool tier"]
+        B1["vm-pool\nCool tier"]
         B2["archive-private\nCool tier"]
         B3["archive-media\nArchive tier"]
     end
@@ -75,7 +75,7 @@ Export the TrueNAS config after initial setup and after every significant change
 
 Also save an initial **system debug file** (~6 MB `.tgz`) via **System → Advanced Settings → Save Debug** as a baseline reference. Upload it to the same password manager entry.
 
-To include the config file in automated off-site backups, save it into the git repo tree (e.g. `/mnt/vm-pool/apps/truenas-config/`) so it gets picked up by the `vmpool-apps` Cloud Sync task. The file is client-side encrypted before upload.
+To include the config file in automated off-site backups, save it into the git repo tree (e.g. `/mnt/vm-pool/apps/truenas-config/`) so it gets picked up by the `vm-pool` Cloud Sync task. The file is client-side encrypted before upload.
 
 ### Boot Environments
 
@@ -157,7 +157,7 @@ Replication copies vm-pool snapshots to the mirrored archive-pool, providing har
 
 ### Configuration
 
-1. Create the **parent container** dataset in TrueNAS → Datasets → Add Dataset. The replication task will create the child (`vm-pool-apps`) automatically on first run — do not pre-create it.
+1. Create the **parent container** dataset in TrueNAS → Datasets → Add Dataset. The replication task will create the child (`vm-pool`) automatically on first run — do not pre-create it.
 
    | Setting            | Value                                                                                  |
    | ------------------ | -------------------------------------------------------------------------------------- |
@@ -268,15 +268,16 @@ Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immu
 
 > **Important**: Version-level immutability cannot be disabled once enabled. This is intentional — it prevents a compromised credential from removing the protection. See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
 
-Create three blob containers (all with version-level immutability support inherited from the account):
+Create four blob containers (all with version-level immutability support inherited from the account):
 
-| Container         | WORM retention (default) | Soft delete (blobs) | Purpose                                    |
-| ----------------- | ------------------------ | ------------------- | ------------------------------------------ |
-| `vmpool-apps`     | **30 days** (unlocked)   | 14 days             | App databases, state, secrets, config      |
-| `archive-private` | **90 days** (unlocked)   | 30 days             | Immich photos, private documents           |
-| `archive-media`   | None                     | 14 days             | Media library (movies, music, TV, YouTube) |
+| Container         | WORM retention (default) | Soft delete (blobs) | Purpose                                                                |
+| ----------------- | ------------------------ | ------------------- | ---------------------------------------------------------------------- |
+| `vm-pool`         | **30 days** (unlocked)   | 14 days             | Apps, VMs, db dumps, secrets, config (whole pool)                      |
+| `archive-pool`    | None                     | 14 days             | Catch-all: docs, config — excludes replication/media/private/downloads |
+| `archive-private` | **90 days** (unlocked)   | 30 days             | Immich photos, private documents                                       |
+| `archive-media`   | None                     | 14 days             | Media library (movies, music, TV, YouTube)                             |
 
-The **WORM retention** column is the default time-based retention policy for each container. During the retention period, blob versions **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows adjustment; locking is for regulatory compliance). The `archive-media` container has no retention policy — media is replaceable and the versioning + lifecycle overhead should be kept minimal.
+The **WORM retention** column is the default time-based retention policy for each container. During the retention period, blob versions **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows adjustment; locking is for regulatory compliance). The `archive-pool` and `archive-media` containers have no retention policy — their content is either replaceable or already covered by the pool-level policy elsewhere.
 
 For the `archive-media` container, create two **Lifecycle Management** rules:
 
@@ -291,21 +292,23 @@ Account keys are data-plane credentials — they grant full read/write/delete ac
 
 Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All tasks use TrueNAS encryption** (rclone crypt) — data is encrypted on the NAS before upload.
 
-| Task | Source path                       | Azure container   | Schedule    | Transfer mode |
-| ---- | --------------------------------- | ----------------- | ----------- | ------------- |
-| A    | `/mnt/vm-pool/apps`               | `vmpool-apps`     | Daily 04:00 | Sync          |
-| B    | `/mnt/archive-pool/private`       | `archive-private` | Daily 05:00 | Sync          |
-| C    | `/mnt/archive-pool/content/media` | `archive-media`   | Daily 06:00 | Sync          |
+| Task | Source path                       | Exclude                                                                    | Azure container   | Schedule    | Transfer mode |
+| ---- | --------------------------------- | -------------------------------------------------------------------------- | ----------------- | ----------- | ------------- |
+| A    | `/mnt/vm-pool`                    | `iso/`, `.zfs`                                                             | `vm-pool`         | Daily 04:00 | Sync          |
+| B    | `/mnt/archive-pool/private`       | `.zfs`                                                                     | `archive-private` | Daily 05:00 | Sync          |
+| C    | `/mnt/archive-pool/content/media` | `.zfs`                                                                     | `archive-media`   | Daily 06:00 | Sync          |
+| D    | `/mnt/archive-pool`               | `replication/`, `content/media/`, `private/`, `content/downloads/`, `.zfs` | `archive-pool`    | Daily 07:00 | Sync          |
 
 **Exclude `.zfs` directories**: On every Cloud Sync task, add `.zfs` (or `.zfs/**`) to the **Exclude** list. Without this, rclone may traverse `.zfs/snapshot/` directories and upload every historical snapshot — multiplying storage costs and upload time. This is the most common Cloud Sync misconfiguration.
 
-**Encryption**: When creating each task, enable **Encryption** in the task settings. TrueNAS will prompt for a passphrase and salt. Use the same passphrase for all three tasks (simpler key management) or unique ones per task (stronger isolation). **Store the passphrase and salt in your password manager** — without them, encrypted blobs cannot be restored.
+**Encryption**: When creating each task, enable **Encryption** in the task settings. TrueNAS will prompt for a passphrase and salt. Use the same passphrase for all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the passphrase and salt in your password manager** — without them, encrypted blobs cannot be restored.
 
 **Snapshot consistency**: Cloud Sync reads from the live filesystem, not from a ZFS snapshot. For database files, consistency is guaranteed by the `tiredofit/db-backup` sidecars — they produce application-consistent dumps before Cloud Sync runs. The raw PostgreSQL/MongoDB data directories may be in an inconsistent state on disk, but the encrypted dump files in `backups/db-backup/` are always consistent and are the primary database recovery mechanism. Media and config files are static or rarely written, so live-sync is safe for those.
 
-**Task A — vm-pool/apps:**
+**Task A — vm-pool:**
 
-- Includes everything: `.env` files, `age.key`, `secret.sops.env`, `backups/db-backup/` dumps, git repo checkout
+- Covers the entire `vm-pool` pool: apps, VMs, ISOs (minus the excluded `iso/` directory), db dumps, secrets, git repo
+- `iso/` excluded — installer images have no restore value and are re-downloadable
 - All content is client-side encrypted before upload — plaintext secrets never reach Azure
 - Schedule is after the 03:00 replication task and after db-backup sidecars have run
 
@@ -322,9 +325,16 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All ta
 - Lifecycle policy moves current blobs to Archive tier after 7 days for minimal storage cost
 - `downloads/` is **not** under `media/` so it is excluded automatically by path scope
 
-**Exclusion**: `archive-pool/content/downloads/` is not backed up — it contains transient in-progress downloads with no backup value.
+**Task D — archive-pool (catch-all):**
 
-**Notifications**: Enable email notifications on task failure for all three tasks.
+- Covers everything on `archive-pool` not captured by the dedicated `archive-private` and `archive-media` tasks
+- Excludes `replication/` (ZFS replication target, not useful as blob backup), `content/media/` (Task C), `private/` (Task B), `content/downloads/` (transient)
+- No WORM retention — content is a mix of documents and config that changes infrequently; blob versioning + soft delete provide sufficient protection
+- Scheduled last to avoid overlapping I/O with the other tasks
+
+**Exclusion**: `archive-pool/content/downloads/` is excluded from all tasks — transient in-progress downloads have no backup value.
+
+**Notifications**: Enable email notifications on task failure for all four tasks.
 
 ### Azure-Side Ransomware Protection
 
@@ -336,7 +346,7 @@ Version-level immutability is enabled at storage account creation (see [setup ab
 
 How this protects against ransomware:
 
-- Ransomware encrypts all NAS files → Cloud Sync uploads the encrypted versions as new current versions → the pre-encryption versions become previous versions → **WORM prevents deletion of those previous versions** for 30 days (`vmpool-apps`) or 90 days (`archive-private`)
+- Ransomware encrypts all NAS files → Cloud Sync uploads the encrypted versions as new current versions → the pre-encryption versions become previous versions → **WORM prevents deletion of those previous versions** for 30 days (`vm-pool`) or 90 days (`archive-private`)
 - A compromised account key cannot shorten or remove the retention policy (management-plane operation), cannot disable versioning (management-plane), and cannot delete immutable versions (blocked by WORM)
 
 Cloud Sync compatibility: With versioning enabled, Cloud Sync's Sync mode works normally. Overwrites create new current versions (old ones become protected previous versions). Deletes make the current version a previous version (also protected). New uploads succeed without interference.
@@ -376,10 +386,10 @@ For selective restore, use the **rclone** CLI directly on the TrueNAS host:
 
 ```sh
 # List files in the encrypted remote (decrypted view)
-rclone ls azure-crypt:vmpool-apps/services/outline/backups/
+rclone ls azure-crypt:vm-pool/apps/services/outline/backups/
 
 # Copy a single directory
-rclone copy azure-crypt:vmpool-apps/services/outline/backups/ /mnt/vm-pool/apps/services/outline/backups/
+rclone copy azure-crypt:vm-pool/apps/services/outline/backups/ /mnt/vm-pool/apps/services/outline/backups/
 ```
 
 This requires configuring an rclone remote with the crypt wrapper and appropriate credentials. See the [rclone crypt documentation](https://rclone.org/crypt/).
@@ -538,9 +548,10 @@ All times are local to the TrueNAS host.
 | Every hour              | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
 | Every day               | archive-pool snapshot                              | ZFS Periodic Snapshot  |
 | 03:00 daily             | vm-pool → archive-pool replication                 | ZFS Replication        |
-| 04:00 daily             | vm-pool/apps → Azure `vmpool-apps`                 | Cloud Sync (encrypted) |
+| 04:00 daily             | vm-pool → Azure `vm-pool`                          | Cloud Sync (encrypted) |
 | 05:00 daily             | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
 | 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
+| 07:00 daily             | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
 | On each `dccd.sh` run   | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
 
 Tasks are staggered to avoid overlapping I/O on the NAS.
@@ -552,8 +563,8 @@ Tasks are staggered to avoid overlapping I/O on the NAS.
 Run these checks after initial setup and periodically (monthly recommended):
 
 - [ ] Replication task status shows **Success** in TrueNAS → Data Protection
-- [ ] `archive-pool/replication/vm-pool-apps` has recent snapshots: `zfs list -t snapshot -r archive-pool/replication`
-- [ ] All three Cloud Sync tasks show **Success** in TrueNAS → Data Protection
+- [ ] `archive-pool/replication/vm-pool` has recent snapshots: `zfs list -t snapshot -r archive-pool/replication`
+- [ ] All four Cloud Sync tasks show **Success** in TrueNAS → Data Protection
 - [ ] Encrypted blobs are visible in Azure Portal for each container
 - [ ] Blob versioning is active on all containers (account-level setting, verify in Portal → Data Protection)
 - [ ] Snapshot browse test: `ls /mnt/vm-pool/apps/.zfs/snapshot/` shows recent entries
@@ -568,7 +579,7 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] TrueNAS system config file is exported and stored in password manager (re-export after config changes)
 - [ ] Boot environment exists as a pre-upgrade rollback point
 - [ ] Version-level immutability is enabled on the Azure Storage Account (cannot be changed after creation)
-- [ ] WORM retention policies are set: `vmpool-apps` (30 days), `archive-private` (90 days), `archive-media` (none)
+- [ ] WORM retention policies are set: `vm-pool` (30 days), `archive-private` (90 days), `archive-pool` and `archive-media` (none)
 - [ ] Resource lock (`Delete`) exists on the Azure Storage Account: Portal → Locks
 - [ ] Container soft delete is enabled on the Azure Storage Account (≥ 7 days)
 - [ ] Account key is rotated periodically (Portal → Security + networking → Access keys)
