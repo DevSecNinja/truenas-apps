@@ -102,7 +102,7 @@ Create a file named `${VM_NAME}-seed.yaml`:
 ```yaml
 #cloud-config
 hostname: svlazdev
-fqdn: svlazdev.home.arpa
+fqdn: svlazdev.yourdomain.com  # use your own domain if AdGuard/Unbound resolves it internally
 
 users:
   - name: your-user
@@ -110,7 +110,9 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - ssh-ed25519 AAAA... your-key-comment  # paste your ~/.ssh/id_ed25519.pub here
-    sudo: ALL=(ALL) NOPASSWD:ALL
+    sudo: ALL=(ALL) NOPASSWD:ALL  # passwordless sudo
+
+ssh_pwauth: false  # disable SSH password authentication; key-only access
 
 package_update: true
 package_upgrade: true
@@ -125,6 +127,13 @@ power_state:
 ```
 
 Replace `your-user` and the `ssh_authorized_keys` value with your own. The `power_state` reboot at the end ensures the VM restarts cleanly after cloud-init finishes, so you will always connect to a fully configured machine.
+
+!!! note "On `sudo: ALL=(ALL) NOPASSWD:ALL`"
+This grants full passwordless root access. It is relatively safe here because `ssh_pwauth: false` ensures
+only SSH key holders can log in — an attacker without your private key cannot reach the machine
+at all, and requiring a sudo password at that point adds no meaningful protection. If you prefer
+to require a password for sudo, remove `NOPASSWD:` from the sudo line and omit the `NOPASSWD`
+field.
 
 ### 2d. Build the seed image
 
