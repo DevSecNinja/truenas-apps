@@ -83,9 +83,17 @@ mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
 
 ```sh
 VM_NAME=svlazdev
+VM_IP=192.168.1.50       # static IP to assign — pick a free address on your LAN
+VM_MAC=52:54:00:xx:xx:xx # QEMU/KVM OUI — replace xx:xx:xx with unique hex digits, e.g. 52:54:00:a1:b2:c3
 TRUENAS=truenas_admin@truenas.local
 IMAGE_PATH=/mnt/vm-pool/vms
 ```
+
+<!-- dprint-ignore -->
+!!! tip
+    The `52:54:00` prefix is QEMU/KVM's standard OUI. UniFi recognises it and labels the device
+    as a virtual machine. You can pre-register the device in UniFi with this MAC address before
+    the VM even boots, giving it a reserved IP and a friendly name.
 
 ### 2b. Download the Debian generic cloud image
 
@@ -116,6 +124,23 @@ users:
 
 ssh_pwauth: false  # disable SSH password authentication; key-only access
 
+# Static network configuration — no DHCP, predictable address from first boot
+network:
+  version: 2
+  ethernets:
+    ens3:  # adjust interface name if needed (check with `ip link` after first boot)
+      match:
+        macaddress: 52:54:00:xx:xx:xx  # VM_MAC — ensures config targets the right NIC
+      set-name: ens3
+      addresses:
+        - 192.168.1.50/24  # VM_IP/prefix — adjust to your LAN
+      routes:
+        - to: default
+          via: 192.168.1.1  # your gateway
+      nameservers:
+        addresses:
+          - 192.168.1.1  # point to AdGuard/Unbound for internal DNS resolution
+
 package_update: true
 package_upgrade: true
 packages:
@@ -128,7 +153,7 @@ power_state:
   condition: true
 ```
 
-Replace `your-user` and the `ssh_authorized_keys` value with your own. The `power_state` reboot at the end ensures the VM restarts cleanly after cloud-init finishes, so you will always connect to a fully configured machine.
+Replace `your-user`, `ssh_authorized_keys`, and the network addresses with your own values.
 
 <!-- dprint-ignore -->
 !!! note "On `sudo: ALL=(ALL) NOPASSWD:ALL`"
@@ -217,6 +242,7 @@ VM_NAME=svlazdev
 VM_PATH=vm-pool/vms/svlazdev
 IMAGE_PATH=/mnt/vm-pool/vms
 VM_MEMORY=$(( 4 * 1024 ))   # 4 GiB — increase for heavier workloads
+VM_MAC=52:54:00:xx:xx:xx    # must match the MAC set in your cloud-init seed (step 2a)
 
 # Create VM
 RESULT=$(midclt call vm.create '{
@@ -251,8 +277,7 @@ midclt call vm.device.create '{
     }
 }'
 
-# NIC — place the VM on the same LAN as TrueNAS
-MAC_ADDRESS=$(midclt call vm.random_mac)
+# NIC — place the VM on the same LAN as TrueNAS; use the pre-defined MAC
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
     "dtype": "NIC",
@@ -260,7 +285,7 @@ midclt call vm.device.create '{
     "attributes": {
         "type":       "VIRTIO",
         "nic_attach": "br0",
-        "mac":        "'"${MAC_ADDRESS}"'"
+        "mac":        "'"${VM_MAC}"'"
     }
 }'
 ```
@@ -279,10 +304,10 @@ midclt call vm.start "${VM_ID}"
 
 ## Step 5: Connect via SSH
 
-Cloud-init runs on first boot and may take 1–2 minutes to complete (package upgrades can add more). Once done, the VM reboots automatically. Find the assigned IP from your router's DHCP table or the TrueNAS ARP cache, then:
+Cloud-init runs on first boot and may take 1–2 minutes to complete (package upgrades can add more). Once done, the VM reboots automatically. Connect using the static IP configured in the cloud-init seed:
 
 ```sh
-ssh your-user@<vm-ip>
+ssh your-user@192.168.1.50  # the VM_IP you set in step 2a
 ```
 
 No VNC client needed — cloud-init already installed your SSH key, created your user, and rebooted the VM cleanly.
@@ -304,34 +329,21 @@ Or remove it manually via **Virtualization → svlazdev → Devices** in the Tru
 
 ---
 
-## Step 6: Assign a Static IP (recommended)
+## Step 6: Register the VM in Unbound
 
-By default the VM gets an address from DHCP. For a Docker host, a static IP is strongly recommended so that other services always reach it at a predictable address.
+Add an A record for the VM so it is reachable by hostname on your LAN. In `services/adguard/config/unbound/conf.d/a-records.conf`, add:
 
-The cleanest way is to configure this in the cloud-init seed before first boot (Step 2c), by adding a `write_files` block:
-
-```yaml
-write_files:
-  - path: /etc/network/interfaces
-    content: |
-      auto lo
-      iface lo inet loopback
-
-      auto ens3
-      iface ens3 inet static
-        address 192.168.1.50
-        netmask 255.255.255.0
-        gateway 192.168.1.1
-        dns-nameservers 192.168.1.1
+```text
+local-data: "svlazdev.${DOMAINNAME} A 192.168.1.50"
 ```
 
-If the VM is already running, edit `/etc/network/interfaces` on the VM directly and restart networking:
+Then add the corresponding variable to `services/adguard/secret.sops.env`:
 
 ```sh
-sudo systemctl restart networking
+IP_SVLAZDEV=192.168.1.50
 ```
 
-Replace `ens3` with the interface name shown by `ip link`, and adjust addresses to match your network.
+Deploy AdGuard to pick up the change. Once active, `svlazdev.yourdomain.com` will resolve on your LAN and the cloud-init `fqdn` will be fully functional.
 
 ---
 
