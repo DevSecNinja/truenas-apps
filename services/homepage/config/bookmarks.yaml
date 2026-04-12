@@ -5,6 +5,10 @@
 # Inspiration: https://technotim.live/posts/homepage-dashboard/
 
 - Developer:
+    - Homelab Docs:
+        - abbr: Docs
+          icon: si-materialformkdocs-#e5e7eb
+          href: https://homelab.devsecninja.com/
     - GitHub Repository:
         - abbr: GH
           icon: si-github-#e5e7eb
