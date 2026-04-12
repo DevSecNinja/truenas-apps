@@ -188,7 +188,6 @@ fqdn: ${VM_NAME}.${VM_DOMAIN}
 manage_etc_hosts: true
 
 timezone: ${VM_TZ}
-locale: en_US.UTF-8
 
 ntp:
   enabled: true
@@ -253,8 +252,10 @@ packages:
   - unattended-upgrades
 
 runcmd:
+  - locale-gen en_US.UTF-8
+  - update-locale LANG=en_US.UTF-8
   - sysctl --system
-  - systemctl enable --now qemu-guest-agent
+  - systemctl start qemu-guest-agent
   - dpkg-reconfigure -f noninteractive unattended-upgrades
 
 swap:
