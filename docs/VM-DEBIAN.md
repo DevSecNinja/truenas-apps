@@ -81,10 +81,16 @@ mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
 
 ### 2a. Set variables
 
+Set these once — all subsequent commands use them:
+
 ```sh
 VM_NAME=svldev
 VM_IP=192.168.1.50       # static IP to assign — pick a free address on your LAN
+VM_GW=192.168.1.1        # your LAN gateway (usually your router)
 VM_MAC=52:54:00:xx:xx:xx # QEMU/KVM OUI — replace xx:xx:xx with unique hex digits, e.g. 52:54:00:a1:b2:c3
+VM_USER=your-user        # the non-root account cloud-init will create
+VM_DOMAIN=yourdomain.com # your internal domain — used for the FQDN and Unbound record
+SSH_KEY="ssh-ed25519 AAAA..." # paste the full contents of ~/.ssh/id_ed25519.pub here
 TRUENAS=truenas_admin@truenas.local
 IMAGE_PATH=/mnt/vm-pool/vms
 ```
@@ -107,19 +113,20 @@ wget https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd
 
 ### 2c. Write your cloud-init config
 
-Create a file named `${VM_NAME}-seed.yaml`:
+Write the seed config using a heredoc so the variables from step 2a are substituted automatically:
 
-```yaml
+```sh
+cat > ${VM_NAME}-seed.yaml << EOF
 #cloud-config
-hostname: svldev
-fqdn: svldev.yourdomain.com  # use your own domain if AdGuard/Unbound resolves it internally
+hostname: ${VM_NAME}
+fqdn: ${VM_NAME}.${VM_DOMAIN}
 
 users:
-  - name: your-user
+  - name: ${VM_USER}
     groups: [sudo]
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAA... your-key-comment  # paste your ~/.ssh/id_ed25519.pub here
+      - ${SSH_KEY}
     sudo: ALL=(ALL) NOPASSWD:ALL  # passwordless sudo
 
 ssh_pwauth: false  # disable SSH password authentication; key-only access
@@ -128,18 +135,18 @@ ssh_pwauth: false  # disable SSH password authentication; key-only access
 network:
   version: 2
   ethernets:
-    ens3:  # adjust interface name if needed (check with `ip link` after first boot)
+    eth0:
       match:
-        macaddress: 52:54:00:xx:xx:xx  # VM_MAC — ensures config targets the right NIC
-      set-name: ens3
+        macaddress: ${VM_MAC}
+      set-name: eth0
       addresses:
-        - 192.168.1.50/24  # VM_IP/prefix — adjust to your LAN
+        - ${VM_IP}/24
       routes:
         - to: default
-          via: 192.168.1.1  # your gateway
+          via: ${VM_GW}
       nameservers:
         addresses:
-          - 192.168.1.1  # point to your default gateway or AdGuard/Unbound for internal DNS resolution
+          - ${VM_GW}  # point to your gateway or AdGuard/Unbound for internal DNS
 
 package_update: true
 package_upgrade: true
@@ -151,9 +158,8 @@ packages:
 power_state:
   mode: reboot
   condition: true
+EOF
 ```
-
-Replace `your-user`, `ssh_authorized_keys`, and the network addresses with your own values.
 
 <!-- dprint-ignore -->
 !!! note "On `sudo: ALL=(ALL) NOPASSWD:ALL`"
@@ -217,11 +223,13 @@ rm /tmp/cloud-init/${VM_NAME}-seed.img
 SSH into TrueNAS and write the Debian cloud image directly onto the zvol:
 
 ```sh
-ssh truenas_admin@truenas.local
+ssh "${TRUENAS}"
 ```
 
 ```sh
-VM_PATH=vm-pool/vms/svldev
+# Re-declare variables on the TrueNAS side
+VM_NAME=svldev
+VM_PATH=vm-pool/vms/${VM_NAME}
 IMAGE_PATH=/mnt/vm-pool/vms
 
 sudo qemu-img convert -O raw \
@@ -239,7 +247,7 @@ Still on TrueNAS via SSH, create the VM and its devices using `midclt` (the True
 
 ```sh
 VM_NAME=svldev
-VM_PATH=vm-pool/vms/svldev
+VM_PATH=vm-pool/vms/${VM_NAME}
 IMAGE_PATH=/mnt/vm-pool/vms
 VM_MEMORY=$(( 4 * 1024 ))   # 4 GiB — increase for heavier workloads
 VM_MAC=52:54:00:xx:xx:xx    # must match the MAC set in your cloud-init seed (step 2a)
@@ -307,7 +315,7 @@ midclt call vm.start "${VM_ID}"
 Cloud-init runs on first boot and may take 1–2 minutes to complete (package upgrades can add more). Once done, the VM reboots automatically. Connect using the static IP configured in the cloud-init seed:
 
 ```sh
-ssh your-user@192.168.1.50  # the VM_IP you set in step 2a
+ssh ${VM_USER}@${VM_IP}
 ```
 
 No VNC client needed — cloud-init already installed your SSH key, created your user, and rebooted the VM cleanly.
@@ -334,16 +342,16 @@ Or remove it manually via **Virtualization → svldev → Devices** in the TrueN
 Add an A record for the VM so it is reachable by hostname on your LAN. In `services/adguard/config/unbound/conf.d/a-records.conf`, add:
 
 ```text
-local-data: "svldev.${DOMAINNAME} A 192.168.1.50"
+local-data: "${VM_NAME}.${DOMAINNAME} A ${VM_IP}"
 ```
 
-Then add the corresponding variable to `services/adguard/secret.sops.env`:
+Then add the corresponding variable to `services/adguard/secret.sops.env` (use the actual IP, not the shell variable):
 
 ```sh
-IP_SVLAZDEV=192.168.1.50
+IP_SVLDEV=192.168.1.50
 ```
 
-Deploy AdGuard to pick up the change. Once active, `svldev.yourdomain.com` will resolve on your LAN and the cloud-init `fqdn` will be fully functional.
+Deploy AdGuard to pick up the change. Once active, `${VM_NAME}.${VM_DOMAIN}` will resolve on your LAN and the cloud-init `fqdn` will be fully functional.
 
 ---
 
