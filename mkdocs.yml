@@ -55,6 +55,7 @@ nav:
       - Architecture: ARCHITECTURE.md
       - Infrastructure: INFRASTRUCTURE.md
   - Guides:
+      - Backup Strategy: BACKUP.md
       - Contributing: CONTRIBUTING.md
       - Database Upgrades: DATABASE-UPGRADES.md
       - Linux VM Deployment: VM-LINUX.md

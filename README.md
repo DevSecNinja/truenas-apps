@@ -24,6 +24,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 - 🚀 **GitOps without Kubernetes** — Git-driven, automated deployments without the operational overhead of running a Kubernetes cluster — compose definitions stay in git, not buried in the TrueNAS UI.
 - 🔐 **Secrets & automated updates** — SOPS + Age encrypts secrets at rest; Renovate automatically opens PRs for new image digests, keeping maintenance low.
 - 💾 **TrueNAS-native storage** — Containers bind-mount ZFS datasets directly — no NFS in the data path, avoiding latency and corruption risks for stateful apps like databases. Each app gets its own dataset for independent snapshots and rollback.
+- 🛡️ **3-2-1 backups** — ZFS snapshots, cross-pool replication, and encrypted off-site sync to Azure Blob Storage. See [docs/BACKUP.md](docs/BACKUP.md) for the full strategy.
 - 🖥️ **Managed platform** — TrueNAS maintains the host OS and provides built-in container views, removing the need to manage the underlying system or add extra monitoring tooling.
 - 🔧 **Flexibility** — Standard Docker Compose means the setup works with tools like Portainer or Dockge without significant rework.
 

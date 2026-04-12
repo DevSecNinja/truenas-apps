@@ -1,6 +1,6 @@
 # Disaster Recovery
 
-This document walks through rebuilding the Docker Compose app stack from scratch on a fresh or reinstalled TrueNAS system. It assumes the git repo and SOPS Age key are available (either from a backup or from another machine).
+This document walks through rebuilding the Docker Compose app stack from scratch on a fresh or reinstalled TrueNAS system. It assumes the git repo and SOPS Age key are available (either from a backup or from another machine). For the backup strategy that produces the snapshots, replicas, and off-site copies referenced below, see [Backup Strategy](BACKUP.md).
 
 ---
 
@@ -208,11 +208,13 @@ Create DNS A/CNAME records for each auth subdomain pointing to the correct serve
 
 ## Step 6: Restore Data (Optional)
 
-If you have ZFS snapshots or replication backups, restore them **before** deploying apps:
+If you have ZFS snapshots or replication backups, restore them **before** deploying apps. See [Backup Strategy](BACKUP.md) for the full backup topology and restore procedures.
 
+- **Cross-pool replica** — if the vm-pool SSD failed, restore from the archive-pool replica. See [Backup Strategy § Restore from Replica](BACKUP.md#restore-from-replica)
 - **Per-app datasets** — restore snapshots for `vm-pool/apps/services/<app>` to recover `data/` directories (databases, state files, certificates)
-- **App `data/` directories** — these are bind-mounted from `services/<app>/data/` within the `vm-pool/apps` dataset, so they are restored automatically when a ZFS snapshot of that dataset is restored alongside the compose files. No separate restoration step is needed.
-- **Database backups** — if using `tiredofit/db-backup`, restore from files in each app's `backups/` directory
+- **App `data/` directories** — these are bind-mounted from `services/<app>/data/` within the `vm-pool/apps` dataset, so they are restored automatically when a ZFS snapshot of that dataset is restored alongside the compose files. No separate restoration step is needed
+- **Database backups** — restore from `tiredofit/db-backup` dump files in each app's `backups/` directory. See [Backup Strategy § Restore a Database Dump](BACKUP.md#restore-a-database-dump)
+- **Azure Blob off-site** — if both local pools are lost, pull encrypted backups from Azure. See [Backup Strategy § Restore from Azure Blob](BACKUP.md#restore-from-azure-blob)
 
 If no backups are available, apps will start fresh — databases will be initialised empty and ACME certificates will be re-requested from Let's Encrypt.
 
