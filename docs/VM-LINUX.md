@@ -545,3 +545,43 @@ zfs snapshot vm-pool/vms/svldev@post-docker-install
 ```
 
 You can also configure periodic auto-snapshots in the TrueNAS UI under **Data Protection → Periodic Snapshot Tasks**.
+
+---
+
+## Teardown (removing the VM)
+
+To completely remove the VM and reclaim storage, run the following from a TrueNAS SSH session. Re-declare the variables if your session has expired:
+
+```sh
+VM_NAME=svldev
+VM_PATH=vm-pool/vms/${VM_NAME}
+IMAGE_PATH=/mnt/vm-pool/iso
+```
+
+Stop the VM if it is running:
+
+```sh
+VM_ID=$(midclt call vm.query | jq ".[] | select(.name == \"${VM_NAME}\") | .id")
+midclt call vm.stop "${VM_ID}"
+```
+
+Delete the VM definition (removes all attached devices from TrueNAS's records):
+
+```sh
+midclt call vm.delete "${VM_ID}"
+```
+
+Destroy the zvol and all its snapshots:
+
+```sh
+sudo zfs destroy -r ${VM_PATH}
+```
+
+Optionally remove the base image and any leftover seed files from the ISO dataset if you no longer need them (the base image can always be re-downloaded):
+
+```sh
+rm -i ${IMAGE_PATH}/${VM_NAME}-seed.img
+rm -i ${IMAGE_PATH}/debian-*-generic-amd64.qcow2
+```
+
+Finally, remove the DNS record from `services/adguard/config/unbound/conf.d/a-records.conf` and the variable from `services/adguard/secret.sops.env`, then redeploy AdGuard.
