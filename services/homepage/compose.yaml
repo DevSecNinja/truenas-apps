@@ -16,6 +16,7 @@ services:
         condition: service_healthy
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=apps.${DOMAINNAME}
+      - HOMEPAGE_VAR_DOMAINNAME=${DOMAINNAME}
     user: "3102:3102" # svc-app-homepage
     deploy:
       restart_policy:

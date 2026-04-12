@@ -4,10 +4,10 @@
 
 - Infrastructure:
     - NAS:
-        href: https://svlnas.${DOMAINNAME}
+        href: https://svlnas.{{HOMEPAGE_VAR_DOMAINNAME}}
         icon: truenas
         description: TrueNAS Scale
-        siteMonitor: https://svlnas.${DOMAINNAME}
+        siteMonitor: https://svlnas.{{HOMEPAGE_VAR_DOMAINNAME}}
     - JetKVM:
         href: http://jetkvm.MANAGEMENT
         icon: jetkvm
