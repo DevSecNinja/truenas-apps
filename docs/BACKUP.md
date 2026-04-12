@@ -24,7 +24,7 @@ The vm-pool's lack of hardware redundancy makes cross-pool replication and off-s
 
 - A vm-pool SSD failure loses at most 24 hours of data (last replication to archive-pool).
 - A total site loss (fire/theft) loses at most 24 hours of data across all categories (app data, private photos, and media).
-- Full rebuild from Azure Blob takes up to a week due to Archive-tier rehydration (media) and the manual TrueNAS setup steps in [Disaster Recovery](DISASTER-RECOVERY.md).
+- Full rebuild from Azure Blob takes up to a week due to download bandwidth and the manual TrueNAS setup steps in [Disaster Recovery](DISASTER-RECOVERY.md).
 
 ---
 
@@ -40,7 +40,7 @@ flowchart LR
     subgraph Azure["Azure Blob Storage\n(encrypted uploads)"]
         B1["vm-pool\nCool tier"]
         B2["archive-private\nCool tier"]
-        B3["archive-media\nArchive tier"]
+        B3["archive-media\nCool → Cold"]
     end
 
     VM -- "Hourly\nsnapshots" --> VM
@@ -296,7 +296,7 @@ After creating the containers, configure a **default time-based retention policy
 | `archive-pool`    | —                | —            | —                             | Skip — no policy needed      |
 | `archive-media`   | —                | —            | —                             | Skip — no policy needed      |
 
-During the retention period, blob versions in that container **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows future adjustment; locking is only needed for regulatory compliance like SEC 17a-4(f)). The `archive-pool` and `archive-media` containers intentionally have **no** retention policy — their content is either replaceable or already covered elsewhere.
+During the retention period, blob versions in that container **cannot be deleted by any credential** — not even account keys. Policies are created in an **unlocked** state by default — this is what you want. A locked policy can never be shortened or removed (irreversible). Only lock policies if required for regulatory compliance (SEC 17a-4(f)). The `archive-pool` and `archive-media` containers intentionally have **no** retention policy — their content is either replaceable or already covered elsewhere.
 
 #### Step 3 — Verify Blob and Container Soft Delete
 
@@ -315,10 +315,59 @@ These are account-level settings — they apply to all containers equally.
 
 #### Step 4 — Lifecycle Management for `archive-media`
 
-Navigate to Storage Account → Data Management → Lifecycle Management → **Add a rule** and create two rules:
+Navigate to Storage Account → Data Management → **Lifecycle management** → switch to **Code view** and paste the following policy JSON:
 
-1. **Move current versions to Archive tier** after **7 days** — reduces storage cost to ~$2/TB/month (rehydration takes hours but is acceptable for media DR)
-2. **Delete previous versions** after **7 days** — blob versioning is mandatory (account-level setting) but media doesn't need version history; this keeps costs flat
+```json
+{
+  "rules": [
+    {
+      "name": "archive-media-tier-to-cold",
+      "enabled": true,
+      "type": "Lifecycle",
+      "definition": {
+        "actions": {
+          "baseBlob": {
+            "tierToCold": {
+              "daysAfterModificationGreaterThan": 7
+            }
+          }
+        },
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["archive-media/"]
+        }
+      }
+    },
+    {
+      "name": "archive-media-delete-old-versions",
+      "enabled": true,
+      "type": "Lifecycle",
+      "definition": {
+        "actions": {
+          "version": {
+            "delete": {
+              "daysAfterCreationGreaterThan": 7
+            }
+          }
+        },
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["archive-media/"]
+        }
+      }
+    }
+  ]
+}
+```
+
+Two rules in this policy:
+
+| Rule                                | What it does                          | Condition                                                                                              |
+| ----------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `archive-media-tier-to-cold`        | Cool → Cold after 7 days              | Still online (ms access, no rehydration), ~half the cost of Cool                                       |
+| `archive-media-delete-old-versions` | Delete previous versions after 7 days | Blob versioning is mandatory (account-level) but media doesn't need version history — keeps costs flat |
+
+Archive tier is not used — at current data volumes (< 4 TB) the savings over Cold (~$10/month) don't justify the 180-day minimum retention and hours-long rehydration delay. This can be revisited if media grows significantly.
 
 Create a Cloud Credential in TrueNAS → Credentials → Cloud Credentials using a **Storage Account access key**. TrueNAS Cloud Sync only supports account keys for Azure Blob Storage.
 
@@ -358,7 +407,7 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All ta
 
 - Full media library
 - Blob versioning is enabled (account-level mandate) but no WORM retention — old versions are cleaned up by lifecycle rule after 7 days
-- Lifecycle policy moves current blobs to Archive tier after 7 days for minimal storage cost
+- Lifecycle policy moves current blobs to Cold tier after 7 days for minimal storage cost
 - `downloads/` is **not** under `media/` so it is excluded automatically by path scope
 
 **Task D — archive-pool (catch-all):**
@@ -430,11 +479,7 @@ rclone copy azure-crypt:vm-pool/apps/services/outline/backups/ /mnt/vm-pool/apps
 
 This requires configuring an rclone remote with the crypt wrapper and appropriate credentials. See the [rclone crypt documentation](https://rclone.org/crypt/).
 
-For the `archive-media` container, blobs older than 7 days are in Archive tier and must be **rehydrated** before download:
-
-1. In Azure Portal → Storage Account → Container → select blob(s)
-2. Change tier to **Cool** (rehydration takes up to 15 hours for Standard priority)
-3. Once rehydrated, download via Cloud Sync Pull or rclone
+For the `archive-media` container, blobs move from Cool to Cold tier after 7 days via lifecycle policy. Cold tier is still online — blobs can be downloaded directly without rehydration, just like Cool tier blobs.
 
 ---
 
