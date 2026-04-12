@@ -377,24 +377,24 @@ Account keys are data-plane credentials — they grant full read/write/delete ac
 
 Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All tasks use TrueNAS encryption** (rclone crypt) — data is encrypted on the NAS before upload.
 
-| Task | Source path                       | Exclude                                                                     | Azure container   | Schedule    | Transfer mode |
-| ---- | --------------------------------- | --------------------------------------------------------------------------- | ----------------- | ----------- | ------------- |
-| A    | `/mnt/vm-pool`                    | `iso/`, `.zfs/`                                                             | `vm-pool`         | Daily 04:00 | Sync          |
-| B    | `/mnt/archive-pool/private`       | `.zfs/`                                                                     | `archive-private` | Daily 05:00 | Sync          |
-| C    | `/mnt/archive-pool/content/media` | `.zfs/`                                                                     | `archive-media`   | Daily 06:00 | Sync          |
-| D    | `/mnt/archive-pool`               | `replication/`, `content/media/`, `private/`, `content/downloads/`, `.zfs/` | `archive-pool`    | Daily 07:00 | Sync          |
+| Task | Source path                       | Exclude                                                                                     | Azure container   | Schedule    | Transfer mode |
+| ---- | --------------------------------- | ------------------------------------------------------------------------------------------- | ----------------- | ----------- | ------------- |
+| A    | `/mnt/vm-pool`                    | `iso/`, `.zfs/`                                                                             | `vm-pool`         | Daily 04:00 | Sync          |
+| B    | `/mnt/archive-pool/private`       | `.zfs/`                                                                                     | `archive-private` | Daily 05:00 | Sync          |
+| C    | `/mnt/archive-pool/content/media` | `.zfs/`                                                                                     | `archive-media`   | Daily 06:00 | Sync          |
+| D    | `/mnt/archive-pool`               | `replication/`, `content/media/`, `private/`, `content/downloads/`, `TimeMachine/`, `.zfs/` | `archive-pool`    | Daily 07:00 | Sync          |
 
 **Exclude `.zfs/` directories**: On every Cloud Sync task, add `.zfs/` (with trailing slash) to the **Exclude** list. The trailing slash is important — in rclone, a bare name without `/` only matches files, not directories. Without this exclude, rclone traverses `.zfs/snapshot/` directories and uploads every historical snapshot — multiplying storage costs and upload time. This is the most common Cloud Sync misconfiguration.
 
 **Encryption**: When creating each task, enable **Remote Encryption** in Advanced Remote Options. TrueNAS will prompt for a password and salt. Use the same password for all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal, and filenames alone don't contain sensitive data. Content is still fully encrypted.
 
-**Use Snapshot**: Enable **Use Snapshot** in Advanced Options on every task. This creates a temporary ZFS snapshot before syncing, giving rclone a consistent point-in-time view of the filesystem. Without it, files modified during the sync (e.g. a db-backup dump being written) could be uploaded in a partially-written state. TrueNAS auto-destroys the temporary snapshot after sync completes.
+**Use Snapshot**: Leave **Use Snapshot** disabled. TrueNAS only supports this on leaf datasets with no child datasets. Since Cloud Sync sources are pool-level paths (`/mnt/vm-pool`, `/mnt/archive-pool`) with nested children, enabling it produces the error _"This option is only available for datasets that have no further nesting."_ The consistency risk is minimal — db-backup sidecars produce application-consistent dumps before Cloud Sync runs (03:00 replication, then db-backups, then Cloud Sync at 04:00+), and media/config files are rarely written mid-sync.
 
 **Advanced Options** (same for all four tasks):
 
 | Setting                                 | Value     | Reason                                                |
 | --------------------------------------- | --------- | ----------------------------------------------------- |
-| Use Snapshot                            | Yes       | Point-in-time consistency                             |
+| Use Snapshot                            | No        | Source paths have nested child datasets               |
 | Create empty source dirs on destination | No        | Not needed for backup                                 |
 | Follow Symlinks                         | No        | Avoids traversing outside the source path             |
 | Transfers                               | 4 (Low)   | Avoids saturating home upload bandwidth               |
@@ -425,11 +425,11 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All ta
 **Task D — archive-pool (catch-all):**
 
 - Covers everything on `archive-pool` not captured by the dedicated `archive-private` and `archive-media` tasks
-- Excludes `replication/` (ZFS replication target, not useful as blob backup), `content/media/` (Task C), `private/` (Task B), `content/downloads/` (transient)
+- Excludes `replication/` (ZFS replication target, not useful as blob backup), `content/media/` (Task C), `private/` (Task B), `content/downloads/` (transient), `TimeMachine/` (already a Mac backup — back up the source, not the backup)
 - No WORM retention — content is a mix of documents and config that changes infrequently; blob versioning + soft delete provide sufficient protection
 - Scheduled last to avoid overlapping I/O with the other tasks
 
-**Exclusion**: `archive-pool/content/downloads/` is excluded from all tasks — transient in-progress downloads have no backup value.
+**Exclusions**: `archive-pool/content/downloads/` and `archive-pool/TimeMachine/` are excluded from all tasks — transient downloads have no backup value, and Time Machine backups are already a redundant copy of a Mac.
 
 **Notifications**: Enable email notifications on task failure for all four tasks.
 
