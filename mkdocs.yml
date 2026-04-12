@@ -51,6 +51,7 @@ nav:
   - Architecture: ARCHITECTURE.md
   - Guides:
       - Database Upgrades: DATABASE-UPGRADES.md
+      - Debian VM Deployment: VM-DEBIAN.md
       - Disaster Recovery: DISASTER-RECOVERY.md
       - Troubleshooting: TROUBLESHOOTING.md
   - Retired Services: RETIRED-SERVICES.md
