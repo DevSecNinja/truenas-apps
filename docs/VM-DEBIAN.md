@@ -264,11 +264,16 @@ ssh "${TRUENAS}"
 
 Declare all variables needed for this session. `VM_MAC` and `VM_NAME` must match what you set in step 2a.
 
-Find the bridge interface name the middleware recognises (the valid value for `nic_attach`):
+Find the available interfaces the middleware recognises as valid values for `nic_attach`:
 
 ```sh
-midclt call interface.query | jq -r '.[] | select(.type == "BRIDGE") | .name'
+midclt call interface.query | jq -r '.[] | select(.type == "BRIDGE" or .type == "VLAN") | "\(.type)\t\(.name)"'
 ```
+
+This lists both bridge and VLAN interfaces. Pick the one appropriate for your VM:
+
+- Use a **BRIDGE** interface (`br0`, `br1`, etc.) to place the VM on the main LAN
+- Use a **VLAN** interface (e.g. `vlan60`) to place the VM on a specific VLAN
 
 Set `VM_NIC` to the name from that output, then declare the rest:
 
@@ -282,6 +287,26 @@ VM_MEMORY=$(( 4 * 1024 ))
 ```
 
 ### 3a. Write the disk image to the zvol
+
+First confirm the zvol's device node symlink is in place. If the TrueNAS UI did not trigger udev automatically, the symlink may be missing and `qemu-img` will create a plain file in its place instead of writing to the block device:
+
+```sh
+ls -la /dev/zvol/${VM_PATH}
+```
+
+The output must show a symlink (`lrwxrwxrwx`), for example:
+
+```
+lrwxrwxrwx 1 root root 14 ... /dev/zvol/vm-pool/vms/svldev -> ../../../zd400
+```
+
+If the path does not exist or is a regular file (`-rw`), trigger udev and wait:
+
+```sh
+sudo udevadm trigger && sleep 2 && ls -la /dev/zvol/${VM_PATH}
+```
+
+Once the symlink is confirmed, write the image:
 
 ```sh
 sudo qemu-img convert -O raw \
@@ -353,6 +378,10 @@ midclt call vm.device.create '{
 ```sh
 midclt call vm.start "${VM_ID}"
 ```
+
+A `null` response means success — `vm.start` returns nothing on success.
+
+To watch the boot progress, open the TrueNAS UI, go to **Virtualization → svldev → Serial Shell**. You will see the boot log and cloud-init output in real time.
 
 ---
 
