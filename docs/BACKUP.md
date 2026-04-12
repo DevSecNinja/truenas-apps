@@ -268,18 +268,52 @@ Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immu
 
 > **Important**: Version-level immutability cannot be disabled once enabled. This is intentional — it prevents a compromised credential from removing the protection. See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
 
-Create four blob containers (all with version-level immutability support inherited from the account):
+#### Step 1 — Create Four Containers
 
-| Container         | WORM retention (default) | Soft delete (blobs) | Purpose                                                                |
-| ----------------- | ------------------------ | ------------------- | ---------------------------------------------------------------------- |
-| `vm-pool`         | **30 days** (unlocked)   | 14 days             | Apps, VMs, db dumps, secrets, config (whole pool)                      |
-| `archive-pool`    | None                     | 14 days             | Catch-all: docs, config — excludes replication/media/private/downloads |
-| `archive-private` | **90 days** (unlocked)   | 30 days             | Immich photos, private documents                                       |
-| `archive-media`   | None                     | 14 days             | Media library (movies, music, TV, YouTube)                             |
+For each container, use Azure Portal → Storage Account → Data Storage → Containers → **+ Container**:
 
-The **WORM retention** column is the default time-based retention policy for each container. During the retention period, blob versions **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows adjustment; locking is for regulatory compliance). The `archive-pool` and `archive-media` containers have no retention policy — their content is either replaceable or already covered by the pool-level policy elsewhere.
+| Container         | Anonymous access level | Notes                                                        |
+| ----------------- | ---------------------- | ------------------------------------------------------------ |
+| `vm-pool`         | Private                | Apps, VMs, db dumps, secrets, config (whole pool)            |
+| `archive-pool`    | Private                | Catch-all: docs, config — excl. replication/media/private/dl |
+| `archive-private` | Private                | Immich photos, private documents                             |
+| `archive-media`   | Private                | Media library (movies, music, TV, YouTube)                   |
 
-For the `archive-media` container, create two **Lifecycle Management** rules:
+Settings per container:
+
+- **Anonymous access level**: Private (disabled at account level)
+- **Encryption scope**: leave empty (uses the account default)
+- **Enable version-level immutability support**: checked (inherited from account, cannot be unchecked)
+
+#### Step 2 — Set Default WORM Retention Policies
+
+After creating the containers, configure a **default time-based retention policy** on the containers that need one. Navigate to each container → **Access policy** (or **Immutability policy** in some Portal versions) → **Add policy**:
+
+| Container         | Retention (days) | Policy state | Action                       |
+| ----------------- | ---------------- | ------------ | ---------------------------- |
+| `vm-pool`         | **30**           | Unlocked     | Add default retention policy |
+| `archive-private` | **90**           | Unlocked     | Add default retention policy |
+| `archive-pool`    | —                | —            | Skip — no policy needed      |
+| `archive-media`   | —                | —            | Skip — no policy needed      |
+
+During the retention period, blob versions in that container **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows future adjustment; locking is only needed for regulatory compliance like SEC 17a-4(f)). The `archive-pool` and `archive-media` containers intentionally have **no** retention policy — their content is either replaceable or already covered elsewhere.
+
+#### Step 3 — Configure Blob Soft Delete
+
+Blob soft delete is an **account-level** setting (not per-container). Navigate to Storage Account → Data Protection → Recovery and set:
+
+| Setting                      | Value   |
+| ---------------------------- | ------- |
+| Enable soft delete for blobs | Checked |
+| Days to retain deleted blobs | **14**  |
+
+This applies to all containers equally. Soft-deleted blobs can be recovered within the retention window. The 14-day retention is a good balance — long enough to catch accidental deletes, short enough to limit cost overhead.
+
+> Note: the `archive-private` container holds irreplaceable data but soft delete beyond 14 days is unnecessary because its 90-day WORM policy already makes versions undeletable for that period. Soft delete only matters for containers _without_ WORM.
+
+#### Step 4 — Lifecycle Management for `archive-media`
+
+Navigate to Storage Account → Data Management → Lifecycle Management → **Add a rule** and create two rules:
 
 1. **Move current versions to Archive tier** after **7 days** — reduces storage cost to ~$2/TB/month (rehydration takes hours but is acceptable for media DR)
 2. **Delete previous versions** after **7 days** — blob versioning is mandatory (account-level setting) but media doesn't need version history; this keeps costs flat
