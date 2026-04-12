@@ -59,8 +59,8 @@ Still in **Datasets**, click **Add Zvol** under `vm-pool/vms`:
 
 | Setting       | Value                              | Why                                                                                                                                                       |
 | ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Zvol Name     | `svlazdev`                         | One zvol per VM for independent snapshots, rollbacks, and identification                                                                                  |
-| Path          | `vm-pool/vms/svlazdev`             |                                                                                                                                                           |
+| Zvol Name     | `svldev`                           | One zvol per VM for independent snapshots, rollbacks, and identification                                                                                  |
+| Path          | `vm-pool/vms/svldev`               |                                                                                                                                                           |
 | Size          | `50 GiB` (adjust to your workload) | Enough headroom for the OS, Docker images, and container volumes                                                                                          |
 | Sync          | Standard                           | Matches the parent dataset; appropriate for a VM disk                                                                                                     |
 | Compression   | lz4                                | VM filesystems compress well, especially blocks filled with zeros                                                                                         |
@@ -82,7 +82,7 @@ mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
 ### 2a. Set variables
 
 ```sh
-VM_NAME=svlazdev
+VM_NAME=svldev
 VM_IP=192.168.1.50       # static IP to assign — pick a free address on your LAN
 VM_MAC=52:54:00:xx:xx:xx # QEMU/KVM OUI — replace xx:xx:xx with unique hex digits, e.g. 52:54:00:a1:b2:c3
 TRUENAS=truenas_admin@truenas.local
@@ -111,8 +111,8 @@ Create a file named `${VM_NAME}-seed.yaml`:
 
 ```yaml
 #cloud-config
-hostname: svlazdev
-fqdn: svlazdev.yourdomain.com  # use your own domain if AdGuard/Unbound resolves it internally
+hostname: svldev
+fqdn: svldev.yourdomain.com  # use your own domain if AdGuard/Unbound resolves it internally
 
 users:
   - name: your-user
@@ -221,7 +221,7 @@ ssh truenas_admin@truenas.local
 ```
 
 ```sh
-VM_PATH=vm-pool/vms/svlazdev
+VM_PATH=vm-pool/vms/svldev
 IMAGE_PATH=/mnt/vm-pool/vms
 
 sudo qemu-img convert -O raw \
@@ -238,8 +238,8 @@ This expands the qcow2 image and writes it raw onto the zvol. The zvol size (50 
 Still on TrueNAS via SSH, create the VM and its devices using `midclt` (the TrueNAS middleware client):
 
 ```sh
-VM_NAME=svlazdev
-VM_PATH=vm-pool/vms/svlazdev
+VM_NAME=svldev
+VM_PATH=vm-pool/vms/svldev
 IMAGE_PATH=/mnt/vm-pool/vms
 VM_MEMORY=$(( 4 * 1024 ))   # 4 GiB — increase for heavier workloads
 VM_MAC=52:54:00:xx:xx:xx    # must match the MAC set in your cloud-init seed (step 2a)
@@ -325,7 +325,7 @@ midclt call vm.device.delete "${CDROM_ID}"
 rm ${IMAGE_PATH}/${VM_NAME}-seed.img
 ```
 
-Or remove it manually via **Virtualization → svlazdev → Devices** in the TrueNAS UI.
+Or remove it manually via **Virtualization → svldev → Devices** in the TrueNAS UI.
 
 ---
 
@@ -334,7 +334,7 @@ Or remove it manually via **Virtualization → svlazdev → Devices** in the Tru
 Add an A record for the VM so it is reachable by hostname on your LAN. In `services/adguard/config/unbound/conf.d/a-records.conf`, add:
 
 ```text
-local-data: "svlazdev.${DOMAINNAME} A 192.168.1.50"
+local-data: "svldev.${DOMAINNAME} A 192.168.1.50"
 ```
 
 Then add the corresponding variable to `services/adguard/secret.sops.env`:
@@ -343,7 +343,7 @@ Then add the corresponding variable to `services/adguard/secret.sops.env`:
 IP_SVLAZDEV=192.168.1.50
 ```
 
-Deploy AdGuard to pick up the change. Once active, `svlazdev.yourdomain.com` will resolve on your LAN and the cloud-init `fqdn` will be fully functional.
+Deploy AdGuard to pick up the change. Once active, `svldev.yourdomain.com` will resolve on your LAN and the cloud-init `fqdn` will be fully functional.
 
 ---
 
@@ -366,8 +366,8 @@ Take ZFS snapshots of the zvol at key milestones so you can roll back cleanly:
 
 ```sh
 # On TrueNAS
-zfs snapshot vm-pool/vms/svlazdev@post-cloud-init
-zfs snapshot vm-pool/vms/svlazdev@post-docker-install
+zfs snapshot vm-pool/vms/svldev@post-cloud-init
+zfs snapshot vm-pool/vms/svldev@post-docker-install
 ```
 
 You can also configure periodic auto-snapshots in the TrueNAS UI under **Data Protection → Periodic Snapshot Tasks**.
