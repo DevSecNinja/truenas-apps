@@ -120,6 +120,7 @@ Set these once — all subsequent commands use them:
 | `VM_MAC`       | `52:54:00:a1:b2:c3`             | QEMU/KVM OUI (`52:54:00`) + 3 unique octets of your choice                      |
 | `VM_USER`      | `your-user`                     | Non-root account cloud-init will create                                         |
 | `VM_DOMAIN`    | `yourdomain.com`                | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record      |
+| `VM_TZ`        | `Europe/Amsterdam`              | Timezone for the VM — should match your TrueNAS timezone                        |
 | `SSH_KEY`      | `ssh-ed25519 AAAA...`           | Full contents of `~/.ssh/id_ed25519.pub`                                        |
 | `TRUENAS`      | `truenas_admin@truenas.local`   | SSH target for your TrueNAS host                                                |
 | `IMAGE_PATH`   | `/mnt/vm-pool/iso`              | Path on TrueNAS where images are stored (the `iso` dataset from step 1a)        |
@@ -132,6 +133,7 @@ VM_GW=192.168.1.1
 VM_MAC=52:54:00:xx:xx:xx
 VM_USER=your-user
 VM_DOMAIN=yourdomain.com
+VM_TZ=Europe/Amsterdam
 SSH_KEY="ssh-ed25519 AAAA..."
 TRUENAS=truenas_admin@truenas.local
 IMAGE_PATH=/mnt/vm-pool/iso
@@ -184,6 +186,10 @@ cat > ${VM_NAME}-seed.yaml << EOF
 #cloud-config
 hostname: ${VM_NAME}
 fqdn: ${VM_NAME}.${VM_DOMAIN}
+manage_etc_hosts: true
+
+timezone: ${VM_TZ}
+locale: en_US.UTF-8
 
 users:
   - name: ${VM_USER}
@@ -219,6 +225,9 @@ packages:
   - git
   - ca-certificates
   - qemu-guest-agent
+
+swap:
+  size: 0
 
 power_state:
   mode: poweroff
