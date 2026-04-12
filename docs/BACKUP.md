@@ -91,30 +91,46 @@ Snapshots provide instant, zero-cost local rollback. They protect against accide
 
 ### Configuration
 
-Create these tasks in TrueNAS → Data Protection → Periodic Snapshot Tasks. Use naming schema `auto-%Y-%m-%d_%H-%M` (TrueNAS default) and **Allow Empty Snapshots: Yes** on every task.
+Create these tasks in TrueNAS → Data Protection → Periodic Snapshot Tasks. Use naming schema `auto-%Y-%m-%d_%H-%M` (TrueNAS default) and **Allow Empty Snapshots: Yes** on every task. Click **Run Now** (▶) on each task after creating it to take an initial snapshot and verify the task works — then confirm the snapshots appeared in Storage → Snapshots.
 
 When multiple tasks fire at the same minute (e.g. daily + weekly both at midnight Sunday), TrueNAS creates one snapshot and assigns it the longest lifetime — no duplicates.
 
 **vm-pool** — 4 tasks, Recursive: Yes, Exclude: _(none)_
 
-| Schedule | Lifetime | Effective retention |
-| -------- | -------- | ------------------- |
-| Hourly   | 1 day    | 24 rolling hourlies |
-| Daily    | 1 month  | 30 rolling dailies  |
-| Weekly   | 1 month  | 4 rolling weeklies  |
-| Monthly  | 3 months | 3 rolling monthlies |
+| # | Schedule | Lifetime | Effective retention | Expected "Frequency" in TrueNAS UI |
+| - | -------- | -------- | ------------------- | ---------------------------------- |
+| 1 | Hourly   | 1 day    | 24 rolling hourlies | Every hour, every day              |
+| 2 | Daily    | 1 month  | 30 rolling dailies  | At 00:00, every day                |
+| 3 | Weekly   | 1 month  | 4 rolling weeklies  | At 00:00, only on Sunday           |
+| 4 | Monthly  | 3 months | 3 rolling monthlies | At 00:00, on day 1 of the month    |
 
 **archive-pool** — 3 tasks, Recursive: Yes, Exclude: `archive-pool/replication`
 
-| Schedule | Lifetime | Effective retention |
-| -------- | -------- | ------------------- |
-| Daily    | 1 month  | 30 rolling dailies  |
-| Weekly   | 2 months | 8 rolling weeklies  |
-| Monthly  | 3 months | 3 rolling monthlies |
+| # | Schedule | Lifetime | Effective retention | Expected "Frequency" in TrueNAS UI |
+| - | -------- | -------- | ------------------- | ---------------------------------- |
+| 5 | Daily    | 1 month  | 30 rolling dailies  | At 00:00, every day                |
+| 6 | Weekly   | 2 months | 8 rolling weeklies  | At 00:00, only on Sunday           |
+| 7 | Monthly  | 3 months | 3 rolling monthlies | At 00:00, on day 1 of the month    |
 
 Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/UserHomes`, `vm-pool/iso`, etc.) are covered automatically — including any datasets added in the future.
 
 > **Exclude replication datasets**: The archive-pool tasks **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively.
+
+### Cleaning Up Old Snapshots
+
+When you delete a Periodic Snapshot Task, TrueNAS stops creating new snapshots but does **not** delete existing ones — they become unmanaged orphans that persist indefinitely. If you deleted previous tasks and want a clean slate before the new tasks take over:
+
+```sh
+# Review existing snapshots first
+zfs list -t snapshot -r vm-pool
+zfs list -t snapshot -r archive-pool
+
+# Bulk-destroy all auto-* snapshots (DESTRUCTIVE — review the list above first)
+zfs list -t snapshot -r -H -o name vm-pool | grep '@auto-' | xargs -n1 zfs destroy
+zfs list -t snapshot -r -H -o name archive-pool | grep '@auto-' | xargs -n1 zfs destroy
+```
+
+Similarly, any replicated datasets from deleted Replication Tasks persist and must be destroyed manually before creating the new replication task.
 
 ### Selective File Restore
 
