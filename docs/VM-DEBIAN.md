@@ -376,13 +376,15 @@ midclt call vm.device.create '{
 
 ### 3c. Start the VM
 
+To watch the boot progress (recommended), open the TrueNAS UI, go to **Virtualization → svldev → Serial Shell**. You will see the boot log and cloud-init output in real time.
+
+Now start the VM:
+
 ```sh
 midclt call vm.start "${VM_ID}"
 ```
 
 A `null` response means success — `vm.start` returns nothing on success.
-
-To watch the boot progress, open the TrueNAS UI, go to **Virtualization → svldev → Serial Shell**. You will see the boot log and cloud-init output in real time.
 
 ---
 
