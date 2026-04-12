@@ -7,6 +7,12 @@ Currently supported distributions:
 - **Debian 13 (Trixie)**
 - **Debian 12 (Bookworm)**
 
+<!-- dprint-ignore -->
+!!! tip "Tested on April 12, 2026"
+    Tested on macOS Tahoe 26.3.1 with zsh on April 12, 2026. The full workflow — from
+    downloading the cloud image to a running, SSH-accessible VM — took approximately
+    10 minutes from scratch.
+
 ---
 
 ## Overview
