@@ -70,7 +70,13 @@ Still in **Datasets**, click **Add Zvol** under `vm-pool/vms`:
 
 ## Step 2: Prepare the Cloud-Init Seed (local machine)
 
-All the commands in this section run on your **local machine**, not on TrueNAS.
+All the commands in this section run on your **local machine**, not on TrueNAS. They have been tested in **zsh** (macOS default shell); bash works too.
+
+Start by creating a temporary working directory to keep the generated files together:
+
+```sh
+mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
+```
 
 ### 2a. Set variables
 
@@ -148,6 +154,22 @@ The seed must have the volume label `cidata` — cloud-init identifies it by tha
 ```sh
 scp debian-12-generic-amd64.qcow2 ${TRUENAS}:${IMAGE_PATH}/
 scp ${VM_NAME}-seed.img            ${TRUENAS}:${IMAGE_PATH}/
+```
+
+### 2f. Clean up the working directory
+
+Once the images are on TrueNAS you no longer need the local copies. You can either delete the directory entirely:
+
+```sh
+cd ~ && rm -rf /tmp/cloud-init
+```
+
+Or keep the seed config for future reference (the qcow2 is large and can always be re-downloaded):
+
+```sh
+# Keep only the cloud-init config; remove the large images
+rm /tmp/cloud-init/debian-12-generic-amd64.qcow2
+rm /tmp/cloud-init/${VM_NAME}-seed.img
 ```
 
 ---
