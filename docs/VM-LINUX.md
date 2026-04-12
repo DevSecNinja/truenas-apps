@@ -30,11 +30,16 @@ The result: the VM boots, configures itself, and is reachable over SSH — all w
 - A storage pool already created (the examples below use `vm-pool`).
 - On your **local machine**: a tool to build the cloud-init seed image.
 
-  ```sh
-  # Debian / Ubuntu
-  sudo apt install cloud-image-utils   # provides cloud-localds
-  # macOS — use hdiutil (built-in, no install needed)
-  ```
+<!-- dprint-ignore -->
+    === "macOS"
+
+        `hdiutil` is built-in — no install needed.
+
+    === "Linux"
+
+        ```sh
+        sudo apt install cloud-image-utils
+        ```
 
 - Your **SSH public key** (`~/.ssh/id_ed25519.pub` or similar) ready to embed in the cloud-init config.
 
@@ -161,17 +166,33 @@ IMAGE_PATH=/mnt/vm-pool/iso
 ### 2b. Download the Debian generic cloud image
 
 <!-- dprint-ignore -->
-=== "Debian 13 (Trixie)"
+=== "macOS"
 
-    ```sh
-    wget https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
-    ```
+    === "Debian 13 (Trixie)"
 
-=== "Debian 12 (Bookworm)"
+        ```sh
+        curl -O https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
+        ```
 
-    ```sh
-    wget https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
-    ```
+    === "Debian 12 (Bookworm)"
+
+        ```sh
+        curl -O https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
+        ```
+
+=== "Linux"
+
+    === "Debian 13 (Trixie)"
+
+        ```sh
+        wget https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
+        ```
+
+    === "Debian 12 (Bookworm)"
+
+        ```sh
+        wget https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
+        ```
 
 <!-- dprint-ignore -->
 !!! warning "Use `generic`, not `genericcloud`"
