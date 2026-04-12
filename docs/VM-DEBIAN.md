@@ -302,9 +302,9 @@ Attach the root disk (zvol written above):
 ```sh
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
-    "dtype": "DISK",
     "order": 1001,
     "attributes": {
+        "dtype": "DISK",
         "path": "/dev/zvol/'"${VM_PATH}"'",
         "type": "VIRTIO"
     }
@@ -316,9 +316,9 @@ Attach the cloud-init seed as a virtual CD-ROM:
 ```sh
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
-    "dtype": "CDROM",
     "order": 1005,
     "attributes": {
+        "dtype": "CDROM",
         "path": "'"${IMAGE_PATH}/${VM_NAME}-seed.img"'"
     }
 }'
@@ -329,9 +329,9 @@ Attach the NIC:
 ```sh
 midclt call vm.device.create '{
     "vm": '"${VM_ID}"',
-    "dtype": "NIC",
     "order": 1010,
     "attributes": {
+        "dtype":      "NIC",
         "type":       "VIRTIO",
         "nic_attach": "br0",
         "mac":        "'"${VM_MAC}"'"
