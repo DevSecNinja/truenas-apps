@@ -107,17 +107,18 @@ mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
 
 Set these once — all subsequent commands use them:
 
-| Variable     | Example value                 | What to set                                                                |
-| ------------ | ----------------------------- | -------------------------------------------------------------------------- |
-| `VM_NAME`    | `svldev`                      | VM hostname — used for zvol, cloud-init, and DNS record                    |
-| `VM_IP`      | `192.168.1.50`                | Free static IP on your LAN                                                 |
-| `VM_GW`      | `192.168.1.1`                 | Your router / gateway IP                                                   |
-| `VM_MAC`     | `52:54:00:a1:b2:c3`           | QEMU/KVM OUI (`52:54:00`) + 3 unique octets of your choice                 |
-| `VM_USER`    | `your-user`                   | Non-root account cloud-init will create                                    |
-| `VM_DOMAIN`  | `yourdomain.com`              | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record |
-| `SSH_KEY`    | `ssh-ed25519 AAAA...`         | Full contents of `~/.ssh/id_ed25519.pub`                                   |
-| `TRUENAS`    | `truenas_admin@truenas.local` | SSH target for your TrueNAS host                                           |
-| `IMAGE_PATH` | `/mnt/vm-pool/iso`            | Path on TrueNAS where images are stored (the `iso` dataset from step 1a)   |
+| Variable       | Example value                   | What to set                                                                     |
+| -------------- | ------------------------------- | ------------------------------------------------------------------------------- |
+| `VM_NAME`      | `svldev`                        | VM hostname — used for zvol, cloud-init, and DNS record                         |
+| `VM_IP`        | `192.168.1.50`                  | Free static IP on your LAN                                                      |
+| `VM_GW`        | `192.168.1.1`                   | Your router / gateway IP                                                        |
+| `VM_MAC`       | `52:54:00:a1:b2:c3`             | QEMU/KVM OUI (`52:54:00`) + 3 unique octets of your choice                      |
+| `VM_USER`      | `your-user`                     | Non-root account cloud-init will create                                         |
+| `VM_DOMAIN`    | `yourdomain.com`                | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record      |
+| `SSH_KEY`      | `ssh-ed25519 AAAA...`           | Full contents of `~/.ssh/id_ed25519.pub`                                        |
+| `TRUENAS`      | `truenas_admin@truenas.local`   | SSH target for your TrueNAS host                                                |
+| `IMAGE_PATH`   | `/mnt/vm-pool/iso`              | Path on TrueNAS where images are stored (the `iso` dataset from step 1a)        |
+| `DEBIAN_IMAGE` | `debian-12-generic-amd64.qcow2` | Cloud image filename — pick the value matching your target Debian version below |
 
 ```sh
 VM_NAME=svldev
@@ -132,6 +133,19 @@ IMAGE_PATH=/mnt/vm-pool/iso
 ```
 
 <!-- dprint-ignore -->
+=== "Debian 12 (Bookworm)"
+
+    ```sh
+    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
+    ```
+
+=== "Debian 13 (Trixie)"
+
+    ```sh
+    DEBIAN_IMAGE=debian-13-generic-amd64.qcow2
+    ```
+
+<!-- dprint-ignore -->
 !!! tip
     The `52:54:00` prefix is QEMU/KVM's standard OUI. UniFi recognises it and labels the device
     as a virtual machine. You can pre-register the device in UniFi with this MAC address before
@@ -139,9 +153,18 @@ IMAGE_PATH=/mnt/vm-pool/iso
 
 ### 2b. Download the Debian generic cloud image
 
-```sh
-wget https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2
-```
+<!-- dprint-ignore -->
+=== "Debian 12 (Bookworm)"
+
+    ```sh
+    wget https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
+    ```
+
+=== "Debian 13 (Trixie)"
+
+    ```sh
+    wget https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
+    ```
 
 <!-- dprint-ignore -->
 !!! warning "Use `generic`, not `genericcloud`"
@@ -233,8 +256,8 @@ mv ${VM_NAME}-seed.iso ${VM_NAME}-seed.img
 ### 2e. Copy both images to TrueNAS
 
 ```sh
-scp debian-12-generic-amd64.qcow2 ${TRUENAS}:${IMAGE_PATH}/
-scp ${VM_NAME}-seed.img            ${TRUENAS}:${IMAGE_PATH}/
+scp ${DEBIAN_IMAGE}        ${TRUENAS}:${IMAGE_PATH}/
+scp ${VM_NAME}-seed.img    ${TRUENAS}:${IMAGE_PATH}/
 ```
 
 ### 2f. Clean up the working directory
@@ -287,6 +310,19 @@ IMAGE_PATH=/mnt/vm-pool/iso
 VM_MEMORY=$(( 4 * 1024 ))
 ```
 
+<!-- dprint-ignore -->
+=== "Debian 12 (Bookworm)"
+
+    ```sh
+    DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
+    ```
+
+=== "Debian 13 (Trixie)"
+
+    ```sh
+    DEBIAN_IMAGE=debian-13-generic-amd64.qcow2
+    ```
+
 ### 3a. Write the disk image to the zvol
 
 First confirm the zvol's device node symlink is in place. If the TrueNAS UI did not trigger udev automatically, the symlink may be missing and `qemu-img` will create a plain file in its place instead of writing to the block device:
@@ -311,7 +347,7 @@ Once the symlink is confirmed, write the image:
 
 ```sh
 sudo qemu-img convert -O raw \
-    ${IMAGE_PATH}/debian-12-generic-amd64.qcow2 \
+    ${IMAGE_PATH}/${DEBIAN_IMAGE} \
     /dev/zvol/${VM_PATH}
 ```
 
