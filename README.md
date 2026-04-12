@@ -14,7 +14,8 @@ _... managed with Docker Compose, SOPS, Renovate, and a sprinkle of GitOps_ 🤖
 
 This repo contains the Docker Compose stacks that run on my [TrueNAS](https://www.truenas.com/) home lab server. Each app lives under `services/` with its own `compose.yaml`, environment files, and SOPS-encrypted secrets. A cron-driven continuous deployment script pulls changes from this repo and redeploys apps automatically.
 
-The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](https://technotim.com/posts/truenas-docker-pro/) — huge thanks to him for the excellent walkthrough.
+The setup follows [Techno Tim's guide on running Docker on TrueNAS like a pro](https://technotim.com/posts/truenas-docker-pro/) — huge thanks to him for the excellent walkthrough. Over the years I've run increasingly complex setups with Ansible and Kubernetes, but I've since settled on this simpler approach: Docker Compose on TrueNAS, straightforward CI/CD pipelines, and a handful of VMs that also pull their containers from this repo (see [`servers.yaml`](servers.yaml)).
+With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet 4.6) accelerating the migration, I was able to get everything across in just a few days. Hope you find something useful here!
 
 ---
 
