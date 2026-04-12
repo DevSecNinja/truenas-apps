@@ -83,18 +83,22 @@ Before major TrueNAS upgrades, create a boot environment (System → Boot → cl
 
 ---
 
+<!-- TODO: [backup] Evaluate pull-based off-site backup where a second ZFS host initiates replication -->
+
 ## Layer 1: ZFS Periodic Snapshots
 
-Snapshots provide instant, zero-cost local rollback. They protect against accidental deletion, bad upgrades, and application-level corruption. They do **not** protect against drive failure.
+Snapshots provide instant, zero-cost local rollback. They protect against accidental deletion, bad upgrades, application-level corruption, and ransomware. Snapshots are **read-only** — a compromised application or malware process cannot modify or delete them. Only a root/admin ZFS user can destroy snapshots, which is why off-site backup (Layer 3) remains essential. Snapshots do **not** protect against drive failure.
 
 ### Configuration
 
 Create these tasks in TrueNAS → Data Protection → Periodic Snapshot Tasks:
 
-| Dataset        | Recursive | Hourly keep | Daily keep | Weekly keep |
-| -------------- | --------- | ----------- | ---------- | ----------- |
-| `vm-pool/apps` | Yes       | 24          | 30         | 4           |
-| `archive-pool` | Yes       | —           | 30         | 8           |
+| Dataset        | Recursive | Exclude                    | Hourly keep | Daily keep | Weekly keep | Monthly keep |
+| -------------- | --------- | -------------------------- | ----------- | ---------- | ----------- | ------------ |
+| `vm-pool/apps` | Yes       | —                          | 24          | 30         | 4           | 3            |
+| `archive-pool` | Yes       | `archive-pool/replication` | —           | 30         | 8           | 3            |
+
+> **Exclude replication datasets**: The archive-pool snapshot task **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively. In TrueNAS → Periodic Snapshot Task, add `archive-pool/replication` to the **Exclude** field.
 
 Naming schema: `auto-%Y-%m-%d_%H-%M` (TrueNAS default).
 
@@ -160,34 +164,37 @@ Cloud Sync tasks upload encrypted copies to Azure Blob Storage, providing geogra
 
 ### Azure Storage Account Setup
 
-Create a dedicated Storage Account (e.g. `truenasbackupsprod`) with these settings:
+Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immutability **must be enabled at account creation** — it cannot be added to an existing account.
 
-| Setting             | Value                                               |
-| ------------------- | --------------------------------------------------- |
-| Performance         | Standard                                            |
-| Redundancy          | LRS (locally redundant — cost-effective for backup) |
-| Encryption          | Microsoft-managed keys (default)                    |
-| Default access tier | Cool                                                |
+| Setting                           | Value                                               |
+| --------------------------------- | --------------------------------------------------- |
+| Performance                       | Standard                                            |
+| Redundancy                        | LRS (locally redundant — cost-effective for backup) |
+| Encryption                        | Microsoft-managed keys (default)                    |
+| Default access tier               | Cool                                                |
+| Enable version-level immutability | **Yes** (Data Protection tab → Access control)      |
+| Enable versioning for blobs       | Yes (auto-enabled by immutability checkbox)         |
 
-Create three blob containers:
+> **Important**: Version-level immutability cannot be disabled once enabled. This is intentional — it prevents a compromised credential from removing the protection. See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
 
-| Container         | Blob versioning | Soft delete (blobs) | Purpose                                    |
-| ----------------- | --------------- | ------------------- | ------------------------------------------ |
-| `vmpool-apps`     | 30 days         | 14 days             | App databases, state, secrets, config      |
-| `archive-private` | 90 days         | 30 days             | Immich photos, private documents           |
-| `archive-media`   | Disabled        | 14 days             | Media library (movies, music, TV, YouTube) |
+Create three blob containers (all with version-level immutability support inherited from the account):
 
-For the `archive-media` container, create a **Lifecycle Management** rule:
+| Container         | WORM retention (default) | Soft delete (blobs) | Purpose                                    |
+| ----------------- | ------------------------ | ------------------- | ------------------------------------------ |
+| `vmpool-apps`     | **30 days** (unlocked)   | 14 days             | App databases, state, secrets, config      |
+| `archive-private` | **90 days** (unlocked)   | 30 days             | Immich photos, private documents           |
+| `archive-media`   | None                     | 14 days             | Media library (movies, music, TV, YouTube) |
 
-- Scope: All blobs in the `archive-media` container
-- Action: Move to **Archive** tier after **7 days**
-- This reduces storage cost to ~$2/TB/month (rehydration takes hours but is acceptable for media DR)
+The **WORM retention** column is the default time-based retention policy for each container. During the retention period, blob versions **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows adjustment; locking is for regulatory compliance). The `archive-media` container has no retention policy — media is replaceable and the versioning + lifecycle overhead should be kept minimal.
 
-Create a credential for TrueNAS (one of):
+For the `archive-media` container, create two **Lifecycle Management** rules:
 
-- **Storage Account access key** (simplest for a home lab)
-- **SAS token** scoped to the three containers with Read, Write, Delete, List permissions
-- **Service Principal** with Storage Blob Data Contributor role (most secure)
+1. **Move current versions to Archive tier** after **7 days** — reduces storage cost to ~$2/TB/month (rehydration takes hours but is acceptable for media DR)
+2. **Delete previous versions** after **7 days** — blob versioning is mandatory (account-level setting) but media doesn't need version history; this keeps costs flat
+
+Create a Cloud Credential in TrueNAS → Credentials → Cloud Credentials using a **Storage Account access key**. TrueNAS Cloud Sync only supports account keys for Azure Blob Storage.
+
+Account keys are data-plane credentials — they grant full read/write/delete access to blob data (including blob versions), but they **cannot** modify storage account settings (management plane). This means a compromised key cannot disable versioning, remove resource locks, or delete the account. The gap — that account keys _can_ delete individual blob versions — is closed by version-level immutability (WORM retention policies). See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
 
 ### Cloud Sync Tasks
 
@@ -214,19 +221,58 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All ta
 **Task B — archive-pool/private:**
 
 - Immich photos and private documents
-- Highest versioning retention (90 days) — these are irreplaceable personal data
+- Highest WORM retention (90 days) — these are irreplaceable personal data
 - Cost is minimal at current data volumes
 
 **Task C — archive-pool/content/media:**
 
 - Full media library
-- No blob versioning (media files are static once imported — versioning adds cost with no benefit)
-- Lifecycle policy moves blobs to Archive tier after 7 days for minimal storage cost
+- Blob versioning is enabled (account-level mandate) but no WORM retention — old versions are cleaned up by lifecycle rule after 7 days
+- Lifecycle policy moves current blobs to Archive tier after 7 days for minimal storage cost
 - `downloads/` is **not** under `media/` so it is excluded automatically by path scope
 
 **Exclusion**: `archive-pool/content/downloads/` is not backed up — it contains transient in-progress downloads with no backup value.
 
 **Notifications**: Enable email notifications on task failure for all three tasks.
+
+### Azure-Side Ransomware Protection
+
+Blob versioning and soft delete protect against accidents, but a compromised account key could delete individual blob versions, removing the recovery points. Three hardening layers close this gap:
+
+**1. Version-level immutability (WORM) — the primary defense**
+
+Version-level immutability is enabled at storage account creation (see [setup above](#azure-storage-account-setup)). Each container has a default time-based retention policy that makes blob versions **undeletable for the configured period** — regardless of the credential used. Even Storage Account access keys (which have full data-plane access) cannot delete an immutable version.
+
+How this protects against ransomware:
+
+- Ransomware encrypts all NAS files → Cloud Sync uploads the encrypted versions as new current versions → the pre-encryption versions become previous versions → **WORM prevents deletion of those previous versions** for 30 days (`vmpool-apps`) or 90 days (`archive-private`)
+- A compromised account key cannot shorten or remove the retention policy (management-plane operation), cannot disable versioning (management-plane), and cannot delete immutable versions (blocked by WORM)
+
+Cloud Sync compatibility: With versioning enabled, Cloud Sync's Sync mode works normally. Overwrites create new current versions (old ones become protected previous versions). Deletes make the current version a previous version (also protected). New uploads succeed without interference.
+
+Policies are left **unlocked** — this allows extending or shortening the retention if needed. For a home lab this is the right trade-off: an attacker with management-plane access could delete an unlocked policy, but account keys don't grant management-plane access. Locking is only needed for SEC 17a-4(f) regulatory compliance.
+
+**2. Resource lock on the Storage Account**
+
+In Azure Portal → Storage Account → Settings → Locks, create:
+
+| Setting   | Value               |
+| --------- | ------------------- |
+| Lock name | `backup-protection` |
+| Lock type | Delete              |
+
+The lock prevents deletion of the storage account and its containers — even by users with Owner role. It must be manually removed before any destructive operation, adding a deliberate step that automated ransomware cannot perform. Account keys (data-plane) cannot remove locks (management-plane).
+
+**3. Enable container soft delete**
+
+In Azure Portal → Storage Account → Data Protection, enable **soft delete for containers** with a retention of **7 days**. This is separate from _blob_ soft delete (already configured per-container above) and recovers an entire container if it is deleted.
+
+**Recovery after a ransomware event:**
+
+1. Identify the last clean version timestamp (before encryption date)
+2. In Azure Portal, browse blob versions for the affected container
+3. For each blob, select the last clean version → **Make current version**
+4. Or use rclone/Cloud Sync Pull filtered by version timestamp to bulk-restore
 
 ### Restore from Azure Blob
 
@@ -416,7 +462,7 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] `archive-pool/replication/vm-pool-apps` has recent snapshots: `zfs list -t snapshot -r archive-pool/replication`
 - [ ] All three Cloud Sync tasks show **Success** in TrueNAS → Data Protection
 - [ ] Encrypted blobs are visible in Azure Portal for each container
-- [ ] Blob versioning is active on `vmpool-apps` and `archive-private` containers
+- [ ] Blob versioning is active on all containers (account-level setting, verify in Portal → Data Protection)
 - [ ] Snapshot browse test: `ls /mnt/vm-pool/apps/.zfs/snapshot/` shows recent entries
 - [ ] File restore test: copy a file from a snapshot and verify its contents
 - [ ] DB restore test: decrypt one dump with `DB_ENC_PASSPHRASE` and run `pg_restore --list` to verify integrity
@@ -428,3 +474,8 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] S.M.A.R.T. email alerts are enabled in TrueNAS → System → Alert Settings
 - [ ] TrueNAS system config file is exported and stored in password manager (re-export after config changes)
 - [ ] Boot environment exists as a pre-upgrade rollback point
+- [ ] Version-level immutability is enabled on the Azure Storage Account (cannot be changed after creation)
+- [ ] WORM retention policies are set: `vmpool-apps` (30 days), `archive-private` (90 days), `archive-media` (none)
+- [ ] Resource lock (`Delete`) exists on the Azure Storage Account: Portal → Locks
+- [ ] Container soft delete is enabled on the Azure Storage Account (≥ 7 days)
+- [ ] Account key is rotated periodically (Portal → Security + networking → Access keys)

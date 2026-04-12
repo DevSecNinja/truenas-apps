@@ -110,6 +110,16 @@ For shared purpose groups (`media`, `private-photos`, `private-documents`):
 
 The git repo lives on the `vm-pool/apps` dataset. Because `dccd.sh` decrypts `secret.sops.env` → `.env` files into this tree, access must be restricted to prevent other users from reading secrets.
 
+Create the `vm-pool/apps` dataset via the TrueNAS GUI with these properties:
+
+| Setting      | Value | Why                                                                                            |
+| ------------ | ----- | ---------------------------------------------------------------------------------------------- |
+| Compression  | `lz4` | Low CPU overhead; reduces snapshot size, replication transfer time, and Cloud Sync uploads     |
+| Enable Atime | Off   | Prevents a write on every read; no benefit for app data workloads                              |
+| ACL Type     | Off   | Plain Unix permissions; NFSv4 adds complexity with no benefit (same as `archive-pool/content`) |
+
+Verify compression is active: `zfs get compression vm-pool/apps` should return `lz4`. For the `archive-pool/content` dataset, `zstd` is configured instead — see [Dataset Layout](#dataset-layout).
+
 **Owner:** `truenas_admin` — allows `git pull` without sudo. Root does not need ownership because it bypasses all permission checks on Linux/ZFS.
 
 **Owning group:** `truenas_admin`.
