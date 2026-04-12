@@ -287,29 +287,31 @@ Settings per container:
 
 #### Step 2 — Set Default WORM Retention Policies
 
-After creating the containers, configure a **default time-based retention policy** on the containers that need one. Navigate to each container → **Access policy** (or **Immutability policy** in some Portal versions) → **Add policy**:
+After creating the containers, configure a **default time-based retention policy** on the containers that need one. For each container: Azure Portal → Storage Account → Containers → select container → **Access policy** → under **Immutable blob storage** → **Add policy** → select **Time-based retention policy**:
 
-| Container         | Retention (days) | Policy state | Action                       |
-| ----------------- | ---------------- | ------------ | ---------------------------- |
-| `vm-pool`         | **30**           | Unlocked     | Add default retention policy |
-| `archive-private` | **90**           | Unlocked     | Add default retention policy |
-| `archive-pool`    | —                | —            | Skip — no policy needed      |
-| `archive-media`   | —                | —            | Skip — no policy needed      |
+| Container         | Retention (days) | Policy state | Allow protected append writes | Action                       |
+| ----------------- | ---------------- | ------------ | ----------------------------- | ---------------------------- |
+| `vm-pool`         | **30**           | Unlocked     | Unchecked                     | Add default retention policy |
+| `archive-private` | **90**           | Unlocked     | Unchecked                     | Add default retention policy |
+| `archive-pool`    | —                | —            | —                             | Skip — no policy needed      |
+| `archive-media`   | —                | —            | —                             | Skip — no policy needed      |
 
 During the retention period, blob versions in that container **cannot be deleted by any credential** — not even account keys. Leave policies **unlocked** (allows future adjustment; locking is only needed for regulatory compliance like SEC 17a-4(f)). The `archive-pool` and `archive-media` containers intentionally have **no** retention policy — their content is either replaceable or already covered elsewhere.
 
-#### Step 3 — Configure Blob Soft Delete
+#### Step 3 — Verify Blob and Container Soft Delete
 
-Blob soft delete is an **account-level** setting (not per-container). Navigate to Storage Account → Data Protection → Recovery and set:
+Blob soft delete (14 days) and container soft delete (7 days) were already configured during [storage account creation](#azure-storage-account-setup) on the Data Protection tab. Verify the settings are active:
 
-| Setting                      | Value   |
-| ---------------------------- | ------- |
-| Enable soft delete for blobs | Checked |
-| Days to retain deleted blobs | **14**  |
+Azure Portal → Storage Account → Data management → **Data protection** → under **Recovery**:
 
-This applies to all containers equally. Soft-deleted blobs can be recovered within the retention window. The 14-day retention is a good balance — long enough to catch accidental deletes, short enough to limit cost overhead.
+| Setting                           | Expected value |
+| --------------------------------- | -------------- |
+| Enable soft delete for blobs      | Enabled        |
+| Days to retain deleted blobs      | **14**         |
+| Enable soft delete for containers | Enabled        |
+| Days to retain deleted containers | **7**          |
 
-> Note: the `archive-private` container holds irreplaceable data but soft delete beyond 14 days is unnecessary because its 90-day WORM policy already makes versions undeletable for that period. Soft delete only matters for containers _without_ WORM.
+These are account-level settings — they apply to all containers equally.
 
 #### Step 4 — Lifecycle Management for `archive-media`
 
@@ -400,7 +402,7 @@ The lock prevents deletion of the storage account and its containers — even by
 
 **3. Enable container soft delete**
 
-In Azure Portal → Storage Account → Data Protection, enable **soft delete for containers** with a retention of **7 days**. This is separate from _blob_ soft delete (already configured per-container above) and recovers an entire container if it is deleted.
+In Azure Portal → Storage Account → Data Protection, enable **soft delete for containers** with a retention of **7 days**. This is separate from _blob_ soft delete (already configured at account creation) and recovers an entire container if it is deleted.
 
 **Recovery after a ransomware event:**
 
