@@ -56,14 +56,15 @@ In the TrueNAS UI, go to **Datasets** and click **Add Dataset** on your pool:
 
 Still in **Datasets**, click **Add Zvol** under `vm-pool/vms`:
 
-| Setting     | Value                              | Why                                                                      |
-| ----------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| Zvol Name   | `debian-docker`                    | One zvol per VM for independent snapshots, rollbacks, and identification |
-| Path        | `vm-pool/vms/debian-docker`        |                                                                          |
-| Size        | `50 GiB` (adjust to your workload) | Enough headroom for the OS, Docker images, and container volumes         |
-| Sync        | Standard                           | Matches the parent dataset; appropriate for a VM disk                    |
-| Compression | lz4                                | VM filesystems compress well, especially blocks filled with zeros        |
-| Sparse      | Enabled (thin provisioning)        | Only allocates space as it is written; the cloud image starts at ~2 GiB  |
+| Setting       | Value                              | Why                                                                                                                                                       |
+| ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Zvol Name     | `svlazdev`                         | One zvol per VM for independent snapshots, rollbacks, and identification                                                                                  |
+| Path          | `vm-pool/vms/svlazdev`             |                                                                                                                                                           |
+| Size          | `50 GiB` (adjust to your workload) | Enough headroom for the OS, Docker images, and container volumes                                                                                          |
+| Sync          | Standard                           | Matches the parent dataset; appropriate for a VM disk                                                                                                     |
+| Compression   | lz4                                | VM filesystems compress well, especially blocks filled with zeros                                                                                         |
+| Sparse        | ✓ (checked)                        | Only allocates space as it is written; the cloud image starts at ~2 GiB                                                                                   |
+| Deduplication | Off                                | Do **not** enable dedup on VM zvols — it requires ~1 GB RAM per 1 TB of data, adds significant I/O overhead, and rarely yields savings for VM disk images |
 
 ---
 
@@ -74,7 +75,7 @@ All the commands in this section run on your **local machine**, not on TrueNAS.
 ### 2a. Set variables
 
 ```sh
-VM_NAME=debian-docker
+VM_NAME=svlazdev
 TRUENAS=truenas_admin@truenas.local
 IMAGE_PATH=/mnt/vm-pool/vms
 ```
@@ -94,8 +95,8 @@ Create a file named `${VM_NAME}-seed.yaml`:
 
 ```yaml
 #cloud-config
-hostname: debian-docker
-fqdn: debian-docker.home.arpa
+hostname: svlazdev
+fqdn: svlazdev.home.arpa
 
 users:
   - name: your-user
@@ -160,7 +161,7 @@ ssh truenas_admin@truenas.local
 ```
 
 ```sh
-VM_PATH=vm-pool/vms/debian-docker
+VM_PATH=vm-pool/vms/svlazdev
 IMAGE_PATH=/mnt/vm-pool/vms
 
 sudo qemu-img convert -O raw \
@@ -177,8 +178,8 @@ This expands the qcow2 image and writes it raw onto the zvol. The zvol size (50 
 Still on TrueNAS via SSH, create the VM and its devices using `midclt` (the TrueNAS middleware client):
 
 ```sh
-VM_NAME=debian-docker
-VM_PATH=vm-pool/vms/debian-docker
+VM_NAME=svlazdev
+VM_PATH=vm-pool/vms/svlazdev
 IMAGE_PATH=/mnt/vm-pool/vms
 VM_MEMORY=$(( 4 * 1024 ))   # 4 GiB — increase for heavier workloads
 
@@ -263,7 +264,7 @@ midclt call vm.device.delete "${CDROM_ID}"
 rm ${IMAGE_PATH}/${VM_NAME}-seed.img
 ```
 
-Or remove it manually via **Virtualization → debian-docker → Devices** in the TrueNAS UI.
+Or remove it manually via **Virtualization → svlazdev → Devices** in the TrueNAS UI.
 
 ---
 
@@ -317,8 +318,8 @@ Take ZFS snapshots of the zvol at key milestones so you can roll back cleanly:
 
 ```sh
 # On TrueNAS
-zfs snapshot vm-pool/vms/debian-docker@post-cloud-init
-zfs snapshot vm-pool/vms/debian-docker@post-docker-install
+zfs snapshot vm-pool/vms/svlazdev@post-cloud-init
+zfs snapshot vm-pool/vms/svlazdev@post-docker-install
 ```
 
 You can also configure periodic auto-snapshots in the TrueNAS UI under **Data Protection → Periodic Snapshot Tasks**.
