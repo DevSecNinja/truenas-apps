@@ -168,18 +168,9 @@ IMAGE_PATH=/mnt/vm-pool/iso
 
 ### 2b. Download the Debian generic cloud image
 
-<!-- dprint-ignore -->
-=== "macOS"
-
-    ```sh
-    curl -O ${DEBIAN_URL}
-    ```
-
-=== "Linux"
-
-    ```sh
-    wget ${DEBIAN_URL}
-    ```
+```sh
+wget ${DEBIAN_URL}
+```
 
 <!-- dprint-ignore -->
 !!! warning "Use `generic`, not `genericcloud`"
