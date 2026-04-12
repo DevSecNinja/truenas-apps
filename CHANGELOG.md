@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2026-04-12
+
+### Bug Fixes
+
+- **workflow**: Add paths to trigger on push and pull request events ([`b4d3ade`](https://github.com/DevSecNinja/truenas-apps/commit/b4d3ade2ebc390065be526a075f441286397d19f))
+- **theme**: Update color palette to blue and light blue for consistency ([`cdb6163`](https://github.com/DevSecNinja/truenas-apps/commit/cdb616383c72323ddfcec2110aed80e616b86a1a))
+
+### Documentation
+
+- Update cloud-init configuration to enable locale settings and adjust qemu-guest-agent service management ([`1c69b6f`](https://github.com/DevSecNinja/truenas-apps/commit/1c69b6fbf16e7f654bf867d05103d79d19230ba7))
+- Improve cloud-init ISO creation instructions for macOS by using a dedicated subdirectory for required files ([`b2f9ebb`](https://github.com/DevSecNinja/truenas-apps/commit/b2f9ebbc26a9e5c411034575aa644473ce31ef83))
+- Simplify Debian cloud image download instructions for Linux ([`c89f4e8`](https://github.com/DevSecNinja/truenas-apps/commit/c89f4e8675be8a1a64b3f3c68b51262726580def))
+- Clarify cloud-init ISO requirements and improve boot progress instructions ([`722212e`](https://github.com/DevSecNinja/truenas-apps/commit/722212e8b0e7560d2130b0966eda4abaae42f84e))
+- Enable secure boot option for Linux VM creation ([`3026c04`](https://github.com/DevSecNinja/truenas-apps/commit/3026c04e64d324be7269837f260d123b7731ec98))
+- Update VM-LINUX guide with clearer cloud-init seed image instructions and Debian image URLs ([`bcea070`](https://github.com/DevSecNinja/truenas-apps/commit/bcea0707350be0653655dc1c93f85d8d972c8e46))
+- Update cloud-init instructions for macOS and Linux with clearer commands ([`5482cd6`](https://github.com/DevSecNinja/truenas-apps/commit/5482cd655a9c34a8f05fc101cf872fde21535ef3))
+- Clarify shell requirements and streamline cloud-init seed instructions for macOS and Linux ([`9c6f152`](https://github.com/DevSecNinja/truenas-apps/commit/9c6f152653247ae3f74041b9c221977588254c94))
+- Add warning and snapshot instructions to VM teardown section ([`b6bfea1`](https://github.com/DevSecNinja/truenas-apps/commit/b6bfea13943c5054ff563129be763cb07f822eff))
+- Add teardown instructions for removing a Linux VM ([`c6a041b`](https://github.com/DevSecNinja/truenas-apps/commit/c6a041be5bb0b96e4a86dc2e529e949544acd50a))
+- Enhance VM-LINUX guide with NTP configuration and security hardening ([`5f2372c`](https://github.com/DevSecNinja/truenas-apps/commit/5f2372cb0c242b4cc88dddac3dbd9a88d1ebf65e))
+- Add timezone and locale configuration to VM-LINUX guide ([`7cadc0d`](https://github.com/DevSecNinja/truenas-apps/commit/7cadc0d767637b235dc198acba850e985a6eb899))
+- Rename Debian VM Deployment guide to Linux VM Deployment ([`2b841ca`](https://github.com/DevSecNinja/truenas-apps/commit/2b841cabe26f15eb31b21f9d0c19a2f001b04cb0))
+- Update VM-DEBIAN guide to change power state to poweroff and refine VM startup instructions ([`088d640`](https://github.com/DevSecNinja/truenas-apps/commit/088d640db55928584cf9c4e854c1ded8a4dc0f9e))
+- Update VM-DEBIAN guide to include Debian image variable and download instructions ([`6c46b63`](https://github.com/DevSecNinja/truenas-apps/commit/6c46b633b128799680aee5ef7fe50012fb5c445d))
+- Clarify instructions for monitoring VM boot progress in VM-DEBIAN guide ([`211b2a8`](https://github.com/DevSecNinja/truenas-apps/commit/211b2a8c52a1121d199038181686cf0557ebbe83))
+- Add qemu-guest-agent to package list in VM-DEBIAN guide ([`42cdb21`](https://github.com/DevSecNinja/truenas-apps/commit/42cdb211244e24559ebf0f304471bdadfeee8349))
+- Update VM-DEBIAN guide to include VLAN interface options and symlink confirmation for zvols ([`26a27fc`](https://github.com/DevSecNinja/truenas-apps/commit/26a27fcccb8ef2a1c46f6bae1a818f519df9bbfd))
+- Enhance VM-DEBIAN guide with detailed permissions and variable declarations ([`f105a30`](https://github.com/DevSecNinja/truenas-apps/commit/f105a30fe40978e0f14115b3ac0972c33d7c19da))
+- Standardize device type attributes in VM-DEBIAN guide ([`5d6e571`](https://github.com/DevSecNinja/truenas-apps/commit/5d6e57112cc832753739eca317d98bbfbd4e5bca))
+- Update VM-DEBIAN guide to improve clarity and organization of provisioning steps ([`13eabfc`](https://github.com/DevSecNinja/truenas-apps/commit/13eabfc7bca850219ad0f2f3086a1402e2ccc561))
+- Update VM-DEBIAN guide to clarify dataset creation and paths for VM images ([`0023944`](https://github.com/DevSecNinja/truenas-apps/commit/0023944edc6aafb4ff8240300388738ff090f0ae))
+- Add guidelines for writing pasteable shell code blocks in documentation ([`309ef8b`](https://github.com/DevSecNinja/truenas-apps/commit/309ef8b99720c9735611e93dee4b6ff8f6845c0a))
+- Add variable definitions for cloud-init configuration in VM-DEBIAN guide ([`92ecf69`](https://github.com/DevSecNinja/truenas-apps/commit/92ecf69d6a25290bf630ea4f90e73af4d36cf767))
+- Enhance VM-DEBIAN guide with variable definitions for cloud-init configuration ([`b649137`](https://github.com/DevSecNinja/truenas-apps/commit/b649137d9796153c4c5d0504c9873e10f608f4d2))
+- Clarify network configuration and deployment details in VM-DEBIAN and index guides ([`dc6a39d`](https://github.com/DevSecNinja/truenas-apps/commit/dc6a39d505b5daa3920df20f688ffbd5e0e738f2))
+- Update VM-DEBIAN guide to reflect changes in VM name and paths from 'svlazdev' to 'svldev' ([`aeb114b`](https://github.com/DevSecNinja/truenas-apps/commit/aeb114b16fff8972357af1a7341ec92185f25a00))
+- Update VM-DEBIAN guide with static IP and MAC address configuration details ([`72acb68`](https://github.com/DevSecNinja/truenas-apps/commit/72acb68663c3bbd2ab2500f4164653837a00fcfa))
+- Enhance VM-DEBIAN guide with dprint-ignore comments for admonitions ([`ace11f0`](https://github.com/DevSecNinja/truenas-apps/commit/ace11f098cde8cbb7d8ea989f03644af02b89e13))
+- Update cloud-init seed configuration with domain and security enhancements ([`ecae564`](https://github.com/DevSecNinja/truenas-apps/commit/ecae5649083b0b0d9bfd47eed0b687c38bef998f))
+- Enhance Debian VM guide with cloud-init seed cleanup instructions and shell compatibility notes ([`ec81092`](https://github.com/DevSecNinja/truenas-apps/commit/ec8109251340cc6f395d1fcc27feee7750b68582))
+- Add infrastructure aliases for TrueNAS and Home Assistant in A records configuration ([`7a70c56`](https://github.com/DevSecNinja/truenas-apps/commit/7a70c56fe240d1ad431d30776e82bccffb542c0e))
+- Update Debian VM guide to reflect changes in zvol naming and configuration ([`bd5e89e`](https://github.com/DevSecNinja/truenas-apps/commit/bd5e89ea6e5752ede473a1a75a1b14c26690505e))
+- Enhance documentation with VM and host naming conventions ([`5c766fc`](https://github.com/DevSecNinja/truenas-apps/commit/5c766fcd432cf211f7e36f101fe91f2a572d8aa2))
+- Add skill for writing and maintaining documentation ([`e7e8e4b`](https://github.com/DevSecNinja/truenas-apps/commit/e7e8e4b695e6f8c2121593be52e17173be66fa71))
+- Update Debian VM guide with cloud-init seed image instructions for macOS ([`e71d4f6`](https://github.com/DevSecNinja/truenas-apps/commit/e71d4f6661362cefd37608d5acb99df70abcb4a4))
+- Add guide for deploying a Debian VM on TrueNAS SCALE ([`84609ef`](https://github.com/DevSecNinja/truenas-apps/commit/84609efed41bf0c17d6b5cdaccfca69cf948f1db))
+- Enhance README with additional context on setup and migration experience ([`61533d7`](https://github.com/DevSecNinja/truenas-apps/commit/61533d736e88ba4ce568e1ea9d5230c42f22fc66))
+
 ## [0.14.0] - 2026-04-11
 
 ### Bug Fixes
@@ -13,6 +61,10 @@ All notable changes to this project will be documented in this file.
 
 - **endpoints**: Add homelab docs endpoint with custom conditions for monitoring ([`179aa6c`](https://github.com/DevSecNinja/truenas-apps/commit/179aa6c79dff2e8b6b77dda3c0ed04380b9de103))
 - **docs**: Add MkDocs configuration and initial documentation structure ([`ca71a5d`](https://github.com/DevSecNinja/truenas-apps/commit/ca71a5d981f3c06f0203cc4f2743ed90c1ac1136))
+
+### Miscellaneous
+
+- **version**: V0.14.0 ([`2744da0`](https://github.com/DevSecNinja/truenas-apps/commit/2744da0e43d8f40c8d8564987dee2e9851991890))
 
 ## [0.13.1] - 2026-04-11
 
