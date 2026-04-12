@@ -41,6 +41,7 @@ flowchart LR
         B1["vm-pool\nCool tier"]
         B2["archive-private\nCool tier"]
         B3["archive-media\nCool → Cold"]
+        B4["archive-pool\nCool tier"]
     end
 
     VM -- "Hourly\nsnapshots" --> VM
@@ -49,6 +50,7 @@ flowchart LR
     VM -- "Daily 04:00\nCloud Sync" --> B1
     ARC -- "Daily 05:00\nCloud Sync" --> B2
     ARC -- "Daily 06:00\nCloud Sync" --> B3
+    ARC -- "Daily 07:00\nCloud Sync" --> B4
 ```
 
 | Copy                  | Location                               | Protects against                 |
@@ -369,6 +371,8 @@ Two rules in this policy:
 
 Archive tier is not used — at current data volumes (< 4 TB) the savings over Cold (~$10/month) don't justify the 180-day minimum retention and hours-long rehydration delay. This can be revisited if media grows significantly.
 
+#### Step 5 — Create Cloud Credential
+
 Create a Cloud Credential in TrueNAS → Credentials → Cloud Credentials using a **Storage Account access key**. TrueNAS Cloud Sync only supports account keys for Azure Blob Storage.
 
 Account keys are data-plane credentials — they grant full read/write/delete access to blob data (including blob versions), but they **cannot** modify storage account settings (management plane). This means a compromised key cannot disable versioning, remove resource locks, or delete the account. The gap — that account keys _can_ delete individual blob versions — is closed by version-level immutability (WORM retention policies). See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
@@ -599,9 +603,9 @@ In Azure Portal → Storage Account → Settings → Locks, create:
 
 The lock prevents deletion of the storage account and its containers — even by users with Owner role. It must be manually removed before any destructive operation, adding a deliberate step that automated ransomware cannot perform. Account keys (data-plane) cannot remove locks (management-plane).
 
-**3. Enable container soft delete**
+**3. Container soft delete**
 
-In Azure Portal → Storage Account → Data Protection, enable **soft delete for containers** with a retention of **7 days**. This is separate from _blob_ soft delete (already configured at account creation) and recovers an entire container if it is deleted.
+Container soft delete (7 days) was already configured during [storage account creation](#azure-storage-account-setup) and verified in [Step 3](#step-3--verify-blob-and-container-soft-delete). This recovers an entire container if it is deleted — separate from blob-level soft delete.
 
 **Recovery after a ransomware event:**
 
@@ -701,14 +705,14 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
 
 These credentials must be stored securely outside the NAS (password manager) to enable full disaster recovery:
 
-| Secret                                  | Purpose                              | Used by                            |
-| --------------------------------------- | ------------------------------------ | ---------------------------------- |
-| Age private key (`age.key`)             | Decrypts all `secret.sops.env` files | SOPS / `dccd.sh`                   |
-| Cloud Sync encryption passphrase + salt | Decrypts Azure Blob backups          | rclone crypt / TrueNAS Cloud Sync  |
-| `DB_ENC_PASSPHRASE`                     | Decrypts database dump files         | `tiredofit/db-backup`              |
-| Azure Storage credential                | Authenticates to Azure Blob          | TrueNAS Cloud Sync tasks           |
-| ZFS encryption passphrase               | Unlocks `vm-pool/apps` dataset       | TrueNAS (on boot or manual unlock) |
-| TrueNAS system config (`.tar` file)     | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
+| Secret                                | Purpose                              | Used by                            |
+| ------------------------------------- | ------------------------------------ | ---------------------------------- |
+| Age private key (`age.key`)           | Decrypts all `secret.sops.env` files | SOPS / `dccd.sh`                   |
+| Cloud Sync encryption password + salt | Decrypts Azure Blob backups          | rclone crypt / TrueNAS Cloud Sync  |
+| `DB_ENC_PASSPHRASE`                   | Decrypts database dump files         | `tiredofit/db-backup`              |
+| Azure Storage credential              | Authenticates to Azure Blob          | TrueNAS Cloud Sync tasks           |
+| ZFS encryption passphrase             | Unlocks `vm-pool/apps` dataset       | TrueNAS (on boot or manual unlock) |
+| TrueNAS system config (`.tar` file)   | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
 
 All secrets are stored in an **online password manager** (cloud-synced), ensuring they remain accessible during a total site loss — even if the NAS, local network, and all on-premises devices are unavailable. The password manager is accessible from any device with internet access (phone, borrowed laptop, etc.), breaking the circular dependency where encrypted backups require keys stored on the same hardware that failed.
 
