@@ -405,6 +405,7 @@ RESULT=$(midclt call vm.create '{
     "name":        "'"${VM_NAME}"'",
     "cpu_mode":    "HOST-MODEL",
     "bootloader":  "UEFI",
+    "enable_secure_boot": true,
     "cores":       2,
     "threads":     2,
     "memory":      '"${VM_MEMORY}"',
