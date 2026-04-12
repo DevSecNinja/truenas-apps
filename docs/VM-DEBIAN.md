@@ -22,13 +22,12 @@ The cloud-init approach used here is based on [Automating VM Setup with cloud-in
 
 - TrueNAS SCALE installed and accessible over SSH (`ssh truenas_admin@truenas.local`).
 - A storage pool already created (the examples below use `vm-pool`).
-- On your **local machine**: `cloud-image-utils` installed to generate the seed image.
+- On your **local machine**: a tool to build the cloud-init seed image.
 
   ```sh
   # Debian / Ubuntu
-  sudo apt install cloud-image-utils
-  # macOS (Homebrew)
-  brew install cloud-image-utils
+  sudo apt install cloud-image-utils   # provides cloud-localds
+  # macOS — use hdiutil (built-in, no install needed)
   ```
 
 - Your **SSH public key** (`~/.ssh/id_ed25519.pub` or similar) ready to embed in the cloud-init config.
@@ -122,15 +121,32 @@ Replace `your-user` and the `ssh_authorized_keys` value with your own. The `powe
 
 ### 2d. Build the seed image
 
+**Linux** (`cloud-image-utils`):
+
 ```sh
-cloud-localds --verbose ${VM_NAME}-seed.qcow2 ${VM_NAME}-seed.yaml
+echo "instance-id: ${VM_NAME}" > meta-data
+echo "local-hostname: ${VM_NAME}" >> meta-data
+cloud-localds --verbose ${VM_NAME}-seed.iso ${VM_NAME}-seed.yaml meta-data
 ```
+
+**macOS** (`hdiutil`, built-in — no extra tools needed):
+
+```sh
+echo "instance-id: ${VM_NAME}" > meta-data
+echo "local-hostname: ${VM_NAME}" >> meta-data
+hdiutil makehybrid -o ${VM_NAME}-seed -hfs -joliet -iso \
+    -default-volume-name cidata .
+mv ${VM_NAME}-seed.iso ${VM_NAME}-seed.img
+```
+
+!!! note
+The seed must have the volume label `cidata` — cloud-init identifies it by that label, not the file extension.
 
 ### 2e. Copy both images to TrueNAS
 
 ```sh
 scp debian-12-generic-amd64.qcow2 ${TRUENAS}:${IMAGE_PATH}/
-scp ${VM_NAME}-seed.qcow2          ${TRUENAS}:${IMAGE_PATH}/
+scp ${VM_NAME}-seed.img            ${TRUENAS}:${IMAGE_PATH}/
 ```
 
 ---
@@ -195,7 +211,7 @@ midclt call vm.device.create '{
     "dtype": "CDROM",
     "order": 1005,
     "attributes": {
-        "path": "'"${IMAGE_PATH}/${VM_NAME}-seed.qcow2"'"
+        "path": "'"${IMAGE_PATH}/${VM_NAME}-seed.img"'"
     }
 }'
 
@@ -243,6 +259,8 @@ Once cloud-init has finished the seed image is no longer needed. Remove it to ke
 CDROM_ID=$(midclt call vm.device.query \
     '[["vm","=",'"${VM_ID}"'],["dtype","=","CDROM"]]' | jq '.[0].id')
 midclt call vm.device.delete "${CDROM_ID}"
+# Optionally remove the seed image from disk
+rm ${IMAGE_PATH}/${VM_NAME}-seed.img
 ```
 
 Or remove it manually via **Virtualization → debian-docker → Devices** in the TrueNAS UI.
