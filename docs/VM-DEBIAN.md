@@ -13,8 +13,9 @@ Instead of booting a Debian ISO and clicking through an installer, this approach
 
 The result: the VM boots, configures itself, and is reachable over SSH — all without a VNC console.
 
+<!-- dprint-ignore -->
 !!! info "Credit"
-The cloud-init approach used here is based on [Automating VM Setup with cloud-init on TrueNAS Scale](https://barelybuggy.blog/2023/12/19/truenas-automatic-vm-cloud-init/) and the linked [Roberto Rosario guide](https://blog.robertorosario.com/setting-up-a-vm-on-truenas-scale-using-cloud-init/).
+    The cloud-init approach used here is based on [Automating VM Setup with cloud-init on TrueNAS Scale](https://barelybuggy.blog/2023/12/19/truenas-automatic-vm-cloud-init/) and the linked [Roberto Rosario guide](https://blog.robertorosario.com/setting-up-a-vm-on-truenas-scale-using-cloud-init/).
 
 ---
 
@@ -92,8 +93,9 @@ IMAGE_PATH=/mnt/vm-pool/vms
 wget https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2
 ```
 
+<!-- dprint-ignore -->
 !!! warning "Use `generic`, not `genericcloud`"
-The `genericcloud` variant is missing the CD-ROM drivers that cloud-init needs to read the seed image when it is mounted as a virtual CD-ROM. Only the `generic` image works for this setup.
+    The `genericcloud` variant is missing the CD-ROM drivers that cloud-init needs to read the seed image when it is mounted as a virtual CD-ROM. Only the `generic` image works for this setup.
 
 ### 2c. Write your cloud-init config
 
@@ -128,12 +130,13 @@ power_state:
 
 Replace `your-user` and the `ssh_authorized_keys` value with your own. The `power_state` reboot at the end ensures the VM restarts cleanly after cloud-init finishes, so you will always connect to a fully configured machine.
 
+<!-- dprint-ignore -->
 !!! note "On `sudo: ALL=(ALL) NOPASSWD:ALL`"
-This grants full passwordless root access. It is relatively safe here because `ssh_pwauth: false` ensures
-only SSH key holders can log in — an attacker without your private key cannot reach the machine
-at all, and requiring a sudo password at that point adds no meaningful protection. If you prefer
-to require a password for sudo, remove `NOPASSWD:` from the sudo line and omit the `NOPASSWD`
-field.
+    This grants full passwordless root access. It is relatively safe here because `ssh_pwauth: false` ensures
+    only SSH key holders can log in — an attacker without your private key cannot reach the machine
+    at all, and requiring a sudo password at that point adds no meaningful protection. If you prefer
+    to require a password for sudo, remove `NOPASSWD:` from the sudo line and omit the `NOPASSWD`
+    field.
 
 ### 2d. Build the seed image
 
@@ -155,8 +158,9 @@ hdiutil makehybrid -o ${VM_NAME}-seed -hfs -joliet -iso \
 mv ${VM_NAME}-seed.iso ${VM_NAME}-seed.img
 ```
 
+<!-- dprint-ignore -->
 !!! note
-The seed must have the volume label `cidata` — cloud-init identifies it by that label, not the file extension.
+    The seed must have the volume label `cidata` — cloud-init identifies it by that label, not the file extension.
 
 ### 2e. Copy both images to TrueNAS
 
@@ -261,8 +265,9 @@ midclt call vm.device.create '{
 }'
 ```
 
+<!-- dprint-ignore -->
 !!! note
-Replace `br0` with your actual bridge or NIC name. Run `ip link` on TrueNAS to find the right interface.
+    Replace `br0` with your actual bridge or NIC name. Run `ip link` on TrueNAS to find the right interface.
 
 ### Start the VM
 

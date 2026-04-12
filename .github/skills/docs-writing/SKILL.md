@@ -34,19 +34,27 @@ All new `docs/*.md` files must be added to the `nav:` block in `mkdocs.yml`. Wit
 - **Admonitions**: Use MkDocs Material admonition syntax for callouts — they render as styled boxes on the site and are readable as plain text in editors.
 
   ```markdown
+  <!-- dprint-ignore -->
   !!! warning "Title"
-  Body text indented 4 spaces.
+      Body text indented 4 spaces under the !!! line. This is required — unindented
+      text renders outside the block.
 
+  <!-- dprint-ignore -->
   !!! note
-  Note without a custom title.
+      Note without a custom title.
 
+  <!-- dprint-ignore -->
   !!! tip
-  Tip callout.
+      Tip callout.
 
+  <!-- dprint-ignore -->
   !!! info "Credit"
-  Info / attribution callout.
+      Info / attribution callout.
   ```
 
+  **Critical**: every line of the admonition body must be indented exactly 4 spaces. Text at column 0 renders as normal paragraph text outside the box.
+
+  **Always prefix admonitions with `<!-- dprint-ignore -->`** — dprint's Markdown plugin interprets 4-space-indented text as a code block and strips the indentation, which breaks the rendering. The ignore comment tells dprint to leave the block untouched.
   Supported types: `note`, `tip`, `warning`, `danger`, `info`, `success`, `question`, `failure`, `bug`, `example`, `quote`.
 
 - **Code blocks**: Always specify a language for syntax highlighting (`` ```sh ``, `` ```yaml ``, `` ```text ``, etc.).
