@@ -39,7 +39,13 @@ theme:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  # yamlfmt: off
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_mermaid
+  # yamlfmt: on
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.highlight:

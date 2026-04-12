@@ -13,6 +13,52 @@ The vm-pool's lack of hardware redundancy makes cross-pool replication and off-s
 
 ---
 
+## Recovery Objectives
+
+| Metric                             | Target       | Rationale                                                                                                                                                              |
+| ---------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **RPO** (Recovery Point Objective) | **24 hours** | Daily backups are sufficient for a home lab. Hourly snapshots on vm-pool provide finer granularity for local rollback.                                                 |
+| **RTO** (Recovery Time Objective)  | **≤ 1 week** | DNS runs also on a separate Azure VM (svlazext), so core network services survive a NAS failure. Full app stack rebuild can be done over several days without urgency. |
+
+**What these targets mean in practice:**
+
+- A vm-pool SSD failure loses at most 24 hours of data (last replication to archive-pool).
+- A total site loss (fire/theft) loses at most 24 hours of data across all categories (app data, private photos, and media).
+- Full rebuild from Azure Blob takes up to a week due to Archive-tier rehydration (media) and the manual TrueNAS setup steps in [Disaster Recovery](DISASTER-RECOVERY.md).
+
+---
+
+## Architecture Overview
+
+```mermaid
+flowchart LR
+    subgraph NAS["TrueNAS (svlnas)"]
+        VM["vm-pool/apps\n1× SSD 2TB\n(no redundancy)"]
+        ARC["archive-pool\n2× 4TB mirror"]
+    end
+
+    subgraph Azure["Azure Blob Storage\n(encrypted uploads)"]
+        B1["vmpool-apps\nCool tier"]
+        B2["archive-private\nCool tier"]
+        B3["archive-media\nArchive tier"]
+    end
+
+    VM -- "Hourly\nsnapshots" --> VM
+    ARC -- "Daily\nsnapshots" --> ARC
+    VM -- "Daily 03:00\nZFS replication" --> ARC
+    VM -- "Daily 04:00\nCloud Sync" --> B1
+    ARC -- "Daily 05:00\nCloud Sync" --> B2
+    ARC -- "Daily 06:00\nCloud Sync" --> B3
+```
+
+| Copy                  | Location                               | Protects against                 |
+| --------------------- | -------------------------------------- | -------------------------------- |
+| **1 — Original**      | vm-pool (SSD) or archive-pool (mirror) | —                                |
+| **2 — Local replica** | archive-pool/replication (mirror)      | SSD failure, accidental deletion |
+| **3 — Off-site**      | Azure Blob Storage (encrypted)         | Fire, theft, flood, ransomware   |
+
+---
+
 ## Layer 1: ZFS Periodic Snapshots
 
 Snapshots provide instant, zero-cost local rollback. They protect against accidental deletion, bad upgrades, and application-level corruption. They do **not** protect against drive failure.
@@ -123,11 +169,11 @@ Create a credential for TrueNAS (one of):
 
 Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All tasks use TrueNAS encryption** (rclone crypt) — data is encrypted on the NAS before upload.
 
-| Task | Source path                       | Azure container   | Schedule         | Transfer mode |
-| ---- | --------------------------------- | ----------------- | ---------------- | ------------- |
-| A    | `/mnt/vm-pool/apps`               | `vmpool-apps`     | Daily 04:00      | Sync          |
-| B    | `/mnt/archive-pool/private`       | `archive-private` | Daily 05:00      | Sync          |
-| C    | `/mnt/archive-pool/content/media` | `archive-media`   | Weekly Sun 06:00 | Sync          |
+| Task | Source path                       | Azure container   | Schedule    | Transfer mode |
+| ---- | --------------------------------- | ----------------- | ----------- | ------------- |
+| A    | `/mnt/vm-pool/apps`               | `vmpool-apps`     | Daily 04:00 | Sync          |
+| B    | `/mnt/archive-pool/private`       | `archive-private` | Daily 05:00 | Sync          |
+| C    | `/mnt/archive-pool/content/media` | `archive-media`   | Daily 06:00 | Sync          |
 
 **Encryption**: When creating each task, enable **Encryption** in the task settings. TrueNAS will prompt for a passphrase and salt. Use the same passphrase for all three tasks (simpler key management) or unique ones per task (stronger isolation). **Store the passphrase and salt in your password manager** — without them, encrypted blobs cannot be restored.
 
@@ -259,18 +305,72 @@ These credentials must be stored securely outside the NAS (password manager) to 
 
 ---
 
+## Disk Health: Scrub Tasks & SMART Tests
+
+Backups protect against data loss, but proactive disk health monitoring prevents failures from happening silently. TrueNAS provides two complementary mechanisms.
+
+### ZFS Scrub Tasks
+
+A scrub reads every block on a pool, verifies checksums, and repairs any corruption from the redundant copy (mirror/RAIDZ). Without regular scrubs, bit rot can silently corrupt data — and on a non-redundant pool like vm-pool, a scrub at least detects corruption early so you can restore from backup before more damage accumulates.
+
+Create these tasks in TrueNAS → Data Protection → Scrub Tasks:
+
+| Pool           | Schedule          | Threshold (days) | Notes                                                    |
+| -------------- | ----------------- | ---------------- | -------------------------------------------------------- |
+| `vm-pool`      | Monthly (1st Sun) | 35               | No mirror — scrub detects but cannot self-heal           |
+| `archive-pool` | Monthly (1st Sun) | 35               | Mirror — scrub detects and auto-repairs from mirror copy |
+
+TrueNAS creates default scrub tasks for each pool on creation. Verify they exist and are scheduled monthly.
+
+**After a scrub completes**, check the pool status:
+
+```sh
+zpool status vm-pool
+zpool status archive-pool
+```
+
+Look for `errors: No known data errors` and zero values in the `CKSUM` column. Any checksum errors on vm-pool mean data corruption that cannot be self-healed — restore the affected files from a snapshot or replica immediately.
+
+### S.M.A.R.T. Tests
+
+S.M.A.R.T. tests query the drive's internal health diagnostics. A short test takes minutes and catches most impending failures. A long test reads the entire surface and can take hours.
+
+Create these tasks in TrueNAS → Data Protection → S.M.A.R.T. Tests:
+
+| Test type | Schedule           | Disks     |
+| --------- | ------------------ | --------- |
+| Short     | Weekly (Sun 02:00) | All disks |
+| Long      | Monthly (1st Sat)  | All disks |
+
+**Enable S.M.A.R.T. alerts** in TrueNAS → System → Alert Settings to receive email notifications when a drive reports errors or predictive failure.
+
+After a test completes, review results:
+
+```sh
+# View latest test results for a specific disk
+smarctl -l selftest /dev/sdX
+
+# View overall health assessment
+smarctl -H /dev/sdX
+```
+
+---
+
 ## Schedule Overview
 
 All times are local to the TrueNAS host.
 
 | Time                  | Task                                               | Type                   |
 | --------------------- | -------------------------------------------------- | ---------------------- |
+| 02:00 Sun (weekly)    | S.M.A.R.T. short test (all disks)                  | Disk Health            |
+| 1st Sat (monthly)     | S.M.A.R.T. long test (all disks)                   | Disk Health            |
+| 1st Sun (monthly)     | ZFS scrub (both pools)                             | Disk Health            |
 | Every hour            | vm-pool/apps snapshot                              | ZFS Periodic Snapshot  |
 | Every day             | archive-pool snapshot                              | ZFS Periodic Snapshot  |
 | 03:00 daily           | vm-pool → archive-pool replication                 | ZFS Replication        |
 | 04:00 daily           | vm-pool/apps → Azure `vmpool-apps`                 | Cloud Sync (encrypted) |
 | 05:00 daily           | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
-| 06:00 Sun             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
+| 06:00 daily           | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
 | On each `dccd.sh` run | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
 
 Tasks are staggered to avoid overlapping I/O on the NAS.
@@ -292,3 +392,6 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] Azure restore test: pull one file via rclone with the crypt passphrase and verify contents
 - [ ] All secrets in the [Secrets Inventory](#secrets-inventory) are present and current in your password manager
 - [ ] Cloud Sync email notifications fire on simulated failure (disable network briefly, verify alert arrives)
+- [ ] ZFS scrub tasks exist for both pools and last run shows no errors: `zpool status`
+- [ ] S.M.A.R.T. tests are scheduled and last results show **Passed**: `smartctl -H /dev/sdX`
+- [ ] S.M.A.R.T. email alerts are enabled in TrueNAS → System → Alert Settings

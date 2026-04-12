@@ -64,5 +64,9 @@
           "./path/to/any/other/taskfile.yml"
         ]
     },
+    "yaml.validate": true,
+    "yaml.customTags": [
+        "!!python/name scalar"
+    ],
     "git.postCommitCommand": "sync"
 }
