@@ -28,20 +28,20 @@ The result: the VM boots, configures itself, and is reachable over SSH — all w
 
 - TrueNAS SCALE installed and accessible over SSH (`ssh truenas_admin@truenas.local`).
 - A storage pool already created (the examples below use `vm-pool`).
-- On your **local machine**: a tool to build the cloud-init seed image.
+- Your **SSH public key** (`~/.ssh/id_ed25519.pub` or similar) ready to embed in the cloud-init config.
+
+On your **local machine**, install the cloud-init seed image tool if not already present:
 
 <!-- dprint-ignore -->
-    === "macOS"
+=== "macOS"
 
-        `hdiutil` is built-in — no install needed.
+    `hdiutil` is built-in — no install needed.
 
-    === "Linux"
+=== "Linux"
 
-        ```sh
-        sudo apt install cloud-image-utils
-        ```
-
-- Your **SSH public key** (`~/.ssh/id_ed25519.pub` or similar) ready to embed in the cloud-init config.
+    ```sh
+    sudo apt install cloud-image-utils
+    ```
 
 ---
 
@@ -117,19 +117,20 @@ mkdir -p /tmp/cloud-init && cd /tmp/cloud-init
 
 Set these once — all subsequent commands use them:
 
-| Variable       | Example value                   | What to set                                                                     |
-| -------------- | ------------------------------- | ------------------------------------------------------------------------------- |
-| `VM_NAME`      | `svldev`                        | VM hostname — used for zvol, cloud-init, and DNS record                         |
-| `VM_IP`        | `192.168.1.50`                  | Free static IP on your LAN                                                      |
-| `VM_GW`        | `192.168.1.1`                   | Your router / gateway IP                                                        |
-| `VM_MAC`       | `52:54:00:a1:b2:c3`             | QEMU/KVM OUI (`52:54:00`) + 3 unique octets of your choice                      |
-| `VM_USER`      | `your-user`                     | Non-root account cloud-init will create                                         |
-| `VM_DOMAIN`    | `yourdomain.com`                | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record      |
-| `VM_TZ`        | `Europe/Amsterdam`              | Timezone for the VM — should match your TrueNAS timezone                        |
-| `SSH_KEY`      | `ssh-ed25519 AAAA...`           | Full contents of `~/.ssh/id_ed25519.pub`                                        |
-| `TRUENAS`      | `truenas_admin@truenas.local`   | SSH target for your TrueNAS host                                                |
-| `IMAGE_PATH`   | `/mnt/vm-pool/iso`              | Path on TrueNAS where images are stored (the `iso` dataset from step 1a)        |
-| `DEBIAN_IMAGE` | `debian-12-generic-amd64.qcow2` | Cloud image filename — pick the value matching your target Debian version below |
+| Variable       | Example value                   | What to set                                                                |
+| -------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| `VM_NAME`      | `svldev`                        | VM hostname — used for zvol, cloud-init, and DNS record                    |
+| `VM_IP`        | `192.168.1.50`                  | Free static IP on your LAN                                                 |
+| `VM_GW`        | `192.168.1.1`                   | Your router / gateway IP                                                   |
+| `VM_MAC`       | `52:54:00:a1:b2:c3`             | QEMU/KVM OUI (`52:54:00`) + 3 unique octets of your choice                 |
+| `VM_USER`      | `your-user`                     | Non-root account cloud-init will create                                    |
+| `VM_DOMAIN`    | `yourdomain.com`                | Internal domain resolved by AdGuard/Unbound — used for FQDN and DNS record |
+| `VM_TZ`        | `Europe/Amsterdam`              | Timezone for the VM — should match your TrueNAS timezone                   |
+| `SSH_KEY`      | `ssh-ed25519 AAAA...`           | Full contents of `~/.ssh/id_ed25519.pub`                                   |
+| `TRUENAS`      | `truenas_admin@truenas.local`   | SSH target for your TrueNAS host                                           |
+| `IMAGE_PATH`   | `/mnt/vm-pool/iso`              | Path on TrueNAS where images are stored (the `iso` dataset from step 1a)   |
+| `DEBIAN_IMAGE` | `debian-13-generic-amd64.qcow2` | Cloud image filename — set below based on your target Debian version       |
+| `DEBIAN_URL`   | _(set by the tab below)_        | Full download URL for the image                                            |
 
 ```sh
 VM_NAME=svldev
@@ -149,12 +150,14 @@ IMAGE_PATH=/mnt/vm-pool/iso
 
     ```sh
     DEBIAN_IMAGE=debian-13-generic-amd64.qcow2
+    DEBIAN_URL=https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
     ```
 
 === "Debian 12 (Bookworm)"
 
     ```sh
     DEBIAN_IMAGE=debian-12-generic-amd64.qcow2
+    DEBIAN_URL=https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
     ```
 
 <!-- dprint-ignore -->
@@ -168,31 +171,15 @@ IMAGE_PATH=/mnt/vm-pool/iso
 <!-- dprint-ignore -->
 === "macOS"
 
-    === "Debian 13 (Trixie)"
-
-        ```sh
-        curl -O https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
-        ```
-
-    === "Debian 12 (Bookworm)"
-
-        ```sh
-        curl -O https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
-        ```
+    ```sh
+    curl -O ${DEBIAN_URL}
+    ```
 
 === "Linux"
 
-    === "Debian 13 (Trixie)"
-
-        ```sh
-        wget https://cloud.debian.org/images/cloud/trixie/latest/${DEBIAN_IMAGE}
-        ```
-
-    === "Debian 12 (Bookworm)"
-
-        ```sh
-        wget https://cloud.debian.org/images/cloud/bookworm/latest/${DEBIAN_IMAGE}
-        ```
+    ```sh
+    wget ${DEBIAN_URL}
+    ```
 
 <!-- dprint-ignore -->
 !!! warning "Use `generic`, not `genericcloud`"
