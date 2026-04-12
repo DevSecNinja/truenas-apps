@@ -190,6 +190,7 @@ packages:
   - curl
   - git
   - ca-certificates
+  - qemu-guest-agent
 
 power_state:
   mode: reboot
