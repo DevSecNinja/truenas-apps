@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0] - 2026-04-12
+
+### Bug Fixes
+
+- Update mermaid format in markdown extensions for proper rendering ([`dbe56d6`](https://github.com/DevSecNinja/truenas-apps/commit/dbe56d642d0e2e4a9190ed1eb70524f085e513d8))
+- Update DOMAINNAME references to use HOMEPAGE_VAR_DOMAINNAME in services.yaml ([`45549f3`](https://github.com/DevSecNinja/truenas-apps/commit/45549f31df28f513ac330aa28560646226a91511))
+
+### Documentation
+
+- Update backup documentation to include additional Cloud Sync tasks and clarify container soft delete configuration ([`85172d7`](https://github.com/DevSecNinja/truenas-apps/commit/85172d7ceb1de9314d72de375f4adca21401605b))
+- Enhance Cloud Sync task documentation with detailed task descriptions, transfer settings, and exclusion guidelines ([`a579ace`](https://github.com/DevSecNinja/truenas-apps/commit/a579aced4633539e730c62198f761a4b4b36e6bc))
+- Update Cloud Sync task instructions to include TimeMachine exclusions and clarify snapshot usage ([`3d61141`](https://github.com/DevSecNinja/truenas-apps/commit/3d61141c886565355eb0f239b5cd8a15dc9a00ca))
+- Update Cloud Sync task instructions to clarify exclusion of .zfs directories and enhance encryption settings ([`e47bd72`](https://github.com/DevSecNinja/truenas-apps/commit/e47bd725242d39f9f95ad3fb9736b45d85f9b729))
+- Update backup documentation to clarify Azure Blob recovery times and lifecycle management policies ([`00f344a`](https://github.com/DevSecNinja/truenas-apps/commit/00f344a62367c5fb7ce94ab0dae0258e69564cfa))
+- Update retention policy instructions for Azure blob containers to enhance clarity and detail ([`aa9cb68`](https://github.com/DevSecNinja/truenas-apps/commit/aa9cb683eebe2c247dc0ed6c87a701ff38bd8b2e))
+- Enhance backup documentation with detailed steps for Azure blob container configuration and retention policies ([`e301dc5`](https://github.com/DevSecNinja/truenas-apps/commit/e301dc5b7e6fb62b8ad2dc7bdc08abced7c01442))
+- Update backup documentation to correct references to 'vm-pool' and enhance clarity on Cloud Sync tasks ([`25806d0`](https://github.com/DevSecNinja/truenas-apps/commit/25806d06357a5eaf5a4032adb9362befde985706))
+- Enhance Cloud Sync documentation with detailed settings for Azure Storage configuration and version-level immutability ([`53d4068`](https://github.com/DevSecNinja/truenas-apps/commit/53d40688944055a9318e94f125fd5ebace361fc2))
+- Update architecture and backup documentation to include details about user home directories and dataset management ([`f3c8a24`](https://github.com/DevSecNinja/truenas-apps/commit/f3c8a249f44a7d6c7b2885e6cabab43e09be24c2))
+- Update backup schedule times for scrub and S.M.A.R.T. tasks to avoid overlap ([`ae107c5`](https://github.com/DevSecNinja/truenas-apps/commit/ae107c502731e083747a14d6181c712b78d34831))
+- Update replication task instructions for vm-pool to archive-pool with enhanced settings and clarify one-way replication process ([`c3d4204`](https://github.com/DevSecNinja/truenas-apps/commit/c3d42041a7ab648d47bd36c59a95278a53f2b65c))
+- Update backup documentation with detailed instructions for creating the parent container dataset and configuring replication settings ([`a16ccdc`](https://github.com/DevSecNinja/truenas-apps/commit/a16ccdc606206e2ca8466e296df0c3e9a58f8d43))
+- Enhance backup documentation with detailed instructions for initial snapshot verification and cleanup of old snapshots ([`96dd2f0`](https://github.com/DevSecNinja/truenas-apps/commit/96dd2f05d57ea5c4ca5735d037106446a812db67))
+- Enhance backup documentation with detailed snapshot configuration and retention policies for vm-pool and archive-pool ([`de24ce1`](https://github.com/DevSecNinja/truenas-apps/commit/de24ce1e488ad77254ff06f5905bfa2d8788bc95))
+- Update backup documentation to reflect pool-level snapshot settings and clarify dataset coverage ([`be895f0`](https://github.com/DevSecNinja/truenas-apps/commit/be895f0c3e533239b2d3d476ceb29d52ab4941b0))
+- Update backup documentation with corrected navigation paths and enhanced security instructions for configuration file management ([`5edd54d`](https://github.com/DevSecNinja/truenas-apps/commit/5edd54d7b1e138f3c593bb947bec1855f4840e97))
+- Update backup and infrastructure documentation with enhanced details on snapshot management, Azure-side ransomware protection, and dataset properties ([`2c302d6`](https://github.com/DevSecNinja/truenas-apps/commit/2c302d664fdecb2865028fd1946ec399923644e6))
+- Enhance backup documentation with TrueNAS host backup procedures and system configuration export instructions ([`60f0a95`](https://github.com/DevSecNinja/truenas-apps/commit/60f0a957d34ef4c0559b8fe1186fda777865abfe))
+- Add Backup Strategy documentation and link in Disaster Recovery guide ([`a649f9e`](https://github.com/DevSecNinja/truenas-apps/commit/a649f9eae934c70bef258fb2a56b0bfc72872d70))
+- Update services.yaml to use correct variable syntax for DOMAINNAME ([`5161e77`](https://github.com/DevSecNinja/truenas-apps/commit/5161e77a55a912d379cb8db7ac3aca1b28266f8d))
+- Update VM-LINUX.md with testing details and workflow duration ([`0c416f5`](https://github.com/DevSecNinja/truenas-apps/commit/0c416f57e9a21af98e154617e2575a1c3211364f))
+- Add NAS service configuration to services.yaml ([`c6c1b93`](https://github.com/DevSecNinja/truenas-apps/commit/c6c1b933f79d3cc7e326de96dbc4d039933b1364))
+- Update a-records.conf to include management network aliases and refine services.yaml structure ([`7b92fff`](https://github.com/DevSecNinja/truenas-apps/commit/7b92fffd9b20532b8cdf16a0971a595b7b7f97b5))
+- Add Homelab Docs bookmark with abbreviation and icon ([`4546856`](https://github.com/DevSecNinja/truenas-apps/commit/454685695f03a875fa96f136308d290db5613738))
+- Update cloud-init configuration to set locale and improve language support ([`0dabefa`](https://github.com/DevSecNinja/truenas-apps/commit/0dabefaa1d0e3de82bedcc8972065808b99c7518))
+
+### Features
+
+- Enhance YAML validation and custom tags in VSCode settings; add recovery objectives and architecture overview in backup documentation ([`89cfd48`](https://github.com/DevSecNinja/truenas-apps/commit/89cfd48a885884efe8bc35da93a1de1038b3b571))
+- **docs**: Add contributing guidelines and infrastructure documentation ([`3558bad`](https://github.com/DevSecNinja/truenas-apps/commit/3558bad1f79413964e711ab3be39dafb7b9f1dcf))
+
+### Miscellaneous
+
+- Update mise.lock to add checksums and URLs for yq tool platforms ([`94488df`](https://github.com/DevSecNinja/truenas-apps/commit/94488df7bb28383ea1d47fe2e161a12d199cff0d))
+
+### Refactoring
+
+- Remove YAML validation and custom tags from VSCode settings; add comment to mermaid extension in mkdocs configuration ([`02fceea`](https://github.com/DevSecNinja/truenas-apps/commit/02fceeaf8c6bb2790539c70e30cadcc0fc967214))
+- Remove 'Per Server Consoles' section from layout in settings.yaml ([`3475323`](https://github.com/DevSecNinja/truenas-apps/commit/3475323abea7ac244fde8810b0f14ab6653ac53c))
+- Reorganize bookmarks and settings by moving Security & Privacy tools to Tools section ([`0c1636c`](https://github.com/DevSecNinja/truenas-apps/commit/0c1636c08e9aca78a039ce4ccbcf0485eb2ae669))
+- Reorganize bookmarks and settings for Homelab and Security & Privacy sections ([`10225aa`](https://github.com/DevSecNinja/truenas-apps/commit/10225aa43d013388ffff2fd497d19f0d73748a0e))
+
 ## [0.15.0] - 2026-04-12
 
 ### Bug Fixes
@@ -49,6 +101,10 @@ All notable changes to this project will be documented in this file.
 - Update Debian VM guide with cloud-init seed image instructions for macOS ([`e71d4f6`](https://github.com/DevSecNinja/truenas-apps/commit/e71d4f6661362cefd37608d5acb99df70abcb4a4))
 - Add guide for deploying a Debian VM on TrueNAS SCALE ([`84609ef`](https://github.com/DevSecNinja/truenas-apps/commit/84609efed41bf0c17d6b5cdaccfca69cf948f1db))
 - Enhance README with additional context on setup and migration experience ([`61533d7`](https://github.com/DevSecNinja/truenas-apps/commit/61533d736e88ba4ce568e1ea9d5230c42f22fc66))
+
+### Miscellaneous
+
+- **version**: V0.15.0 ([`32f5e1a`](https://github.com/DevSecNinja/truenas-apps/commit/32f5e1a5c2afaad0f142686eb852da950cc82df5))
 
 ## [0.14.0] - 2026-04-11
 
