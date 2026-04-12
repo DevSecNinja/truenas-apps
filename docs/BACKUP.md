@@ -377,18 +377,30 @@ Account keys are data-plane credentials — they grant full read/write/delete ac
 
 Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks. **All tasks use TrueNAS encryption** (rclone crypt) — data is encrypted on the NAS before upload.
 
-| Task | Source path                       | Exclude                                                                    | Azure container   | Schedule    | Transfer mode |
-| ---- | --------------------------------- | -------------------------------------------------------------------------- | ----------------- | ----------- | ------------- |
-| A    | `/mnt/vm-pool`                    | `iso/`, `.zfs`                                                             | `vm-pool`         | Daily 04:00 | Sync          |
-| B    | `/mnt/archive-pool/private`       | `.zfs`                                                                     | `archive-private` | Daily 05:00 | Sync          |
-| C    | `/mnt/archive-pool/content/media` | `.zfs`                                                                     | `archive-media`   | Daily 06:00 | Sync          |
-| D    | `/mnt/archive-pool`               | `replication/`, `content/media/`, `private/`, `content/downloads/`, `.zfs` | `archive-pool`    | Daily 07:00 | Sync          |
+| Task | Source path                       | Exclude                                                                     | Azure container   | Schedule    | Transfer mode |
+| ---- | --------------------------------- | --------------------------------------------------------------------------- | ----------------- | ----------- | ------------- |
+| A    | `/mnt/vm-pool`                    | `iso/`, `.zfs/`                                                             | `vm-pool`         | Daily 04:00 | Sync          |
+| B    | `/mnt/archive-pool/private`       | `.zfs/`                                                                     | `archive-private` | Daily 05:00 | Sync          |
+| C    | `/mnt/archive-pool/content/media` | `.zfs/`                                                                     | `archive-media`   | Daily 06:00 | Sync          |
+| D    | `/mnt/archive-pool`               | `replication/`, `content/media/`, `private/`, `content/downloads/`, `.zfs/` | `archive-pool`    | Daily 07:00 | Sync          |
 
-**Exclude `.zfs` directories**: On every Cloud Sync task, add `.zfs` (or `.zfs/**`) to the **Exclude** list. Without this, rclone may traverse `.zfs/snapshot/` directories and upload every historical snapshot — multiplying storage costs and upload time. This is the most common Cloud Sync misconfiguration.
+**Exclude `.zfs/` directories**: On every Cloud Sync task, add `.zfs/` (with trailing slash) to the **Exclude** list. The trailing slash is important — in rclone, a bare name without `/` only matches files, not directories. Without this exclude, rclone traverses `.zfs/snapshot/` directories and uploads every historical snapshot — multiplying storage costs and upload time. This is the most common Cloud Sync misconfiguration.
 
-**Encryption**: When creating each task, enable **Encryption** in the task settings. TrueNAS will prompt for a passphrase and salt. Use the same passphrase for all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the passphrase and salt in your password manager** — without them, encrypted blobs cannot be restored.
+**Encryption**: When creating each task, enable **Remote Encryption** in Advanced Remote Options. TrueNAS will prompt for a password and salt. Use the same password for all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal, and filenames alone don't contain sensitive data. Content is still fully encrypted.
 
-**Snapshot consistency**: Cloud Sync reads from the live filesystem, not from a ZFS snapshot. For database files, consistency is guaranteed by the `tiredofit/db-backup` sidecars — they produce application-consistent dumps before Cloud Sync runs. The raw PostgreSQL/MongoDB data directories may be in an inconsistent state on disk, but the encrypted dump files in `backups/db-backup/` are always consistent and are the primary database recovery mechanism. Media and config files are static or rarely written, so live-sync is safe for those.
+**Use Snapshot**: Enable **Use Snapshot** in Advanced Options on every task. This creates a temporary ZFS snapshot before syncing, giving rclone a consistent point-in-time view of the filesystem. Without it, files modified during the sync (e.g. a db-backup dump being written) could be uploaded in a partially-written state. TrueNAS auto-destroys the temporary snapshot after sync completes.
+
+**Advanced Options** (same for all four tasks):
+
+| Setting                                 | Value     | Reason                                                |
+| --------------------------------------- | --------- | ----------------------------------------------------- |
+| Use Snapshot                            | Yes       | Point-in-time consistency                             |
+| Create empty source dirs on destination | No        | Not needed for backup                                 |
+| Follow Symlinks                         | No        | Avoids traversing outside the source path             |
+| Transfers                               | 4 (Low)   | Avoids saturating home upload bandwidth               |
+| Bandwidth Limit                         | _(empty)_ | Transfers setting is sufficient                       |
+| Use --fast-list                         | No        | Safe default; enable later if API costs are a concern |
+| Filename Encryption                     | No        | Allows browsing file names in Azure Portal            |
 
 **Task A — vm-pool:**
 
