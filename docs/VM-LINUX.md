@@ -191,6 +191,12 @@ manage_etc_hosts: true
 timezone: ${VM_TZ}
 locale: en_US.UTF-8
 
+ntp:
+  enabled: true
+  servers:
+    - 0.pool.ntp.org
+    - 1.pool.ntp.org
+
 users:
   - name: ${VM_USER}
     groups: [sudo]
@@ -200,6 +206,26 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL  # passwordless sudo
 
 ssh_pwauth: false  # disable SSH password authentication; key-only access
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/hardening.conf
+    content: |
+      # Prevent direct root login over SSH
+      PermitRootLogin no
+      # Drop idle sessions after 10 minutes (2 missed keepalives × 5 min interval)
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+
+  - path: /etc/sysctl.d/99-hardening.conf
+    content: |
+      # Drop packets that arrive on an interface that would not route them back the same way
+      net.ipv4.conf.all.rp_filter = 1
+      # Restrict kernel log (dmesg) to privileged users only
+      kernel.dmesg_restrict = 1
+      # Protect against SYN flood attacks by using cryptographic cookies instead of state allocation
+      net.ipv4.tcp_syncookies = 1
+      # Full ASLR: randomize stack, heap, and shared library addresses to harden against memory exploits
+      kernel.randomize_va_space = 2
 
 # Static network configuration — no DHCP, predictable address from first boot
 network:
@@ -216,7 +242,7 @@ network:
           via: ${VM_GW}
       nameservers:
         addresses:
-          - ${VM_GW}  # point to your gateway or AdGuard/Unbound for internal DNS
+          - ${VM_GW}
 
 package_update: true
 package_upgrade: true
@@ -225,6 +251,12 @@ packages:
   - git
   - ca-certificates
   - qemu-guest-agent
+  - unattended-upgrades
+
+runcmd:
+  - sysctl --system
+  - systemctl enable --now qemu-guest-agent
+  - dpkg-reconfigure -f noninteractive unattended-upgrades
 
 swap:
   size: 0
