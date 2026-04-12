@@ -58,10 +58,12 @@ The setup follows
 
 ## Documentation
 
-| Page                                      | Description                                   |
-| ----------------------------------------- | --------------------------------------------- |
-| [Architecture](ARCHITECTURE.md)           | Conventions, commit policy, release process   |
-| [Database Upgrades](DATABASE-UPGRADES.md) | PostgreSQL major version upgrade procedures   |
-| [Disaster Recovery](DISASTER-RECOVERY.md) | Full rebuild procedures for a fresh TrueNAS   |
-| [Troubleshooting](TROUBLESHOOTING.md)     | Docker, DNS, and permissions diagnostics      |
-| [Retired Services](RETIRED-SERVICES.md)   | Log of retired services and last active state |
+| Page                                      | Description                                          |
+| ----------------------------------------- | ---------------------------------------------------- |
+| [Architecture](ARCHITECTURE.md)           | Compose patterns, container security, networking     |
+| [Infrastructure](INFRASTRUCTURE.md)       | UID/GID allocation, storage, multi-server deployment |
+| [Contributing](CONTRIBUTING.md)           | Renovate, commit conventions, release process        |
+| [Database Upgrades](DATABASE-UPGRADES.md) | PostgreSQL major version upgrade procedures          |
+| [Disaster Recovery](DISASTER-RECOVERY.md) | Full rebuild procedures for a fresh TrueNAS          |
+| [Troubleshooting](TROUBLESHOOTING.md)     | Docker, DNS, and permissions diagnostics             |
+| [Retired Services](RETIRED-SERVICES.md)   | Log of retired services and last active state        |

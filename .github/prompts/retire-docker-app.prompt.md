@@ -25,9 +25,10 @@ Work through each item; skip any that don't apply to this app:
 6. **DNS A-records** (`services/adguard/config/unbound/conf.d/a-records.conf`) — remove the app's subdomain entry.
 7. **Gatus monitoring** (`services/gatus/config/config.yaml`) — remove any health-check endpoints for the app.
 8. **README.md** — remove the app from the Apps table and the dataset list.
-9. **docs/ARCHITECTURE.md** — remove UID/GID table entries, init container table entries, shared env references, and any app-specific sections.
-10. **servers.yaml** — if the app is explicitly listed under any server, remove it. Then re-run `scripts/generate-sops-rules.sh` and `sops-rekey` to update `.sops.yaml` and re-encrypt secrets.
-11. **docs/RETIRED-SERVICES.md** — add a row to the retired services table with: service name, date, reason, last active commit hash (the commit just before this retirement), and PR/issue link.
+9. **docs/ARCHITECTURE.md** — remove init container table entries, shared env references, and any app-specific sections.
+10. **docs/INFRASTRUCTURE.md** — remove UID/GID table entries, media/storage references, and any app-specific sections.
+11. **servers.yaml** — if the app is explicitly listed under any server, remove it. Then re-run `scripts/generate-sops-rules.sh` and `sops-rekey` to update `.sops.yaml` and re-encrypt secrets.
+12. **docs/RETIRED-SERVICES.md** — add a row to the retired services table with: service name, date, reason, last active commit hash (the commit just before this retirement), and PR/issue link.
 
 ## Validation
 

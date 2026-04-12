@@ -51,8 +51,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Architecture: ARCHITECTURE.md
+  - Reference:
+      - Architecture: ARCHITECTURE.md
+      - Infrastructure: INFRASTRUCTURE.md
   - Guides:
+      - Contributing: CONTRIBUTING.md
       - Database Upgrades: DATABASE-UPGRADES.md
       - Linux VM Deployment: VM-LINUX.md
       - Disaster Recovery: DISASTER-RECOVERY.md

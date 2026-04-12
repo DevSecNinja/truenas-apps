@@ -171,7 +171,7 @@ Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:
 bash /opt/apps/scripts/dccd.sh -d /opt/apps -S svlazext -k /opt/apps/age.key -x shared -f
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#multi-server-deployment) for full details on compose overrides, per-server Age keys, and Ansible integration.
+See [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md#multi-server-deployment) for full details on compose overrides, per-server Age keys, and Ansible integration.
 
 ---
 

@@ -8,8 +8,8 @@ Implement the app described below as a new stack in this repository.
 
 Requirements:
 
-- Use other apps in `services/<app>` as a foundation and implement it with best practices and architecture described in [ARCHITECTURE.md](../../docs/ARCHITECTURE.md).
-- Determine the correct PUID/PGID model for this app (media consumer, media producer, photos, or general — see the architecture doc).
+- Use other apps in `services/<app>` as a foundation and implement it with best practices described in [ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (compose patterns) and [INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) (UID/GID, storage, multi-server).
+- Determine the correct PUID/PGID model for this app (media consumer, media producer, photos, or general — see [INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md)).
 - If a new shared PGID group is needed, create the corresponding env file in `services/shared/env/`.
 - Every container must have a healthcheck. If the image is scratch-based (no shell), document why a healthcheck cannot be added.
 - Configure Traefik labels with the appropriate middleware chain (`chain-auth@file`, `chain-no-auth@file`, etc.). Add a no-auth router only when the app cannot support OAuth/SSO (e.g. mobile-only apps).
@@ -19,6 +19,7 @@ Requirements:
 - Validate the compose file by running `docker compose config` in the app directory.
 - Update `README.md`: add the app to the Apps table and the dataset list.
 - Update `docs/ARCHITECTURE.md`: add init container table entries, shared env entries, or new access model sections as needed.
+- Update `docs/INFRASTRUCTURE.md`: add UID/GID table entries, shared purpose group entries, or storage sections as needed.
 - Create a `secret.sops.env` template listing every secret variable the app requires, then encrypt it in-place with `sops -e -i $(full-path)/secret.sops.env`.
 - Output a summary table of all secrets/variables that need to be populated in `secret.sops.env`.
 - Document any manual steps required on the TrueNAS host (creating groups, users, dataset ACLs, etc.).

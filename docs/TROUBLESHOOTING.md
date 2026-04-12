@@ -38,7 +38,7 @@ dig google.com @9.9.9.9
 
 ## Permissions
 
-This section covers debugging file-permission errors on TrueNAS datasets. For the full permission model, see [ARCHITECTURE.md § UID/GID Allocation](ARCHITECTURE.md#uidgid-allocation) and [§ Media Access](ARCHITECTURE.md#media-access).
+This section covers debugging file-permission errors on TrueNAS datasets. For the full permission model, see [INFRASTRUCTURE.md § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) and [§ Media Access](INFRASTRUCTURE.md#media-access).
 
 ### Which ACL Type Is a Dataset Using?
 

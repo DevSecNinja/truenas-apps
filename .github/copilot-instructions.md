@@ -84,7 +84,9 @@ scripts/
   gha-trivy-image-scan.sh   # CI: Trivy vulnerability scan of all images
 
 docs/
-  ARCHITECTURE.md        # Compose conventions, security rules, UID/GID allocation
+  ARCHITECTURE.md        # Compose patterns, container security, networking, directory conventions
+  CONTRIBUTING.md        # Development workflow: Renovate, commits, releases
+  INFRASTRUCTURE.md      # Host setup: UID/GID allocation, storage, multi-server deployment
   DATABASE-UPGRADES.md   # PostgreSQL upgrade procedures (pgautoupgrade)
   DISASTER-RECOVERY.md   # Full rebuild procedures
   RETIRED-SERVICES.md    # Log of retired services with reasoning and last active commit
@@ -105,7 +107,7 @@ docs/
 
 ## Compose File Conventions (MUST follow)
 
-Read `docs/ARCHITECTURE.md` before editing any compose file. Key rules:
+Read `docs/ARCHITECTURE.md` (compose patterns) and `docs/INFRASTRUCTURE.md` (UID/GID, storage, multi-server) before editing any compose file. Key rules:
 
 - **Images**: Always include explicit registry prefix (`docker.io/library/...`, `ghcr.io/...`). Always digest-pinned (`@sha256:...`). Bare names like `busybox` are forbidden.
 - **Security**: Every container must have `read_only: true`, `no-new-privileges`, `cap_drop: ALL`, `mem_limit`, `pids_limit: 100`. Add `cap_add` only when provably required with a comment explaining why.
@@ -125,7 +127,7 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 3. Add the app's frontend network to `services/traefik/compose.yaml`
 4. Add DNS records to `services/adguard/config/unbound/a-records.conf`
 5. Update `README.md` (apps table + dataset list)
-6. Update `docs/ARCHITECTURE.md` (UID/GID table, init container table)
+6. Update `docs/INFRASTRUCTURE.md` (UID/GID table) and `docs/ARCHITECTURE.md` (init container table)
 7. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
 8. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
 9. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
