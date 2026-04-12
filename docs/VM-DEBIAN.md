@@ -216,7 +216,7 @@ packages:
   - qemu-guest-agent
 
 power_state:
-  mode: reboot
+  mode: poweroff
   condition: true
 EOF
 ```
@@ -424,34 +424,40 @@ A `null` response means success — `vm.start` returns nothing on success.
 
 ---
 
-## Step 4: Connect via SSH
+## Step 4: Remove the CD-ROM and start the VM
 
-Cloud-init runs on first boot and may take 1–2 minutes to complete (package upgrades can add more). Once done, the VM reboots automatically. Connect using the static IP configured in the cloud-init seed:
+Cloud-init runs on first boot, installs packages, and then powers the VM off cleanly. Watch the Serial Shell (**Virtualization → svldev → Serial Shell**) until you see the shutdown sequence complete and the TrueNAS UI shows the VM as stopped.
+
+Once it is stopped, remove the CD-ROM device — it is no longer needed and keeping it attached would cause cloud-init to re-run on the next boot:
+
+```sh
+CDROM_ID=$(midclt call vm.device.query \
+    | jq ".[] | select(.vm == ${VM_ID} and .attributes.dtype == \"CDROM\") | .id")
+midclt call vm.device.delete "${CDROM_ID}"
+rm ${IMAGE_PATH}/${VM_NAME}-seed.img
+```
+
+Then start the VM:
+
+```sh
+midclt call vm.start "${VM_ID}"
+```
+
+---
+
+## Step 5: Connect via SSH
+
+The VM boots in a few seconds on the second start. Connect using the static IP configured in the cloud-init seed:
 
 ```sh
 ssh ${VM_USER}@${VM_IP}
 ```
 
-No VNC client needed — cloud-init already installed your SSH key, created your user, and rebooted the VM cleanly.
-
-### Remove the CD-ROM after first boot
-
-Once cloud-init has finished the seed image is no longer needed. Remove it to keep the VM config tidy:
-
-```sh
-# Find and delete the CDROM device
-CDROM_ID=$(midclt call vm.device.query \
-    '[["vm","=",'"${VM_ID}"'],["dtype","=","CDROM"]]' | jq '.[0].id')
-midclt call vm.device.delete "${CDROM_ID}"
-# Optionally remove the seed image from disk
-rm ${IMAGE_PATH}/${VM_NAME}-seed.img
-```
-
-Or remove it manually via **Virtualization → svldev → Devices** in the TrueNAS UI.
+No VNC client needed — cloud-init already installed your SSH key, created your user, and configured the network.
 
 ---
 
-## Step 5: Register the VM in Unbound
+## Step 6: Register the VM in Unbound
 
 Add an A record for the VM so it is reachable by hostname on your LAN. In `services/adguard/config/unbound/conf.d/a-records.conf`, add:
 
@@ -469,7 +475,7 @@ Deploy AdGuard to pick up the change. Once active, `${VM_NAME}.${VM_DOMAIN}` wil
 
 ---
 
-## Step 6: Deploy Docker
+## Step 7: Deploy Docker
 
 Continue with the [DevSecNinja/docker](https://github.com/DevSecNinja/docker) repository, which handles:
 
