@@ -46,6 +46,12 @@ You do NOT write application source code, Docker Compose files, or shell scripts
 - Links to other docs: relative paths (`[Architecture](ARCHITECTURE.md)`), never absolute URLs
 - Table formatting: do not hand-align — just write the table; `dprint` formats it
 
+### Diagrams
+
+Use Mermaid (`` ```mermaid ``) for architecture and flow diagrams (e.g. DNS resolution paths, startup dependency chains, network traffic flows). MkDocs Material renders Mermaid natively via the `pymdownx.superfences` custom fence configured in `mkdocs.yml`. GitHub also renders Mermaid in Markdown previews, so diagrams work in both contexts without extra tooling.
+
+Prefer `flowchart LR` (left-to-right) for data/request flows and `flowchart TD` (top-down) for dependency/startup order. Keep diagrams concise — if a flow has more than ~8 nodes, consider splitting into multiple diagrams or simplifying.
+
 ### Container and infrastructure documentation
 
 When documenting a new service, always cross-check and update **all four** of these:
@@ -80,6 +86,18 @@ Both files describe the same project. When you edit one, always update the other
 Every new file under `docs/` must be added to the `nav:` block in `mkdocs.yml`.
 New guides go under `Guides:` in alphabetical order by display name.
 Omitting this causes `mkdocs build --strict` to fail in CI.
+
+### Per-service documentation
+
+Each service has its own `README.md` in `services/<app>/README.md`. These are symlinked into `docs/services/<app>.md` so MkDocs can serve them. When creating a new service README:
+
+1. Create `services/<app>/README.md` with the standard sections (title, why, compose file links, access, architecture, services, secrets, first-run setup, upgrade notes)
+2. Run `bash scripts/generate-docs-symlinks.sh` to create the symlink in `docs/services/`
+3. Add the entry to the `Services:` section in `mkdocs.yml` in alphabetical order by display name
+
+The symlinks are committed to Git. Never create files directly in `docs/services/` — always edit the source in `services/<app>/README.md`.
+
+**Link paths in service READMEs:** Because MkDocs resolves links relative to `docs/services/` (the symlink location), cross-references to other docs must use paths relative to that directory — not relative to `services/<app>/`. For example, link to `../INFRASTRUCTURE.md` (not `../../docs/INFRASTRUCTURE.md`). These links work in MkDocs strict mode; on GitHub the README content is still readable even though the relative link won't resolve from the `services/<app>/` path.
 
 ### Admonitions
 

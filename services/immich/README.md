@@ -62,7 +62,7 @@ The GID `3202` is hardcoded in the `command:` block because `env_file` values ar
 
 ### Database
 
-The `immich-db` image is a custom Postgres build from the Immich project that bundles the `pgvecto.rs` and `vectorchord` extensions required for ML-powered search. Standard `pgautoupgrade` images do not include these extensions, so **automated Postgres major version upgrades are not used here**. See [DATABASE-UPGRADES.md](../../docs/DATABASE-UPGRADES.md) and the [Immich Postgres upgrade docs](https://immich.app/docs/administration/postgres-upgrade) before performing any major version upgrade.
+The `immich-db` image is a custom Postgres build from the Immich project that bundles the `pgvecto.rs` and `vectorchord` extensions required for ML-powered search. Standard `pgautoupgrade` images do not include these extensions, so **automated Postgres major version upgrades are not used here**. See [DATABASE-UPGRADES.md](../DATABASE-UPGRADES.md) and the [Immich Postgres upgrade docs](https://immich.app/docs/administration/postgres-upgrade) before performing any major version upgrade.
 
 ### Database Backup
 

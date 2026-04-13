@@ -68,4 +68,8 @@ nav:
       - Linux VM Deployment: VM-LINUX.md
       - Disaster Recovery: DISASTER-RECOVERY.md
       - Troubleshooting: TROUBLESHOOTING.md
+  - Services:
+      - AdGuard Home: services/adguard.md
+      - Immich: services/immich.md
+      - Plex: services/plex.md
   - Retired Services: RETIRED-SERVICES.md
