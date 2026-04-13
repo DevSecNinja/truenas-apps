@@ -3,7 +3,7 @@ name: commit-and-release
 description: >
     Guide for writing Conventional Commit messages, committing changes, and
     creating releases in this repository. Use when asked to commit, write a
-    commit message, stage files, or create/cut a release.
+    commit message, stage files, push, or create/cut a release.
 ---
 
 ## Commit message format
@@ -63,6 +63,79 @@ mise exec -- cog verify "feat(immich): add hardware transcoding"
 ```
 
 Exit code 0 = valid. The `commit-msg` lefthook runs this automatically on every `git commit`.
+
+---
+
+## Commit workflow (step-by-step procedure)
+
+Follow these steps in order every time the user asks to commit, push, or "commit & push".
+
+### Step 1 — Inspect what changed
+
+```sh
+git diff --stat HEAD
+git status --short
+```
+
+Use this to understand the scope: which services, which file types, how many files.
+
+### Step 2 — Stage the files
+
+Prefer explicit paths over `git add .`:
+
+```sh
+git add services/immich/compose.yaml docs/ARCHITECTURE.md
+```
+
+If the user has already staged files, skip this step.
+
+### Step 3 — Derive and validate the commit message
+
+Draft a message following the Conventional Commits format below.
+Then validate it with `cog verify` before asking the user:
+
+```sh
+mise exec -- cog verify "feat(immich): add hardware transcoding support"
+```
+
+Exit code 0 = valid. If it fails, fix the message and retry.
+
+### Step 4 — Ask the user to confirm the commit message
+
+**MANDATORY**: Before committing, use the `vscode_askQuestions` tool to present the proposed commit message and ask for confirmation. Provide the message as an option the user can click — do not just print it in chat.
+
+Example question structure:
+
+- Header: "Commit message"
+- Question: "Does this commit message look right?"
+- Options: the proposed message as a selectable option, plus "Let me edit it" as a free-form alternative
+- Set `allowFreeformInput: true` so the user can type a corrected message
+
+If the user selects the proposed message, proceed. If they provide a different message, use that one and re-run `cog verify` before continuing.
+
+### Step 5 — Run the pre-commit hook
+
+Run lefthook explicitly so linting errors are surfaced before the commit:
+
+```sh
+mise exec -- lefthook run pre-commit
+```
+
+If any check fails, **stop and report the errors**. Do not commit until all checks pass.
+
+### Step 6 — Commit
+
+```sh
+git commit -m "<confirmed-message>"
+```
+
+The `commit-msg` hook will re-run `cog verify` automatically. Both hooks must pass.
+
+### Step 7 — Push
+
+```sh
+git push
+```
 
 ---
 
