@@ -106,6 +106,34 @@ http:
           X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
           server: ""
           Content-Security-Policy: "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"
+    # Standalone qBittorrent-specific headers middleware — replaces middlewares-secure-headers
+    # for qBittorrent. Uses frame-ancestors 'self' instead of 'none' because the qBittorrent
+    # Web UI opens dialogs (e.g. "Add category") as same-origin iframes. frame-ancestors
+    # 'none' causes "violates Content Security Policy" errors and blocks those dialogs.
+    middlewares-qbittorrent-secure-headers:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "OPTIONS"
+          - "PUT"
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "same-origin"
+        permissionsPolicy: "camera 'none'; geolocation 'none'; microphone 'none'; payment 'none'; usb 'none'; vr 'none';"
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+        customResponseHeaders:
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
+          server: ""
+          Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
+            'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
     middlewares-forward-auth:
       forwardAuth:
         address: "http://traefik-forward-auth:4181"

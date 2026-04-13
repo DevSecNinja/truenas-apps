@@ -78,7 +78,7 @@ services:
       - "traefik.http.routers.qbittorrent-rtr.rule=Host(`qbittorrent.${DOMAINNAME}`)"
       - "traefik.http.routers.qbittorrent-rtr.entrypoints=https"
       ## Middlewares
-      - "traefik.http.routers.qbittorrent-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.qbittorrent-rtr.middlewares=chain-auth-qbittorrent@file"
       ## HTTP Services
       - "traefik.http.routers.qbittorrent-rtr.service=qbittorrent"
       - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"

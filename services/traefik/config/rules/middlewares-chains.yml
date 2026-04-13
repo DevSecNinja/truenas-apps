@@ -22,6 +22,17 @@ http:
           - "middlewares-rate-limit-loose"
           - "middlewares-immich-secure-headers"
           - "middlewares-forward-auth"
+    chain-no-auth-qbittorrent:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-qbittorrent-secure-headers"
+    chain-auth-qbittorrent:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-qbittorrent-secure-headers"
+          - "middlewares-forward-auth"
     chain-auth:
       chain:
         middlewares:
