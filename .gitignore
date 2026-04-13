@@ -1,5 +1,6 @@
 # Ignore build artifacts and downloaded files
 bin/**
+site/
 
 # Secrets
 *.key

@@ -347,6 +347,14 @@ backend = "pipx:check-jsonschema"
 version = "3.2.513"
 backend = "pipx:checkov"
 
+[[tools."pipx:mkdocs-material"]]
+version = "9.7.6"
+backend = "pipx:mkdocs-material"
+
+[tools."pipx:mkdocs-material".options]
+pipx_args = "--include-deps"
+uvx = "false"
+
 [[tools."pipx:yamllint"]]
 version = "1.38.0"
 backend = "pipx:yamllint"

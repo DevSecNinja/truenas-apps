@@ -5,6 +5,7 @@ min_version = "2026.4.3"
 age = "1.2.1"
 "pipx:check-jsonschema" = "0.37.1"
 "pipx:checkov" = "3.2.513"
+"pipx:mkdocs-material" = { version = "9.7.6", uvx = "false", pipx_args = "--include-deps" }
 "pipx:yamllint" = "1.38.0"
 "pipx" = "1.11.1"
 actionlint = "1.7.12"
