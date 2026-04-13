@@ -262,7 +262,7 @@ Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immu
 | IP allowlist          | Add the external IP of your home network (shared by both client and TrueNAS behind NAT) |
 | Routing preference    | Microsoft network routing                                                               |
 
-> **Dynamic IP risk**: Home ISPs typically assign dynamic IPs. If your external IP changes, Cloud Sync will fail with 403 errors. Update the firewall allowlist when your IP changes, or switch to "Enable from all networks" if this becomes a maintenance burden (still protected by account key + WORM).
+> **Dynamic IP risk**: Home ISPs typically assign dynamic IPs. If your external IP changes, Cloud Sync will fail with 403 errors. Update the firewall allowlist when your IP changes, or switch to "Enable from all networks" if this becomes a maintenance burden (still protected by account key + blob versioning + soft delete).
 
 **Data Protection tab:**
 
@@ -272,9 +272,9 @@ Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immu
 | Soft delete for blobs                | Enabled — 14 days                                                 |
 | Soft delete for containers           | Enabled — 7 days                                                  |
 | Soft delete for file shares          | Enabled — 7 days (not used, but harmless)                         |
-| Enable versioning for blobs          | Enabled (required for version-level immutability)                 |
+| Enable versioning for blobs          | Enabled                                                           |
 | Enable blob change feed              | Enabled, keep all logs (audit trail of all create/modify/deletes) |
-| Enable version-level immutability    | **Enabled** (Access control section) — primary ransomware defense |
+| Enable version-level immutability    | **Enabled** (Access control section) — enables WORM capability per container; no container policies are currently active (see [Step 2](#step-2--worm-retention-policies-not-applied)) |
 
 **Encryption tab:**
 
@@ -283,7 +283,7 @@ Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immu
 | Encryption key management | Microsoft-managed keys                                                 |
 | Infrastructure encryption | Enabled (double encryption at infrastructure layer — defense-in-depth) |
 
-> **Important**: Version-level immutability cannot be disabled once enabled. This is intentional — it prevents a compromised credential from removing the protection. See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
+> **Important**: Version-level immutability (the account-level WORM capability) cannot be disabled once enabled. No container-level retention policies are currently configured — see [Step 2](#step-2--worm-retention-policies-not-applied) for the reasoning.
 
 #### Step 1 — Create Four Containers
 
@@ -302,18 +302,17 @@ Settings per container:
 - **Encryption scope**: leave empty (uses the account default)
 - **Enable version-level immutability support**: checked (inherited from account, cannot be unchecked)
 
-#### Step 2 — Set Default WORM Retention Policies
+#### Step 2 — WORM Retention Policies (Not Applied)
 
-After creating the containers, configure a **default time-based retention policy** on the containers that need one. For each container: Azure Portal → Storage Account → Containers → select container → **Access policy** → under **Immutable blob storage** → **Add policy** → select **Time-based retention policy**:
+No container-level time-based retention policies are configured on any container.
 
-| Container         | Retention (days) | Policy state | Allow protected append writes | Action                       |
-| ----------------- | ---------------- | ------------ | ----------------------------- | ---------------------------- |
-| `vm-pool`         | **30**           | Unlocked     | Unchecked                     | Add default retention policy |
-| `archive-private` | **90**           | Unlocked     | Unchecked                     | Add default retention policy |
-| `archive-pool`    | —                | —            | —                             | Skip — no policy needed      |
-| `archive-media`   | —                | —            | —                             | Skip — no policy needed      |
+**Why:** rclone (used by TrueNAS Cloud Sync) issues hard delete calls when propagating deletions in SYNC mode. Azure rejects these calls with a 409/412 error when a WORM policy is active — even if the deletion is intentional and the credential is valid. This causes the Cloud Sync task to fail every night for every file deleted from the NAS within the WORM retention window. There is no rclone flag to ignore only WORM-blocked deletes; `--ignore-errors` suppresses all errors, which masks real failures.
 
-During the retention period, blob versions in that container **cannot be deleted by any credential** — not even account keys. Policies are created in an **unlocked** state by default — this is what you want. A locked policy can never be shortened or removed (irreversible). Only lock policies if required for regulatory compliance (SEC 17a-4(f)). The `archive-pool` and `archive-media` containers intentionally have **no** retention policy — their content is either replaceable or already covered elsewhere.
+Policies were added initially (30 days on `vm-pool`, 90 days on `archive-private`) and removed on 2026-04-13 after observing the first run errors.
+
+The account-level version-level immutability capability remains enabled — this is permanent and cannot be undone. If a WORM-compatible backup tool is adopted in the future (e.g. Restic, which uses an append-only model and never issues deletes during a backup run), per-container policies can be re-added at that time.
+
+For now, ransomware protection relies on blob versioning, 14-day soft delete, and the resource lock. See [Azure-Side Ransomware Protection](#azure-side-ransomware-protection).
 
 #### Step 3 — Verify Blob and Container Soft Delete
 
@@ -592,20 +591,28 @@ Catch-all for everything on `archive-pool` not captured by Tasks B and C. Exclud
 
 ### Azure-Side Ransomware Protection
 
-Blob versioning and soft delete protect against accidents, but a compromised account key could delete individual blob versions, removing the recovery points. Three hardening layers close this gap:
+Blob versioning and soft delete protect against accidents, but a compromised account key could delete individual blob versions, removing the recovery points. Two hardening layers close this gap:
 
-**1. Version-level immutability (WORM) — the primary defense**
+<!-- dprint-ignore -->
+!!! warning "No WORM retention policies are active"
+    Container-level time-based retention policies were intentionally removed because
+    rclone SYNC mode issues hard deletes that Azure rejects when WORM is active, causing
+    nightly task failures for every file deleted from the NAS. See
+    [Step 2](#step-2--worm-retention-policies-not-applied) for full context.
 
-Version-level immutability is enabled at storage account creation (see [setup above](#azure-storage-account-setup)). Each container has a default time-based retention policy that makes blob versions **undeletable for the configured period** — regardless of the credential used. Even Storage Account access keys (which have full data-plane access) cannot delete an immutable version.
+    WORM-based immutability will be reconsidered when a WORM-compatible backup tool
+    (such as Restic) is adopted — see [issue #154](https://github.com/DevSecNinja/truenas-apps/issues/154).
+
+**1. Blob versioning + soft delete**
+
+Blob versioning is enabled at the account level. Every overwrite creates a new current version; the previous version is retained for 14 days by soft delete. A compromised account key can delete the current version, but it becomes a soft-deleted previous version — still recoverable from Azure Portal or via API within the retention window.
 
 How this protects against ransomware:
 
-- Ransomware encrypts all NAS files → Cloud Sync uploads the encrypted versions as new current versions → the pre-encryption versions become previous versions → **WORM prevents deletion of those previous versions** for 30 days (`vm-pool`) or 90 days (`archive-private`)
-- A compromised account key cannot shorten or remove the retention policy (management-plane operation), cannot disable versioning (management-plane), and cannot delete immutable versions (blocked by WORM)
+- Ransomware encrypts all NAS files → Cloud Sync uploads the encrypted versions as new current versions → the pre-encryption versions become soft-deleted previous versions → recoverable for 14 days
+- A compromised account key cannot disable versioning or extend the soft delete window (management-plane operations)
 
-Cloud Sync compatibility: With versioning enabled, Cloud Sync's Sync mode works normally. Overwrites create new current versions (old ones become protected previous versions). Deletes make the current version a previous version (also protected). New uploads succeed without interference.
-
-Policies are left **unlocked** — this allows extending or shortening the retention if needed. For a home lab this is the right trade-off: an attacker with management-plane access could delete an unlocked policy, but account keys don't grant management-plane access. Locking is only needed for SEC 17a-4(f) regulatory compliance.
+The 14-day window is shorter than a WORM policy would provide. This is an accepted trade-off until a WORM-compatible backup tool is in place.
 
 **2. Resource lock on the Storage Account**
 
@@ -618,7 +625,7 @@ In Azure Portal → Storage Account → Settings → Locks, create:
 
 The lock prevents deletion of the storage account and its containers — even by users with Owner role. It must be manually removed before any destructive operation, adding a deliberate step that automated ransomware cannot perform. Account keys (data-plane) cannot remove locks (management-plane).
 
-**3. Container soft delete**
+**Note on container soft delete**
 
 Container soft delete (7 days) was already configured during [storage account creation](#azure-storage-account-setup) and verified in [Step 3](#step-3--verify-blob-and-container-soft-delete). This recovers an entire container if it is deleted — separate from blob-level soft delete.
 
