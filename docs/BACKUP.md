@@ -11,6 +11,21 @@ This page documents the 3-2-1 backup strategy for the TrueNAS home lab: three co
 
 The vm-pool's lack of hardware redundancy makes cross-pool replication and off-site backup essential — not optional.
 
+<!-- dprint-ignore -->
+!!! danger "Known gap: TrueNAS VMs are NOT covered by off-site backup"
+    ZFS VMs are stored as **zvols** (block devices), not regular files. rclone cannot
+    read zvol data when traversing `/mnt/vm-pool/vms/`, so the `vm-pool-to-azure` Cloud
+    Sync task silently skips the entire `vms/` directory without error.
+
+    **What IS covered:** ZFS snapshots (Layer 1) and local replication to archive-pool
+    (Layer 2) work correctly for zvols — `zfs send` includes zvol data. VMs survive an
+    SSD failure but **not a total site loss (fire, theft).**
+
+    **Current stance:** All VMs are treated as rebuildable. Any files inside a VM that
+    must survive a site loss must be backed up out-of-band (e.g. copied to folders in `vm-pool/` or `archive-pool/`, which are picked up by Cloud Sync, or pushed to an external service directly from the VM).
+
+    If a VM containing irreplaceable state is added in the future, revisit this with a VM-level backup agent.
+
 ---
 
 ## Recovery Objectives
