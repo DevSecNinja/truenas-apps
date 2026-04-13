@@ -126,3 +126,4 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 ## Upgrade Notes
 
 No special upgrade procedures are required for this stack. AdGuard Home and Unbound handle schema and data migrations automatically on startup. Image updates are managed by Renovate via digest-pinning PRs.
+||||||| bb3d5bf
