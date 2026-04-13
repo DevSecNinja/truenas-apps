@@ -83,3 +83,43 @@ to produce release-scoped notes and creates the GitHub Release automatically.
 | `git-cliff`  | Changelog generation (`CHANGELOG.md` + GitHub Release notes)     |
 | `cliff.toml` | Commit grouping, body template, GitHub commit link configuration |
 | `cog.toml`   | Bump hooks, tag prefix, merge-commit filtering                   |
+
+## Per-Service Documentation
+
+Each service can have a `README.md` in its directory (e.g. `services/adguard/README.md`). These files are the source of truth for service-specific documentation — architecture, access URLs, init containers, secrets, first-run setup, and upgrade notes.
+
+### MkDocs integration via symlinks
+
+MkDocs can only serve files inside its `docs/` directory. To make service READMEs appear in the MkDocs site without duplicating content, the repo uses symlinks:
+
+```text
+docs/services/adguard.md → ../../services/adguard/README.md
+docs/services/plex.md    → ../../services/plex/README.md
+```
+
+A script generates and maintains these symlinks:
+
+```sh
+bash scripts/generate-docs-symlinks.sh
+```
+
+**When to run it:**
+
+- After adding a new service with a `README.md`
+- After retiring a service (stale symlinks are cleaned up automatically)
+
+The symlinks are committed to Git. Git stores them as text files containing the relative target path, so they work across clones on all platforms that support symlinks.
+
+### Adding a new service to MkDocs
+
+1. Create `services/<app>/README.md`
+2. Run `bash scripts/generate-docs-symlinks.sh`
+3. Add the entry to the `Services:` section in `mkdocs.yml` (alphabetical order by display name):
+
+   ```yaml
+   - Services:
+       - AdGuard Home: services/adguard.md
+       - New App: services/new-app.md
+   ```
+
+4. Commit the symlink and `mkdocs.yml` change together

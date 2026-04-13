@@ -128,9 +128,10 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 4. Add DNS records to `services/adguard/config/unbound/a-records.conf`
 5. Update `README.md` (apps table + dataset list)
 6. Update `docs/INFRASTRUCTURE.md` (UID/GID table) and `docs/ARCHITECTURE.md` (init container table)
-7. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
-8. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
-9. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
+7. Create `services/<app>/README.md` with per-service documentation, then run `bash scripts/generate-docs-symlinks.sh` and add the entry to the `Services:` section in `mkdocs.yml`
+8. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
+9. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
+10. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
 
 ## Retiring an App
 
