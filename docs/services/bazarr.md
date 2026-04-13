@@ -1,0 +1,1 @@
+../../services/bazarr/README.md

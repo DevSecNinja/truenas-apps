@@ -1,0 +1,1 @@
+../../services/spottarr/README.md

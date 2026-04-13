@@ -70,6 +70,28 @@ nav:
       - Troubleshooting: TROUBLESHOOTING.md
   - Services:
       - AdGuard Home: services/adguard.md
+      - Bazarr: services/bazarr.md
+      - Dozzle: services/dozzle.md
+      - Draw.io: services/drawio.md
+      - Echo Server: services/echo-server.md
+      - Excalidraw: services/excalidraw.md
+      - Gatus: services/gatus.md
+      - hadiscover API: services/hadiscover.md
+      - Home Assistant: services/home-assistant.md
+      - Homepage: services/homepage.md
       - Immich: services/immich.md
+      - Lidarr: services/lidarr.md
+      - MeTube: services/metube.md
+      - Outline: services/outline.md
       - Plex: services/plex.md
+      - Prowlarr: services/prowlarr.md
+      - qBittorrent: services/qbittorrent.md
+      - Radarr: services/radarr.md
+      - SABnzbd: services/sabnzbd.md
+      - Sonarr: services/sonarr.md
+      - Spottarr: services/spottarr.md
+      - Traefik: services/traefik.md
+      - Traefik Forward Auth: services/traefik-forward-auth.md
+      - TubeSync: services/tubesync.md
+      - Unifi: services/unifi.md
   - Retired Services: RETIRED-SERVICES.md

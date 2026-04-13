@@ -1,0 +1,1 @@
+../../services/prowlarr/README.md

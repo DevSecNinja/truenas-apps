@@ -2,11 +2,19 @@
 
 Plex is a self-hosted media server that organizes and streams your personal video, music, and photo libraries to any device.
 
+## Why
+
+Streaming services fragment your library across subscriptions and can remove content at any time. Plex lets you serve your own media collection to any device — phones, TVs, browsers — with a polished interface, hardware-accelerated transcoding, and offline sync. Running it behind Traefik means remote access works through your existing reverse proxy without exposing additional ports.
+
+## Compose File
+
+- [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/plex/compose.yaml)
+
 ## Access
 
-| URL                         | Description                      |
-| --------------------------- | -------------------------------- |
-| `https://plex.<DOMAINNAME>` | Web UI (proxied through Traefik) |
+| URL                          | Description                      |
+| ---------------------------- | -------------------------------- |
+| `https://plex.${DOMAINNAME}` | Web UI (proxied through Traefik) |
 
 ## Architecture
 
@@ -20,7 +28,7 @@ Plex is a self-hosted media server that organizes and streams your personal vide
 
 ### s6-overlay Exceptions
 
-This container uses LinuxServer's s6-overlay init system, which requires deviations from the standard hardening baseline (see ARCHITECTURE.md):
+This container uses LinuxServer's s6-overlay init system, which requires deviations from the standard hardening baseline (see [Architecture](../ARCHITECTURE.md)):
 
 - **`read_only` is omitted**: s6-overlay writes `/etc/passwd` and `/etc/group` to apply PUID/PGID at startup; these writes fail silently with `read_only: true`, causing PUID/PGID to be ignored entirely.
 - **`user:` is omitted**: s6-overlay starts as root and handles the privilege drop to PUID:PGID internally.
@@ -79,3 +87,7 @@ The relay feature (disabled above) routes streams through Plex's internet server
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
 - `PLEX_CLAIM_TOKEN` — one-time claim token for server registration
+
+## Upgrade Notes
+
+No special upgrade procedures. Plex handles database migrations automatically on startup. The claim token is only needed for initial setup — it can be removed from `secret.sops.env` after the server is registered. Image updates are managed by Renovate.

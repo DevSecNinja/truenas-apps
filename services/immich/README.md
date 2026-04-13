@@ -2,12 +2,20 @@
 
 Immich is a self-hosted photo and video management solution with mobile backup, facial recognition, and smart search.
 
+## Why
+
+Google Photos and iCloud lock your personal photos into proprietary ecosystems with opaque privacy policies. Immich provides the same mobile backup, facial recognition, and smart search experience — but entirely self-hosted. Your photos stay on your own storage, organised by year/month on the filesystem so they're accessible even without Immich running. The Microsoft Entra ID integration means authentication is centrally managed with your existing identity provider.
+
+## Compose File
+
+- [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/immich/compose.yaml)
+
 ## Access
 
-| URL                                  | Description                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------------------- |
-| `https://photos.<DOMAINNAME>`        | Web UI (Traefik forward-auth + Immich OAuth)                                          |
-| `https://photos-mobile.<DOMAINNAME>` | Mobile app endpoint (no Traefik forward-auth — Immich handles its own authentication) |
+| URL                                   | Description                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `https://photos.${DOMAINNAME}`        | Web UI (Traefik forward-auth + Immich OAuth)                                          |
+| `https://photos-mobile.${DOMAINNAME}` | Mobile app endpoint (no Traefik forward-auth — Immich handles its own authentication) |
 
 ## Architecture
 
@@ -62,7 +70,7 @@ The GID `3202` is hardcoded in the `command:` block because `env_file` values ar
 
 ### Database
 
-The `immich-db` image is a custom Postgres build from the Immich project that bundles the `pgvecto.rs` and `vectorchord` extensions required for ML-powered search. Standard `pgautoupgrade` images do not include these extensions, so **automated Postgres major version upgrades are not used here**. See [DATABASE-UPGRADES.md](../DATABASE-UPGRADES.md) and the [Immich Postgres upgrade docs](https://immich.app/docs/administration/postgres-upgrade) before performing any major version upgrade.
+The `immich-db` image is a custom Postgres build from the Immich project that bundles the `pgvecto.rs` and `vectorchord` extensions required for ML-powered search. Standard `pgautoupgrade` images do not include these extensions, so **automated Postgres major version upgrades are not used here**. See [Database Upgrades](../DATABASE-UPGRADES.md) and the [Immich Postgres upgrade docs](https://immich.app/docs/administration/postgres-upgrade) before performing any major version upgrade.
 
 ### Database Backup
 
@@ -97,6 +105,12 @@ Perform these steps once on the TrueNAS host before first deploy:
    - User: `truenas_admin`, Group: `truenas_admin`, mode `770` (no access for others)
    - No NFSv4 ACLs needed — subdirectory access is managed by init containers
 4. Create the dataset `vm-pool/apps/services/immich` in TrueNAS
+
+## Upgrade Notes
+
+The `immich-db` image is a custom Postgres build that bundles `pgvecto.rs` and `vectorchord` extensions. Standard `pgautoupgrade` images do not include these extensions, so **automated Postgres major version upgrades are not supported**. Follow the [Immich Postgres upgrade docs](https://immich.app/docs/administration/postgres-upgrade) and [Database Upgrades](../DATABASE-UPGRADES.md) before performing any major version upgrade.
+
+Immich application updates may include database migrations that run automatically on startup. Check the [Immich release notes](https://github.com/immich-app/immich/releases) before deploying major version bumps.
 
 ## Entra ID App Registration
 
