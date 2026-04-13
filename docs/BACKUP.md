@@ -266,14 +266,14 @@ Create a **new** Storage Account (e.g. `truenasbackupsprod`). Version-level immu
 
 **Data Protection tab:**
 
-| Setting                              | Value                                                             |
-| ------------------------------------ | ----------------------------------------------------------------- |
-| Point-in-time restore for containers | **Disabled** — incompatible with version-level immutability       |
-| Soft delete for blobs                | Enabled — 14 days                                                 |
-| Soft delete for containers           | Enabled — 7 days                                                  |
-| Soft delete for file shares          | Enabled — 7 days (not used, but harmless)                         |
-| Enable versioning for blobs          | Enabled                                                           |
-| Enable blob change feed              | Enabled, keep all logs (audit trail of all create/modify/deletes) |
+| Setting                              | Value                                                                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Point-in-time restore for containers | **Disabled** — incompatible with version-level immutability                                                                                                                           |
+| Soft delete for blobs                | Enabled — 14 days                                                                                                                                                                     |
+| Soft delete for containers           | Enabled — 7 days                                                                                                                                                                      |
+| Soft delete for file shares          | Enabled — 7 days (not used, but harmless)                                                                                                                                             |
+| Enable versioning for blobs          | Enabled                                                                                                                                                                               |
+| Enable blob change feed              | Enabled, keep all logs (audit trail of all create/modify/deletes)                                                                                                                     |
 | Enable version-level immutability    | **Enabled** (Access control section) — enables WORM capability per container; no container policies are currently active (see [Step 2](#step-2--worm-retention-policies-not-applied)) |
 
 **Encryption tab:**
