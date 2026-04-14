@@ -137,13 +137,16 @@ services:
 
   # Immich machine learning is a standard Python application (not s6-overlay).
   # It runs as non-root and supports user: directly.
+  # Hardware acceleration is enabled via the OpenVINO extends profile (Intel iGPU).
   immich-machine-learning:
-    # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
-    image: ghcr.io/immich-app/immich-machine-learning:v2.6.3@sha256:33b17015c3d14f2565e9b8cd36b48a70027b14b5cd20da7fbfff21a370b0309c
+    image: ghcr.io/immich-app/immich-machine-learning:v2.6.3-openvino@sha256:428b319762c5c0f39218162bd24cab38f48d369c580389e9897c8ab92807cf7a
     container_name: immich-machine-learning
     depends_on:
       immich-init:
         condition: service_completed_successfully
+    extends:
+      file: ./config/hwaccel.ml.yml
+      service: openvino # set to one of [cpu, cuda, openvino, openvino-wsl] for accelerated ML inference
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false

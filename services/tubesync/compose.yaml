@@ -35,6 +35,8 @@ services:
       - SETUID # init script drops from root to PUID
       - SETGID # init script drops from root to PGID
       - SETPCAP # clears the bounding capability set before exec-ing TubeSync
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128 # Intel QuickSync for ffmpeg hardware transcoding
     tmpfs:
       - /tmp
     volumes:
