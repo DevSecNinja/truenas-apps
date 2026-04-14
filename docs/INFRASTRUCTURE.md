@@ -2,6 +2,25 @@
 
 This page covers host-level setup, identity allocation, storage configuration, and multi-server deployment — everything outside the Docker Compose files themselves. For compose patterns and container security rules, see [Architecture](ARCHITECTURE.md).
 
+## Hardware (svlnas)
+
+The primary TrueNAS server is a compact, passively-cooled build optimised for low noise and low power consumption.
+
+| Category    | Qty | Component                      | Notes                              |
+| ----------- | --- | ------------------------------ | ---------------------------------- |
+| CPU         | 1   | Intel Core i3-9100             | 4C/4T, 65 W TDP, UHD Graphics 630 |
+| Motherboard | 1   | Fujitsu D3644-B                | LGA 1151, supports ECC UDIMMs      |
+| Memory      | 2   | Kingston KSM26ED8/32MF (32 GB) | DDR4-2666 ECC UDIMM — 64 GB total  |
+| Boot SSD    | 1   | Crucial M4 128 GB              | SATA 2.5″ — TrueNAS OS boot drive  |
+| Apps SSD    | 1   | Samsung 970 Evo Plus 2 TB      | NVMe M.2 — apps pool (vm-pool)     |
+| Data HDDs   | 2   | Seagate IronWolf 4 TB          | CMR, 5900 RPM — ZFS mirror pool    |
+| Case        | 1   | Fractal Design Core 1000       | Micro-ATX tower, USB 3.0 front I/O |
+| CPU Cooler  | 1   | Arctic Alpine 12 Passive       | Fanless — zero noise from CPU      |
+| Case Fan    | 1   | Noctua NF-A9 PWM (92 mm)       |                                    |
+| Case Fan    | 1   | Scythe Slip Stream PWM (120 mm) |                                   |
+| PSU         | 1   | Mini-box PicoPSU-160-XT        | DC-DC picoPSU — very low idle draw |
+| Accessory   | 1   | Mini-box PCI Bracket           | Mounts picoPSU connector to case   |
+
 ## UID/GID Allocation
 
 Every service runs under a dedicated non-root user with a unique UID. Each user has an auto-created primary group with the same GID (UID = GID). This ensures file ownership is unambiguous in `ls -la` and allows fine-grained access control via TrueNAS group membership.
@@ -423,7 +442,7 @@ Each remote server (Azure VMs) is managed by Ansible-pull which:
 
 ## Retiring an App
 
-Retirement is the inverse of adding an app. Use the prompt at `.github/prompts/retire-docker-app.prompt.md` for the full checklist — it covers removing compose files, Traefik networks/middleware, DNS records, documentation entries, and post-merge host cleanup.
+Retirement is the inverse of adding an app. Use the skill at `.github/skills/retire-docker-app/SKILL.md` for the full checklist — it covers removing compose files, Traefik networks/middleware, DNS records, documentation entries, and post-merge host cleanup.
 
 Key mechanisms:
 
