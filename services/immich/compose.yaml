@@ -153,6 +153,8 @@ services:
       - path: ../shared/env/tz.env
     environment:
       - MPLCONFIGDIR=/tmp # matplotlib defaults to /.config/matplotlib which is on the read-only rootfs
+      - HF_HOME=/cache # huggingface_hub writes to ~/.cache/huggingface which is on the read-only rootfs
+      - HF_HUB_DISABLE_XET=1 # Xet storage backend writes temp files to read-only rootfs paths; use standard HTTP downloads
     user: "3106:3202" # svc-app-immich:private-photos
     deploy:
       restart_policy:
