@@ -235,7 +235,7 @@ services:
   # build-from-source: This repo is owned by the same maintainer. The branch
   # reference is not digest-pinned, which is accepted for this first-party tool.
   gatus-sidecar:
-    build: https://github.com/DevSecNinja/gatus-sidecar.git#feature/docker-support
+    build: https://github.com/DevSecNinja/gatus-sidecar.git
     container_name: gatus-sidecar
     command:
       - --mode=docker
