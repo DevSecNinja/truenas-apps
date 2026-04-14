@@ -160,6 +160,7 @@ services:
         max_attempts: 3
         window: 120s
     networks:
+      - immich-frontend # Outbound internet required — downloads ML models from huggingface.co and modelscope.cn
       - immich-backend
     mem_limit: ${ML_MEM_LIMIT:-4096m}
     pids_limit: 100
