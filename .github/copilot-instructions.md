@@ -100,9 +100,11 @@ docs/
     labeler.yml          # Auto-labels PRs based on changed paths
     label-sync.yml       # Syncs repo labels from .github/labels.yaml
     release.yml          # Triggered on v* tag push: generates changelog and creates GitHub Release
-  prompts/
-    new-docker-app.prompt.md      # Reusable prompt for adding a new app
-    retire-docker-app.prompt.md   # Reusable prompt for retiring an app
+  skills/
+    new-docker-app/SKILL.md       # Skill for adding a new app
+    retire-docker-app/SKILL.md    # Skill for retiring an app
+    commit-and-release/SKILL.md   # Skill for commits and releases
+    docs-writing/SKILL.md         # Skill for writing documentation
 ```
 
 ## Compose File Conventions (MUST follow)
@@ -120,7 +122,7 @@ Read `docs/ARCHITECTURE.md` (compose patterns) and `docs/INFRASTRUCTURE.md` (UID
 
 ## Adding a New App
 
-Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key steps:
+Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key steps:
 
 1. Create `services/<app>/compose.yaml` following ARCHITECTURE.md patterns
 2. Create `services/<app>/secret.sops.env` listing required secret variables
@@ -135,7 +137,7 @@ Use the prompt at `.github/prompts/new-docker-app.prompt.md` as a checklist. Key
 
 ## Retiring an App
 
-Use the prompt at `.github/prompts/retire-docker-app.prompt.md` as a checklist. Key mechanisms:
+Use the skill at `.github/skills/retire-docker-app/SKILL.md` as a checklist. Key mechanisms:
 
 - `dccd.sh -R <app>` tears down a single app (server-aware, applies compose overrides)
 - Auto-cleanup in `dccd.sh` detects removed service directories after `git pull` and tears down orphaned projects automatically
