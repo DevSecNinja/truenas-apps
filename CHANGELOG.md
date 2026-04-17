@@ -2,6 +2,80 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2026-04-17
+
+### Bug Fixes
+
+- **cog**: Remove unsupported filter_commits field for cog 7.0 ([`3f7d883`](https://github.com/DevSecNinja/truenas-apps/commit/3f7d88330b6baa4a48d255a2edcd36b41861b621))
+- **dccd**: Skip apps with no services matching active profiles ([`f90cac4`](https://github.com/DevSecNinja/truenas-apps/commit/f90cac40ce528171cde4913233774f708696a05e))
+- **mosquitto**: Add non-internal network for port publishing ([`5706874`](https://github.com/DevSecNinja/truenas-apps/commit/570687483dc79ec2aa02b100d1784a77ec45c6c1))
+- **matter-server**: Restrict mDNS to LAN interface and lock down WebSocket API ([`6f770e8`](https://github.com/DevSecNinja/truenas-apps/commit/6f770e86a21dd1cb81f253e0ad38e4a14ec83436))
+- **matter-server**: Replace NET_ADMIN with NET_BIND_SERVICE ([`006bf5a`](https://github.com/DevSecNinja/truenas-apps/commit/006bf5a09abe36cf3eb3b4fdc67b4a4ddcfbde75))
+- Remove stderr suppression from init container chown commands ([`23336c8`](https://github.com/DevSecNinja/truenas-apps/commit/23336c8e1a211279c401e4ef8dfb960dfb41c245))
+- Restore verbose chown flags across init containers ([`57755b7`](https://github.com/DevSecNinja/truenas-apps/commit/57755b7527f5320706c0d47ef8a83b6d8a33a8f3))
+- **matter-server**: Drop no-new-privileges to enable mDNS capabilities ([`e1e1b58`](https://github.com/DevSecNinja/truenas-apps/commit/e1e1b587b171630741b974aed8a186509b1d8391))
+- **frigate**: Increase pids_limit to 512 for thread-heavy workload ([`a6e0260`](https://github.com/DevSecNinja/truenas-apps/commit/a6e026015a808305f25c7614b64c75818d23ad27))
+- Forward COMPOSE_PROFILES through sudo and optimize matter-server init ([`dab99b2`](https://github.com/DevSecNinja/truenas-apps/commit/dab99b2dc25a8e637b39d317274a18592f4911b0))
+- **immich**: Chown only mount point roots to avoid slow recursive ownership ([`b3b52d1`](https://github.com/DevSecNinja/truenas-apps/commit/b3b52d1111f147b92700a20af4e6615c47b4f51b))
+- Resolve frigate shm chown and mosquitto config access issues ([`ce0aae1`](https://github.com/DevSecNinja/truenas-apps/commit/ce0aae1f5e4310fbb26a262e1e3fa836b555992c))
+- Iot category in homepage ([`d92a127`](https://github.com/DevSecNinja/truenas-apps/commit/d92a12754f041130aae966204b85dfa615076c32))
+- Add s6-overlay caps and harden init containers against ZFS mount errors ([`a0f2bff`](https://github.com/DevSecNinja/truenas-apps/commit/a0f2bffa34d376932f1496f3ee8d4861b7be5028))
+- Add DAC_OVERRIDE to init containers for ZFS volume access ([`9d32731`](https://github.com/DevSecNinja/truenas-apps/commit/9d327310f306b62871adf6c5885fd744ea1f94e1))
+- Resolve runtime permission errors for IoT services ([`1ff9a44`](https://github.com/DevSecNinja/truenas-apps/commit/1ff9a44595a3c51876ddacb081df9f09c5a77d22))
+- Precreate iot-backend network ([`5f1eba5`](https://github.com/DevSecNinja/truenas-apps/commit/5f1eba5841ccd8b3e4d6938c07646e3000887f6e))
+- **adguard**: Add digitalsecurity subdomain exemption and remove redundant v60 forward zone ([`b01e339`](https://github.com/DevSecNinja/truenas-apps/commit/b01e339071f5a1440896a9891ddbbe3e36c4ea1f))
+- **gatus**: Use dedicated health endpoints for Plex, Immich, Dozzle, and Outline ([`03d2742`](https://github.com/DevSecNinja/truenas-apps/commit/03d2742b203207555ec027114b7d488a14173546))
+- **gatus**: Update Gatus URL for Radarr to include /ping ([`a8303ad`](https://github.com/DevSecNinja/truenas-apps/commit/a8303ad3f0f8e16a36b9339641f7480920c74995))
+- **services**: Update Gatus URL for Lidarr, Prowlarr, and Sonarr to include /ping ([`c1b810c`](https://github.com/DevSecNinja/truenas-apps/commit/c1b810c369ec771e0747f7400c77e3f47695c0d5))
+- **gatus**: Update conditions for Lidarr, Prowlarr, Sonarr, and SABnzbd services ([`ce4f9f2`](https://github.com/DevSecNinja/truenas-apps/commit/ce4f9f2c267d0dd237dd317863d66bc931c697d5))
+
+### CI/CD
+
+- **github-action**: Update action github/codeql-action ( v4.35.1 ➔ v4.35.2 ) ([`c343534`](https://github.com/DevSecNinja/truenas-apps/commit/c343534fe787226c892510d9304ea1eaff672955))
+- Update reusable workflow SHA pins to include config-sync templates support ([`3e6bcac`](https://github.com/DevSecNinja/truenas-apps/commit/3e6bcacad8faa60437fbd934b77da4b7feaaa81c))
+- Add pull-based config-sync and config-drift check ([`2b21200`](https://github.com/DevSecNinja/truenas-apps/commit/2b2120043bad8caff6a286d365ce1d518b81bd4a))
+- Use centralized reusable workflows from DevSecNinja/.github ([`b5ee454`](https://github.com/DevSecNinja/truenas-apps/commit/b5ee454283d01de240540868640bc8b3b2c074f7))
+
+### Documentation
+
+- **architecture**: Document compose profiles and activation workflow ([`f7f40b9`](https://github.com/DevSecNinja/truenas-apps/commit/f7f40b967f943e26b101a9c9d1c2cfe4735e1e07))
+- Standardize formatting in infrastructure documentation table ([`4a0ad29`](https://github.com/DevSecNinja/truenas-apps/commit/4a0ad29d7b549d2a0dddbfac1941803270dd5b02))
+- Update infrastructure documentation with hardware specifications and skill reference for app retirement ([`472a199`](https://github.com/DevSecNinja/truenas-apps/commit/472a199a237e393b9b9c562c542e9696d1b4402b))
+- Reorganize prompts into skills for adding and retiring Docker apps ([`7049ad3`](https://github.com/DevSecNinja/truenas-apps/commit/7049ad357783f94f8ec9e1e2c4df5d0661eb6bfd))
+- Add per-service README documentation for all services ([`4cb451d`](https://github.com/DevSecNinja/truenas-apps/commit/4cb451d2a0d6859cca80721b2f2d00b596012d97))
+- Update .gitignore and configuration files for MkDocs integration ([`0109147`](https://github.com/DevSecNinja/truenas-apps/commit/01091473f917f868280db3feabcd943b20d245c2))
+- Add per-service READMEs with MkDocs symlink integration ([`2c8cab3`](https://github.com/DevSecNinja/truenas-apps/commit/2c8cab3fd9a104d985a6da484caf9806bedc59fb))
+- Add per-service READMEs with MkDocs symlink integration ([`fa4917d`](https://github.com/DevSecNinja/truenas-apps/commit/fa4917d998565d18db9f0e7931a99b3ddef50edb))
+- **commit-and-release**: Update commit workflow and message validation steps ([`bb3d5bf`](https://github.com/DevSecNinja/truenas-apps/commit/bb3d5bf27db9f16bb49522ffc68b125128d3d666))
+- **agents**: Add Senior Technical Writer agent with TrueNAS and container expertise ([`2fc98a5`](https://github.com/DevSecNinja/truenas-apps/commit/2fc98a5cadaad645b999208d503cb1369f467dd7))
+- Improve formatting in backup documentation for clarity on storage account settings ([`3692a51`](https://github.com/DevSecNinja/truenas-apps/commit/3692a51f73b7e052345309d3e0548b0be7f1f8f4))
+- Update backup documentation to clarify WORM retention policies and dynamic IP risks ([`77bc77c`](https://github.com/DevSecNinja/truenas-apps/commit/77bc77c5c83e57e7233afd84e5d11860048cc05f))
+- Clarify off-site backup limitations for TrueNAS VMs and provide recovery guidance ([`604552b`](https://github.com/DevSecNinja/truenas-apps/commit/604552bed926eb8942a4148b866c47c69946929d))
+
+### Features
+
+- Add host-sysctl script for TrueNAS boot-time kernel tuning ([`f12ce17`](https://github.com/DevSecNinja/truenas-apps/commit/f12ce1753fc9e9d34d49714bfcd9c3659b72158a))
+- Add interactive --fix mode to dataset check script ([`b002fec`](https://github.com/DevSecNinja/truenas-apps/commit/b002feca3ccd53c1550d2ae72bf5876de058eda0))
+- **homepage**: Add IoT group and move Home Assistant into it ([`944de18`](https://github.com/DevSecNinja/truenas-apps/commit/944de18a8986feb928142fb179fc634ef3d6ebcb))
+- Add ZFS dataset check script for service directories ([`8820b40`](https://github.com/DevSecNinja/truenas-apps/commit/8820b40bef988a3470acc57597e3ba3c6ea1fc67))
+- **frigate**: Gate behind surveillance profile for on-demand activation ([`1ead81d`](https://github.com/DevSecNinja/truenas-apps/commit/1ead81d03ba2a512a3310ffa3a3955844294c183))
+- Add IoT service stack (mosquitto, esphome, frigate, matter-server, wmbusmeters, sqlite-web) ([`4566547`](https://github.com/DevSecNinja/truenas-apps/commit/4566547aa09c5cc6e4c0d37fa31dd215802062bb))
+- Remove Renovate configuration files and use the central .renovate repo ([`2fbfa5d`](https://github.com/DevSecNinja/truenas-apps/commit/2fbfa5d4dc86ea6416db6c9c113b6bb7bbe0e6b7))
+- Move Renovate config to separate repo ([`f322579`](https://github.com/DevSecNinja/truenas-apps/commit/f322579bd5216953e9b6d7e25c28c7c039fb7829))
+- Update Renovate configuration to use new paths ([`bd0130e`](https://github.com/DevSecNinja/truenas-apps/commit/bd0130eac65c5eabc446d7bfd28bc5d6053b35a8))
+- Add environment variables for Hugging Face cache and disable Xet storage backend ([`67bfdf2`](https://github.com/DevSecNinja/truenas-apps/commit/67bfdf246625c582aa9d1285f07d20a6a5d0e4d6))
+- Add outbound internet requirement for immich-machine-learning service to download ML models ([`894c4d2`](https://github.com/DevSecNinja/truenas-apps/commit/894c4d2fe86fe7906c4b3fe19727f9bd41572305))
+- Add hardware acceleration configurations for machine learning and update tubesync for Intel QuickSync support ([`1429d71`](https://github.com/DevSecNinja/truenas-apps/commit/1429d71381e7661f0bc90a685aad58ffd3eb532b))
+- **traefik**: Create new secure headers for qbt ([`cd5ef8c`](https://github.com/DevSecNinja/truenas-apps/commit/cd5ef8cf025d6a4652babc415cf2981d1c7aaf49))
+
+### Miscellaneous
+
+- **cog**: Ignore 'Initial commit' in changelog and validation ([`7b61c00`](https://github.com/DevSecNinja/truenas-apps/commit/7b61c001ac53cc6c23cee574b0a6fa2db724d075))
+
+### Refactoring
+
+- **frigate**: Comment out unused host port mappings ([`187c736`](https://github.com/DevSecNinja/truenas-apps/commit/187c73697b9a0870be3431f2982446a6f94ba062))
+
 ## [0.16.0] - 2026-04-12
 
 ### Bug Fixes
@@ -45,6 +119,7 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous
 
+- **version**: V0.16.0 ([`eff35cd`](https://github.com/DevSecNinja/truenas-apps/commit/eff35cda224a45022365e519e9eb1ab8bce3f6ee))
 - Update mise.lock to add checksums and URLs for yq tool platforms ([`94488df`](https://github.com/DevSecNinja/truenas-apps/commit/94488df7bb28383ea1d47fe2e161a12d199cff0d))
 
 ### Refactoring
