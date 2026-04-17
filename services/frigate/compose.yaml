@@ -67,6 +67,9 @@ services:
     cap_add:
       - CHOWN # Required by s6-overlay to set ownership on /dev/shm/logs
       - DAC_OVERRIDE # Required to traverse /dev/shm/logs directories
+      - FOWNER # Required by s6-overlay to bypass ownership checks
+      - SETUID # Required by s6-overlay to switch between service users
+      - SETGID # Required by s6-overlay to switch between service groups
     # Uncomment to enable Intel QuickSync hardware acceleration (requires /dev/dri)
     devices:
       - /dev/dri:/dev/dri

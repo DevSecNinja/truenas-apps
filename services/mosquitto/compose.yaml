@@ -22,7 +22,7 @@ services:
       - "-c"
       - |-
         mkdir -p /data/data /data/log &&
-        chown -Rv 3122:3122 /data
+        chown -Rv 3122:3122 /data 2>/dev/null || true
     volumes:
       - ./data:/data
 
@@ -52,6 +52,8 @@ services:
       - no-new-privileges=true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_READ_SEARCH # Required to read config file on ZFS-mounted volumes
     read_only: true
     tmpfs:
       - /tmp

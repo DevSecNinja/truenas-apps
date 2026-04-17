@@ -21,7 +21,7 @@ services:
       - "sh"
       - "-c"
       - |-
-        chown -Rv 3124:3124 /data
+        chown -Rv 3124:3124 /data 2>/dev/null || true
     volumes:
       - ./data:/data
 

@@ -21,7 +21,7 @@ services:
       - "sh"
       - "-c"
       - |-
-        chown -Rv 3123:3123 /wmbusmeters_data
+        chown -Rv 3123:3123 /wmbusmeters_data 2>/dev/null || true
     volumes:
       - ./data:/wmbusmeters_data
 
