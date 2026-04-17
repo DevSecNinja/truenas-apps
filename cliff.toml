@@ -28,6 +28,7 @@ commit_preprocessors = [
     { pattern = '\n.*', replace = "" },
 ]
 commit_parsers = [
+    { message = "^Initial commit$", skip = true },
     { message = "^feat", group = "Features" },
     { message = "^fix", group = "Bug Fixes" },
     { message = "^perf", group = "Performance" },
