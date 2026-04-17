@@ -16,21 +16,7 @@ permissions:
 
 jobs:
   label-sync:
-    name: Label Sync
-    runs-on: ubuntu-24.04
+    uses: DevSecNinja/.github/.github/workflows/label-sync.yml@9d70999b12a121517fcc40c0e3839479b9bd7b49 # main
     permissions:
       contents: read
       issues: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          sparse-checkout: .github/labels.yaml
-
-      - name: Sync Labels
-        uses: EndBug/label-sync@52074158190acb45f3077f9099fea818aa43f97a # v2.3.3
-        with:
-          config-file: .github/labels.yaml
-          delete-other-labels: true
-          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,5 @@
 ---
-name: "Run Todo to Issue"
+name: TODO to Issue
 
 on:
   push:
@@ -12,14 +12,7 @@ permissions:
 
 jobs:
   run:
-    name: "Run Todo to Issue"
-    runs-on: "ubuntu-24.04"
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - name: "TODO to Issue"
-        uses: "alstr/todo-to-issue-action@64aca8fda7023259aada83ba44ad988c4c443657" # v5
-        with:
-          AUTO_ASSIGN: false
+    uses: DevSecNinja/.github/.github/workflows/todo-to-issue.yml@9d70999b12a121517fcc40c0e3839479b9bd7b49 # main
+    permissions:
+      contents: read
+      issues: write
