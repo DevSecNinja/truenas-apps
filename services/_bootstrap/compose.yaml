@@ -106,6 +106,8 @@ services:
         ipv4_address: ${EGRESS_INIT_IP}
         mac_address: ${EGRESS_INIT_MAC}
       arr-stack-backend:
+      # Have to add the network to a container for it to be created
+      iot-backend:
     mem_limit: 64m
     pids_limit: 10
     security_opt:
