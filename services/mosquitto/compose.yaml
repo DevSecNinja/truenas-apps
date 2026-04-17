@@ -23,7 +23,7 @@ services:
       - |-
         mkdir -p /data/data /data/log /data/config &&
         cp /templates/mosquitto.conf /data/config/mosquitto.conf &&
-        chown -Rv 3122:3122 /data 2>/dev/null || true
+        chown -Rv 3122:3122 /data || true
     volumes:
       - ./config:/templates:ro
       - ./data:/data
