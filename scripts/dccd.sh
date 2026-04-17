@@ -452,6 +452,14 @@ redeploy_truenas_apps() {
             continue
         fi
 
+        # Skip apps where all services require a profile that isn't active
+        local _services
+        _services=$(${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" --project-name "${project_name}" --file "${compose_file}" config --services 2>/dev/null)
+        if [ -z "${_services}" ]; then
+            log_message "INFO:  ${app_name}: Skipping — no services match active profiles"
+            continue
+        fi
+
         log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
         _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
@@ -736,6 +744,14 @@ update_compose_files() {
                 # Validate the compose file(s) before touching any running containers
                 if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --quiet 2>/dev/null; then
                     log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
+                    return 0
+                fi
+
+                # Skip apps where all services require a profile that isn't active
+                local _services
+                _services=$(${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --services 2>/dev/null)
+                if [ -z "${_services}" ]; then
+                    log_message "INFO:  ${app_name}: Skipping — no services match active profiles"
                     return 0
                 fi
 
