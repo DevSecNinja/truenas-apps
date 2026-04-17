@@ -45,7 +45,8 @@ services:
         max_attempts: 3
         window: 120s
     networks:
-      - iot-backend
+      mosquitto-frontend:
+      iot-backend:
     ports:
       - "1883:1883" # MQTT — accessible from LAN for IoT devices
     mem_limit: ${MEM_LIMIT:-256m}
@@ -77,6 +78,11 @@ services:
       - homepage.description=MQTT broker for IoT devices
 
 networks:
+  mosquitto-frontend:
+    name: mosquitto-frontend
+    driver: bridge
+    # NOT internal — required for Docker to publish port 1883 to the host.
+    # iot-backend is internal:true, so a second non-internal network is needed.
   iot-backend:
     name: iot-backend
     external: true
