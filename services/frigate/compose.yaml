@@ -57,7 +57,6 @@ services:
       - "8554:8554" # RTSP restreaming
       - "8555:8555/tcp" # WebRTC over TCP
       - "8555:8555/udp" # WebRTC over UDP
-    shm_size: ${SHM_SIZE:-256m} # Shared memory for ML detection — increase for more cameras
     mem_limit: ${MEM_LIMIT:-4096m}
     pids_limit: 200 # Higher limit — Frigate runs multiple detector worker processes
     security_opt:
@@ -78,6 +77,7 @@ services:
     #   - /dev/bus/usb:/dev/bus/usb
     tmpfs:
       - /tmp
+      - /dev/shm:size=${SHM_SIZE:-256m} # Shared memory for ML detection
     volumes:
       - ./data/config:/config
       - ./data/storage:/media/frigate
