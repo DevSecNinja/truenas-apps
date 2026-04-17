@@ -447,7 +447,7 @@ redeploy_truenas_apps() {
         version=$(basename "${version_dir}")
 
         # Validate the compose file before touching any running containers
-        if ! ${SUDO} docker compose --project-name "${project_name}" --file "${compose_file}" config --quiet 2>/dev/null; then
+        if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" --project-name "${project_name}" --file "${compose_file}" config --quiet 2>/dev/null; then
             log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
             continue
         fi
@@ -464,6 +464,7 @@ redeploy_truenas_apps() {
         if [ "${NO_PULL}" -eq 0 ]; then
             log_message "STATE: Pulling images for ${app_name}"
             ${SUDO} docker compose \
+                "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 pull
@@ -479,6 +480,7 @@ redeploy_truenas_apps() {
             # want to block until the init work is done before deploying later apps.
             log_message "INFO:  ${app_name} output suppressed — check 'sudo docker compose --project-name ${project_name} logs' if needed"
             if ! ${SUDO} docker compose \
+                "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 up \
@@ -491,6 +493,7 @@ redeploy_truenas_apps() {
             fi
         else
             if ! ${SUDO} docker compose \
+                "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 up \
@@ -731,7 +734,7 @@ update_compose_files() {
                 done
 
                 # Validate the compose file(s) before touching any running containers
-                if ! ${SUDO} docker compose "${compose_file_args[@]}" config --quiet 2>/dev/null; then
+                if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --quiet 2>/dev/null; then
                     log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
                     return 0
                 fi
@@ -745,6 +748,7 @@ update_compose_files() {
                         cmd+=("${SUDO}")
                     fi
                     cmd+=(docker compose)
+                    cmd+=("${COMPOSE_PROFILE_ARGS[@]}")
                     if [ -n "${COMPOSE_OPTS}" ]; then
                         # Word-split is intentional: COMPOSE_OPTS is a controlled CLI flag (-o)
                         # shellcheck disable=SC2206
@@ -1092,6 +1096,18 @@ else
     log_message "INFO:  The remote branch is set to ${REMOTE_BRANCH}"
 fi
 
+# Forward COMPOSE_PROFILES as --profile CLI flags (sudo strips env vars,
+# so the COMPOSE_PROFILES env var wouldn't reach docker compose).
+COMPOSE_PROFILE_ARGS=()
+if [ -n "${COMPOSE_PROFILES:-}" ]; then
+    IFS=',' read -ra _profiles <<<"${COMPOSE_PROFILES}"
+    for _p in "${_profiles[@]}"; do
+        COMPOSE_PROFILE_ARGS+=(--profile "${_p}")
+    done
+    unset _profiles _p
+    log_message "INFO:  Docker Compose profiles: ${COMPOSE_PROFILES}"
+fi
+
 # Check if COMPOSE_OPTS is provided
 if [ -n "${COMPOSE_OPTS}" ]; then
     log_message "INFO:  Using additional docker compose options: ${COMPOSE_OPTS}"
@@ -1233,7 +1249,7 @@ if [ -n "${REMOVE_APP}" ]; then
             fi
         fi
         log_message "STATE: Running docker compose down for '${REMOVE_APP}' (project: ${project_name})"
-        ${SUDO} docker compose "${compose_args[@]}" -p "${project_name}" down --remove-orphans || true
+        ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_args[@]}" -p "${project_name}" down --remove-orphans || true
     else
         # Compose file already gone — fall back to label-based cleanup
         log_message "INFO:  Compose file not found — using label-based cleanup"
