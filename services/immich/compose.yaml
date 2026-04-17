@@ -30,7 +30,7 @@ services:
     command:
       - "sh"
       - "-c"
-      - "chown -Rv 3106:3202 /usr/src/app/upload /model-cache && /templates/envsubst.sh"
+      - "chown 3106:3202 /usr/src/app/upload /model-cache 2>/dev/null || true && /templates/envsubst.sh"
     volumes:
       - /mnt/archive-pool/private/photos/immich:/usr/src/app/upload
       - ./data/model-cache:/model-cache
