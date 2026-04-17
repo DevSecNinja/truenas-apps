@@ -21,7 +21,7 @@ services:
       - "sh"
       - "-c"
       - |-
-        chown 3124:3124 /data 2>/dev/null || true
+        chown -Rv 3124:3124 /data 2>/dev/null || true
     volumes:
       - ./data:/data
 
@@ -58,15 +58,13 @@ services:
         window: 120s
     mem_limit: ${MEM_LIMIT:-512m}
     pids_limit: 100
-    # no-new-privileges is intentionally omitted here. With a non-root user
-    # (3124:3124), no-new-privileges clears ambient capabilities on exec, making
-    # NET_ADMIN and NET_RAW ineffective. The CHIP mDNS stack needs these caps to
-    # bind multicast UDP sockets for Matter device discovery/commissioning.
+    security_opt:
+      - no-new-privileges=true
     cap_drop:
       - ALL
     cap_add:
       - NET_ADMIN # Required for joining multicast groups (IP_ADD_MEMBERSHIP)
-      - NET_RAW # Required for raw multicast sockets in CHIP mDNS
+      - NET_RAW # Required for mDNS multicast on the host network
     read_only: true
     tmpfs:
       - /tmp
