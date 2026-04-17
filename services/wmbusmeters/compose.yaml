@@ -15,6 +15,7 @@ services:
       - ALL
     cap_add:
       - CHOWN # Required to chown ./data to 3123:3123
+      - DAC_OVERRIDE # Required to write to ZFS-mounted volumes as root
     read_only: true
     command:
       - "sh"

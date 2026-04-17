@@ -16,6 +16,8 @@ services:
       - no-new-privileges=true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE # Required to create dirs in ZFS-mounted volumes as root
     read_only: true
     command:
       - "sh"
@@ -64,6 +66,7 @@ services:
       - ALL
     cap_add:
       - CHOWN # Required by s6-overlay to set ownership on /dev/shm/logs
+      - DAC_OVERRIDE # Required to traverse /dev/shm/logs directories
     # Uncomment to enable Intel QuickSync hardware acceleration (requires /dev/dri)
     devices:
       - /dev/dri:/dev/dri
