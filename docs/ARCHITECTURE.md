@@ -258,6 +258,56 @@ Services never mount `/var/run/docker.sock` directly. Instead, each gets its own
 
 If Traefik and Homepage shared one proxy, compromising either would grant the attacker the union of both permission sets. Separate proxies enforce least privilege per consumer.
 
+## Docker Compose Profiles
+
+Services with a `profiles:` key in their compose definition are **excluded from normal deploys**. Running `docker compose up -d` or `dccd.sh` does not start them — they only launch when their profile is explicitly activated. This is useful for services that are not always needed (e.g., an NVR that only runs when you are away from home).
+
+**Services using profiles:**
+
+| Profile        | Services                  | Purpose                               |
+| -------------- | ------------------------- | ------------------------------------- |
+| `surveillance` | `frigate-init`, `frigate` | NVR — only needed when away from home |
+
+### Activating a Profile
+
+**Environment variable (recommended):** Docker Compose natively reads the `COMPOSE_PROFILES` variable. Set it before running `dccd.sh`:
+
+```sh
+export COMPOSE_PROFILES=surveillance
+```
+
+Multiple profiles can be comma-separated:
+
+```sh
+export COMPOSE_PROFILES=surveillance,other
+```
+
+**On TrueNAS:** Add the export to the cron job that runs `dccd.sh`, or to `~/.bashrc` / `~/.profile` on the deployment user. The profiled services will start on the next deploy.
+
+**CLI flag (one-off):** For a single manual run without persisting:
+
+```sh
+docker compose --profile surveillance up -d
+```
+
+### Deactivating a Profile
+
+Unset the variable or remove the export line:
+
+```sh
+unset COMPOSE_PROFILES
+```
+
+On the next deploy, the profiled containers are no longer part of the active service set. `dccd.sh` uses `--remove-orphans` implicitly, so Docker Compose will stop and remove them automatically. To tear down immediately without waiting for a deploy cycle:
+
+```sh
+docker compose --profile surveillance down
+```
+
+### Gatus Monitoring
+
+When a profile is inactive, its containers do not exist, so their Traefik labels are not discoverable by the Gatus sidecar. Monitoring for profiled services is automatically gated — no manual Gatus configuration is needed to suppress alerts.
+
 ## Directory Conventions
 
 Each service follows a consistent layout:
