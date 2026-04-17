@@ -53,6 +53,12 @@ services:
     # Uncomment and adjust to pass through the USB radio dongle:
     # devices:
     #   - /dev/ttyUSB0:/dev/ttyUSB0
+    environment:
+      # Override the image defaults so the entrypoint finds our git-tracked
+      # config (:ro) and writes runtime data to ./data (writable).
+      - ETC_DIR=/wmbusmeters/etc
+      - LOGS_DIR=/wmbusmeters_data/logs
+      - READINGS_DIR=/wmbusmeters_data/logs/meter_readings
     mem_limit: ${MEM_LIMIT:-256m}
     pids_limit: 100
     security_opt:
@@ -65,8 +71,7 @@ services:
     volumes:
       - ./config/wmbusmeters.conf:/wmbusmeters/etc/wmbusmeters.conf:ro
       - ./config/meters.d:/wmbusmeters/etc/wmbusmeters.d:ro
-      - ./data/logs:/wmbusmeters/logs
-      - ./data/state:/wmbusmeters/state
+      - ./data:/wmbusmeters_data
     healthcheck:
       test:
         - "CMD-SHELL"

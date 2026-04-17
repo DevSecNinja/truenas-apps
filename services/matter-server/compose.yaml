@@ -62,6 +62,7 @@ services:
     cap_drop:
       - ALL
     cap_add:
+      - NET_ADMIN # Required for joining multicast groups (IP_ADD_MEMBERSHIP)
       - NET_RAW # Required for mDNS multicast on the host network
     read_only: true
     tmpfs:

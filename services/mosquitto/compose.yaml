@@ -20,10 +20,10 @@ services:
       - "sh"
       - "-c"
       - |-
-        chown -Rv 3122:3122 /mosquitto/data /mosquitto/log
+        mkdir -p /data/data /data/log &&
+        chown -Rv 3122:3122 /data
     volumes:
-      - ./data/data:/mosquitto/data
-      - ./data/log:/mosquitto/log
+      - ./data:/data
 
   mosquitto:
     image: docker.io/library/eclipse-mosquitto:2.0.21@sha256:78dcae7eaf78fe7e5b7f5f0cedc35b0d222a5e5a2650d40c6ca1bc156af6281b
