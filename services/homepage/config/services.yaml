@@ -13,3 +13,5 @@
         icon: jetkvm
         description: KVM Server
         siteMonitor: http://jetkvm.MANAGEMENT
+
+- IoT:

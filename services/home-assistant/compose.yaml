@@ -91,7 +91,7 @@ services:
       start_period: 60s
     labels:
       # Homepage
-      - homepage.group=Productivity
+      - homepage.group=IoT
       - homepage.name=Home Assistant
       - homepage.icon=home-assistant.svg
       - homepage.href=https://home-assistant.${DOMAINNAME}
