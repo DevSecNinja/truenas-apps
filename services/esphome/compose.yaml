@@ -1,0 +1,77 @@
+---
+services:
+  # ESPHome runs as root — it compiles C++ firmware using platformio at runtime,
+  # downloads platform packages from the internet, and manages build artifacts.
+  # This requires extensive filesystem writes across /config/.esphome/, /pioenv/,
+  # and other internal paths. read_only and user: are therefore omitted.
+  # cap_drop: ALL is still applied; CHOWN/SETUID/SETGID are not needed.
+  esphome:
+    image: ghcr.io/esphome/esphome:2025.4.1@sha256:39ad1bf40c034867b4e7b317b121e53838b0944c33cf3b1143273193e70529ee
+    container_name: esphome
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - esphome-frontend
+      - iot-backend
+    mem_limit: ${MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/config:/config
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "curl -sf http://localhost:6052/ -o /dev/null || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=IoT
+      - homepage.name=ESPHome
+      - homepage.icon=esphome.svg
+      - homepage.href=https://esphome.${DOMAINNAME}
+      - homepage.description=ESP device management and firmware builder
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=esphome-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.esphome-rtr.rule=Host(`esphome.${DOMAINNAME}`)"
+      - "traefik.http.routers.esphome-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.esphome-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.esphome-rtr.service=esphome"
+      - "traefik.http.services.esphome.loadbalancer.server.port=6052"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.esphome-monitor.rule=Host(`esphome.${DOMAINNAME}`)"
+      - "traefik.http.routers.esphome-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.esphome-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.esphome-monitor.service=esphome"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444"
+      - "gatus.headers.Host=esphome.${DOMAINNAME}"
+      - 'gatus.client={"ignore-redirect": true}'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  esphome-frontend:
+    name: esphome-frontend
+    driver: bridge
+  iot-backend:
+    name: iot-backend
+    external: true

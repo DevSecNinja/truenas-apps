@@ -84,8 +84,11 @@ services:
       spottarr-frontend:
       tubesync-frontend:
       drawio-frontend:
+      esphome-frontend:
+      frigate-frontend:
       home-assistant-frontend:
       outline-frontend:
+      sqlite-web-frontend:
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -265,4 +268,13 @@ networks:
     external: true
   outline-frontend:
     name: outline-frontend
+    external: true
+  esphome-frontend:
+    name: esphome-frontend
+    external: true
+  frigate-frontend:
+    name: frigate-frontend
+    external: true
+  sqlite-web-frontend:
+    name: sqlite-web-frontend
     external: true

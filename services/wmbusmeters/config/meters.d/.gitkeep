@@ -1,0 +1,9 @@
+# Place meter definition files here.
+# Example file: my_water_meter
+#
+# name=my_water_meter
+# type=izar
+# id=12345678
+# key=
+#
+# See: https://github.com/wmbusmeters/wmbusmeters/blob/master/README.md#meter-configuration

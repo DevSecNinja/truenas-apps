@@ -1,0 +1,83 @@
+---
+services:
+  # SQLite Web provides a read-only browser UI for the Home Assistant SQLite
+  # database. It mounts the HA database file as :ro so it can only read, never
+  # modify the data. The -r flag enables read-only mode in the application.
+  #
+  # No init container needed — the HA database is managed by Home Assistant
+  # and this container only reads it.
+  sqlite-web:
+    image: docker.io/coleifer/sqlite-web:latest@sha256:1e5b86237968ed747554f951c6df2fc2fe4bf4ef070b8ca23d553d7f6c6426f7
+    container_name: sqlite-web
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - sqlite-web-frontend
+    command:
+      - "sqlite_web"
+      - "-r"
+      - "-H"
+      - "0.0.0.0"
+      - "-p"
+      - "8080"
+      - "/data/home-assistant_v2.db"
+    mem_limit: ${MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ../home-assistant/data/config:/data:ro
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -q --spider http://localhost:8080/ || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=IoT
+      - homepage.name=SQLite Web
+      - homepage.icon=mdi-database-search-#ffffff
+      - homepage.href=https://sqlite-web.${DOMAINNAME}
+      - homepage.description=SQLite database browser for Home Assistant
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=sqlite-web-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.sqlite-web-rtr.rule=Host(`sqlite-web.${DOMAINNAME}`)"
+      - "traefik.http.routers.sqlite-web-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.sqlite-web-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.sqlite-web-rtr.service=sqlite-web"
+      - "traefik.http.services.sqlite-web.loadbalancer.server.port=8080"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.sqlite-web-monitor.rule=Host(`sqlite-web.${DOMAINNAME}`)"
+      - "traefik.http.routers.sqlite-web-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.sqlite-web-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.sqlite-web-monitor.service=sqlite-web"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444"
+      - "gatus.headers.Host=sqlite-web.${DOMAINNAME}"
+      - 'gatus.client={"ignore-redirect": true}'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  sqlite-web-frontend:
+    name: sqlite-web-frontend
+    driver: bridge

@@ -39,13 +39,17 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
 | [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
+| [ESPHome](https://esphome.io/)                                               | ESP device management and firmware builder           |
+| [Frigate](https://frigate.video/)                                            | NVR with real-time AI object detection               |
 | [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page    |
 | [hadiscover API](https://github.com/DevSecNinja/hadiscover)                  | Home Assistant device discovery API backend          |
 | [Home Assistant](https://www.home-assistant.io/)                             | Open source home automation platform                 |
 | [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services         |
 | [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
 | [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
+| [Matter Server](https://github.com/home-assistant-libs/python-matter-server) | Matter/Thread smart home device bridge               |
 | [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
+| [Mosquitto](https://mosquitto.org/)                                          | MQTT broker for IoT device communication             |
 | [Outline](https://www.getoutline.com/)                                       | Knowledge base and wiki with Azure AD authentication |
 | [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
 | [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
@@ -54,10 +58,12 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [SABnzbd](https://sabnzbd.org/)                                              | Usenet download client                               |
 | [Sonarr](https://sonarr.tv/)                                                 | TV series collection manager and download automation |
 | [Spottarr](https://github.com/Spottarr/Spottarr)                             | Spotnet Usenet indexer                               |
+| [SQLite Web](https://github.com/coleifer/sqlite-web)                         | SQLite database browser for Home Assistant           |
 | [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS  |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID            |
 | [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation         |
 | [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
+| [wmbusmeters](https://github.com/wmbusmeters/wmbusmeters)                    | Wireless M-Bus smart meter reader (water/gas/heat)   |
 
 ---
 
@@ -75,12 +81,16 @@ vm-pool/apps/services/bazarr
 vm-pool/apps/services/dozzle
 vm-pool/apps/services/drawio
 vm-pool/apps/services/echo-server
+vm-pool/apps/services/esphome
+vm-pool/apps/services/frigate
 vm-pool/apps/services/gatus
 vm-pool/apps/services/home-assistant
 vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
 vm-pool/apps/services/lidarr
+vm-pool/apps/services/matter-server
 vm-pool/apps/services/metube
+vm-pool/apps/services/mosquitto
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
 vm-pool/apps/services/prowlarr
@@ -89,10 +99,12 @@ vm-pool/apps/services/radarr
 vm-pool/apps/services/sabnzbd
 vm-pool/apps/services/sonarr
 vm-pool/apps/services/spottarr
+vm-pool/apps/services/sqlite-web
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth
 vm-pool/apps/services/tubesync
 vm-pool/apps/services/unifi
+vm-pool/apps/services/wmbusmeters
 # ... one dataset per app
 ```
 

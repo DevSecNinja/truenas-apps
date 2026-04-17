@@ -129,3 +129,7 @@ networks:
     name: arr-stack-backend
     driver: bridge
     internal: true # No internet access — arr apps egress via the shared arr-egress macvlan
+  iot-backend:
+    name: iot-backend
+    driver: bridge
+    internal: true # Internal only — IoT services (HA, Mosquitto, ESPHome, Frigate, wmbusmeters) communicate here

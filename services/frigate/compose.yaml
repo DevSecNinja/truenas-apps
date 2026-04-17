@@ -1,0 +1,116 @@
+---
+services:
+  # Seeds a minimal Frigate config from ./config/ into ./data/config/ on first
+  # deploy only (cp -n). The config is in ./data/ because Frigate's UI has a
+  # built-in config editor that needs write access.
+  frigate-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: frigate-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        mkdir -p /data/config /data/storage /data/media &&
+        cp -n /templates/config.yml /data/config/config.yml
+    volumes:
+      - ./config:/templates:ro
+      - ./data:/data
+
+  # Frigate runs as root — it requires direct access to hardware devices
+  # (GPU for detection, optional Coral TPU) and manages its own internal
+  # processes (nginx, go2rtc, detector workers). read_only and user: are omitted.
+  # Requires significant shared memory for ML model inference.
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.15.1@sha256:45ab6154e484424ef6740e1447dedfddb8400ed565f03a987789d9fde4e6718e
+    container_name: frigate
+    depends_on:
+      frigate-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - frigate-frontend
+      - iot-backend
+    ports:
+      - "8554:8554" # RTSP restreaming
+      - "8555:8555/tcp" # WebRTC over TCP
+      - "8555:8555/udp" # WebRTC over UDP
+    shm_size: ${SHM_SIZE:-256m} # Shared memory for ML detection — increase for more cameras
+    mem_limit: ${MEM_LIMIT:-4096m}
+    pids_limit: 200 # Higher limit — Frigate runs multiple detector worker processes
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    # Uncomment to enable Intel QuickSync hardware acceleration (requires /dev/dri)
+    devices:
+      - /dev/dri:/dev/dri
+    # Uncomment to enable Google Coral TPU
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/config:/config
+      - ./data/storage:/media/frigate
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "curl -sf http://localhost:5000/api/version -o /dev/null || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      # Homepage
+      - homepage.group=IoT
+      - homepage.name=Frigate
+      - homepage.icon=frigate.svg
+      - homepage.href=https://frigate.${DOMAINNAME}
+      - homepage.description=NVR with AI object detection
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=frigate-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.frigate-rtr.rule=Host(`frigate.${DOMAINNAME}`)"
+      - "traefik.http.routers.frigate-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.frigate-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.frigate-rtr.service=frigate"
+      - "traefik.http.services.frigate.loadbalancer.server.port=5000"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.frigate-monitor.rule=Host(`frigate.${DOMAINNAME}`)"
+      - "traefik.http.routers.frigate-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.frigate-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.frigate-monitor.service=frigate"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/api/version"
+      - "gatus.headers.Host=frigate.${DOMAINNAME}"
+      - 'gatus.client={"ignore-redirect": true}'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  frigate-frontend:
+    name: frigate-frontend
+    driver: bridge
+  iot-backend:
+    name: iot-backend
+    external: true

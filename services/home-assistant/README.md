@@ -19,7 +19,7 @@ Home Assistant consolidates control of all your smart home devices — lights, s
 ## Architecture
 
 - **Image**: [home-assistant/home-assistant](https://github.com/home-assistant/core) (s6-overlay)
-- **Networks**: `home-assistant-frontend` (Traefik-facing)
+- **Networks**: `home-assistant-frontend` (Traefik-facing), `iot-backend` (internal IoT communication — connects to Mosquitto, ESPHome, Frigate, wmbusmeters)
 - **Reverse proxy**: Traefik with `chain-no-auth@file` middleware — HA enforces its own login, MFA, and long-lived access tokens. Forward-auth would break the Companion mobile app's direct OAuth flow.
 
 ### s6-overlay Exceptions
@@ -39,6 +39,23 @@ Home Assistant uses s6-overlay internally. See [Architecture](../ARCHITECTURE.md
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
 - `DOMAINNAME` — base domain for Traefik routing
+- `NOTIFICATIONS_EMAIL_HOST` — SMTP server hostname for db-backup notifications
+- `NOTIFICATIONS_EMAIL_DOMAIN` — SMTP domain
+- `NOTIFICATIONS_EMAIL_PORT` — SMTP port
+- `NOTIFICATIONS_EMAIL_USERNAME` — SMTP username
+- `NOTIFICATIONS_EMAIL_PASSWORD` — SMTP password
+- `NOTIFICATIONS_EMAIL_TO` — notification recipient email address
+- `NOTIFICATIONS_EMAIL_FROM` — notification sender email address
+- `DB_ENC_PASSPHRASE` — encryption passphrase for backup files
+
+## Database Backup
+
+The `home-assistant-db-backup` sidecar (tiredofit/db-backup with s6-overlay) runs a one-shot `sqlite3 .dump` of the Home Assistant recorder database (`home-assistant_v2.db`), producing a consistent SQL snapshot even while HA is running in WAL mode. The backup is compressed with ZSTD and encrypted with `${DB_ENC_PASSPHRASE}`.
+
+- **Mode**: `MANUAL` with `MANUAL_RUN_FOREVER=FALSE` — runs one backup and exits. The nightly CD script (`dccd.sh`) restarts the container fresh each run.
+- **Notifications**: Sends email notifications on backup success/failure via SMTP.
+- **Storage**: Backups are written to `./backups/db-backup/` (gitignored). Old backups are cleaned up after 48 hours (`DEFAULT_CLEANUP_TIME=2880`).
+- **Network**: `network_mode: none` — the backup container has no network access.
 
 ## First-Run Setup
 

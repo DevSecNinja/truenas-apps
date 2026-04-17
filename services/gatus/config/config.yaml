@@ -217,6 +217,18 @@ endpoints:
     url: "tcp://${IP_SVLNAS}:2221"
 
   #
+  # IoT
+  #
+
+  - name: Mosquitto - MQTT (TCP)
+    <<: *tcp-udp-defaults
+    url: "tcp://${IP_SVLNAS}:1883"
+
+  - name: Matter Server - WebSocket (TCP)
+    <<: *tcp-udp-defaults
+    url: "tcp://${IP_SVLNAS}:5580"
+
+  #
   # DNS
   #
 

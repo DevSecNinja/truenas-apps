@@ -167,3 +167,7 @@ Use the skill at `.github/skills/retire-docker-app/SKILL.md` as a checklist. Key
 ## Trust These Instructions
 
 Follow the conventions above. Only search the codebase for additional context if these instructions are incomplete or produce errors. When in doubt, model new files after the closest existing app in `services/`.
+
+## Agent Delegation
+
+- **Documentation tasks** — Always delegate to the **Technical Writer** agent. This includes: writing or updating READMEs, ARCHITECTURE.md, INFRASTRUCTURE.md, CONTRIBUTING.md, docs/index.md, per-service READMEs, and any other Markdown documentation. The main agent should handle compose files, scripts, CI workflows, and all non-documentation code changes, then hand off the doc work to Technical Writer.

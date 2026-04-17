@@ -1,0 +1,84 @@
+---
+services:
+  # Sets ownership on ./data so the non-root matter-server container (UID 3124)
+  # can write fabric/device data. Runs once, then exits.
+  matter-server-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: matter-server-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3124:3124
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        chown -Rv 3124:3124 /data
+    volumes:
+      - ./data:/data
+
+  # Python Matter Server — the WebSocket bridge between Home Assistant's Matter
+  # integration and Matter/Thread smart home devices.
+  #
+  # network_mode: host is required for Matter device commissioning and Thread
+  # border router communication. Matter uses mDNS (multicast DNS) for device
+  # discovery on the local network, and Thread devices require IPv6 connectivity
+  # to the border router. Bridge networking isolates the container from both
+  # multicast and IPv6 link-local traffic, preventing device pairing and
+  # communication. This is the officially recommended configuration:
+  # https://github.com/home-assistant-libs/python-matter-server#running-using-docker
+  #
+  # Because network_mode: host precludes Docker networks, Home Assistant
+  # connects to this service via the host IP (e.g. ws://<host-ip>:5580/ws).
+  # Configure the URL in HA's Matter integration settings.
+  matter-server:
+    image: ghcr.io/home-assistant-libs/python-matter-server:7.0.1@sha256:e3e9855a5ff669ca421f6440cbb60f8134ca40f9c38f47e54caabf69d91f2222
+    container_name: matter-server
+    depends_on:
+      matter-server-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    network_mode: host # Required for mDNS device discovery and IPv6 Thread communication
+    user: "3124:3124" # svc-app-matter
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    mem_limit: ${MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW # Required for mDNS multicast on the host network
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5580')\" 2>/dev/null || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=IoT
+      - homepage.name=Matter Server
+      - homepage.icon=matter.svg
+      - homepage.description=Matter/Thread smart home bridge

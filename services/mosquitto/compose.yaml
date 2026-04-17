@@ -1,0 +1,79 @@
+---
+services:
+  # Sets ownership on ./data so the non-root mosquitto container (UID 3122)
+  # can write persistent MQTT data. Runs once, then exits.
+  mosquitto-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: mosquitto-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3122:3122
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        chown -Rv 3122:3122 /mosquitto/data /mosquitto/log
+    volumes:
+      - ./data/data:/mosquitto/data
+      - ./data/log:/mosquitto/log
+
+  mosquitto:
+    image: docker.io/library/eclipse-mosquitto:2.0.21@sha256:78dcae7eaf78fe7e5b7f5f0cedc35b0d222a5e5a2650d40c6ca1bc156af6281b
+    container_name: mosquitto
+    depends_on:
+      mosquitto-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3122:3122" # svc-app-mosquitto
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - iot-backend
+    ports:
+      - "1883:1883" # MQTT — accessible from LAN for IoT devices
+    mem_limit: ${MEM_LIMIT:-256m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./data/data:/mosquitto/data
+      - ./data/log:/mosquitto/log
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 5 || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=IoT
+      - homepage.name=Mosquitto
+      - homepage.icon=mqtt.svg
+      - homepage.description=MQTT broker for IoT devices
+
+networks:
+  iot-backend:
+    name: iot-backend
+    external: true

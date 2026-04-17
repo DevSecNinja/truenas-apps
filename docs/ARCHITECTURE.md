@@ -127,6 +127,10 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
 | hadiscover           | `hadiscover-init`           | `./data`                                                                           |
+| matter-server        | `matter-server-init`        | `./data`                                                                           |
+| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
+| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                      |
+| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
 
 ---
 
@@ -140,6 +144,8 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 - **meeb/tubesync** — uses its own `start.sh` init script to create the `PUID:PGID` user, chown `/config`, and launch supervisord; omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **ghcr.io/home-assistant/home-assistant** — uses s6-overlay (confirmed by `s6-rc` log lines). Omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, `SETPCAP` via `cap_add` (standard s6-overlay set). Also add `NET_RAW` — required by HA's built-in DHCP watcher integration, which opens raw `AF_PACKET` sockets to track devices; without it HA logs `[Errno 1] Operation not permitted` at startup and the DHCP integration stops working. No TrueNAS service account or init container is required — s6-overlay manages `/config` ownership internally.
+- **ghcr.io/esphome/esphome** — compiles C++ firmware at runtime using platformio, downloading platform packages and managing build artifacts across `/config/.esphome/`. Requires extensive filesystem writes; omit `user:` and `read_only:`. `cap_drop: ALL` is applied; no additional capabilities are needed.
+- **ghcr.io/blakeblackshear/frigate** — runs as root; manages its own internal processes (nginx, go2rtc, detector workers) and requires access to hardware devices (GPU, optional Coral TPU). Omit `user:` and `read_only:`. `cap_drop: ALL` is applied; no additional capabilities are needed.
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 
@@ -188,6 +194,10 @@ Services that need Docker API access get a dedicated **internal** backend networ
 ### Exception: arr-stack-backend
 
 The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
+
+### Exception: iot-backend
+
+The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares a single `iot-backend` internal bridge network so the services can communicate directly. For example, wmbusmeters publishes MQTT messages to Mosquitto, Home Assistant subscribes to MQTT topics, and Frigate sends events via MQTT. This network is created by the `_bootstrap` service and referenced as `external: true` by each IoT app. The backend bridge is `internal: true` and carries no internet route. Matter Server is excluded — it uses `network_mode: host` for mDNS device discovery and Thread border router communication.
 
 ### Gatus Internal Monitoring Entrypoint
 

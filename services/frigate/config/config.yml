@@ -1,0 +1,41 @@
+---
+# Frigate NVR — minimal starter config
+# Edit this file through the Frigate web UI or update ./data/config/config.yml
+# directly. See: https://docs.frigate.video/configuration/
+
+mqtt:
+  enabled: true
+  host: mosquitto # Reachable via the iot-backend Docker network
+  port: 1883
+
+detectors:
+  cpu1:
+    type: cpu
+    # To use Intel QuickSync (OpenVINO), uncomment and configure:
+    # type: openvino
+    # device: GPU
+    # To use a Coral TPU, uncomment:
+    # type: edgetpu
+    # device: usb
+
+cameras: {}
+# Example camera configuration:
+# front_door:
+#   ffmpeg:
+#     inputs:
+#       - path: rtsp://user:password@camera-ip:554/stream
+#         roles:
+#           - detect
+#           - record
+#   detect:
+#     width: 1280
+#     height: 720
+#     fps: 5
+#   record:
+#     enabled: true
+#     retain:
+#       days: 7
+#   snapshots:
+#     enabled: true
+#     retain:
+#       default: 14
