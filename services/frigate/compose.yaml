@@ -58,7 +58,7 @@ services:
       - "8555:8555/tcp" # WebRTC over TCP
       - "8555:8555/udp" # WebRTC over UDP
     mem_limit: ${MEM_LIMIT:-4096m}
-    pids_limit: 200 # Higher limit — Frigate runs multiple detector worker processes
+    pids_limit: 512 # Frigate runs s6-overlay, nginx, go2rtc, detector workers, and many threads
     security_opt:
       - no-new-privileges=true
     cap_drop:
