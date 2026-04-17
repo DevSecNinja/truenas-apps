@@ -22,6 +22,8 @@ layout:
     icon: mdi-multimedia
   Infrastructure:
     icon: mdi-tools
+  IoT:
+    icon: mdi-robot
   Homelab:
     icon: mdi-home-analytics
   Tools:
