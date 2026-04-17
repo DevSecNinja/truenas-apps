@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   run:
-    uses: DevSecNinja/.github/.github/workflows/todo-to-issue.yml@9d70999b12a121517fcc40c0e3839479b9bd7b49 # main
+    uses: DevSecNinja/.github/.github/workflows/todo-to-issue.yml@57ab8ec508bdf5f3e5f17f22b6ee154137ee42ac # main
     permissions:
       contents: read
       issues: write
