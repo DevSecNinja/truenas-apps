@@ -53,10 +53,13 @@ services:
     networks:
       - frigate-frontend
       - iot-backend
-    ports:
-      - "8554:8554" # RTSP restreaming
-      - "8555:8555/tcp" # WebRTC over TCP
-      - "8555:8555/udp" # WebRTC over UDP
+    # Ports commented out — HA and the Frigate UI reach go2rtc via
+    # iot-backend and frigate-frontend networks. Only uncomment if
+    # something outside Docker needs direct RTSP/WebRTC access.
+    # ports:
+    #   - "8554:8554" # RTSP restreaming
+    #   - "8555:8555/tcp" # WebRTC over TCP
+    #   - "8555:8555/udp" # WebRTC over UDP
     mem_limit: ${MEM_LIMIT:-4096m}
     pids_limit: 512 # Frigate runs s6-overlay, nginx, go2rtc, detector workers, and many threads
     security_opt:
