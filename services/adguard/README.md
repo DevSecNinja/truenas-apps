@@ -49,12 +49,12 @@ Unbound config files contain `${VAR}` placeholders for secrets and environment-s
 
 Template files and their purpose:
 
-| Template                                      | Content                                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------ |
-| `config/unbound/conf.d/a-records.conf`        | Local DNS A records for internal hosts (split-horizon)                         |
-| `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone, TLS cert bundle                   |
-| `config/unbound/zones.d/forward-zones.conf`   | Forward zones for DDNS domain + catch-all upstream (Quad9/Cloudflare over TLS) |
-| `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)            |
+| Template                                      | Content                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `config/unbound/conf.d/a-records.conf`        | Local DNS A records for internal hosts (split-horizon)                          |
+| `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone, TLS cert bundle                    |
+| `config/unbound/zones.d/forward-zones.conf`   | Forward zones for DDNS domain + catch-all upstream (Quad9/Cloudflare over TLS)  |
+| `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)             |
 | `config/unbound/conf.d/cachedb.conf`          | `cachedb:` clause pointing to Redis backend (mounted directly, no substitution) |
 
 The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remain after substitution — missing variables in `secret.sops.env` cause the init container to fail loudly rather than starting Unbound with a broken config.
