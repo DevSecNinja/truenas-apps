@@ -16,6 +16,7 @@
         "dprint.dprint",
         "EditorConfig.EditorConfig",
         "foxundermoon.shell-format",
+        "GitHub.vscode-github-actions",
         "ms-azuretools.vscode-docker",
         "redhat.vscode-yaml",
         "signageos.signageos-vscode-sops",
