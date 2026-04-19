@@ -3,6 +3,10 @@ name: Image Security
 
 on:
   pull_request:
+    paths:
+      - .github/workflows/image-security.yml
+      - scripts/gha-image-age-check.sh
+      - scripts/gha-trivy-image-scan.sh
   schedule:
     - cron: "0 2 * * 6"
   workflow_dispatch:
@@ -21,7 +25,6 @@ permissions:
 jobs:
   image-age-check:
     name: Image age check
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
