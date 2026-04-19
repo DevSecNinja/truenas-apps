@@ -34,7 +34,7 @@ services:
   # USB device must be accessible by the container UID. On TrueNAS, use
   # udev rules or set the device permissions to allow access.
   wmbusmeters:
-    image: docker.io/weetmuts/wmbusmeters:release-1.11.0@sha256:4d0e3cfa9ce3df79bc292fa1d1b39b2e5e71fa4ab8b20d47a6fca97392f9265a
+    image: docker.io/wmbusmeters/wmbusmeters:release-2.0.0@sha256:1793761d9afaa4634cd6880e5ca00ce26f9efa23c017db0da7951eaf0ed02ea1
     container_name: wmbusmeters
     depends_on:
       wmbusmeters-init:
