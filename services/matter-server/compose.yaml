@@ -51,7 +51,7 @@ services:
   # errors stop after startup completes ("Matter Server successfully initialized")
   # and do not affect functionality.
   matter-server:
-    image: ghcr.io/home-assistant-libs/python-matter-server:7.0.1@sha256:e3e9855a5ff669ca421f6440cbb60f8134ca40f9c38f47e54caabf69d91f2222
+    image: ghcr.io/home-assistant-libs/python-matter-server:8.1.0@sha256:0260bc346afb2873829c386d36a93b1975a25e1594e30d990431592a1f6d99de
     container_name: matter-server
     depends_on:
       matter-server-init:
