@@ -20,9 +20,9 @@ Most home networks rely on the ISP's default DNS, which offers no filtering, no 
 
 ## Architecture
 
-- **Images**: [adguard/adguardhome](https://github.com/AdguardTeam/AdGuardHome), [madnuttah/unbound](https://github.com/madnuttah/unbound-docker), [busybox](https://hub.docker.com/_/busybox) (init containers)
+- **Images**: [adguard/adguardhome](https://github.com/AdguardTeam/AdGuardHome), [madnuttah/unbound](https://github.com/madnuttah/unbound-docker), [redis](https://hub.docker.com/_/redis) (DNS cache backend), [busybox](https://hub.docker.com/_/busybox) (init containers)
 - **User/Group**: `3101:3101` (`svc-app-adguard`) — both AdGuard Home and Unbound run under this identity
-- **Networks**: `adguard-frontend` (bridge, `172.30.53.0/24`) — Unbound at `.2`, AdGuard at `.3`
+- **Networks**: `adguard-frontend` (bridge, `172.30.53.0/24`) — Unbound at `.2`, AdGuard at `.3`; `adguard-backend` (internal bridge, no host exposure) — Unbound and Redis only
 - **Ports**: `53/tcp` and `53/udp` published on the host for DNS resolution
 - **Reverse proxy**: Traefik with `chain-auth@file` middleware; monitoring router on the internal `monitoring` entrypoint for Gatus health checks
 
@@ -34,6 +34,7 @@ flowchart LR
     AdGuard -->|":5335"| Unbound["Unbound\n(recursive resolver)"]
     Unbound -->|"DoT :853"| Upstream["Quad9 / Cloudflare"]
     Unbound -.->|"local-data"| Split["Split-horizon\n(internal records)"]
+    Unbound -.->|"cachedb"| Redis["Redis\n(persistent cache)"]
 ```
 
 AdGuard handles DNS filtering and ad blocking. Queries that pass the filter are forwarded to the co-located Unbound instance, which resolves them recursively over TLS against upstream providers (Quad9, Cloudflare). Internal domain names are served from Unbound's local-data records (split-horizon — see below).
@@ -48,12 +49,13 @@ Unbound config files contain `${VAR}` placeholders for secrets and environment-s
 
 Template files and their purpose:
 
-| Template                                      | Content                                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------ |
-| `config/unbound/conf.d/a-records.conf`        | Local DNS A records for internal hosts (split-horizon)                         |
-| `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone, TLS cert bundle                   |
-| `config/unbound/zones.d/forward-zones.conf`   | Forward zones for DDNS domain + catch-all upstream (Quad9/Cloudflare over TLS) |
-| `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)            |
+| Template                                      | Content                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `config/unbound/conf.d/a-records.conf`        | Local DNS A records for internal hosts (split-horizon)                          |
+| `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone, TLS cert bundle                    |
+| `config/unbound/zones.d/forward-zones.conf`   | Forward zones for DDNS domain + catch-all upstream (Quad9/Cloudflare over TLS)  |
+| `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)             |
+| `config/unbound/conf.d/cachedb.conf`          | `cachedb:` clause pointing to Redis backend (mounted directly, no substitution) |
 
 The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remain after substitution — missing variables in `secret.sops.env` cause the init container to fail loudly rather than starting Unbound with a broken config.
 
@@ -62,6 +64,7 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 | Container              | Role                                                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `adguard-unbound-init` | One-shot init: substitutes `${VAR}` placeholders in Unbound config templates, chowns output to `3101:3101`                     |
+| `adguard-redis`        | Ephemeral Redis cache backend for Unbound's `cachedb` module — cache survives Unbound restarts but is lost on Redis restart    |
 | `adguard-unbound`      | Recursive DNS resolver (Unbound) — DNS-over-TLS to upstream, local-data for internal names                                     |
 | `adguard-init`         | One-shot init: copies `AdGuardHome.yaml` from repo config into `data/conf/`, chowns `data/work` and `data/conf` to `3101:3101` |
 | `adguard`              | AdGuard Home DNS filter — listens on port 53, forwards to Unbound on the frontend network                                      |
@@ -69,8 +72,10 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 ### Startup Order
 
 ```text
-adguard-unbound-init → adguard-unbound (waits for healthy)
-adguard-init ─────────────────────────→ adguard (depends on both init + healthy unbound)
+adguard-redis (healthy) ──────────────────────────────────────────┐
+adguard-unbound-init (completed) ─────────────────────────────────┴─→ adguard-unbound (waits for both)
+adguard-init (completed) ─────────────────────────────────────────────────────────────────────────────┐
+                                                                       adguard-unbound (healthy) ──────┴─→ adguard
 ```
 
 ### Init Containers
@@ -92,6 +97,7 @@ The `adguard-unbound` container deviates from the standard hardening baseline:
 - **`user:` is omitted**: the entrypoint starts as root, chowns directories to `UNBOUND_UID:UNBOUND_GID`, then drops privileges to the internal `_unbound` user
 - **`read_only` is omitted**: the image writes a pidfile and auth-zone data under `/usr/local/unbound/` during startup
 - **`cap_add`**: `CHOWN` (entrypoint chown), `SETUID` / `SETGID` (privilege drop to `_unbound`)
+- **`module-config`**: overridden to `"validator cachedb iterator"` in `server-overrides.conf` (default is `"validator iterator"`) to enable the Redis-backed `cachedb` module
 
 ### Healthcheck
 
@@ -126,4 +132,3 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 ## Upgrade Notes
 
 No special upgrade procedures are required for this stack. AdGuard Home and Unbound handle schema and data migrations automatically on startup. Image updates are managed by Renovate via digest-pinning PRs.
-||||||| bb3d5bf
