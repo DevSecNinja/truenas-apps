@@ -16,6 +16,7 @@ Requirements:
 - Do **not** add Gatus bypass routers — Gatus uses its own monitoring configuration.
 - Add the app's frontend network to the Traefik compose file (`services/traefik/compose.yaml`).
 - Add the app's subdomain(s) to `services/adguard/config/unbound/a-records.conf`, pointing to the correct `${IP_*}` variable for the server it runs on (e.g. `${IP_SVLNAS}` for NAS-hosted apps). If unsure what host, ask! Keep entries alphabetically sorted within the Internal or External section as appropriate.
+- Configure Gatus health monitoring labels on the main container following the pattern in `.github/skills/gatus-monitoring/SKILL.md`. Use `chain-auth@file` services with `ignore-redirect: true`. Use `gatus.enabled=false` on init, database, and backup containers.
 - Validate the compose file by running `docker compose config` in the app directory.
 - Update `README.md`: add the app to the Apps table and the dataset list.
 - Update `docs/ARCHITECTURE.md`: add init container table entries, shared env entries, or new access model sections as needed.

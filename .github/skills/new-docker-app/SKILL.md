@@ -67,7 +67,28 @@ Add the app's subdomain(s) to `services/adguard/config/unbound/conf.d/a-records.
 
 If unsure what host the app should run on, ask the user.
 
-### Step 5 — Update documentation
+### Step 5 — Configure Gatus health monitoring
+
+Add Gatus sidecar labels to the main application container in `compose.yaml`.
+See `.github/skills/gatus-monitoring/SKILL.md` for the full pattern reference.
+
+**Standard decision tree:**
+
+- Does the service use `chain-auth@file` middleware? → Add `gatus.client={"ignore-redirect": true}`
+- Does the service have a dedicated `/ping`, `/health`, or `/api/health` endpoint? → Use that path in `gatus.url`
+- Is this a background helper (init, DB, backup, sidecar)? → Add `gatus.enabled=false`
+
+**Minimum labels for a standard Traefik-routed service (`chain-no-auth@file`):**
+
+```yaml
+## Gatus
+- "gatus.url=http://172.30.100.6:8444"
+- "gatus.headers.Host=<subdomain>.${DOMAINNAME}"
+- 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+- 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+```
+
+### Step 6 — Update documentation
 
 Update these files (keep tables alphabetically sorted by app name):
 
@@ -78,7 +99,7 @@ Update these files (keep tables alphabetically sorted by app name):
 | `docs/ARCHITECTURE.md`   | Init container table entries, shared env entries, access model section |
 | `docs/INFRASTRUCTURE.md` | UID/GID table entries, shared purpose group entries, storage section   |
 
-### Step 6 — Create per-service documentation
+### Step 7 — Create per-service documentation
 
 Create `services/<app>/README.md` with standard sections:
 
@@ -98,7 +119,7 @@ bash scripts/generate-docs-symlinks.sh
 
 Add the entry to the `Services:` section in `mkdocs.yml` in alphabetical order by display name.
 
-### Step 7 — Multi-server setup (if applicable)
+### Step 8 — Multi-server setup (if applicable)
 
 If the app will run on a non-TrueNAS server:
 
@@ -106,7 +127,7 @@ If the app will run on a non-TrueNAS server:
 2. If the server also has Traefik, add the frontend network to `services/traefik/compose.<server>.yaml`
 3. Re-run `scripts/generate-sops-rules.sh` to update `.sops.yaml` creation rules
 
-### Step 8 — Validate
+### Step 9 — Validate
 
 ```sh
 docker compose -f services/<app>/compose.yaml config --quiet
@@ -114,7 +135,7 @@ docker compose -f services/<app>/compose.yaml config --quiet
 
 Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are decrypted at deploy time. Warnings are fine; errors are not.
 
-### Step 9 — Document manual host steps
+### Step 10 — Document manual host steps
 
 Output a summary of any manual steps required on the TrueNAS host:
 
@@ -133,6 +154,7 @@ Use this as a final review before committing:
 - [ ] Image is digest-pinned with explicit registry prefix
 - [ ] `secret.sops.env` is encrypted
 - [ ] Traefik network and labels are configured
+- [ ] Gatus sidecar labels are configured on the main container (or `gatus.enabled=false` for helpers)
 - [ ] DNS A-record is added
 - [ ] README.md, docs/index.md, ARCHITECTURE.md, INFRASTRUCTURE.md are updated
 - [ ] Per-service README.md is created with docs symlink

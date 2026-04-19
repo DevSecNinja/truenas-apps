@@ -100,11 +100,16 @@ docs/
     labeler.yml          # Auto-labels PRs based on changed paths
     label-sync.yml       # Syncs repo labels from .github/labels.yaml
     release.yml          # Triggered on v* tag push: generates changelog and creates GitHub Release
+  agents/
+    technical-writer.agent.md          # Documentation specialist agent
+    compose-security-auditor.agent.md  # Container security audit and fix agent
   skills/
-    new-docker-app/SKILL.md       # Skill for adding a new app
-    retire-docker-app/SKILL.md    # Skill for retiring an app
-    commit-and-release/SKILL.md   # Skill for commits and releases
-    docs-writing/SKILL.md         # Skill for writing documentation
+    new-docker-app/SKILL.md            # Skill for adding a new app
+    retire-docker-app/SKILL.md         # Skill for retiring an app
+    commit-and-release/SKILL.md        # Skill for commits and releases
+    docs-writing/SKILL.md              # Skill for writing documentation
+    compose-security-audit/SKILL.md    # Skill for auditing compose security compliance
+    gatus-monitoring/SKILL.md          # Skill for configuring Gatus health monitoring
 ```
 
 ## Compose File Conventions (MUST follow)
@@ -171,3 +176,4 @@ Follow the conventions above. Only search the codebase for additional context if
 ## Agent Delegation
 
 - **Documentation tasks** — Always delegate to the **Technical Writer** agent. This includes: writing or updating READMEs, ARCHITECTURE.md, INFRASTRUCTURE.md, CONTRIBUTING.md, docs/index.md, per-service READMEs, and any other Markdown documentation. The main agent should handle compose files, scripts, CI workflows, and all non-documentation code changes, then hand off the doc work to Technical Writer.
+- **Security audits** — Always delegate to the **Compose Security Auditor** agent when asked to audit, review, or fix security compliance across one or all compose files. The agent reads compose files, reports violations, and applies fixes.
