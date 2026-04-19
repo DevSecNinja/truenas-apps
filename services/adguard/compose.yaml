@@ -33,6 +33,47 @@ services:
     tmpfs:
       - /tmp
 
+  # Redis is used as a persistent DNS cache backend for Unbound (cachedb module).
+  # Internal network only — no external exposure. Ephemeral: --save "" disables
+  # RDB snapshots so read_only: true is safe. Cache is lost on Redis restart but
+  # survives Unbound restarts, which is the primary goal (warm cache across deploys).
+  # The madnuttah/unbound image is built with --with-libhiredis (Redis support).
+  adguard-redis:
+    image: docker.io/library/redis:8.6.2-alpine@sha256:81b6f81d6a6c5b9019231a2e8eb10085e3a139a34f833dcc965a8a959b040b72
+    container_name: adguard-redis
+    # --save "" disables RDB snapshots — Redis is used only as an ephemeral DNS
+    # cache backend for Unbound. No persistence required; read_only: true is safe.
+    command:
+      - "--save"
+      - ""
+    env_file:
+      - path: ../shared/env/tz.env
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - adguard-backend
+    mem_limit: ${REDIS_MEM_LIMIT:-128m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - "CMD"
+        - "redis-cli"
+        - "ping"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   adguard-unbound:
     # Validate config with: docker exec adguard-unbound unbound-checkconf
     image: docker.io/madnuttah/unbound:1.24.2-1@sha256:47fdc01759f661b6ac3d63b6e6f1e073e6b71617a37c419624e8a3cb82534b2e
@@ -40,6 +81,8 @@ services:
     depends_on:
       adguard-unbound-init:
         condition: service_completed_successfully
+      adguard-redis:
+        condition: service_healthy
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
@@ -59,6 +102,7 @@ services:
     networks:
       adguard-frontend:
         ipv4_address: 172.30.53.2
+      adguard-backend:
     mem_limit: ${UNBOUND_MEM_LIMIT:-512m}
     pids_limit: 100
     security_opt:
@@ -74,6 +118,7 @@ services:
     volumes:
       - ./data/unbound/conf.d/a-records.conf:/usr/local/unbound/conf.d/a-records.conf:ro
       - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
+      - ./config/unbound/conf.d/cachedb.conf:/usr/local/unbound/conf.d/cachedb.conf:ro
       - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
@@ -212,3 +257,7 @@ networks:
     ipam:
       config:
         - subnet: 172.30.53.0/24
+  adguard-backend:
+    name: adguard-backend
+    driver: bridge
+    internal: true
