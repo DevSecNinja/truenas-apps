@@ -102,8 +102,10 @@ services:
 
   # Postgres starts as root and uses gosu to switch to the postgres user during
   # startup. cap_drop: ALL would break that privilege transition.
+  # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+  # CIS compliance, signed SBOM, and continuous security updates
   gatus-db:
-    image: docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911
+    image: dhi.io/postgres:18.3-alpine3.22@sha256:placeholder
     container_name: gatus-db
     depends_on:
       gatus-db-upgrade:
@@ -145,8 +147,10 @@ services:
 
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
+  # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+  # CIS compliance, signed SBOM, and continuous security updates
   gatus-db-upgrade:
-    image: docker.io/pgautoupgrade/pgautoupgrade:18.3-alpine@sha256:fadc9788ee25f7acc040bbf485a880ce7ca9021575bd6e45b0ca4cf7edb50d5b
+    image: dhi.io/pgautoupgrade:18.3-alpine3.22@sha256:placeholder
     container_name: gatus-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env

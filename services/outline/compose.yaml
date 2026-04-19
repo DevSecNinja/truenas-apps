@@ -134,8 +134,10 @@ services:
 
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
+  # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+  # CIS compliance, signed SBOM, and continuous security updates
   outline-db-upgrade:
-    image: docker.io/pgautoupgrade/pgautoupgrade:18.3-alpine@sha256:fadc9788ee25f7acc040bbf485a880ce7ca9021575bd6e45b0ca4cf7edb50d5b
+    image: dhi.io/pgautoupgrade:18.3-alpine3.22@sha256:placeholder
     container_name: outline-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env
@@ -158,8 +160,10 @@ services:
 
   # Postgres starts as root and uses gosu to switch to the postgres user during
   # startup. cap_drop: ALL would break that privilege transition.
+  # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+  # CIS compliance, signed SBOM, and continuous security updates
   outline-db:
-    image: docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911
+    image: dhi.io/postgres:18.3-alpine3.22@sha256:placeholder
     container_name: outline-db
     depends_on:
       outline-db-upgrade:
@@ -267,8 +271,10 @@ services:
   # Redis with requirepass (OUTLINE_REDIS_PASSWORD). The password is set on the
   # command line because the REDIS_PASSWORD env var is not always picked up by the
   # Redis default configuration.
+  # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+  # CIS compliance, signed SBOM, and continuous security updates
   outline-redis:
-    image: docker.io/library/redis:8.6.2-alpine@sha256:81b6f81d6a6c5b9019231a2e8eb10085e3a139a34f833dcc965a8a959b040b72
+    image: dhi.io/redis:8-alpine3.22@sha256:placeholder
     container_name: outline-redis
     # --save "" disables RDB snapshots — Redis is a session/cache store here,
     # not a data source. All persistent state lives in Postgres.

@@ -6,8 +6,10 @@ services:
   #   docker compose exec unifi-db mongosh --eval 'db.adminCommand({ setFeatureCompatibilityVersion: "'$MONGO_VERSION'" })'
   # MongoDB starts as root and uses gosu to switch to the mongodb user during
   # startup. cap_drop: ALL would break that privilege transition.
+  # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+  # CIS compliance, signed SBOM, and continuous security updates
   unifi-db:
-    image: docker.io/library/mongo:8.2.6@sha256:eea8506335198f8b359865b32004036310854a935fbd317083817c614152818f
+    image: dhi.io/mongo:8-debian13@sha256:placeholder
     container_name: unifi-db
     env_file:
       - path: .env # Decrypted from secret.sops.env

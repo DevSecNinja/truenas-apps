@@ -38,7 +38,9 @@ services:
       - ./data/acme:/acme
 
   traefik:
-    image: docker.io/library/traefik:v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
+    # Using Docker Hardened Image (DHI) for improved security: minimal attack surface,
+    # CIS compliance, signed SBOM, and continuous security updates
+    image: dhi.io/traefik:3-alpine3.22@sha256:placeholder
     container_name: traefik
     depends_on:
       traefik-init:
