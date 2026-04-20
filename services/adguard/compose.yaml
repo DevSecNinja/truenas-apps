@@ -43,9 +43,14 @@ services:
     container_name: adguard-redis
     # --save "" disables RDB snapshots — Redis is used only as an ephemeral DNS
     # cache backend for Unbound. No persistence required; read_only: true is safe.
+    # --tcp-keepalive 60 sends TCP keepalive probes every 60 s so the kernel
+    # refreshes idle connections; without it the connection goes stale after ~2 h
+    # and the next cachedb command fails with EAGAIN before Unbound reconnects.
     command:
       - "--save"
       - ""
+      - "--tcp-keepalive"
+      - "60"
     env_file:
       - path: ../shared/env/tz.env
     deploy:
