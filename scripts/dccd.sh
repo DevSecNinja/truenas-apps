@@ -2,6 +2,7 @@
 # Source: https://github.com/loganmarchione/dccd/blob/d5aef3f684e5f63e8ec348652c6dc24e7447336c/dccd.sh
 # Usage in TrueNAS Scale:
 #   Command: bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f
+#   Cron:    bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -q
 #   Run As User: truenas_admin (requires passwordless sudo for /usr/bin/docker)
 #   Unselect 'Hide Standard Output' and 'Hide Standard Error'
 
@@ -37,6 +38,7 @@ SERVER_NAME=""                                # Server name from servers.yaml (e
 SERVER_APPS=()                                # Apps assigned to the server (populated by parse_server_apps)
 WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
 GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
+QUIET=0                                       # Quiet mode: suppress output unless deploying or error
 GATUS_DNS_SERVER=""                           # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
 # GATUS_URL, GATUS_CD_TOKEN, and GATUS_DNS_SERVER can also be sourced from services/gatus/.env (already decrypted on disk)
 # GATUS_DNS_SERVER falls back to IP_DNS_SERVER_1 from the same .env file if -r is not supplied
@@ -52,6 +54,18 @@ SOPS_BIN=""            # Path to SOPS binary (set by ensure_sops)
 ########################################
 # Functions
 ########################################
+
+# Output buffer for quiet mode (created lazily, cleaned up on EXIT)
+_QUIET_BUF=""
+
+# Flush the quiet-mode buffer to stdout (called when we decide to deploy or on error)
+flush_output_buffer() {
+    if [ "${QUIET}" -eq 1 ] && [ -n "${_QUIET_BUF}" ] && [ -f "${_QUIET_BUF}" ]; then
+        cat "${_QUIET_BUF}"
+        : >"${_QUIET_BUF}" # truncate after flushing
+    fi
+    QUIET=0 # switch to normal output for the rest of the run
+}
 
 log_message() {
     local message="$1"
@@ -70,10 +84,13 @@ log_message() {
         *) color="" ;;                    # default
         esac
         if [ -n "${color}" ]; then
-            echo "${color}${formatted}${reset}"
-        else
-            echo "${formatted}"
+            formatted="${color}${formatted}${reset}"
         fi
+    fi
+
+    # In quiet mode, buffer stdout; otherwise print immediately
+    if [ "${QUIET}" -eq 1 ] && [ -n "${_QUIET_BUF}" ]; then
+        echo "${formatted}" >>"${_QUIET_BUF}"
     else
         echo "${formatted}"
     fi
@@ -718,6 +735,9 @@ update_compose_files() {
     fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
+        # In quiet mode, flush buffered output now that we know we'll deploy
+        flush_output_buffer
+
         # Decrypt SOPS-encrypted secret files before deploying
         decrypt_sops_files
 
@@ -963,20 +983,32 @@ report_cd_status_to_gatus() {
     fi
 }
 
-# EXIT trap handler: report final CD status to Gatus including duration.
+# EXIT trap handler: report final CD status to Gatus including duration,
+# flush quiet-mode buffer on error, and clean up temp files.
 _handle_gatus_exit() {
     local exit_code="$1"
-    [ -z "${_CD_START_TIME:-}" ] && return
-    local end_time
-    end_time=$(date +%s)
-    local duration=$((end_time - _CD_START_TIME))
-    if [ "${exit_code}" -eq 0 ] && [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
-        report_cd_status_to_gatus "true" "" "${duration}s"
-    elif [ "${_DEPLOY_ERRORS}" -gt 0 ]; then
-        report_cd_status_to_gatus "false" "${_DEPLOY_ERRORS} deployment(s) failed - check logs for details" "${duration}s"
-    else
-        report_cd_status_to_gatus "false" "CD pipeline exited with code ${exit_code}" "${duration}s"
+
+    # Flush buffered output on non-zero exit so errors are always visible
+    if [ "${exit_code}" -ne 0 ]; then
+        flush_output_buffer
     fi
+
+    # Report to Gatus
+    if [ -n "${_CD_START_TIME:-}" ]; then
+        local end_time
+        end_time=$(date +%s)
+        local duration=$((end_time - _CD_START_TIME))
+        if [ "${exit_code}" -eq 0 ] && [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
+            report_cd_status_to_gatus "true" "" "${duration}s"
+        elif [ "${_DEPLOY_ERRORS}" -gt 0 ]; then
+            report_cd_status_to_gatus "false" "${_DEPLOY_ERRORS} deployment(s) failed - check logs for details" "${duration}s"
+        else
+            report_cd_status_to_gatus "false" "CD pipeline exited with code ${exit_code}" "${duration}s"
+        fi
+    fi
+
+    # Clean up quiet-mode buffer
+    [ -n "${_QUIET_BUF}" ] && rm -f "${_QUIET_BUF}"
 }
 
 usage() {
@@ -992,6 +1024,7 @@ usage() {
       -f              Force redeploy, skip the hash comparison check (optional)
       -g              Graceful, only restart containers that will be recreated (optional)
       -h              Show this help message
+      -q              Quiet mode: suppress output unless a deployment or error occurs (ideal for cron)
       -k <path>       Specify the path to the Age private key file for SOPS decryption (required when *.sops.env files exist)
       -n              No-pull mode: skip pulling images, use local images only (optional)
       -o <options>    Additional options to pass directly to \`docker compose...\` (optional)
@@ -1007,6 +1040,7 @@ usage() {
 
     Example:    /path/to/dccd.sh -b master -d /path/to/git_repo -g -k /path/to/age/keys.txt -o "--env-file /path/to/my.env" -p -x ignore_this_directory
     TrueNAS:    /path/to/dccd.sh -t -d /path/to/git_repo -k /path/to/age/keys.txt -p
+    Cron:       /path/to/dccd.sh -t -d /path/to/git_repo -x shared -q
     Local:      /path/to/dccd.sh -d /path/to/git_repo -f -n -a plex
     Server:     /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f
     Server+app: /path/to/dccd.sh -d /path/to/git_repo -S svlazext -k /path/to/age.key -f -a plex
@@ -1020,7 +1054,7 @@ EOF
 # Options
 ########################################
 
-while getopts ":a:b:d:DfgG:k:hno:pR:r:s:S:tw:x:" opt; do
+while getopts ":a:b:d:DfgG:k:hno:pqR:r:s:S:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
@@ -1054,6 +1088,9 @@ while getopts ":a:b:d:DfgG:k:hno:pR:r:s:S:tw:x:" opt; do
         ;;
     p)
         PRUNE=1
+        ;;
+    q)
+        QUIET=1
         ;;
     R)
         REMOVE_APP="${OPTARG}"
@@ -1096,6 +1133,11 @@ done
 ########################################
 # Script starts here
 ########################################
+
+# In quiet mode, initialise the output buffer now that options are parsed
+if [ "${QUIET}" -eq 1 ]; then
+    _QUIET_BUF=$(mktemp /tmp/dccd-quiet.XXXXXX)
+fi
 
 # Check if BASE_DIR is provided
 if [ -z "${BASE_DIR}" ]; then
@@ -1242,6 +1284,10 @@ _CD_START_TIME=$(date +%s)
 # Only report CD status to Gatus for full deployments, not single-app runs
 if [ -z "${APP_FILTER}" ]; then
     trap '_handle_gatus_exit $?' EXIT
+else
+    # Single-app runs still need quiet-mode cleanup
+    # shellcheck disable=SC2154  # ec is assigned inside the trap at runtime via $?
+    trap 'ec=$?; [ "${ec}" -ne 0 ] && flush_output_buffer; [ -n "${_QUIET_BUF}" ] && rm -f "${_QUIET_BUF}"' EXIT
 fi
 
 # Remove mode: tear down a single app and exit

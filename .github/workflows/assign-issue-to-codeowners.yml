@@ -2,14 +2,15 @@
 name: Assign issue to CODEOWNERS
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow — input is an issue number for manual assignment
     inputs:
       issue-number:
         description: "Issue number to assign (leave empty for all open issues)"
         required: false
         type: number
   issues:
-    types: [opened]
+    types:
+      - opened
 
 permissions:
   contents: read
