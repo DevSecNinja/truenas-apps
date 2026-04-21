@@ -29,7 +29,8 @@ services:
     volumes:
       - ./data:/data
 
-  # Public-facing backend API for the hadiscover project. Runs ONLY on svlazextpub.
+  # Public-facing backend API for the hadiscover project. Runs on svlazext,
+  # exposed to the internet via cloudflared (Cloudflare Tunnel).
   # Hardening notes:
   # - read_only: true — assumes the hadiscover image does not write outside /app/data
   #   and has PYTHONDONTWRITEBYTECODE=1 (or equivalent) set. If the container fails
@@ -79,22 +80,6 @@ services:
       - homepage.name=hadiscover API
       - homepage.href=https://api.hadiscover.com
       - homepage.description=Home Assistant Discover API
-      # Traefik
-      - "traefik.enable=true"
-      - "traefik.docker.network=hadiscover-frontend"
-      ## HTTP Routers
-      - "traefik.http.routers.hadiscover-api-rtr.rule=Host(`api.hadiscover.com`)"
-      - "traefik.http.routers.hadiscover-api-rtr.entrypoints=https"
-      ## TLS — api.hadiscover.com is not under the ${DOMAINNAME} wildcard, so a
-      ## dedicated certificate is requested via Cloudflare DNS challenge. Requires
-      ## the hadiscover.com zone to be managed by the configured Cloudflare account.
-      - "traefik.http.routers.hadiscover-api-rtr.tls=true"
-      - "traefik.http.routers.hadiscover-api-rtr.tls.certresolver=dns-cloudflare"
-      ## Middlewares — public API; no authentication required
-      - "traefik.http.routers.hadiscover-api-rtr.middlewares=chain-no-auth@file"
-      ## HTTP Services
-      - "traefik.http.routers.hadiscover-api-rtr.service=hadiscover-api"
-      - "traefik.http.services.hadiscover-api.loadbalancer.server.port=8000"
 
 networks:
   hadiscover-frontend:

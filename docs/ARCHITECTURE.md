@@ -208,6 +208,28 @@ The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, S
 
 The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares a single `iot-backend` internal bridge network so the services can communicate directly. For example, wmbusmeters publishes MQTT messages to Mosquitto, Home Assistant subscribes to MQTT topics, and Frigate sends events via MQTT. This network is created by the `_bootstrap` service and referenced as `external: true` by each IoT app. The backend bridge is `internal: true` and carries no internet route. Matter Server is excluded — it uses `network_mode: host` for mDNS device discovery and Thread border router communication.
 
+### Alternative to Traefik: Cloudflare Tunnel
+
+Not all public-facing services need to go through Traefik. Services that require internet exposure without authentication (e.g., public APIs) can use **Cloudflare Tunnel** (`cloudflared`) instead. The cloudflared agent establishes an outbound-only connection to Cloudflare's edge network, eliminating the need for inbound firewall rules or published ports.
+
+**Traffic flow:**
+
+```text
+Internet → Cloudflare edge → cloudflared container → backend service (Docker network)
+```
+
+The cloudflared container joins the backend service's frontend network (e.g., `hadiscover-frontend`) and routes traffic directly to the service by container name. Traefik is not involved in this path — the service's Traefik labels and frontend network entry in Traefik's compose file are removed.
+
+**When to use Cloudflare Tunnel vs Traefik:**
+
+| Criteria                       | Traefik                 | Cloudflare Tunnel  |
+| ------------------------------ | ----------------------- | ------------------ |
+| Internal services (LAN only)   | ✓                       | —                  |
+| Auth-protected public services | ✓                       | —                  |
+| Public APIs (no auth)          | Possible                | ✓ Preferred        |
+| Requires inbound ports         | Yes (80, 443)           | No (outbound only) |
+| TLS termination                | Traefik (Let's Encrypt) | Cloudflare edge    |
+
 ### Gatus Internal Monitoring Entrypoint
 
 Auth-protected services (those using `chain-auth@file`) redirect Gatus health checks to the OAuth login page, causing false-negative alerts. To monitor these services without bypassing network isolation, Traefik exposes a dedicated **monitoring entrypoint** on port 8444.

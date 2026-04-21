@@ -10,7 +10,6 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.yaml)
 - [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.svlazext.yaml) — Azure external VM override
-- [compose.svlazextpub.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.svlazextpub.yaml) — Azure public VM override
 
 ## Access
 
@@ -54,8 +53,7 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 Traefik runs on multiple servers with compose overrides:
 
 - **svlnas** (TrueNAS) — primary instance, joins all service frontend networks
-- **svlazext** — Azure external VM, joins only AdGuard's frontend network
-- **svlazextpub** — Azure public VM, joins only hadiscover's frontend network
+- **svlazext** — Azure VM, joins AdGuard and public app backend frontend networks
 
 ## Secrets
 

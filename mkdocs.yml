@@ -71,6 +71,7 @@ nav:
   - Services:
       - AdGuard Home: services/adguard.md
       - Bazarr: services/bazarr.md
+      - Cloudflared: services/cloudflared.md
       - Dozzle: services/dozzle.md
       - Draw.io: services/drawio.md
       - Echo Server: services/echo-server.md

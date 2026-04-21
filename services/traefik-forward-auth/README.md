@@ -10,7 +10,6 @@ Many self-hosted services (AdGuard, Sonarr, Bazarr, etc.) either lack built-in a
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik-forward-auth/compose.yaml)
 - [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik-forward-auth/compose.svlazext.yaml) — Azure external VM override
-- [compose.svlazextpub.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik-forward-auth/compose.svlazextpub.yaml) — Azure public VM override
 
 ## Access
 

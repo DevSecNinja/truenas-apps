@@ -1,9 +1,10 @@
 ---
-# Server-specific compose override for svlazext (Azure DNS/VPN VM).
+# Server-specific compose override for svlazext (Azure VM — DNS, Cloudflare Tunnel, public backends).
 # Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
 #
 # Overrides:
 # - Traefik network list: only traefik-backend + adguard-frontend
+#   (hadiscover is exposed via cloudflared, not Traefik)
 # - Labels: removes svlnas-specific redirect, adjusts dashboard hostname
 services:
   traefik:

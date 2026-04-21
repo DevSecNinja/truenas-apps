@@ -32,38 +32,39 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 
 ## 🐳 Apps
 
-| App                                                                          | Purpose                                              |
-| ---------------------------------------------------------------------------- | ---------------------------------------------------- |
-| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)            | DNS filtering and ad blocking with Unbound resolver  |
-| [Bazarr](https://www.bazarr.media/)                                          | Subtitle manager for Sonarr and Radarr               |
-| [Dozzle](https://dozzle.dev/)                                                | Real-time container log viewer                       |
-| [Draw.io](https://www.drawio.com/)                                           | Flowchart and diagram maker                          |
-| [Echo Server](https://github.com/mendhak/docker-http-https-echo)             | HTTP echo server for testing Traefik routing         |
-| [ESPHome](https://esphome.io/)                                               | ESP device management and firmware builder           |
-| [Frigate](https://frigate.video/)                                            | NVR with real-time AI object detection               |
-| [Gatus](https://gatus.io/)                                                   | Uptime monitoring with alerting and a status page    |
-| [hadiscover API](https://github.com/DevSecNinja/hadiscover)                  | Home Assistant device discovery API backend          |
-| [Home Assistant](https://www.home-assistant.io/)                             | Open source home automation platform                 |
-| [Homepage](https://gethomepage.dev/)                                         | Customizable dashboard for home lab services         |
-| [Immich](https://immich.app/)                                                | Self-hosted photo and video management               |
-| [Lidarr](https://lidarr.audio/)                                              | Music collection manager and download automation     |
-| [Matter Server](https://github.com/home-assistant-libs/python-matter-server) | Matter/Thread smart home device bridge               |
-| [MeTube](https://github.com/alexta69/metube)                                 | YouTube downloader via yt-dlp with a web UI          |
-| [Mosquitto](https://mosquitto.org/)                                          | MQTT broker for IoT device communication             |
-| [Outline](https://www.getoutline.com/)                                       | Knowledge base and wiki with Azure AD authentication |
-| [Plex](https://www.plex.tv/)                                                 | Media server with hardware transcoding               |
-| [Prowlarr](https://prowlarr.com/)                                            | Indexer manager for the arr stack                    |
-| [qBittorrent](https://www.qbittorrent.org/)                                  | BitTorrent client with web interface                 |
-| [Radarr](https://radarr.video/)                                              | Movie collection manager and download automation     |
-| [SABnzbd](https://sabnzbd.org/)                                              | Usenet download client                               |
-| [Sonarr](https://sonarr.tv/)                                                 | TV series collection manager and download automation |
-| [Spottarr](https://github.com/Spottarr/Spottarr)                             | Spotnet Usenet indexer                               |
-| [SQLite Web](https://github.com/coleifer/sqlite-web)                         | SQLite database browser for Home Assistant           |
-| [Traefik](https://traefik.io/)                                               | Reverse proxy with automatic SSL via Cloudflare DNS  |
-| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth) | SSO authentication via Microsoft Entra ID            |
-| [TubeSync](https://github.com/meeb/tubesync)                                 | YouTube channel and playlist synchronisation         |
-| [Unifi](https://ui.com/)                                                     | Ubiquiti network controller with MongoDB backend     |
-| [wmbusmeters](https://github.com/wmbusmeters/wmbusmeters)                    | Wireless M-Bus smart meter reader (water/gas/heat)   |
+| App                                                                                           | Purpose                                                        |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
+| [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
+| [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
+| [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
+| [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
+| [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |
+| [ESPHome](https://esphome.io/)                                                                | ESP device management and firmware builder                     |
+| [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
+| [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
+| [hadiscover API](https://github.com/DevSecNinja/hadiscover)                                   | Home Assistant device discovery API backend                    |
+| [Home Assistant](https://www.home-assistant.io/)                                              | Open source home automation platform                           |
+| [Homepage](https://gethomepage.dev/)                                                          | Customizable dashboard for home lab services                   |
+| [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                         |
+| [Lidarr](https://lidarr.audio/)                                                               | Music collection manager and download automation               |
+| [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                         |
+| [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
+| [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
+| [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
+| [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
+| [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
+| [qBittorrent](https://www.qbittorrent.org/)                                                   | BitTorrent client with web interface                           |
+| [Radarr](https://radarr.video/)                                                               | Movie collection manager and download automation               |
+| [SABnzbd](https://sabnzbd.org/)                                                               | Usenet download client                                         |
+| [Sonarr](https://sonarr.tv/)                                                                  | TV series collection manager and download automation           |
+| [Spottarr](https://github.com/Spottarr/Spottarr)                                              | Spotnet Usenet indexer                                         |
+| [SQLite Web](https://github.com/coleifer/sqlite-web)                                          | SQLite database browser for Home Assistant                     |
+| [Traefik](https://traefik.io/)                                                                | Reverse proxy with automatic SSL via Cloudflare DNS            |
+| [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth)                  | SSO authentication via Microsoft Entra ID                      |
+| [TubeSync](https://github.com/meeb/tubesync)                                                  | YouTube channel and playlist synchronisation                   |
+| [Unifi](https://ui.com/)                                                                      | Ubiquiti network controller with MongoDB backend               |
+| [wmbusmeters](https://github.com/wmbusmeters/wmbusmeters)                                     | Wireless M-Bus smart meter reader (water/gas/heat)             |
 
 ---
 
@@ -171,11 +172,10 @@ bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /
 
 Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings are defined in `servers.yaml`:
 
-| Server      | Platform        | Apps        | Purpose                          |
-| ----------- | --------------- | ----------- | -------------------------------- |
-| svlnas      | TrueNAS         | All 26 apps | Primary home lab (TrueNAS mode)  |
-| svlazext    | Azure VM Debian | AdGuard     | DNS filtering + Unbound resolver |
-| svlazextpub | Azure VM Debian | Traefik     | Public reverse proxy             |
+| Server   | Platform        | Apps                                                            | Purpose                                                             |
+| -------- | --------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| svlnas   | TrueNAS         | All 26 apps                                                     | Primary home lab (TrueNAS mode)                                     |
+| svlazext | Azure VM Debian | AdGuard, Cloudflared, hadiscover, Traefik, Traefik Forward Auth | DNS filtering + Unbound, Cloudflare Tunnel, and public app backends |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:
 

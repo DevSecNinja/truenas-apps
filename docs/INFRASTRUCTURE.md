@@ -354,15 +354,14 @@ The `servers.yaml` file maps servers to the apps they should deploy. Schema is v
 ```yaml
 servers:
   svlazext:
-    description: "Azure VM — DNS (AdGuard + Unbound) and VPN"
+    description: "Azure VM — DNS (AdGuard + Unbound), Cloudflare Tunnel, and public app backends"
     age_public_key: "age1..."
     apps:
       - adguard
-  svlazextpub:
-    description: "Azure VM — Public web server"
-    age_public_key: "age1..."
-    apps:
+      - cloudflared
+      - hadiscover
       - traefik
+      - traefik-forward-auth
 ```
 
 **TrueNAS (svlnas)** uses TrueNAS mode (`-t`) which has its own app discovery, but is listed in `servers.yaml` for SOPS key scoping.
@@ -411,9 +410,12 @@ creation_rules:
   # adguard runs on svlnas + svlazext
   - path_regex: services/adguard/secret\.sops\.env$
     age: "deploy_key,svlnas_key,svlazext_key"
-  # traefik runs on svlnas + svlazextpub
+  # cloudflared runs on svlnas + svlazext
+  - path_regex: services/cloudflared/secret\.sops\.env$
+    age: "deploy_key,svlnas_key,svlazext_key"
+  # traefik runs on svlnas + svlazext
   - path_regex: services/traefik/secret\.sops\.env$
-    age: "deploy_key,svlnas_key,svlazextpub_key"
+    age: "deploy_key,svlnas_key,svlazext_key"
   # fallback: new apps default to deploy + svlnas
   - path_regex: secret\.sops\.env$
     age: "deploy_key,svlnas_key"

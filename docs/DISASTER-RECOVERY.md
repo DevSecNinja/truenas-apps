@@ -123,17 +123,16 @@ sops -d /mnt/vm-pool/apps/services/echo-server/secret.sops.env
 
 Traefik Forward Auth uses Microsoft Entra ID (Azure AD) for SSO. Each server gets its **own app registration** for credential isolation — a compromised secret on one server cannot be used to authenticate against another.
 
-Three registrations are needed:
+Two registrations are needed:
 
-| Server      | Auth Subdomain | App Registration Name (suggested)  |
-| ----------- | -------------- | ---------------------------------- |
-| svlnas      | `auth`         | `traefik-forward-auth-svlnas`      |
-| svlazext    | `auth-ext`     | `traefik-forward-auth-svlazext`    |
-| svlazextpub | `auth-pub`     | `traefik-forward-auth-svlazextpub` |
+| Server   | Auth Subdomain | App Registration Name (suggested) |
+| -------- | -------------- | --------------------------------- |
+| svlnas   | `auth`         | `traefik-forward-auth-svlnas`     |
+| svlazext | `auth-ext`     | `traefik-forward-auth-svlazext`   |
 
 ### Create Each App Registration
 
-Repeat these steps for each of the three servers:
+Repeat these steps for each of the two servers:
 
 1. Go to **[Azure Portal → Microsoft Entra ID → App registrations → New registration](https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps)**
 2. **Name:** Use the suggested name from the table above
@@ -143,7 +142,6 @@ Repeat these steps for each of the three servers:
    - URI: `https://<auth-subdomain>.<DOMAINNAME>/oauth2/callback`
      - svlnas: `https://auth.<DOMAINNAME>/oauth2/callback`
      - svlazext: `https://auth-ext.<DOMAINNAME>/oauth2/callback`
-     - svlazextpub: `https://auth-pub.<DOMAINNAME>/oauth2/callback`
 5. Click **Register**
 
 ### Generate Client Secrets
@@ -161,7 +159,7 @@ For each registration, note these values (found on the **Overview** page):
 
 | Variable              | Where to Find                                                |
 | --------------------- | ------------------------------------------------------------ |
-| `AZURE_TENANT_ID`     | Overview → Directory (tenant) ID — same for all three        |
+| `AZURE_TENANT_ID`     | Overview → Directory (tenant) ID — same for both             |
 | `AZURE_CLIENT_ID`     | Overview → Application (client) ID — unique per registration |
 | `AZURE_CLIENT_SECRET` | Certificates & secrets → the Value you just copied           |
 
@@ -171,7 +169,6 @@ Each server's credentials go into its own SOPS-encrypted file:
 
 - svlnas → `services/traefik-forward-auth/secret.sops.env`
 - svlazext → `services/traefik-forward-auth/secret.svlazext.sops.env`
-- svlazextpub → `services/traefik-forward-auth/secret.svlazextpub.sops.env`
 
 Each file must contain (at minimum):
 
@@ -194,7 +191,6 @@ Encrypt new per-server files (the `.sops.yaml` rules will scope the Age keys aut
 
 ```sh
 sops -e -i services/traefik-forward-auth/secret.svlazext.sops.env
-sops -e -i services/traefik-forward-auth/secret.svlazextpub.sops.env
 ```
 
 ### Add DNS Records
@@ -203,7 +199,6 @@ Create DNS A/CNAME records for each auth subdomain pointing to the correct serve
 
 - `auth.<DOMAINNAME>` → svlnas IP
 - `auth-ext.<DOMAINNAME>` → svlazext IP
-- `auth-pub.<DOMAINNAME>` → svlazextpub IP
 
 ---
 
@@ -305,8 +300,8 @@ Use this as a quick reference:
 - [ ] Configure cross-group memberships (see ARCHITECTURE.md)
 - [ ] Clone the git repository via SSH (as `truenas_admin`)
 - [ ] Restore the Age private key
-- [ ] Create Entra ID app registrations (3 × traefik-forward-auth) and store credentials in SOPS
-- [ ] Add DNS records for auth subdomains (`auth`, `auth-ext`, `auth-pub`)
+- [ ] Create Entra ID app registrations (2 × traefik-forward-auth) and store credentials in SOPS
+- [ ] Add DNS records for auth subdomains (`auth`, `auth-ext`)
 - [ ] Decrypt secrets by running `dccd.sh`
 - [ ] Restore data from backups (if available)
 - [ ] Recreate media/private dataset permissions (if applicable)
