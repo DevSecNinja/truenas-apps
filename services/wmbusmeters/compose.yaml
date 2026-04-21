@@ -69,6 +69,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /wmbusmeters/etc/wmbusmeters.drivers.d # v2.0.0 expects this dir at startup
     volumes:
       - ./config/wmbusmeters.conf:/wmbusmeters/etc/wmbusmeters.conf:ro
       - ./config/meters.d:/wmbusmeters/etc/wmbusmeters.d:ro

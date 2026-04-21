@@ -37,6 +37,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    entrypoint: []
     volumes:
       - ../home-assistant/data/config:/data:ro
     healthcheck:
