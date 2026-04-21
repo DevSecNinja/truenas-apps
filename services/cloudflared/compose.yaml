@@ -9,7 +9,7 @@ services:
   # this service has zero writable volumes, so there is no file ownership to manage.
   # No init container needed for the same reason.
   cloudflared:
-    image: docker.io/cloudflare/cloudflared:2025.4.2@sha256:698f5c59bf0b9ece62f8c60061004bdfcf7718fbac5d72b87e214af7b9d1d7ac
+    image: docker.io/cloudflare/cloudflared:2026.3.0@sha256:6b599ca3e974349ead3286d178da61d291961182ec3fe9c505e1dd02c8ac31b0
     container_name: cloudflared
     command:
       - "tunnel"
