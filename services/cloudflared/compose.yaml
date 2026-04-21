@@ -57,4 +57,4 @@ services:
 networks:
   hadiscover-frontend:
     name: hadiscover-frontend
-    external: true
+    driver: bridge
