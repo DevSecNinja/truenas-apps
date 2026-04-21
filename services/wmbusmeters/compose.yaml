@@ -22,7 +22,7 @@ services:
       - "sh"
       - "-c"
       - |-
-        mkdir -p /wmbusmeters_data/etc/wmbusmeters.d
+        mkdir -p /wmbusmeters_data/etc/wmbusmeters.d /wmbusmeters_data/logs/meter_readings
         cp -v /config_ro/wmbusmeters.conf /wmbusmeters_data/etc/wmbusmeters.conf || true
         cp -v /config_ro/meters.d/* /wmbusmeters_data/etc/wmbusmeters.d/ 2>/dev/null || true
         chown -Rv 3123:3123 /wmbusmeters_data || true
@@ -59,11 +59,9 @@ services:
     # Uncomment and adjust to pass through the USB radio dongle:
     # devices:
     #   - /dev/ttyUSB0:/dev/ttyUSB0
-    environment:
-      # Let the v2.0.0 entrypoint use its default ETC_DIR=/wmbusmeters_data/etc.
-      # The init container copies git-tracked config there with correct ownership.
-      - LOGS_DIR=/wmbusmeters_data/logs
-      - READINGS_DIR=/wmbusmeters_data/logs/meter_readings
+    # The v2.0.0 entrypoint defaults ETC_DIR=/wmbusmeters_data/etc.
+    # The init container copies git-tracked config there with correct ownership.
+    # Log/meter paths are set in wmbusmeters.conf to use /wmbusmeters_data/logs.
     mem_limit: ${MEM_LIMIT:-256m}
     pids_limit: 100
     security_opt:
