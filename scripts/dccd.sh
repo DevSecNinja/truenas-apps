@@ -1239,7 +1239,10 @@ if [ -n "${SERVER_NAME}" ]; then
 fi
 
 _CD_START_TIME=$(date +%s)
-trap '_handle_gatus_exit $?' EXIT
+# Only report CD status to Gatus for full deployments, not single-app runs
+if [ -z "${APP_FILTER}" ]; then
+    trap '_handle_gatus_exit $?' EXIT
+fi
 
 # Remove mode: tear down a single app and exit
 if [ -n "${REMOVE_APP}" ]; then
