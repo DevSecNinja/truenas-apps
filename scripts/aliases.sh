@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Shell aliases and helper functions for TrueNAS NAS administration.
 #
 # Source this file from your shell's RC file with a one-time addition:
@@ -14,11 +14,10 @@
 
 if [ -d "/mnt/vm-pool/apps" ]; then
     APPS_DIR="/mnt/vm-pool/apps"
-    DCCD_MODE="-t"
+    DCCD_MODE=(-t)
 elif [ -d "/opt/apps" ]; then
     APPS_DIR="/opt/apps"
-    # shellcheck disable=SC2139 # intentional: expand hostname at source time
-    DCCD_MODE="-S $(hostname -s)"
+    DCCD_MODE=(-S "$(hostname -s)")
 fi
 
 ########################################
@@ -45,12 +44,11 @@ dre() {
 
 # Pull and redeploy a single app via dccd: ddeploy <appname>
 # Example: ddeploy gatus
-# shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 ddeploy() {
     bash "${APPS_DIR}/scripts/dccd.sh" \
         -d "${APPS_DIR}" \
         -k "${APPS_DIR}/age.key" \
-        -x shared ${DCCD_MODE} -f -a "$1"
+        -x shared "${DCCD_MODE[@]}" -f -a "$1"
 }
 
 # Bring down a compose stack by app name: ddown <appname>
@@ -66,7 +64,6 @@ ddown() {
 #   dccd-down traefik hadiscover
 #   dccd-down traefik,hadiscover
 #   dccd-down --all
-# shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 dccd_down() {
     if [ -z "${APPS_DIR:-}" ]; then
         echo "ERROR: APPS_DIR is not set." >&2
@@ -110,7 +107,7 @@ dccd_down() {
         [ -z "${app}" ] && continue
         bash "${APPS_DIR}/scripts/dccd.sh" \
             -d "${APPS_DIR}" \
-            ${DCCD_MODE} -R "${app}"
+            "${DCCD_MODE[@]}" -R "${app}"
     done <<EOF
 ${apps}
 EOF
@@ -178,8 +175,8 @@ dclean_orphans() {
 
         # In TrueNAS mode strip the ix- prefix to get the service directory name
         local app_name="${project}"
-        case "${DCCD_MODE:-}" in
-        *-t*) app_name="${project#ix-}" ;;
+        case "${DCCD_MODE[0]:-}" in
+        -t) app_name="${project#ix-}" ;;
         *) ;;
         esac
 
@@ -313,28 +310,25 @@ alias dclean-all='dclean_all'
 ########################################
 
 # Force-deploy all apps, excluding shared
-# shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 dccd_all() {
     bash "${APPS_DIR}/scripts/dccd.sh" \
         -d "${APPS_DIR}" \
         -k "${APPS_DIR}/age.key" \
-        -x shared ${DCCD_MODE} -f
+        -x shared "${DCCD_MODE[@]}" -f
 }
 alias dccd-all='dccd_all'
 
 # Graceful deploy: only restart containers that changed
-# shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 dccd_graceful() {
     bash "${APPS_DIR}/scripts/dccd.sh" \
         -d "${APPS_DIR}" \
         -k "${APPS_DIR}/age.key" \
-        -x shared ${DCCD_MODE} -g
+        -x shared "${DCCD_MODE[@]}" -g
 }
 alias dccd-graceful='dccd_graceful'
 
 # Force-deploy one or more apps: dccd-app <app1> <app2> ... or dccd-app app1,app2,...
 # Example: dccd-app traefik   or   dccd-app dozzle drawio traefik   or   dccd-app dozzle,drawio,traefik
-# shellcheck disable=SC2086 # intentional word splitting on DCCD_MODE
 dccd_app() {
     if [ "$#" -eq 0 ]; then
         echo "Usage: dccd-app <app1> [app2 ...] or dccd-app app1,app2,..."
@@ -348,7 +342,7 @@ dccd_app() {
         bash "${APPS_DIR}/scripts/dccd.sh" \
             -d "${APPS_DIR}" \
             -k "${APPS_DIR}/age.key" \
-            -x shared ${DCCD_MODE} -f -a "${app}"
+            -x shared "${DCCD_MODE[@]}" -f -a "${app}"
     done
 }
 alias dccd-app='dccd_app'
