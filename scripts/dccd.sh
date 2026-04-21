@@ -805,9 +805,13 @@ update_compose_files() {
                     run_compose_command "${compose_file_args[@]}" up -d --dry-run &>"${TMPRESTART}"
                     if grep -q "Recreate" "${TMPRESTART}"; then
                         log_message "GRACEFUL: Redeploying compose file for ${file}"
+                        local deploy_output
                         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                        if ! run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull; then
+                        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
                             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                            if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
+                                log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
+                            fi
                             _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                             _DEPLOY_FAILED_APPS+=("${app_name}")
                         fi
@@ -816,9 +820,13 @@ update_compose_files() {
                     fi
                 else
                     log_message "STATE: Redeploying compose file for ${file}"
+                    local deploy_output
                     # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                    if ! run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull; then
+                    if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
                         log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                        if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
+                            log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
+                        fi
                         _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                         _DEPLOY_FAILED_APPS+=("${app_name}")
                     fi

@@ -55,6 +55,10 @@ services:
       - homepage.description=Cloudflare Tunnel Agent
 
 networks:
+  # Created by hadiscover's compose.yaml. Because dccd.sh deploys apps
+  # alphabetically, cloudflared (c) starts before hadiscover (h). On a
+  # first deploy the network may not exist yet — re-run the deployment
+  # to resolve.
   hadiscover-frontend:
     name: hadiscover-frontend
     external: true
