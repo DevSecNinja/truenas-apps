@@ -1,0 +1,16 @@
+---
+name: Assign issue to CODEOWNERS
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  assign:
+    uses: DevSecNinja/.github/.github/workflows/assign-issue-to-codeowners.yml@2978f7f87d39870cb8193069a2f1f01d55dfc6ea # main
+    permissions:
+      contents: read
+      issues: write
