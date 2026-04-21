@@ -1,7 +1,8 @@
 ---
 services:
-  # Sets ownership on ./data so the non-root wmbusmeters container (UID 3123)
-  # can write meter state files. Runs once, then exits.
+  # Sets ownership on ./data and copies git-tracked config into ./data/etc
+  # so the non-root wmbusmeters container (UID 3123) can read config and write
+  # meter state files. Runs once, then exits.
   wmbusmeters-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: wmbusmeters-init
@@ -21,9 +22,13 @@ services:
       - "sh"
       - "-c"
       - |-
+        mkdir -p /wmbusmeters_data/etc/wmbusmeters.d
+        cp -v /config_ro/wmbusmeters.conf /wmbusmeters_data/etc/wmbusmeters.conf || true
+        cp -v /config_ro/meters.d/* /wmbusmeters_data/etc/wmbusmeters.d/ 2>/dev/null || true
         chown -Rv 3123:3123 /wmbusmeters_data || true
     volumes:
       - ./data:/wmbusmeters_data
+      - ./config:/config_ro:ro
 
   # wmbusmeters reads wireless M-Bus (wM-Bus) telegrams from smart meters
   # (water, gas, electricity, heat) and publishes readings to MQTT. The
@@ -55,9 +60,8 @@ services:
     # devices:
     #   - /dev/ttyUSB0:/dev/ttyUSB0
     environment:
-      # Override the image defaults so the entrypoint finds our git-tracked
-      # config (:ro) and writes runtime data to ./data (writable).
-      - ETC_DIR=/wmbusmeters/etc
+      # Let the v2.0.0 entrypoint use its default ETC_DIR=/wmbusmeters_data/etc.
+      # The init container copies git-tracked config there with correct ownership.
       - LOGS_DIR=/wmbusmeters_data/logs
       - READINGS_DIR=/wmbusmeters_data/logs/meter_readings
     mem_limit: ${MEM_LIMIT:-256m}
@@ -69,10 +73,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /wmbusmeters/etc/wmbusmeters.drivers.d # v2.0.0 expects this dir at startup
     volumes:
-      - ./config/wmbusmeters.conf:/wmbusmeters/etc/wmbusmeters.conf:ro
-      - ./config/meters.d:/wmbusmeters/etc/wmbusmeters.d:ro
       - ./data:/wmbusmeters_data
     healthcheck:
       test:

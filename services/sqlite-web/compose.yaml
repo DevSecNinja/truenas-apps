@@ -4,6 +4,9 @@ services:
   # database. It mounts the HA database file as :ro so it can only read, never
   # modify the data. The -r flag enables read-only mode in the application.
   #
+  # The GHCR image ships ENTRYPOINT ["sqlite_wsgi", "-H", "0.0.0.0"].
+  # The command below appends read-only, port, and the database path.
+  #
   # No init container needed — the HA database is managed by Home Assistant
   # and this container only reads it.
   sqlite-web:
@@ -21,10 +24,7 @@ services:
     networks:
       - sqlite-web-frontend
     command:
-      - "sqlite_web"
       - "-r"
-      - "-H"
-      - "0.0.0.0"
       - "-p"
       - "8080"
       - "/data/home-assistant_v2.db"
@@ -37,13 +37,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    entrypoint: []
     volumes:
       - ../home-assistant/data/config:/data:ro
     healthcheck:
       test:
         - "CMD-SHELL"
-        - "wget -q --spider http://localhost:8080/ || exit 1"
+        - "wget -q --spider http://127.0.0.1:8080/ || exit 1"
       interval: 30s
       timeout: 10s
       retries: 3
