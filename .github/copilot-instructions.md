@@ -101,6 +101,7 @@ docs/
     label-sync.yml       # Syncs repo labels from .github/labels.yaml
     release.yml          # Triggered on v* tag push: generates changelog and creates GitHub Release
   skills/
+    code-testing/SKILL.md         # Skill for linting, formatting, and security scanning
     new-docker-app/SKILL.md       # Skill for adding a new app
     retire-docker-app/SKILL.md    # Skill for retiring an app
     commit-and-release/SKILL.md   # Skill for commits and releases
@@ -171,3 +172,4 @@ Follow the conventions above. Only search the codebase for additional context if
 ## Agent Delegation
 
 - **Documentation tasks** — Always delegate to the **Technical Writer** agent. This includes: writing or updating READMEs, ARCHITECTURE.md, INFRASTRUCTURE.md, CONTRIBUTING.md, docs/index.md, per-service READMEs, and any other Markdown documentation. The main agent should handle compose files, scripts, CI workflows, and all non-documentation code changes, then hand off the doc work to Technical Writer.
+- **Code testing tasks** — Delegate to the **Code Tester** agent when writing BATS tests for shell scripts, running linting, formatting checks, security scans, or validation. This includes: writing unit/integration/e2e tests, pre-commit checks, diagnosing CI failures, running targeted lint/format tools, and auto-fixing formatting issues. Use the skill at `.github/skills/code-testing/SKILL.md` for the full procedure.
