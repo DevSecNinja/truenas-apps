@@ -8,9 +8,11 @@
 
 set -euo pipefail
 
-# Guard: refuse to run as root to prevent git/file ownership issues
+# Guard: refuse to run as root to prevent git/file ownership issues.
+# The guard is skipped when the script is sourced for testing (DCCD_TESTING=1)
+# so BATS can load function definitions without privilege constraints.
 # shellcheck disable=SC2312  # id -u always succeeds
-if [ "$(id -u)" -eq 0 ]; then
+if [ "${DCCD_TESTING:-}" != "1" ] && [ "$(id -u)" -eq 0 ]; then
     echo "ERROR: Do not run this script as root. Run as truenas_admin instead." >&2
     echo "       Ensure passwordless sudo is configured for docker:" >&2
     echo "       truenas_admin ALL=(ALL) NOPASSWD: /usr/bin/docker" >&2
@@ -969,6 +971,12 @@ update_compose_files() {
 
 # Report the CD pipeline status to a Gatus external endpoint.
 # Requires GATUS_URL (-G flag) and GATUS_CD_TOKEN (env var) to be set.
+# Simple URL encoding for query string values (handles spaces and common special chars).
+# Top-level so unit tests can exercise it directly without going through report_cd_status_to_gatus.
+url_encode_simple() {
+    printf '%s' "$1" | sed 's/ /+/g; s/&/%26/g; s/=/%3D/g; s/#/%23/g'
+}
+
 report_cd_status_to_gatus() {
     local success="$1"
     local error_msg="${2:-}"
@@ -977,11 +985,6 @@ report_cd_status_to_gatus() {
     if [ -z "${GATUS_URL}" ] || [ -z "${GATUS_CD_TOKEN:-}" ]; then
         return
     fi
-
-    # Simple URL encoding for query string values (handles spaces and common special chars)
-    url_encode_simple() {
-        printf '%s' "$1" | sed 's/ /+/g; s/&/%26/g; s/=/%3D/g; s/#/%23/g'
-    }
 
     # Key format: <GROUP>_<NAME> — must match the external-endpoint definition in Gatus config
     local key="Webhooks_docker-compose-cd"
@@ -1078,6 +1081,14 @@ EOF
 ########################################
 # Options
 ########################################
+
+# Source guard: when the script is sourced by BATS tests (DCCD_TESTING=1),
+# stop here so function definitions are available but no option parsing or
+# deployment logic runs. This keeps prod behaviour unchanged when executed.
+if [ "${DCCD_TESTING:-}" = "1" ]; then
+    # shellcheck disable=SC2317  # reachable when script is sourced
+    return 0 2>/dev/null || true
+fi
 
 while getopts ":a:b:d:DfgG:k:hno:pqR:r:s:S:tw:x:" opt; do
     case "${opt}" in
