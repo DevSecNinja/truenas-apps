@@ -1,0 +1,46 @@
+---
+name: Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/**"
+      - "tests/**"
+  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow — no artifacts produced
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  unit-integration:
+    # uses: DevSecNinja/.github/.github/workflows/bats.yml@  # after extraction
+    uses: ./.github/workflows/bats.yml
+    permissions:
+      contents: read
+      checks: write
+    with:
+      # renovate: datasource=github-releases depName=jdx/mise
+      mise-version: "2026.4.5"
+      test-dirs: "tests/dccd/unit tests/dccd/integration"
+      check-name: "dccd Unit & Integration Tests"
+
+  e2e:
+    # uses: DevSecNinja/.github/.github/workflows/bats-e2e.yml@  # after extraction
+    uses: ./.github/workflows/bats-e2e.yml
+    permissions:
+      contents: read
+      checks: write
+    with:
+      # renovate: datasource=github-releases depName=jdx/mise
+      mise-version: "2026.4.5"
+      test-dirs: "tests/dccd/e2e"
+      check-name: "dccd E2E Tests"

@@ -61,6 +61,28 @@ url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-da
 [tools.age."platforms.windows-x64"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-windows-amd64.zip"
 
+[[tools.bats]]
+version = "1.11.1"
+backend = "aqua:bats-core/bats-core"
+
+[tools.bats."platforms.linux-arm64"]
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
+
+[tools.bats."platforms.linux-arm64-musl"]
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
+
+[tools.bats."platforms.linux-x64"]
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
+
+[tools.bats."platforms.linux-x64-musl"]
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
+
+[tools.bats."platforms.macos-arm64"]
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
+
+[tools.bats."platforms.macos-x64"]
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
+
 [[tools.checkov]]
 version = "3.2.513"
 backend = "aqua:bridgecrewio/checkov"
