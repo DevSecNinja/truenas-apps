@@ -539,10 +539,14 @@ redeploy_truenas_apps() {
         # shellcheck disable=SC2310  # || true is intentional; function may fail when no containers exist
         img_after=$(get_project_image_info "${project_name}") || true
         log_image_changes "${app_name}" "${img_before}" "${img_after}"
-        if [ -z "${img_before}" ] || [ "${img_before}" != "${img_after}" ]; then
+        if [ -n "${img_before}" ] && [ -n "${img_after}" ]; then
+            if [ "${img_before}" != "${img_after}" ]; then
+                _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
+            else
+                _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
+            fi
+        elif [ -z "${img_before}" ] && [ -n "${img_after}" ]; then
             _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
-        else
-            _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
         fi
     done
 }
