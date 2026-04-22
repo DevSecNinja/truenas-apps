@@ -12,7 +12,7 @@ on:
     paths:
       - "scripts/**"
       - "tests/**"
-  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow — no artifacts produced
+  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow -- no artifacts produced
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

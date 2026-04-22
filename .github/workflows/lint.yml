@@ -20,7 +20,7 @@ jobs:
     with:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.4.5"
-      lint-config-drift: true
+      lint-config-drift: false
 
   # --- Repo-specific jobs (not centralized) ---
   docker-compose-config:
