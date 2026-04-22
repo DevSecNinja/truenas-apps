@@ -1,0 +1,43 @@
+---
+# Conventional Commit type prefixes (from cog/cliff config)
+feat:
+  - '^feat(\(.+\))?:'
+  - '(?i)(feature request|enhancement|add support|would be (nice|great)|request)'
+
+fix:
+  - '^fix(\(.+\))?:'
+  - '(?i)(error|crash|fail|broken|not work|doesn.t work|bug)'
+
+perf:
+  - '^perf(\(.+\))?:'
+
+refactor:
+  - '^refactor(\(.+\))?:'
+
+docs:
+  - '^docs(\(.+\))?:'
+  - '(?i)(doc|readme|wiki|guide|tutorial|documentation)'
+
+ci:
+  - '^ci(\(.+\))?:'
+  - '(?i)(github action|workflow|pipeline|\.github)'
+
+chore:
+  - '^chore(\(.+\))?:'
+
+# Area labels
+area/apps:
+  - '(?i)(app|service|container|docker)'
+
+area/github:
+  - '(?i)(github action|workflow|ci|pipeline|\.github)'
+
+area/renovate:
+  - '(?i)(renovate|dependency|dependenc|update.*package|package.*update)'
+
+area/scripts:
+  - '(?i)(script|automation|bash|shell|cron)'
+
+# General
+question:
+  - '(?i)(how (do|to|can)|question|\?)'
