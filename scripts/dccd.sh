@@ -8,15 +8,6 @@
 
 set -euo pipefail
 
-# Guard: refuse to run as root to prevent git/file ownership issues
-# shellcheck disable=SC2312  # id -u always succeeds
-if [ "$(id -u)" -eq 0 ]; then
-    echo "ERROR: Do not run this script as root. Run as truenas_admin instead." >&2
-    echo "       Ensure passwordless sudo is configured for docker:" >&2
-    echo "       truenas_admin ALL=(ALL) NOPASSWD: /usr/bin/docker" >&2
-    exit 1
-fi
-
 ########################################
 # Default configuration values
 ########################################
@@ -615,6 +606,94 @@ cleanup_orphaned_projects() {
     done <<<"${before_apps}"
 }
 
+# Build and execute a docker compose command as an array to avoid eval and command injection
+run_compose_command() {
+    local -a cmd=()
+    if [ -n "${SUDO}" ]; then
+        cmd+=("${SUDO}")
+    fi
+    cmd+=(docker compose)
+    cmd+=("${COMPOSE_PROFILE_ARGS[@]}")
+    if [ -n "${COMPOSE_OPTS}" ]; then
+        # Word-split is intentional: COMPOSE_OPTS is a controlled CLI flag (-o)
+        # shellcheck disable=SC2206
+        cmd+=(${COMPOSE_OPTS})
+    fi
+    cmd+=("$@")
+    "${cmd[@]}"
+}
+
+# Deploy a single compose file (with optional overrides)
+redeploy_compose_file() {
+    local file=$1
+    local -a extra_files=("${@:2}") # Optional override compose files
+    local app_name
+    app_name=$(basename "$(dirname "${file}")")
+
+    # Build the compose file arguments
+    local -a compose_file_args=(-f "${file}")
+    for ef in "${extra_files[@]}"; do
+        compose_file_args+=(-f "${ef}")
+    done
+
+    # Validate the compose file(s) before touching any running containers
+    if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --quiet 2>/dev/null; then
+        log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
+        return 0
+    fi
+
+    # Skip apps where all services require a profile that isn't active
+    local _services
+    _services=$(${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --services 2>/dev/null)
+    if [ -z "${_services}" ]; then
+        log_message "INFO:  ${app_name}: Skipping — no services match active profiles"
+        return 0
+    fi
+
+    _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
+
+    # Pull images unless NO_PULL is set
+    if [ "${NO_PULL}" -eq 0 ]; then
+        run_compose_command "${compose_file_args[@]}" pull --quiet
+    else
+        log_message "STATE: Skipping image pull for ${file} (no-pull mode)"
+    fi
+
+    if [ "${GRACEFUL}" -eq 1 ]; then
+        run_compose_command "${compose_file_args[@]}" up -d --dry-run &>"${TMPRESTART}"
+        if grep -q "Recreate" "${TMPRESTART}"; then
+            log_message "GRACEFUL: Redeploying compose file for ${file}"
+            _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
+            local deploy_output
+            # shellcheck disable=SC2310  # failure is handled by the surrounding if block
+            if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
+                log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
+                    log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
+                fi
+                _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+                _DEPLOY_FAILED_APPS+=("${app_name}")
+            fi
+        else
+            log_message "GRACEFUL: Skipping Redeploying compose file for ${file} (no change)"
+            _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
+        fi
+    else
+        log_message "STATE: Redeploying compose file for ${file}"
+        _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
+        local deploy_output
+        # shellcheck disable=SC2310  # failure is handled by the surrounding if block
+        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
+            log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+            if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
+                log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
+            fi
+            _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
+            _DEPLOY_FAILED_APPS+=("${app_name}")
+        fi
+    fi
+}
+
 update_compose_files() {
     local dir="$1"
 
@@ -760,93 +839,6 @@ update_compose_files() {
         if [ "${TRUENAS}" -eq 1 ]; then
             redeploy_truenas_apps
         else
-            redeploy_compose_file() {
-                local file=$1
-                local -a extra_files=("${@:2}") # Optional override compose files
-                local app_name
-                app_name=$(basename "$(dirname "${file}")")
-
-                # Build the compose file arguments
-                local -a compose_file_args=(-f "${file}")
-                for ef in "${extra_files[@]}"; do
-                    compose_file_args+=(-f "${ef}")
-                done
-
-                # Validate the compose file(s) before touching any running containers
-                if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --quiet 2>/dev/null; then
-                    log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
-                    return 0
-                fi
-
-                # Skip apps where all services require a profile that isn't active
-                local _services
-                _services=$(${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --services 2>/dev/null)
-                if [ -z "${_services}" ]; then
-                    log_message "INFO:  ${app_name}: Skipping — no services match active profiles"
-                    return 0
-                fi
-
-                _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
-
-                # Build the command as an array to avoid eval and command injection
-                run_compose_command() {
-                    local -a cmd=()
-                    if [ -n "${SUDO}" ]; then
-                        cmd+=("${SUDO}")
-                    fi
-                    cmd+=(docker compose)
-                    cmd+=("${COMPOSE_PROFILE_ARGS[@]}")
-                    if [ -n "${COMPOSE_OPTS}" ]; then
-                        # Word-split is intentional: COMPOSE_OPTS is a controlled CLI flag (-o)
-                        # shellcheck disable=SC2206
-                        cmd+=(${COMPOSE_OPTS})
-                    fi
-                    cmd+=("$@")
-                    "${cmd[@]}"
-                }
-
-                # Pull images unless NO_PULL is set
-                if [ "${NO_PULL}" -eq 0 ]; then
-                    run_compose_command "${compose_file_args[@]}" pull --quiet
-                else
-                    log_message "STATE: Skipping image pull for ${file} (no-pull mode)"
-                fi
-
-                if [ "${GRACEFUL}" -eq 1 ]; then
-                    run_compose_command "${compose_file_args[@]}" up -d --dry-run &>"${TMPRESTART}"
-                    if grep -q "Recreate" "${TMPRESTART}"; then
-                        log_message "GRACEFUL: Redeploying compose file for ${file}"
-                        _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
-                        local deploy_output
-                        # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
-                            log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
-                            if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
-                                log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
-                            fi
-                            _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
-                            _DEPLOY_FAILED_APPS+=("${app_name}")
-                        fi
-                    else
-                        log_message "GRACEFUL: Skipping Redeploying compose file for ${file} (no change)"
-                        _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
-                    fi
-                else
-                    log_message "STATE: Redeploying compose file for ${file}"
-                    _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
-                    local deploy_output
-                    # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-                    if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
-                        log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
-                        if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
-                            log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
-                        fi
-                        _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
-                        _DEPLOY_FAILED_APPS+=("${app_name}")
-                    fi
-                fi
-            }
-
             # Collect compose files; traefik must be deployed last because it
             # attaches to networks created by other projects.
             local -a traefik_files=()
@@ -967,6 +959,11 @@ update_compose_files() {
     log_message "STATE: Done!"
 }
 
+# Simple URL encoding for query string values (handles spaces and common special chars)
+url_encode_simple() {
+    printf '%s' "$1" | sed 's/ /%20/g; s/&/%26/g; s/=/%3D/g; s/#/%23/g; s|/|%2F|g'
+}
+
 # Report the CD pipeline status to a Gatus external endpoint.
 # Requires GATUS_URL (-G flag) and GATUS_CD_TOKEN (env var) to be set.
 report_cd_status_to_gatus() {
@@ -977,11 +974,6 @@ report_cd_status_to_gatus() {
     if [ -z "${GATUS_URL}" ] || [ -z "${GATUS_CD_TOKEN:-}" ]; then
         return
     fi
-
-    # Simple URL encoding for query string values (handles spaces and common special chars)
-    url_encode_simple() {
-        printf '%s' "$1" | sed 's/ /+/g; s/&/%26/g; s/=/%3D/g; s/#/%23/g'
-    }
 
     # Key format: <GROUP>_<NAME> — must match the external-endpoint definition in Gatus config
     local key="Webhooks_docker-compose-cd"
@@ -1074,6 +1066,26 @@ usage() {
 EOF
     exit 1
 }
+
+########################################
+# Source guard: when DCCD_TESTING=1, stop here so tests can source
+# individual functions without executing the main flow.
+########################################
+if [[ "${DCCD_TESTING:-}" == "1" ]]; then
+    # shellcheck disable=SC2317  # invoked indirectly when sourced with DCCD_TESTING=1
+    return 0 2>/dev/null || true
+fi
+
+########################################
+# Guard: refuse to run as root to prevent git/file ownership issues
+########################################
+# shellcheck disable=SC2312  # id -u always succeeds
+if [ "$(id -u)" -eq 0 ]; then
+    echo "ERROR: Do not run this script as root. Run as truenas_admin instead." >&2
+    echo "       Ensure passwordless sudo is configured for docker:" >&2
+    echo "       truenas_admin ALL=(ALL) NOPASSWD: /usr/bin/docker" >&2
+    exit 1
+fi
 
 ########################################
 # Options

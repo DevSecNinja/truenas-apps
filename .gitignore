@@ -14,3 +14,12 @@ services/**/data/
 
 # App specific
 services/homepage/config/logs/
+
+# Downloaded BATS helper libraries (installed by tests/setup_libs.sh)
+tests/libs/
+
+# BATS test report artifacts
+report.xml
+
+# go-task cache directory
+.task/

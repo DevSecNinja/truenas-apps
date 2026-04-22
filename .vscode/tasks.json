@@ -1,0 +1,68 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "BATS: Run All Tests",
+            "type": "shell",
+            "command": "mise exec -- bats tests/ --recursive",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "BATS: Run Unit Tests",
+            "type": "shell",
+            "command": "mise exec -- bats tests/dccd/unit/",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "BATS: Run Integration Tests",
+            "type": "shell",
+            "command": "mise exec -- bats tests/dccd/integration/",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "BATS: Run E2E Tests",
+            "type": "shell",
+            "command": "DCCD_E2E=1 mise exec -- bats tests/dccd/e2e/",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "BATS: Run Current File",
+            "type": "shell",
+            "command": "mise exec -- bats ${file}",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

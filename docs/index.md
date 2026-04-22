@@ -74,3 +74,23 @@ The setup follows
 | [Disaster Recovery](DISASTER-RECOVERY.md) | Full rebuild procedures for a fresh TrueNAS          |
 | [Troubleshooting](TROUBLESHOOTING.md)     | Docker, DNS, and permissions diagnostics             |
 | [Retired Services](RETIRED-SERVICES.md)   | Log of retired services and last active state        |
+
+## Development
+
+This repo uses [go-task](https://taskfile.dev) as a task runner (managed by mise). List all
+available commands:
+
+```sh
+task --list
+```
+
+Common workflows:
+
+```sh
+task test        # Run the BATS test suite (unit + integration)
+task lint        # Run all linters
+task format      # Auto-format all files
+task ci:local    # Run the full CI pipeline locally
+```
+
+See [Contributing](CONTRIBUTING.md) for testing details, commit conventions, and the release process.

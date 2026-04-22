@@ -1,0 +1,397 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Task runner for TrueNAS Apps repository
+# Install Task: mise install (managed via .mise.toml)
+# Usage: task [task-name]
+# List all tasks: task --list
+
+version: "3"
+
+vars:
+  REPO_ROOT:
+    sh: pwd
+  SERVICES_DIR: "{{.REPO_ROOT}}/services"
+  SCRIPTS_DIR: "{{.REPO_ROOT}}/scripts"
+  TESTS_DIR: "{{.REPO_ROOT}}/tests"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  # ─── Setup ────────────────────────────────────────────────
+
+  install:
+    desc: Install all dependencies (mise tools + BATS libs)
+    cmds:
+      - task: install:mise
+      - task: install:bats-libs
+
+  install:mise:
+    desc: Install all mise-managed tools
+    cmds:
+      - mise install
+    sources:
+      - .mise.toml
+
+  install:bats-libs:
+    desc: Download BATS helper libraries
+    cmds:
+      - bash {{.TESTS_DIR}}/setup_libs.sh
+    sources:
+      - "{{.TESTS_DIR}}/setup_libs.sh"
+    generates:
+      - "{{.TESTS_DIR}}/libs/bats-support/load.bash"
+      - "{{.TESTS_DIR}}/libs/bats-assert/load.bash"
+      - "{{.TESTS_DIR}}/libs/bats-file/load.bash"
+
+  # ─── Testing ──────────────────────────────────────────────
+
+  test:
+    desc: Run all tests (unit + integration + E2E skipped locally)
+    deps:
+      - install:bats-libs
+    cmds:
+      - mise exec -- bats {{.TESTS_DIR}} --recursive
+
+  test:unit:
+    desc: Run unit tests only
+    deps:
+      - install:bats-libs
+    cmds:
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/
+
+  test:integration:
+    desc: Run integration tests only
+    deps:
+      - install:bats-libs
+    cmds:
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/integration/
+
+  test:e2e:
+    desc: Run E2E tests (requires Docker, set DCCD_E2E=1)
+    deps:
+      - install:bats-libs
+    env:
+      DCCD_E2E: "1"
+    cmds:
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/e2e/
+
+  test:file:
+    desc: "Run a single test file (usage: task test:file -- path/to/test.bats)"
+    deps:
+      - install:bats-libs
+    cmds:
+      - mise exec -- bats {{.CLI_ARGS}}
+
+  test:ci:
+    desc: Run tests in CI mode with JUnit XML output
+    deps:
+      - install:bats-libs
+    cmds:
+      - mkdir -p {{.REPO_ROOT}}/test-results
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/dccd/integration/ --formatter junit -T > {{.REPO_ROOT}}/test-results/results.xml
+
+  # ─── Linting ──────────────────────────────────────────────
+
+  lint:
+    desc: Run all linters
+    cmds:
+      - task: lint:yaml
+      - task: lint:shell
+      - task: lint:actions
+      - task: lint:security
+
+  lint:yaml:
+    desc: Lint all YAML files with yamllint
+    cmds:
+      - find . \( -name '*.yaml' -o -name '*.yml' \) -not -path './tests/libs/*' -not -path './site/*' -not -path './node_modules/*'
+        -print0 | xargs -0 mise exec -- yamllint
+
+  lint:shell:
+    desc: Lint all shell scripts with shellcheck
+    cmds:
+      - find . -name '*.sh' -not -path './tests/libs/*' -print0 | xargs -0 mise exec -- shellcheck
+
+  lint:actions:
+    desc: Lint GitHub Actions workflows
+    cmds:
+      - mise exec -- actionlint
+
+  lint:security:
+    desc: Run security scanners (checkov + trivy + gitleaks + zizmor)
+    cmds:
+      - mise exec -- checkov --skip-download -d . --skip-path tests/libs
+      - mise exec -- trivy fs --scanners misconfig,secret .
+      - mise exec -- gitleaks detect --redact
+      - mise exec -- zizmor .github/workflows/*.yml
+
+  # ─── Formatting ───────────────────────────────────────────
+
+  format:
+    desc: Auto-format all files (YAML + shell + Markdown)
+    cmds:
+      - task: format:yaml
+      - task: format:shell
+      - task: format:markdown
+
+  format:yaml:
+    desc: Format YAML files with yamlfmt
+    cmds:
+      - find . \( -name '*.yaml' -o -name '*.yml' \) -not -path './tests/libs/*' -not -path './site/*' -not -path './node_modules/*'
+        -print0 | xargs -0 mise exec -- yamlfmt
+
+  format:shell:
+    desc: Format shell scripts with shfmt
+    cmds:
+      - find . -name '*.sh' -not -path './tests/libs/*' -print0 | xargs -0 mise exec -- shfmt --write
+
+  format:markdown:
+    desc: Format Markdown files with dprint
+    cmds:
+      - mise exec -- dprint fmt
+
+  format:check:
+    desc: Check formatting without modifying files
+    cmds:
+      - find . \( -name '*.yaml' -o -name '*.yml' \) -not -path './tests/libs/*' -not -path './site/*' -not -path './node_modules/*'
+        -print0 | xargs -0 mise exec -- yamlfmt -lint
+      - find . -name '*.sh' -not -path './tests/libs/*' -print0 | xargs -0 mise exec -- shfmt --diff
+      - mise exec -- dprint check
+
+  # ─── Compose ──────────────────────────────────────────────
+
+  compose:validate:
+    desc: Validate all compose files
+    cmds:
+      - |
+        errors=0
+        for f in {{.SERVICES_DIR}}/*/compose.yaml; do
+            app=$(basename "$(dirname "$f")")
+            if docker compose -f "$f" config --quiet 2>/dev/null; then
+                echo "✓ ${app}"
+            else
+                echo "✗ ${app}"
+                errors=$((errors + 1))
+            fi
+        done
+        if [ "$errors" -gt 0 ]; then
+            echo ""
+            echo "${errors} compose file(s) failed validation"
+            exit 1
+        fi
+        echo ""
+        echo "All compose files valid"
+
+  compose:validate:app:
+    desc: "Validate a single app's compose file (usage: task compose:validate:app -- appname)"
+    cmds:
+      - docker compose -f {{.SERVICES_DIR}}/{{.CLI_ARGS}}/compose.yaml config --quiet
+
+  # ─── SOPS / Secrets ──────────────────────────────────────
+
+  sops:generate-rules:
+    desc: Regenerate .sops.yaml from servers.yaml
+    cmds:
+      - bash {{.SCRIPTS_DIR}}/generate-sops-rules.sh -d {{.REPO_ROOT}}
+
+  sops:encrypt:
+    desc: Encrypt all secret files
+    cmds:
+      - bash {{.SCRIPTS_DIR}}/encrypt-secrets.sh
+
+  # ─── Documentation ───────────────────────────────────────
+
+  docs:serve:
+    desc: Serve documentation locally with MkDocs
+    cmds:
+      - mise exec -- mkdocs serve
+
+  docs:build:
+    desc: Build documentation site
+    cmds:
+      - mise exec -- mkdocs build
+
+  docs:symlinks:
+    desc: Regenerate docs/ symlinks for per-service READMEs
+    cmds:
+      - bash {{.SCRIPTS_DIR}}/generate-docs-symlinks.sh
+
+  # ─── Pre-commit / CI ─────────────────────────────────────
+
+  pre-commit:
+    desc: Run all pre-commit checks (same as lefthook)
+    cmds:
+      - mise exec -- lefthook run pre-commit
+
+  ci:local:
+    desc: Run full CI pipeline locally
+    cmds:
+      - task: format:check
+      - task: lint
+      - task: compose:validate
+      - task: test
+      - echo "All CI checks passed"
+
+  ci:quick:
+    desc: Run quick CI checks (format + lint only, no tests)
+    cmds:
+      - task: format:check
+      - task: lint:yaml
+      - task: lint:shell
+      - task: lint:actions
+
+  # ─── Deployment (local) ──────────────────────────────────
+
+  deploy:app:
+    desc: "Force-deploy a single app locally (usage: task deploy:app -- appname)"
+    cmds:
+      - bash {{.SCRIPTS_DIR}}/dccd.sh -d {{.REPO_ROOT}} -f -n -a {{.CLI_ARGS}}
+
+  deploy:decrypt:
+    desc: Decrypt all SOPS-encrypted env files (no deploy)
+    cmds:
+      - bash {{.SCRIPTS_DIR}}/dccd.sh -d {{.REPO_ROOT}} -k {{.REPO_ROOT}}/age.key -D
+
+  # ─── Datasets ────────────────────────────────────────────
+
+  datasets:check:
+    desc: Check that all required TrueNAS datasets exist
+    cmds:
+      - bash {{.SCRIPTS_DIR}}/check-datasets.sh
+
+  # ─── Git ──────────────────────────────────────────────────
+
+  git:status:
+    desc: Show git status and current branch
+    cmds:
+      - git status --short --branch
+
+  git:log:
+    desc: Show recent git commits
+    cmds:
+      - git --no-pager log --oneline --graph --decorate -15
+
+  # ─── Development ──────────────────────────────────────────
+
+  dev:clean:
+    desc: Clean temporary and generated files
+    cmds:
+      - rm -rf {{.TESTS_DIR}}/libs/ 2>/dev/null || true
+      - rm -rf {{.REPO_ROOT}}/site/ 2>/dev/null || true
+      - rm -f {{.REPO_ROOT}}/test-results/*.xml 2>/dev/null || true
+      - find . -type f -name '.DS_Store' -delete 2>/dev/null || true
+      - echo "Cleaned temporary files"
+
+  # ─── Mise ─────────────────────────────────────────────────
+
+  mise:doctor:
+    desc: Check mise configuration and health
+    cmds:
+      - mise doctor
+
+  mise:list:
+    desc: List all installed mise tools
+    cmds:
+      - mise list
+
+  mise:upgrade:
+    desc: Upgrade all mise-managed tools
+    cmds:
+      - mise upgrade
+
+  # ─── Information ──────────────────────────────────────────
+
+  info:
+    desc: Display environment and tool information
+    cmds:
+      - |
+        echo "═══════════════════════════════════════"
+        echo "  TrueNAS Apps - System Info"
+        echo "═══════════════════════════════════════"
+        echo ""
+        echo "Repository: {{.REPO_ROOT}}"
+        echo "Hostname:   $(hostname)"
+        echo ""
+        echo "--- Tool Versions ---"
+        echo "Task:       $(task --version)"
+        echo "Docker:     $(docker --version 2>/dev/null || echo 'Not available')"
+        echo "Bats:       $(mise exec -- bats --version 2>/dev/null || echo 'Not installed')"
+        echo "ShellCheck: $(mise exec -- shellcheck --version 2>/dev/null | head -2 | tail -1 || echo 'Not installed')"
+        echo "yq:         $(mise exec -- yq --version 2>/dev/null || echo 'Not installed')"
+        echo ""
+        echo "--- mise ---"
+        mise list 2>/dev/null || echo "  No tools installed yet"
+        echo ""
+    silent: true
+
+  help:
+    desc: Show detailed help and usage examples
+    cmds:
+      - |
+        echo "════════════════════════════════════════════════════"
+        echo "  TrueNAS Apps - Task Runner Help"
+        echo "════════════════════════════════════════════════════"
+        echo ""
+        echo "USAGE:"
+        echo "  task [task-name]           Run a specific task"
+        echo "  task --list                List all available tasks"
+        echo "  task help                  Show this help message"
+        echo ""
+        echo "COMMON WORKFLOWS:"
+        echo ""
+        echo "  Setup:"
+        echo "    task install             Install all dependencies"
+        echo "    task install:mise        Install mise tools only"
+        echo "    task install:bats-libs   Download BATS test libraries"
+        echo ""
+        echo "  Testing:"
+        echo "    task test                Run all tests"
+        echo "    task test:unit           Run unit tests only"
+        echo "    task test:integration    Run integration tests only"
+        echo "    task test:e2e            Run E2E tests (needs Docker)"
+        echo "    task test:file -- f.bats Run a single test file"
+        echo ""
+        echo "  Linting & Formatting:"
+        echo "    task lint                Run all linters"
+        echo "    task format              Auto-format all files"
+        echo "    task format:check        Check formatting (no changes)"
+        echo ""
+        echo "  Compose:"
+        echo "    task compose:validate            Validate all compose files"
+        echo "    task compose:validate:app -- app Validate a single app"
+        echo ""
+        echo "  CI:"
+        echo "    task pre-commit          Run lefthook pre-commit checks"
+        echo "    task ci:local            Full local CI pipeline"
+        echo "    task ci:quick            Quick checks (lint only)"
+        echo ""
+        echo "  Deploy (local dev):"
+        echo "    task deploy:app -- plex  Force-deploy a single app"
+        echo "    task deploy:decrypt      Decrypt SOPS secrets"
+        echo ""
+        echo "  Docs:"
+        echo "    task docs:serve          Live-preview MkDocs site"
+        echo "    task docs:build          Build static docs site"
+        echo ""
+        echo "EXAMPLES:"
+        echo ""
+        echo "  # Install everything and run tests"
+        echo "  task install && task test"
+        echo ""
+        echo "  # Quick format check before committing"
+        echo "  task ci:quick"
+        echo ""
+        echo "  # Run a specific test file"
+        echo "  task test:file -- tests/dccd/unit/log_message.bats"
+        echo ""
+        echo "  # Validate a single compose stack"
+        echo "  task compose:validate:app -- plex"
+        echo ""
+        echo "════════════════════════════════════════════════════"
+        echo ""
+        echo "For more information, see: https://taskfile.dev"
+        echo ""
+    silent: true
