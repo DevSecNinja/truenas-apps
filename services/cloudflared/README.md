@@ -16,8 +16,8 @@ Cloudflared itself has no web UI. Tunnel routing rules are managed in the [Cloud
 
 ### Currently Tunnelled Services
 
-| Public URL | Backend target | Service |
-| --- | --- | --- |
+| Public URL                   | Backend target                         | Service        |
+| ---------------------------- | -------------------------------------- | -------------- |
 | `https://api.hadiscover.com` | `https://traefik` (with `noTLSVerify`) | hadiscover API |
 
 ## Architecture

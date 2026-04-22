@@ -228,13 +228,13 @@ All three containers (cloudflared, Traefik, and the backend) share the same fron
 
 **When to use Cloudflare Tunnel + Traefik vs Traefik alone:**
 
-| Criteria | Traefik only | Cloudflare Tunnel + Traefik |
-| --- | --- | --- |
-| Internal services (LAN only) | ✓ | — |
-| Auth-protected public services | ✓ | ✓ (with `chain-auth@file`) |
-| Public APIs (no auth) | ✓ | ✓ Preferred (zero inbound ports) |
-| Requires inbound ports | Yes (80, 443) | No (outbound only) |
-| TLS termination (external) | Traefik (Let's Encrypt) | Cloudflare edge |
+| Criteria                       | Traefik only            | Cloudflare Tunnel + Traefik      |
+| ------------------------------ | ----------------------- | -------------------------------- |
+| Internal services (LAN only)   | ✓                       | —                                |
+| Auth-protected public services | ✓                       | ✓ (with `chain-auth@file`)       |
+| Public APIs (no auth)          | ✓                       | ✓ Preferred (zero inbound ports) |
+| Requires inbound ports         | Yes (80, 443)           | No (outbound only)               |
+| TLS termination (external)     | Traefik (Let's Encrypt) | Cloudflare edge                  |
 
 ### Gatus Internal Monitoring Entrypoint
 
