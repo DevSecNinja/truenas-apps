@@ -16,14 +16,14 @@ Cloudflared itself has no web UI. Tunnel routing rules are managed in the [Cloud
 
 ### Currently Tunnelled Services
 
-| Public URL                   | Backend target               | Service        |
-| ---------------------------- | ---------------------------- | -------------- |
-| `https://api.hadiscover.com` | `http://hadiscover-api:8000` | hadiscover API |
+| Public URL | Backend target | Service |
+| --- | --- | --- |
+| `https://api.hadiscover.com` | `https://traefik` (with `noTLSVerify`) | hadiscover API |
 
 ## Architecture
 
 - **Image**: [cloudflare/cloudflared](https://github.com/cloudflare/cloudflared) (official)
-- **Networks**: `hadiscover-frontend` (shared with hadiscover-api — created by the hadiscover compose stack)
+- **Networks**: `hadiscover-frontend` (shared with hadiscover-api and Traefik — created by the hadiscover compose stack). Traffic is routed through Traefik, which applies its middleware chain before forwarding to the backend.
 - **No dedicated UID/GID**: The official image runs as the built-in `nonroot` user (UID 65532). No writable volumes are mounted, so there is no file ownership to manage.
 - **No init container**: No writable volumes means no chown is needed.
 - **Tunnel mode**: Token-based (`TUNNEL_TOKEN`). Routing rules (which hostname maps to which backend) are configured in the Cloudflare Zero Trust dashboard, not in local config files.
@@ -47,7 +47,7 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
    1. Make sure to select Cloudflared as the tunnel type
    2. Provide a name for the tunnel, e.g. the hostname of the machine
    3. On the 'Install and run connectors' step, copy the token hidden in the install command and click next.
-   4. You will now get to the 'Route tunnel' step. Configure tunnel routing rules (e.g., `api.hadiscover.com` → `http://hadiscover-api:8000`) and hit the Setup button.
+   4. You will now get to the 'Route tunnel' step. Configure tunnel routing rules (e.g., `api.hadiscover.com` → `https://traefik` with `noTLSVerify` enabled) and hit the Setup button.
    5. Now the tunnel should be created. Set `TUNNEL_TOKEN` in `secret.sops.env` based on the tunnel token gathered at step 1.3
 2. Deploy — cloudflared establishes the tunnel and begins proxying traffic
 
