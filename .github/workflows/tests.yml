@@ -1,0 +1,55 @@
+---
+name: Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/tests.yml"
+      - ".github/workflows/bats.yml"
+      - ".github/workflows/bats-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/tests.yml"
+      - ".github/workflows/bats.yml"
+      - ".github/workflows/bats-e2e.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit-integration:
+    # After the workflows are extracted to DevSecNinja/.github, switch to
+    # uses: DevSecNinja/.github/.github/workflows/bats.yml@<sha>
+    uses: ./.github/workflows/bats.yml
+    permissions:
+      contents: read
+      checks: write
+    with:
+      # renovate: datasource=github-releases depName=jdx/mise
+      mise-version: "2026.4.5"
+      test-dirs: "tests/dccd/unit tests/dccd/integration"
+      check-name: "dccd Unit & Integration Tests"
+      bootstrap-command: "tests/bootstrap.sh"
+
+  e2e:
+    # After extraction: uses: DevSecNinja/.github/.github/workflows/bats-e2e.yml@<sha>
+    uses: ./.github/workflows/bats-e2e.yml
+    permissions:
+      contents: read
+      checks: write
+    with:
+      # renovate: datasource=github-releases depName=jdx/mise
+      mise-version: "2026.4.5"
+      test-dirs: "tests/dccd/e2e"
+      check-name: "dccd E2E Tests"
+      bootstrap-command: "tests/bootstrap.sh"

@@ -8,9 +8,18 @@
 #   setup()      { common_setup; }
 #   teardown()   { common_teardown; }
 #
-# common_setup_file() sources dccd.sh once per file using DCCD_TESTING=1.
-# common_setup() creates an isolated temp dir + mock PATH per test and resets
-# all mutable globals so tests are fully independent.
+# common_setup_file() is intentionally a no-op today (see note below).
+# common_setup() creates an isolated temp dir + mock PATH per test, sources
+# dccd.sh with DCCD_TESTING=1, and resets all mutable globals so tests are
+# fully independent.
+
+# shellcheck shell=bash
+# shellcheck disable=SC2034  # many variables are "unused" from shellcheck's
+#                            # perspective but are consumed by dccd.sh after
+#                            # we source it. Similarly $status and $output are
+#                            # set by BATS' `run` helper and are not visible
+#                            # to static analysis.
+# shellcheck disable=SC2154
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -86,7 +95,7 @@ common_setup() {
     export PATH="${MOCK_BIN}:${PATH}"
 
     # Load mock helpers (defines create_mock, create_mock_passthrough, etc.)
-    # shellcheck source=./mocks.bash
+    # shellcheck source=/dev/null
     source "${REPO_ROOT}/tests/dccd/helpers/mocks.bash"
 
     # Source dccd.sh so function definitions are available in the test shell.

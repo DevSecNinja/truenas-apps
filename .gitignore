@@ -2,6 +2,14 @@
 bin/**
 site/
 
+# BATS helper libraries (bootstrapped into place by tests/bootstrap.sh)
+tests/libs/
+
+# BATS test report artefacts
+tests/*.xml
+tests/**/*.xml
+report.xml
+
 # Secrets
 *.key
 secret.env

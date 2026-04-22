@@ -1,0 +1,80 @@
+---
+name: "Reusable — BATS Tests"
+
+# Reusable workflow that runs BATS unit/integration tests for any repo with
+# mise-managed tooling. Designed to move to DevSecNinja/.github once proven.
+
+on:
+  workflow_call:
+    inputs:
+      mise-version:
+        description: "mise version to install (required, no default per ADR 0001)"
+        required: true
+        type: string
+      test-dirs:
+        description: "Space-separated list of directories to pass to bats (default: tests/)"
+        required: false
+        type: string
+        default: "tests/"
+      bats-args:
+        description: "Additional arguments to pass to bats (e.g. --filter-tags unit)"
+        required: false
+        type: string
+        default: ""
+      check-name:
+        description: "Name for the GitHub check annotation"
+        required: false
+        type: string
+        default: "BATS Test Results"
+      bootstrap-command:
+        description: "Optional command to bootstrap test helpers (e.g. tests/bootstrap.sh)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: BATS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          version: ${{ inputs.mise-version }}
+
+      - name: Bootstrap test helpers
+        if: inputs.bootstrap-command != ''
+        run: ${{ inputs.bootstrap-command }}
+
+      - name: Run BATS tests
+        run: >-
+          mise exec -- bats --formatter tap --report-formatter junit --output .
+          ${{ inputs.bats-args }} ${{ inputs.test-dirs }}
+
+      - name: Publish test results
+        uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
+        if: always()
+        with:
+          report_paths: report.xml
+          check_name: ${{ inputs.check-name }}
+
+      - name: Upload test report artefact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: bats-test-results
+          path: report.xml
+          retention-days: 30

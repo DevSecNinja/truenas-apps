@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
+#
 # Mock / stub helpers for BATS tests.
 #
 # create_mock writes a stub executable that records each invocation's argv
@@ -64,15 +65,13 @@ MOCK_SCRIPT
     chmod +x "${MOCK_BIN}/${cmd}"
 }
 
-# Arbitrary mock body — $body must be a valid bash snippet.
-# Automatically logs invocation to MOCK_LOG/<cmd>.calls.
 create_mock_script() {
     local cmd="$1"
     local body="$2"
     {
-        echo '#!/usr/bin/env bash'
-        echo "printf '%s\\n' \"\$*\" >> \"${MOCK_LOG}/${cmd}.calls\""
-        echo "${body}"
+        printf '#!/usr/bin/env bash\n'
+        printf 'printf '\''%%s\\n'\'' "$*" >> "%s/%s.calls"\n' "${MOCK_LOG}" "${cmd}"
+        printf '%s\n' "${body}"
     } >"${MOCK_BIN}/${cmd}"
     chmod +x "${MOCK_BIN}/${cmd}"
 }
@@ -83,7 +82,9 @@ mock_called() {
 
 mock_call_count() {
     if [ -f "${MOCK_LOG}/$1.calls" ]; then
-        wc -l <"${MOCK_LOG}/$1.calls" | tr -d ' '
+        local count
+        count=$(wc -l <"${MOCK_LOG}/$1.calls")
+        printf '%s\n' "${count// /}"
     else
         echo 0
     fi

@@ -9,6 +9,7 @@ age = "1.2.1"
 "pipx:yamllint" = "1.38.0"
 "pipx" = "1.11.1"
 actionlint = "1.7.12"
+bats = "1.12.0"
 cocogitto = "7.0.0"
 git-cliff = "2.12.0"
 docker-compose = "5.1.1"
@@ -22,3 +23,32 @@ trivy = "0.69.3"
 yamlfmt = "0.21.0"
 yq = "4.52.5"
 zizmor = "1.23.1"
+
+########################################
+# Tasks
+########################################
+# Run BATS tests for dccd.sh. See scripts/run-bats-tests.sh for details.
+
+[tasks."test"]
+description = "Run BATS unit + integration tests for dccd.sh"
+run = "scripts/run-bats-tests.sh"
+
+[tasks."test:unit"]
+description = "Run BATS unit tests for dccd.sh"
+run = "scripts/run-bats-tests.sh --unit"
+
+[tasks."test:integration"]
+description = "Run BATS integration tests for dccd.sh"
+run = "scripts/run-bats-tests.sh --integration"
+
+[tasks."test:e2e"]
+description = "Run BATS end-to-end tests for dccd.sh (requires Docker)"
+run = "scripts/run-bats-tests.sh --e2e"
+
+[tasks."test:all"]
+description = "Run all BATS tests (unit + integration + E2E)"
+run = "scripts/run-bats-tests.sh --all"
+
+[tasks."test:bootstrap"]
+description = "Download BATS helper libraries (bats-support, bats-assert, bats-file)"
+run = "tests/bootstrap.sh"

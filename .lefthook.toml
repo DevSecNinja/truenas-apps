@@ -18,11 +18,11 @@ run = "mise exec -- gitleaks protect --staged --redact"
 
 [pre-commit.commands.shellcheck]
 run = "mise exec -- shellcheck {staged_files}"
-glob = ["**/*.sh"]
+glob = ["**/*.sh", "tests/**/*.bash"]
 
 [pre-commit.commands.shfmt]
 run = "mise exec -- shfmt --write {staged_files}"
-glob = ["**/*.sh"]
+glob = ["**/*.sh", "tests/**/*.bash"]
 stage_fixed = true
 
 [pre-commit.commands.trivy]
@@ -35,6 +35,13 @@ glob = ["**/*.yaml", "**/*.yml"]
 [pre-commit.commands.zizmor]
 run = "mise exec -- zizmor {staged_files}"
 glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+
+[pre-commit.commands.bats]
+# Run the full unit + integration suite when any shell script or test file
+# changes. E2E tests are excluded here — run them on demand with
+# `mise run test:e2e` or let CI handle them.
+run = "scripts/run-bats-tests.sh"
+glob = ["scripts/**/*.sh", "tests/**/*.bats", "tests/**/*.bash"]
 
 [pre-commit.commands.docker-compose-config]
 run = "for f in {staged_files}; do mise exec -- docker-compose -f \"$f\" config --quiet; done"
