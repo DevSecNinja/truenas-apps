@@ -44,6 +44,8 @@ GATUS_DNS_SERVER=""                           # DNS server for Gatus curl calls 
 # GATUS_DNS_SERVER falls back to IP_DNS_SERVER_1 from the same .env file if -r is not supplied
 _DEPLOY_ERRORS=0       # Count of deployment failures (non-fatal errors logged during deploy)
 _DEPLOY_ATTEMPTED=0    # Count of deployment attempts
+_DEPLOY_CHANGED=0      # Count of apps where containers were recreated/updated
+_DEPLOY_UNCHANGED=0    # Count of apps where no changes were detected
 _DEPLOY_FAILED_APPS=() # Names of failed apps
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
@@ -532,11 +534,16 @@ redeploy_truenas_apps() {
             fi
         fi
 
-        # Report which images changed (or not)
+        # Report which images changed (or not) and track changed/unchanged counts
         local img_after
         # shellcheck disable=SC2310  # || true is intentional; function may fail when no containers exist
         img_after=$(get_project_image_info "${project_name}") || true
         log_image_changes "${app_name}" "${img_before}" "${img_after}"
+        if [ -z "${img_before}" ] || [ "${img_before}" != "${img_after}" ]; then
+            _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
+        else
+            _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
+        fi
     done
 }
 
@@ -805,6 +812,7 @@ update_compose_files() {
                     run_compose_command "${compose_file_args[@]}" up -d --dry-run &>"${TMPRESTART}"
                     if grep -q "Recreate" "${TMPRESTART}"; then
                         log_message "GRACEFUL: Redeploying compose file for ${file}"
+                        _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
                         local deploy_output
                         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
                         if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
@@ -817,9 +825,11 @@ update_compose_files() {
                         fi
                     else
                         log_message "GRACEFUL: Skipping Redeploying compose file for ${file} (no change)"
+                        _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
                     fi
                 else
                     log_message "STATE: Redeploying compose file for ${file}"
+                    _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
                     local deploy_output
                     # shellcheck disable=SC2310  # failure is handled by the surrounding if block
                     if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
@@ -938,6 +948,9 @@ update_compose_files() {
                     log_message "RESULT:   FAILED: ${app}"
                 done
             fi
+        fi
+        if [ "$((_DEPLOY_CHANGED + _DEPLOY_UNCHANGED))" -gt 0 ]; then
+            log_message "RESULT: ${_DEPLOY_CHANGED} changed, ${_DEPLOY_UNCHANGED} unchanged"
         fi
         log_message "${sep}"
     fi
