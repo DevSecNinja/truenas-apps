@@ -211,7 +211,7 @@ See [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md#multi-server-deployment) for
 
 ---
 
-## �️ Development
+## 🛠️ Development
 
 This repo uses [go-task](https://taskfile.dev) as a task runner (managed by mise). List all available commands:
 
@@ -232,7 +232,7 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for testing details, commit con
 
 ---
 
-## �🙏 Thank You
+## 🙏 Thank You
 
 | Project                                                       | Role                                                                                                                  |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
