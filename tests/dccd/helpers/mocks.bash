@@ -68,11 +68,14 @@ MOCK_SCRIPT
 create_mock_script() {
     local cmd="$1"
     local body="$2"
-    {
-        printf '#!/usr/bin/env bash\n'
-        printf 'printf '\''%%s\\n'\'' "$*" >> "%s/%s.calls"\n' "${MOCK_LOG}" "${cmd}"
-        printf '%s\n' "${body}"
-    } >"${MOCK_BIN}/${cmd}"
+    local calls_file="${MOCK_LOG}/${cmd}.calls"
+    # Use a heredoc for readability; interpolate only the calls-file path so
+    # the user-supplied $body runs unmodified in the stub shell.
+    cat >"${MOCK_BIN}/${cmd}" <<STUB_HEADER
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "${calls_file}"
+STUB_HEADER
+    printf '%s\n' "${body}" >>"${MOCK_BIN}/${cmd}"
     chmod +x "${MOCK_BIN}/${cmd}"
 }
 
