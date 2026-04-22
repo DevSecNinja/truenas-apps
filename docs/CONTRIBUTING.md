@@ -84,6 +84,75 @@ to produce release-scoped notes and creates the GitHub Release automatically.
 | `cliff.toml` | Commit grouping, body template, GitHub commit link configuration |
 | `cog.toml`   | Bump hooks, tag prefix, merge-commit filtering                   |
 
+## Task Runner
+
+[go-task](https://taskfile.dev) provides a unified interface for all repository tasks — testing,
+linting, formatting, compose validation, deployment, and more. It is managed by mise alongside the
+other tools.
+
+Verify the installation:
+
+```sh
+task --version
+```
+
+List all available tasks:
+
+```sh
+task --list
+```
+
+Common workflows:
+
+| Command                 | What it does                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `task install`          | Install all dependencies (mise tools + BATS libraries)                           |
+| `task test`             | Run the full test suite                                                          |
+| `task lint`             | Run all linters (YAML, shell, actions, security)                                 |
+| `task format`           | Auto-format all files (YAML, shell, Markdown)                                    |
+| `task format:check`     | Check formatting without modifying files                                         |
+| `task ci:local`         | Run the full CI pipeline locally (format check + lint + compose validate + test) |
+| `task ci:quick`         | Quick checks — format and lint only, no tests                                    |
+| `task compose:validate` | Validate all compose files                                                       |
+| `task pre-commit`       | Run lefthook pre-commit hooks                                                    |
+| `task docs:serve`       | Live-preview the MkDocs site locally                                             |
+
+Run `task help` for detailed usage examples.
+
+## Testing
+
+The repository has a [BATS](https://github.com/bats-core/bats-core) test suite for `scripts/dccd.sh`
+with 133 tests across three categories:
+
+| Category    | Count | What it tests                                                       |
+| ----------- | ----- | ------------------------------------------------------------------- |
+| Unit        | 73    | Individual functions in isolation with all external commands mocked |
+| Integration | 56    | Multi-function workflows (deploy flow, option parsing, cleanup)     |
+| E2E         | 4     | Real Docker containers — skipped locally, runs in CI                |
+
+### Running tests
+
+```sh
+task test
+task test:unit
+task test:integration
+task test:e2e
+task test:file -- tests/dccd/unit/log_message.bats
+```
+
+E2E tests require Docker and are skipped unless `DCCD_E2E=1` is set. The `task test:e2e` command
+sets this automatically.
+
+### Pre-commit hook
+
+Lefthook runs `bats tests/` as a pre-commit hook, so the full unit and integration suite executes
+before every commit. If tests fail, the commit is blocked.
+
+### Writing tests
+
+See [tests/README.md](https://github.com/DevSecNinja/truenas-apps/blob/main/tests/README.md) for
+the full test writing guide — directory structure, helper reference, mock patterns, and conventions.
+
 ## Per-Service Documentation
 
 Each service can have a `README.md` in its directory (e.g. `services/adguard/README.md`). These files are the source of truth for service-specific documentation — architecture, access URLs, init containers, secrets, first-run setup, and upgrade notes.
