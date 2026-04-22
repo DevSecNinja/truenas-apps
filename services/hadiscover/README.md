@@ -20,9 +20,9 @@ This is a first-party project — the API backend serves device metadata used by
 
 - **Image**: [devsecninja/hadiscover/backend](https://github.com/DevSecNinja/hadiscover) (Python)
 - **User/Group**: `3121:3121` (`svc-app-hadiscover`)
-- **Networks**: `hadiscover-frontend` (shared with cloudflared)
-- **Reverse proxy**: Cloudflare Tunnel via cloudflared — public API, no authentication. Traffic flows: internet → Cloudflare edge → cloudflared → hadiscover-api:8000
-- **TLS**: Terminated at Cloudflare's edge (not by Traefik)
+- **Networks**: `hadiscover-frontend` (shared with cloudflared and Traefik)
+- **Reverse proxy**: Cloudflare Tunnel via cloudflared through Traefik — public API, no authentication (`chain-no-auth@file`). Traffic flows: internet → Cloudflare edge → cloudflared → Traefik → hadiscover-api:8000
+- **TLS**: Terminated at Cloudflare's edge; cloudflared connects to Traefik over HTTPS with `noTLSVerify`
 
 ### Services
 
@@ -42,7 +42,7 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 1. Create the dataset `vm-pool/apps/services/hadiscover` in TrueNAS
 2. Create a `svc-app-hadiscover` group (GID 3121) and user (UID 3121) on the TrueNAS host
 3. Set `HADISCOVER_GITHUB_TOKEN` in `secret.sops.env`
-4. Deploy — the API starts serving on port 8000, accessible via Cloudflare Tunnel
+4. Deploy — the API starts serving on port 8000, accessible via Cloudflare Tunnel through Traefik
 
 ## Upgrade Notes
 
