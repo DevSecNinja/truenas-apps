@@ -12,7 +12,8 @@
       "**/.git/objects/**": true,
       "**/.git/subtree-cache/**": true,
       "**/node_modules/*/**": true,
-      "**/.venv/*/**": true
+      "**/.venv/*/**": true,
+      "tests/libs/**": true
     },
     "files.exclude": {
       "**/.git": true,
@@ -20,7 +21,8 @@
       "**/.hg": true,
       "**/CVS": true,
       "**/.DS_Store": true,
-      "**/Thumbs.db": true
+      "**/Thumbs.db": true,
+      "tests/libs": true
     },
     "search.exclude": {
       "**/.git": true,
@@ -43,7 +45,8 @@
       "**/.ruff_cache": true,
       "**/target": true,
       "**/bin": true,
-      "**/obj": true
+      "**/obj": true,
+      "tests/libs": true
     },
     "sops.defaults.ageKeyFile": "age.key",
     "[markdown]": {

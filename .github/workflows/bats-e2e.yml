@@ -1,0 +1,93 @@
+---
+name: "Reusable — BATS E2E Tests"
+
+on:
+  workflow_call:
+    inputs:
+      mise-version:
+        description: "mise version to install (required, no default per ADR 0001)"
+        required: true
+        type: string
+      test-dirs:
+        description: "Space-separated list of E2E test directories"
+        required: false
+        type: string
+        default: "tests/"
+      bats-args:
+        description: "Additional arguments to pass to bats"
+        required: false
+        type: string
+        default: ""
+      timeout-minutes:
+        description: "Job timeout in minutes (E2E tests may be slower)"
+        required: false
+        type: number
+        default: 20
+      check-name:
+        description: "Name for the GitHub check annotation"
+        required: false
+        type: string
+        default: "BATS E2E Test Results"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: BATS E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          install: true
+          version: ${{ inputs.mise-version }}
+
+      - name: Install BATS helper libraries
+        run: bash tests/setup_libs.sh
+
+      - name: Verify Docker is available
+        run: docker version
+
+      - name: Run BATS E2E tests
+        env:
+          BATS_ARGS: ${{ inputs.bats-args }}
+          TEST_DIRS: ${{ inputs.test-dirs }}
+        run: |
+          # shellcheck disable=SC2086
+          mise exec -- bats \
+            --formatter tap \
+            --report-formatter junit \
+            --output . \
+            ${BATS_ARGS} \
+            ${TEST_DIRS}
+
+      - name: Publish test results
+        uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
+        if: always()
+        with:
+          report_paths: report.xml
+          check_name: ${{ inputs.check-name }}
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          docker compose down --remove-orphans 2>/dev/null || true
+          docker system prune -f 2>/dev/null || true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: bats-e2e-test-results
+          path: report.xml
+          retention-days: 30

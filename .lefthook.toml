@@ -6,7 +6,7 @@ run = "mise exec -- actionlint {staged_files}"
 glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 
 [pre-commit.commands.checkov]
-run = "mise exec -- checkov --skip-download -d ."
+run = "mise exec -- checkov --skip-download -d . --skip-path tests/libs"
 
 [pre-commit.commands.format-yaml]
 run = "mise exec -- yamlfmt {staged_files}"
@@ -18,11 +18,11 @@ run = "mise exec -- gitleaks protect --staged --redact"
 
 [pre-commit.commands.shellcheck]
 run = "mise exec -- shellcheck {staged_files}"
-glob = ["**/*.sh"]
+glob = ["**/*.sh", "tests/**/*.bash"]
 
 [pre-commit.commands.shfmt]
 run = "mise exec -- shfmt --write {staged_files}"
-glob = ["**/*.sh"]
+glob = ["**/*.sh", "tests/**/*.bash"]
 stage_fixed = true
 
 [pre-commit.commands.trivy]
@@ -64,6 +64,10 @@ glob = ["servers.yaml", "servers.schema.json"]
 [pre-commit.commands.validate-servers-apps]
 run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do [ -d \"services/${app}\" ] || { echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; }; done"
 glob = ["servers.yaml", "services/**/compose.yaml"]
+
+[pre-commit.commands.bats]
+run = "mise exec -- bats tests/"
+glob = ["scripts/*.sh", "tests/**"]
 
 [commit-msg.commands.cocogitto]
 run = "mise exec -- cog verify \"$(cat {1})\""
