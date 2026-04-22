@@ -17,3 +17,6 @@ services/homepage/config/logs/
 
 # Downloaded BATS helper libraries (installed by tests/setup_libs.sh)
 tests/libs/
+
+# go-task cache directory
+.task/
