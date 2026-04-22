@@ -18,11 +18,11 @@ run = "mise exec -- gitleaks protect --staged --redact"
 
 [pre-commit.commands.shellcheck]
 run = "mise exec -- shellcheck {staged_files}"
-glob = ["**/*.sh"]
+glob = ["**/*.sh", "tests/**/*.bash"]
 
 [pre-commit.commands.shfmt]
 run = "mise exec -- shfmt --write {staged_files}"
-glob = ["**/*.sh"]
+glob = ["**/*.sh", "tests/**/*.bash"]
 stage_fixed = true
 
 [pre-commit.commands.trivy]

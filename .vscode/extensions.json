@@ -1,7 +1,6 @@
 {
     "recommendations": [
         "editorconfig.editorconfig",
-        "github.vscode-github-actions",
-        "kherring.bats-test-runner"
+        "github.vscode-github-actions"
     ]
 }
