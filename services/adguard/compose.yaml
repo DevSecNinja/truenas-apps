@@ -79,6 +79,35 @@ services:
       retries: 3
       start_period: 5s
 
+  # Flushes the Redis DNS cache on every deploy so stale entries (especially
+  # cached NXDOMAIN for newly added local-data records) don't persist across
+  # Unbound restarts. Redis is ephemeral — flushing is cheap and safe.
+  adguard-redis-flush:
+    image: docker.io/library/redis:8.6.2-alpine@sha256:81b6f81d6a6c5b9019231a2e8eb10085e3a139a34f833dcc965a8a959b040b72
+    container_name: adguard-redis-flush
+    depends_on:
+      adguard-redis:
+        condition: service_healthy
+    env_file:
+      - path: ../shared/env/tz.env
+    restart: "no"
+    networks:
+      - adguard-backend
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    command:
+      - "redis-cli"
+      - "-h"
+      - "adguard-redis"
+      - "FLUSHDB"
+    tmpfs:
+      - /tmp
+
   adguard-unbound:
     # Validate config with: docker exec adguard-unbound unbound-checkconf
     image: docker.io/madnuttah/unbound:1.24.2-1@sha256:47fdc01759f661b6ac3d63b6e6f1e073e6b71617a37c419624e8a3cb82534b2e
@@ -86,8 +115,8 @@ services:
     depends_on:
       adguard-unbound-init:
         condition: service_completed_successfully
-      adguard-redis:
-        condition: service_healthy
+      adguard-redis-flush:
+        condition: service_completed_successfully
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
