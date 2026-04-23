@@ -163,7 +163,9 @@ services:
     cap_drop:
       - ALL
     read_only: true
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
     command:
       - "unbound-control flush_zone ${DOMAINNAME}"
     tmpfs:
