@@ -65,6 +65,7 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `adguard-unbound-init` | One-shot init: substitutes `${VAR}` placeholders in Unbound config templates, chowns output to `3101:3101`                     |
 | `adguard-redis`        | Ephemeral Redis cache backend for Unbound's `cachedb` module — cache survives Unbound restarts but is lost on Redis restart    |
+| `adguard-redis-flush`  | One-shot init: flushes Redis DNS cache (`FLUSHDB`) on every deploy so stale entries are cleared before Unbound starts          |
 | `adguard-unbound`      | Recursive DNS resolver (Unbound) — DNS-over-TLS to upstream, local-data for internal names                                     |
 | `adguard-init`         | One-shot init: copies `AdGuardHome.yaml` from repo config into `data/conf/`, chowns `data/work` and `data/conf` to `3101:3101` |
 | `adguard`              | AdGuard Home DNS filter — listens on port 53, forwards to Unbound on the frontend network                                      |
@@ -72,10 +73,10 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 ### Startup Order
 
 ```text
-adguard-redis (healthy) ──────────────────────────────────────────┐
-adguard-unbound-init (completed) ─────────────────────────────────┴─→ adguard-unbound (waits for both)
-adguard-init (completed) ─────────────────────────────────────────────────────────────────────────────┐
-                                                                       adguard-unbound (healthy) ──────┴─→ adguard
+adguard-redis (healthy) → adguard-redis-flush (completed) ─────────────────────┐
+adguard-unbound-init (completed) ───────────────────────────────────────────────┴─→ adguard-unbound (waits for both)
+adguard-init (completed) ───────────────────────────────────────────────────────────────────────────────────────────┐
+                                                                                     adguard-unbound (healthy) ──────┴─→ adguard
 ```
 
 ### Init Containers
