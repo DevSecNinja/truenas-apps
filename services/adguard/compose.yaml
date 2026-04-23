@@ -140,6 +140,37 @@ services:
       retries: 3
       start_period: 30s
 
+  # Selectively flushes Unbound's cache for the internal domain on every deploy.
+  # Clears stale entries (e.g. cached NXDOMAIN for newly added local-data records)
+  # without wiping the Redis-backed external DNS cache.
+  # Uses network_mode: service to reach Unbound's localhost-only control socket.
+  adguard-unbound-flush:
+    image: docker.io/madnuttah/unbound:1.24.2-1@sha256:47fdc01759f661b6ac3d63b6e6f1e073e6b71617a37c419624e8a3cb82534b2e
+    container_name: adguard-unbound-flush
+    depends_on:
+      adguard-unbound:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    network_mode: "service:adguard-unbound"
+    restart: "no"
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+    command:
+      - "unbound-control flush_zone ${DOMAINNAME}"
+    tmpfs:
+      - /tmp
+
   # Sets ownership on the adguard-data volume and data/conf directory so the
   # non-root adguard container can write to them. Always overwrites
   # AdGuardHome.yaml from the repo config — the repo is the source of truth.
@@ -180,8 +211,8 @@ services:
     depends_on:
       adguard-init:
         condition: service_completed_successfully
-      adguard-unbound:
-        condition: service_healthy
+      adguard-unbound-flush:
+        condition: service_completed_successfully
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
