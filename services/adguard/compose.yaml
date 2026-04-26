@@ -228,11 +228,6 @@ services:
     networks:
       adguard-frontend:
         ipv4_address: 172.30.53.3
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      # TODO: [adguard] Implement DNS over TLS with TLS certificate
-      # - "853:853/tcp"
     mem_limit: ${MEM_LIMIT:-1024m}
     pids_limit: 100
     security_opt:
@@ -240,7 +235,7 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - NET_BIND_SERVICE # Required to bind DNS on port 53/853
+      - NET_BIND_SERVICE # Required to bind port 53 internally (privileged port < 1024)
     read_only: true
     tmpfs:
       - /tmp
@@ -281,6 +276,15 @@ services:
       - "traefik.http.routers.adguard-monitor.entrypoints=monitoring"
       - "traefik.http.routers.adguard-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.adguard-monitor.service=adguard"
+      ## TCP Router for DNS-over-TCP (plain TCP, no TLS → HostSNI(*) required)
+      - "traefik.tcp.routers.adguard-dns-tcp.entrypoints=dns-tcp"
+      - "traefik.tcp.routers.adguard-dns-tcp.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.adguard-dns-tcp.service=adguard-dns-tcp-svc"
+      - "traefik.tcp.services.adguard-dns-tcp-svc.loadbalancer.server.port=53"
+      ## UDP Router for DNS-over-UDP (no rule — UDP routers map entrypoint → service)
+      - "traefik.udp.routers.adguard-dns-udp.entrypoints=dns-udp"
+      - "traefik.udp.routers.adguard-dns-udp.service=adguard-dns-udp-svc"
+      - "traefik.udp.services.adguard-dns-udp-svc.loadbalancer.server.port=53"
       ## Gatus
       - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=adguard.${DOMAINNAME}"
