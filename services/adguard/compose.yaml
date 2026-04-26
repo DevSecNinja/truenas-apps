@@ -167,7 +167,9 @@ services:
       - "/bin/sh"
       - "-c"
     command:
-      - "unbound-control flush_zone ${DOMAINNAME}"
+      - "unbound-control -c /usr/local/unbound/conf.d/remote-control.conf flush_zone ${DOMAINNAME}"
+    volumes:
+      - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
     tmpfs:
       - /tmp
 
