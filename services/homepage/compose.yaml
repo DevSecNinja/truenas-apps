@@ -73,6 +73,8 @@ services:
       - "gatus.headers.Host=apps.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
   # It does not support custom users, mods, or scripts.

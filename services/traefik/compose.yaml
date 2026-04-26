@@ -156,6 +156,8 @@ services:
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.regex=^https?://svlnas\\.${DOMAINNAME}(.*)"
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.replacement=https://svlnas.${DOMAINNAME}:8443$${1}"
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.permanent=true"
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
   # It does not support custom users, mods, or scripts.

@@ -330,6 +330,22 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted ${count} secret file(s)"
 }
 
+# Compute a SHA256 hash of all files under <app_dir>/config/ (sorted by path).
+# This hash is exported as CONFIG_HASH so compose.yaml labels can reference it
+# via ${CONFIG_HASH:-}, causing Docker Compose to recreate containers when the
+# config directory changes.
+# Returns the hash on stdout, or an empty string if no config directory exists.
+compute_config_hash() {
+    local app_dir="$1"
+    local config_dir="${app_dir}/config"
+    if [ ! -d "${config_dir}" ]; then
+        echo ""
+        return 0
+    fi
+    # Hash the content and path of every file under config/, sorted for determinism
+    find "${config_dir}" -type f | sort | xargs sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
 # Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.
 # Uses docker inspect on container IDs for reliable image info (including digest).
 # Includes stopped/exited containers (-a) so one-shot services (e.g. backup sidecars) are
@@ -472,6 +488,12 @@ redeploy_truenas_apps() {
 
         log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
         _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
+
+        # Compute and export a hash of the app's config/ directory so compose.yaml
+        # labels that reference ${CONFIG_HASH:-} change when config files change,
+        # causing Docker Compose to recreate affected containers automatically.
+        CONFIG_HASH=$(compute_config_hash "${BASE_DIR}/services/${app_name}")
+        export CONFIG_HASH
 
         # Capture image state before pulling so we can report what changed
         local img_before
@@ -651,6 +673,14 @@ redeploy_compose_file() {
     fi
 
     _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
+
+    # Compute and export a hash of the app's config/ directory so compose.yaml
+    # labels that reference ${CONFIG_HASH:-} change when config files change,
+    # causing Docker Compose to recreate affected containers automatically.
+    local app_dir
+    app_dir=$(dirname "${file}")
+    CONFIG_HASH=$(compute_config_hash "${app_dir}")
+    export CONFIG_HASH
 
     # Pull images unless NO_PULL is set
     if [ "${NO_PULL}" -eq 0 ]; then

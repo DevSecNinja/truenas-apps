@@ -121,6 +121,8 @@ services:
       - "gatus.headers.Host=home-assistant.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # tiredofit/db-backup uses s6-overlay which must start as root.
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
