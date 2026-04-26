@@ -23,7 +23,7 @@ Most home networks rely on the ISP's default DNS, which offers no filtering, no 
 - **Images**: [adguard/adguardhome](https://github.com/AdguardTeam/AdGuardHome), [madnuttah/unbound](https://github.com/madnuttah/unbound-docker), [redis](https://hub.docker.com/_/redis) (DNS cache backend), [busybox](https://hub.docker.com/_/busybox) (init containers)
 - **User/Group**: `3101:3101` (`svc-app-adguard`) — both AdGuard Home and Unbound run under this identity
 - **Networks**: `adguard-frontend` (bridge, `172.30.53.0/24`) — Unbound at `.2`, AdGuard at `.3`; `adguard-backend` (internal bridge, no host exposure) — Unbound and Redis only
-- **Ports**: `53/tcp` and `53/udp` published on the host for DNS resolution
+- **Ports**: Port 53 TCP routed via Traefik (`dns-tcp` entrypoint); port 53 UDP routed via Traefik (`dns-udp` entrypoint) — AdGuard still binds port 53 internally (`NET_BIND_SERVICE`); no DNS ports are published directly from the AdGuard container
 - **Reverse proxy**: Traefik with `chain-auth@file` middleware; monitoring router on the internal `monitoring` entrypoint for Gatus health checks
 
 ### DNS Resolution Flow

@@ -47,8 +47,6 @@ services:
     networks:
       mosquitto-frontend:
       iot-backend:
-    ports:
-      - "1883:1883" # MQTT — accessible from LAN for IoT devices
     mem_limit: ${MEM_LIMIT:-256m}
     pids_limit: 100
     security_opt:
@@ -76,13 +74,23 @@ services:
       - homepage.name=Mosquitto
       - homepage.icon=mqtt.svg
       - homepage.description=MQTT broker for IoT devices
+      # Traefik — TCP router for MQTT (plain TCP, no TLS → HostSNI(*) required)
+      - "traefik.enable=true"
+      - "traefik.docker.network=mosquitto-frontend"
+      - "traefik.tcp.routers.mosquitto-tcp.entrypoints=mqtt"
+      - "traefik.tcp.routers.mosquitto-tcp.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.mosquitto-tcp.service=mosquitto-tcp-svc"
+      - "traefik.tcp.services.mosquitto-tcp-svc.loadbalancer.server.port=1883"
 
 networks:
   mosquitto-frontend:
     name: mosquitto-frontend
     driver: bridge
-    # NOT internal — required for Docker to publish port 1883 to the host.
-    # iot-backend is internal:true, so a second non-internal network is needed.
+    # internal: true — Traefik routes TCP port 1883 to Mosquitto via this network.
+    # Mosquitto no longer publishes any host ports; all inbound MQTT traffic enters
+    # through Traefik's mqtt entrypoint. iot-backend remains the path for IoT
+    # service-to-service communication.
+    internal: true
   iot-backend:
     name: iot-backend
     external: true

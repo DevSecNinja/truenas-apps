@@ -12,24 +12,24 @@ MQTT is the standard messaging protocol for IoT devices. Mosquitto provides a re
 
 ## Access
 
-| Port | Protocol | Description                                   |
-| ---- | -------- | --------------------------------------------- |
-| 1883 | MQTT     | Published to LAN for direct IoT device access |
+| Port | Protocol | Description                                                            |
+| ---- | -------- | ---------------------------------------------------------------------- |
+| 1883 | MQTT     | Routed via Traefik TCP router (`mqtt` entrypoint) — no direct host publish |
 
-Mosquitto has no web UI. It is accessible via MQTT clients on the LAN (port 1883) and by containers on the `iot-backend` network.
+Mosquitto has no web UI. It is accessible via MQTT clients on the LAN (Traefik listens on port 1883 and routes to Mosquitto) and by containers on the `iot-backend` network.
 
 ## Architecture
 
 - **Image**: [eclipse-mosquitto](https://hub.docker.com/_/eclipse-mosquitto)
-- **Networks**: `iot-backend` (internal bridge for IoT service communication)
-- **Reverse proxy**: None — MQTT is not an HTTP service
+- **Networks**: `mosquitto-frontend` (`internal: true` — Traefik routes inbound MQTT traffic to Mosquitto via this network); `iot-backend` (internal bridge for IoT service-to-service communication)
+- **Reverse proxy**: Traefik TCP router (`mosquitto-tcp` on the `mqtt` entrypoint, port 1883)
 - **Init container**: `mosquitto-init` chowns `./data/data` and `./data/log` to UID 3122
 
 ### Security
 
 - `read_only: true` with config mounted `:ro`
 - `user: "3122:3122"` — runs as non-root
-- Anonymous access is enabled by default since Mosquitto is only reachable on the internal Docker network and published LAN port. See `config/mosquitto.conf` to enable password authentication.
+- Anonymous access is enabled by default since Mosquitto is only reachable on the internal Docker network and via Traefik's TCP router. See `config/mosquitto.conf` to enable password authentication.
 
 ## Secrets
 

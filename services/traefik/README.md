@@ -22,7 +22,7 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 - **Image**: [traefik](https://github.com/traefik/traefik) (official)
 - **User/Group**: `3100:3100` (`svc-app-traefik`)
 - **Networks**: Joins every service's frontend network individually for per-service isolation (see [Architecture](../ARCHITECTURE.md#networking-per-service-isolation))
-- **Ports**: `80` (HTTP → HTTPS redirect), `443` (HTTPS), `8444` (internal monitoring entrypoint — not published)
+- **Ports**: `80` (HTTP → HTTPS redirect), `443` (HTTPS), `1883` (MQTT TCP, Mosquitto), `53/tcp` (DNS TCP, AdGuard), `53/udp` (DNS UDP, AdGuard), `8444` (internal monitoring entrypoint — not published)
 - **Reverse proxy**: Self-proxied dashboard with `chain-auth@file` middleware
 
 ### Key Features
@@ -30,6 +30,7 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 - **Automatic TLS**: Wildcard certificate for `*.${DOMAINNAME}` via Cloudflare DNS challenge (`dns-cloudflare` resolver)
 - **Docker provider**: Auto-discovers services from Docker labels via socket proxy
 - **Per-service networks**: Each service gets its own frontend network — containers can only talk to Traefik, not to each other
+- **TCP/UDP routing**: Routes MQTT (port 1883, `mqtt` entrypoint → Mosquitto) and DNS (port 53 TCP/UDP, `dns-tcp`/`dns-udp` entrypoints → AdGuard) — neither service publishes host ports directly
 - **Monitoring entrypoint**: Port 8444 with IP allowlist restricted to the `gatus-frontend` subnet for auth-free health checks
 
 ### Services

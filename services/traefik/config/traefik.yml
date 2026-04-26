@@ -31,6 +31,17 @@ entryPoints:
     http:
       middlewares:
         - monitoring-ipallowlist@file
+  # TCP entrypoint for MQTT (Mosquitto). Plain TCP — no TLS, so HostSNI(*) is
+  # required as the router rule. Published on the host via compose.yaml ports:.
+  mqtt:
+    address: ":1883"
+  # TCP entrypoint for DNS-over-TCP (AdGuard Home). HostSNI(*) router rule.
+  dns-tcp:
+    address: ":53"
+  # UDP entrypoint for DNS-over-UDP (AdGuard Home). UDP routers have no rule
+  # matching — every packet on this entrypoint is forwarded to AdGuard.
+  dns-udp:
+    address: ":53/udp"
 
 metrics:
   prometheus:

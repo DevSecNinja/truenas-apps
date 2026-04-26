@@ -17,8 +17,18 @@ services:
       - "traefik.docker.network=adguard-frontend"
       ## HTTP Routers
       - "traefik.http.routers.adguard-rtr.rule=Host(`adguard-ext.${DOMAINNAME}`)"
+      - "traefik.http.routers.adguard-rtr.entrypoints=https"
       ## Middlewares
       - "traefik.http.routers.adguard-rtr.middlewares=chain-auth@file"
       ## HTTP Services
       - "traefik.http.routers.adguard-rtr.service=adguard"
       - "traefik.http.services.adguard.loadbalancer.server.port=80"
+      ## TCP Router for DNS-over-TCP (plain TCP, no TLS → HostSNI(*) required)
+      - "traefik.tcp.routers.adguard-dns-tcp.entrypoints=dns-tcp"
+      - "traefik.tcp.routers.adguard-dns-tcp.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.adguard-dns-tcp.service=adguard-dns-tcp-svc"
+      - "traefik.tcp.services.adguard-dns-tcp-svc.loadbalancer.server.port=53"
+      ## UDP Router for DNS-over-UDP (no rule — UDP routers map entrypoint → service)
+      - "traefik.udp.routers.adguard-dns-udp.entrypoints=dns-udp"
+      - "traefik.udp.routers.adguard-dns-udp.service=adguard-dns-udp-svc"
+      - "traefik.udp.services.adguard-dns-udp-svc.loadbalancer.server.port=53"
