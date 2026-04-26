@@ -13,6 +13,9 @@ services:
       - path: ../shared/env/tz.env
     user: "3119:3119" # svc-app-drawio
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3

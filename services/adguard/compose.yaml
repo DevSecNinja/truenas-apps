@@ -54,6 +54,9 @@ services:
     env_file:
       - path: ../shared/env/tz.env
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
