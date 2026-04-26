@@ -1,0 +1,119 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kashalls/kromgo/main/config.schema.json
+# Kromgo metric definitions — each entry exposes a named badge endpoint at
+# GET /badges/<name> and a shields.io-compatible JSON endpoint at
+# GET /<name>?format=endpoint
+#
+# Prometheus source: PROMETHEUS_URL env var (set in secret.sops.env).
+# Metrics here assume cAdvisor (or a compatible exporter) is scraped by
+# Prometheus and labelled with compose project/service metadata.
+
+badge:
+  font: Verdana.ttf
+  size: 11
+
+metrics:
+  # ---------------------------------------------------------------------------
+  # Docker Compose stack metrics
+  # Requires: cAdvisor (or equivalent) scraping the Docker socket with
+  # container_label_com_docker_compose_project labels populated.
+  # ---------------------------------------------------------------------------
+
+  # Number of running containers across all Compose projects
+  - name: docker_containers_running
+    hidden: false
+    query: >-
+      count(container_last_seen{
+        container_label_com_docker_compose_project=~".+",
+        name!=""
+      })
+    title: Containers
+    suffix: " running"
+    colors:
+      - color: "green"
+        min: 1
+        max: 10000
+      - color: "red"
+        min: 0
+        max: 0
+
+  # Number of distinct Compose services (projects × services)
+  - name: docker_services_running
+    hidden: false
+    query: >-
+      count(count by (container_label_com_docker_compose_project,
+        container_label_com_docker_compose_service)(
+        container_last_seen{
+          container_label_com_docker_compose_project=~".+",
+          name!=""
+        }
+      ))
+    title: Services
+    suffix: " running"
+    colors:
+      - color: "green"
+        min: 1
+        max: 10000
+      - color: "red"
+        min: 0
+        max: 0
+
+  # ---------------------------------------------------------------------------
+  # CD pipeline metrics
+  # Requires: dccd.sh pushing metrics to a Prometheus Pushgateway, or a custom
+  # exporter that exposes the following gauge metrics:
+  #   dccd_last_run_timestamp_seconds  — Unix timestamp of last CD run
+  #   dccd_last_success_timestamp_seconds — Unix timestamp of last successful run
+  #   dccd_last_run_success             — 1 = success, 0 = failure
+  # ---------------------------------------------------------------------------
+
+  # Last time the CD pipeline ran (seconds ago → human-readable duration)
+  - name: compose_last_update
+    query: "time() - dccd_last_run_timestamp_seconds"
+    title: Last Update
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 86400
+      - color: "orange"
+        min: 86401
+        max: 172800
+      - color: "red"
+        min: 172801
+        max: 99999999
+
+  # Last time the CD pipeline succeeded (seconds ago → human-readable duration)
+  - name: compose_last_success
+    query: "time() - dccd_last_success_timestamp_seconds"
+    title: Last Success
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 86400
+      - color: "orange"
+        min: 86401
+        max: 172800
+      - color: "red"
+        min: 172801
+        max: 99999999
+
+  # Status of the last CD run
+  - name: compose_update_status
+    query: "dccd_last_run_success"
+    title: CD Status
+    colors:
+      - valueOverride: "Success"
+        color: "green"
+        min: 1
+        max: 1
+      - valueOverride: "Failed"
+        color: "red"
+        min: 0
+        max: 0
+
+templates:
+  uptime: "{{ . | humanDuration }}"

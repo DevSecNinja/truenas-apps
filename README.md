@@ -47,6 +47,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Home Assistant](https://www.home-assistant.io/)                                              | Open source home automation platform                           |
 | [Homepage](https://gethomepage.dev/)                                                          | Customizable dashboard for home lab services                   |
 | [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                         |
+| [Kromgo](https://github.com/kashalls/kromgo)                                                  | Prometheus metric badges for public status endpoints           |
 | [Lidarr](https://lidarr.audio/)                                                               | Music collection manager and download automation               |
 | [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                         |
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
@@ -88,6 +89,7 @@ vm-pool/apps/services/gatus
 vm-pool/apps/services/home-assistant
 vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
+vm-pool/apps/services/kromgo
 vm-pool/apps/services/lidarr
 vm-pool/apps/services/matter-server
 vm-pool/apps/services/metube
