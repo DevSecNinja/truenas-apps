@@ -342,8 +342,9 @@ compute_config_hash() {
         echo ""
         return 0
     fi
-    # Hash the content and path of every file under config/, sorted for determinism
-    find "${config_dir}" -type f | sort | xargs sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1
+    # Hash the content and path of every file under config/, sorted for determinism.
+    # -r: do not run sha256sum when find produces no files (avoids reading from stdin).
+    find "${config_dir}" -type f | sort | xargs -r sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1
 }
 
 # Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.
