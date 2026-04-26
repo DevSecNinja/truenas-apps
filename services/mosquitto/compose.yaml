@@ -31,8 +31,10 @@ services:
   mosquitto:
     # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
     # Runs as nonroot (UID 65532) by default; overridden to 3122:3122 via user: below.
-    # Hardened variant is 2.0.22 (latest hardened build); upstream is at 2.1.x.
-    # Entrypoint: /usr/sbin/mosquitto (no shell — health check uses CMD, not CMD-SHELL).
+    # DHI only publishes the 2.0.x line for eclipse-mosquitto (2.1.x not yet available).
+    # The hardened 2.0.22-debian13 image ships with zero known CVEs; this security benefit
+    # outweighs the version delta for a simple MQTT broker with no 2.1.x-specific features in use.
+    # Track https://hub.docker.com/hardened-images/catalog/dhi/eclipse-mosquitto for future 2.1.x release.
     image: dhi.io/eclipse-mosquitto:2.0.22-debian13@sha256:2a9284050330df790a8633ed0241db1288e0843c8092f954e7fe1377b3da1d77
     container_name: mosquitto
     depends_on:
