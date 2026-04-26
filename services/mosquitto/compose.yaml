@@ -29,7 +29,11 @@ services:
       - ./data:/data
 
   mosquitto:
-    image: docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:a908c65cc8e67ec9d292ef27c2c0360dbaaee7eb1b935cdd194e67697f15dea1
+    # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
+    # Runs as nonroot (UID 65532) by default; overridden to 3122:3122 via user: below.
+    # Hardened variant is 2.0.22 (latest hardened build); upstream is at 2.1.x.
+    # Entrypoint: /usr/sbin/mosquitto (no shell — health check uses CMD, not CMD-SHELL).
+    image: dhi.io/eclipse-mosquitto:2.0.22-debian13@sha256:2a9284050330df790a8633ed0241db1288e0843c8092f954e7fe1377b3da1d77
     container_name: mosquitto
     depends_on:
       mosquitto-init:
@@ -63,9 +67,18 @@ services:
       - ./data/data:/mosquitto/data
       - ./data/log:/mosquitto/log
     healthcheck:
+      # CMD format required — hardened image has no shell (no CMD-SHELL).
+      # $$SYS becomes literal $SYS after Compose variable expansion, which is passed
+      # directly to mosquitto_sub as the MQTT topic string ($SYS/broker/uptime).
       test:
-        - "CMD-SHELL"
-        - "mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 5 || exit 1"
+        - "CMD"
+        - "/usr/bin/mosquitto_sub"
+        - "-t"
+        - "$$SYS/broker/uptime"
+        - "-C"
+        - "1"
+        - "-W"
+        - "5"
       interval: 30s
       timeout: 10s
       retries: 3
