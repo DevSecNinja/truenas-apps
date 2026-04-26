@@ -666,7 +666,7 @@ redeploy_compose_file() {
             _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
             local deploy_output
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-            if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
+            if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1); then
                 log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                 if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                     log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
@@ -683,7 +683,7 @@ redeploy_compose_file() {
         _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
         local deploy_output
         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
+        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1); then
             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
             if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                 log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."

@@ -59,6 +59,9 @@ services:
       - MAX_CONCURRENT_DOWNLOADS=1
     user: "3107:3200" # svc-app-metube:media
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3

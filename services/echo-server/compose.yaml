@@ -12,6 +12,9 @@ services:
       - HTTP_PORT=${HTTP_PORT:-80}
       - HTTPS_PORT=${HTTPS_PORT:-443}
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
