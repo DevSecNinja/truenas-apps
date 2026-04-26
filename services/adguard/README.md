@@ -1,10 +1,10 @@
 # AdGuard Home
 
-AdGuard Home is a network-wide DNS filtering and ad-blocking server. This stack pairs it with an [Unbound](https://github.com/madnuttah/unbound-docker) recursive resolver for privacy-focused upstream DNS over TLS.
+AdGuard Home is a network-wide DNS filtering and ad-blocking server. This stack pairs it with an [Unbound](https://github.com/madnuttah/unbound-docker) recursive resolver for privacy-focused full recursive DNS resolution.
 
 ## Why
 
-Most home networks rely on the ISP's default DNS, which offers no filtering, no encryption, and full visibility into every domain you visit. Running AdGuard Home locally gives you network-wide ad and tracker blocking without installing anything on individual devices. Pairing it with Unbound adds recursive resolution over DNS-over-TLS — your queries never leave the network in plain text, and no single upstream provider sees all of them. Finally, managing the config via GitOps means the DNS setup is reproducible, auditable, and recovers automatically after a redeploy.
+Most home networks rely on the ISP's default DNS, which offers no filtering, no encryption, and full visibility into every domain you visit. Running AdGuard Home locally gives you network-wide ad and tracker blocking without installing anything on individual devices. Pairing it with Unbound adds full recursive resolution — Unbound walks the DNS hierarchy from the root servers itself, so no third-party resolver ever sees your queries. This gives stronger privacy than DNS-over-TLS forwarding to an upstream provider, because there is no upstream provider. Finally, managing the config via GitOps means the DNS setup is reproducible, auditable, and recovers automatically after a redeploy.
 
 ## Compose File
 
@@ -32,12 +32,12 @@ Most home networks rely on the ISP's default DNS, which offers no filtering, no 
 flowchart LR
     Client -->|":53"| AdGuard["AdGuard Home\n(filtering + blocking)"]
     AdGuard -->|":5335"| Unbound["Unbound\n(recursive resolver)"]
-    Unbound -->|"DoT :853"| Upstream["Quad9 / Cloudflare"]
+    Unbound -->|"recursive"| Root["Root DNS servers"]
     Unbound -.->|"local-data"| Split["Split-horizon\n(internal records)"]
     Unbound -.->|"cachedb"| Redis["Redis\n(persistent cache)"]
 ```
 
-AdGuard handles DNS filtering and ad blocking. Queries that pass the filter are forwarded to the co-located Unbound instance, which resolves them recursively over TLS against upstream providers (Quad9, Cloudflare). Internal domain names are served from Unbound's local-data records (split-horizon — see below).
+AdGuard handles DNS filtering and ad blocking. Queries that pass the filter are forwarded to the co-located Unbound instance, which resolves them recursively starting from the root DNS servers. Internal domain names are served from Unbound's local-data records (split-horizon — see below).
 
 ### Config Management
 
@@ -49,13 +49,13 @@ Unbound config files contain `${VAR}` placeholders for secrets and environment-s
 
 Template files and their purpose:
 
-| Template                                      | Content                                                                         |
-| --------------------------------------------- | ------------------------------------------------------------------------------- |
-| `config/unbound/conf.d/a-records.conf`        | Local DNS A records for internal hosts (split-horizon)                          |
-| `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone, TLS cert bundle                    |
-| `config/unbound/zones.d/forward-zones.conf`   | Forward zones for DDNS domain + catch-all upstream (Quad9/Cloudflare over TLS)  |
-| `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)             |
-| `config/unbound/conf.d/cachedb.conf`          | `cachedb:` clause pointing to Redis backend (mounted directly, no substitution) |
+| Template                                      | Content                                                                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `config/unbound/conf.d/a-records.conf`        | Local DNS A records for internal hosts (split-horizon)                                                           |
+| `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone                                                                      |
+| `config/unbound/zones.d/forward-zones.conf`   | Forward zones — empty by default (full recursive resolution from root); reserved for special-case zone overrides |
+| `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)                                              |
+| `config/unbound/conf.d/cachedb.conf`          | `cachedb:` clause pointing to Redis backend (mounted directly, no substitution)                                  |
 
 The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remain after substitution — missing variables in `secret.sops.env` cause the init container to fail loudly rather than starting Unbound with a broken config.
 
@@ -65,7 +65,7 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `adguard-unbound-init`  | One-shot init: substitutes `${VAR}` placeholders in Unbound config templates, chowns output to `3101:3101`                                                      |
 | `adguard-redis`         | Ephemeral Redis cache backend for Unbound's `cachedb` module — cache survives Unbound restarts but is lost on Redis restart                                     |
-| `adguard-unbound`       | Recursive DNS resolver (Unbound) — DNS-over-TLS to upstream, local-data for internal names                                                                      |
+| `adguard-unbound`       | Recursive DNS resolver (Unbound) — resolves from root DNS servers, local-data for internal names                                                                 |
 | `adguard-unbound-flush` | One-shot sidecar: flushes Unbound's cache for `${DOMAINNAME}` via `unbound-control` — clears stale internal entries without wiping the Redis external DNS cache |
 | `adguard-init`          | One-shot init: copies `AdGuardHome.yaml` from repo config into `data/conf/`, chowns `data/work` and `data/conf` to `3101:3101`                                  |
 | `adguard`               | AdGuard Home DNS filter — listens on port 53, forwards to Unbound on the frontend network                                                                       |
@@ -104,7 +104,7 @@ The `adguard-unbound` container deviates from the standard hardening baseline:
 Unbound's healthcheck verifies two things in sequence:
 
 1. Resolves `healthcheck.${DOMAINNAME}` — proves Unbound is running, the config was loaded, and envsubst substituted `${DOMAINNAME}` correctly
-2. Resolves `dns.quad9.net` — proves forward zones and upstream TLS are working
+2. Resolves `example.com` — proves recursive resolution from root is working
 
 AdGuard's healthcheck is a simple HTTP check against its web UI on port 80.
 
@@ -117,7 +117,7 @@ AdGuard runs on both the TrueNAS host (svlnas) and the Azure DNS VM (svlazext). 
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
 - `DOMAINNAME` — base domain for all internal DNS records and Traefik routing
-- `DDNS_DOMAIN` — dynamic DNS domain forwarded to Quad9/Cloudflare
+- `DDNS_DOMAIN` — dynamic DNS domain (resolved recursively)
 - `IP_*` — host IP addresses used in Unbound A records (e.g. `IP_SVLNAS`, `IP_SVLAZEXT`, `IP_HOME`)
 
 ## First-Run Setup
