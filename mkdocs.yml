@@ -84,6 +84,7 @@ nav:
       - Home Assistant: services/home-assistant.md
       - Homepage: services/homepage.md
       - Immich: services/immich.md
+      - Kromgo: services/kromgo.md
       - Lidarr: services/lidarr.md
       - Matter Server: services/matter-server.md
       - MeTube: services/metube.md

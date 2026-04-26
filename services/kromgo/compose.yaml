@@ -1,0 +1,89 @@
+---
+services:
+  # Kromgo runs as nonroot in the base image. The user directive overrides
+  # that to the dedicated svc-app-kromgo account for consistent UID/GID
+  # tracking across the host. The config directory is git-tracked and mounted
+  # :ro — no init container required since the process only reads it.
+  #
+  # PROMETHEUS_URL points at Grafana Cloud Mimir (decrypted from
+  # secret.sops.env). The format is
+  #   https://<instance-id>:<access-policy-token>@<host>/api/prom
+  # Go's net/http client picks up the URL userinfo and adds the Basic auth
+  # header automatically, so no sidecar reverse-proxy is needed.
+  kromgo:
+    image: ghcr.io/kashalls/kromgo:v0.4.2@sha256:89eab1c6604d8ef79fb0e7340620d6559ef296cc469c4eabf22598bbaf93ff42
+    container_name: kromgo
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3126:3126" # svc-app-kromgo
+    environment:
+      - PROMETHEUS_URL=${PROMETHEUS_URL}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - HEALTH_HOST=0.0.0.0
+      - HEALTH_PORT=8888
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - kromgo-frontend
+    mem_limit: ${MEM_LIMIT:-256m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./config/config.yaml:/kromgo/config.yaml:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:8888/healthz"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Kromgo
+      - homepage.icon=mdi-badge-account-#ffffff
+      - homepage.href=https://badges.${DOMAINNAME}
+      - homepage.description=Prometheus Status Badges
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=kromgo-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.kromgo-rtr.rule=Host(`badges.${DOMAINNAME}`)"
+      - "traefik.http.routers.kromgo-rtr.entrypoints=https"
+      ## Middlewares — no auth: badges are public-facing endpoints
+      - "traefik.http.routers.kromgo-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.kromgo-rtr.service=kromgo"
+      - "traefik.http.services.kromgo.loadbalancer.server.port=8080"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.kromgo-monitor.rule=Host(`badges.${DOMAINNAME}`)"
+      - "traefik.http.routers.kromgo-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.kromgo-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.kromgo-monitor.service=kromgo"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444"
+      - "gatus.headers.Host=badges.${DOMAINNAME}"
+      - 'gatus.client={"ignore-redirect": true}'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  kromgo-frontend:
+    name: kromgo-frontend
+    driver: bridge
