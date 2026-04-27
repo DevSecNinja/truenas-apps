@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Install dependencies
-        run: sudo apt-get install -y --no-install-recommends postgresql-client zstd
+        run: sudo apt-get install -y --no-install-recommends zstd
 
       - name: Run backup/restore test
         run: bash scripts/gha-backup-restore-test.sh

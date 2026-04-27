@@ -6,14 +6,14 @@
 #   1. tiredofit/db-backup can produce an encrypted, ZSTD-compressed dump
 #      using the same settings as production services.
 #   2. The dump can be decrypted with gpg and decompressed with zstd.
-#   3. pg_restore --list succeeds (structural integrity check).
-#   4. The dump restores cleanly into a fresh PostgreSQL instance.
+#   3. The dump structure is valid (PostgreSQL plain-text dump header check).
+#   4. The dump restores cleanly into a fresh PostgreSQL instance via psql.
 #   5. The restored data matches the original (sentinel row verification).
 #
 # Images are intentionally kept in sync with services/*/compose.yaml so that
 # the test exercises the exact same backup toolchain used in production.
 #
-# Required host tools: docker, gpg, zstd, pg_restore (postgresql-client)
+# Required host tools: docker, gpg, zstd
 #
 # Exit codes:
 #   0 — all checks passed
@@ -163,9 +163,14 @@ log "Dump ready: ${DUMP_FILE}"
 
 # --- Step 8: Structural integrity check --------------------------------------
 
-log "Verifying dump structure with pg_restore --list..."
-pg_restore --list "${DUMP_FILE}" >/dev/null ||
-    die "pg_restore --list failed — dump is not a valid pg_restore archive"
+# tiredofit/db-backup uses pg_dump plain-text format (not custom-format), so we
+# validate the dump by checking for the PostgreSQL dump header and verifying it
+# contains SQL statements that recreate the sentinel table.
+log "Verifying plain-text dump structure..."
+grep -q '^-- PostgreSQL database dump' "${DUMP_FILE}" ||
+    die "dump file does not contain the expected PostgreSQL dump header"
+grep -q 'restore_sentinel' "${DUMP_FILE}" ||
+    die "dump file does not reference the expected sentinel table"
 
 # --- Step 9: Start restore-target database -----------------------------------
 
@@ -183,13 +188,13 @@ wait_for_postgres "${RESTORE_DB}"
 # --- Step 10: Restore --------------------------------------------------------
 
 log "Copying dump into restore container..."
-docker cp "${DUMP_FILE}" "${RESTORE_DB}:/tmp/restore.dump"
+docker cp "${DUMP_FILE}" "${RESTORE_DB}:/tmp/restore.sql"
 
-log "Restoring dump with pg_restore..."
-docker exec -e PGPASSWORD="${DB_PASS}" "${RESTORE_DB}" pg_restore \
+log "Restoring dump with psql..."
+docker exec -e PGPASSWORD="${DB_PASS}" "${RESTORE_DB}" psql \
     -U "${DB_USER}" -d "${DB_NAME}" \
-    --clean --if-exists \
-    /tmp/restore.dump
+    --set ON_ERROR_STOP=on \
+    -f /tmp/restore.sql >/dev/null
 
 # --- Step 11: Verify sentinel data after restore -----------------------------
 
