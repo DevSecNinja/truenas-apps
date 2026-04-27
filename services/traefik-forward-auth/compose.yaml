@@ -44,6 +44,9 @@ services:
       - path: ../shared/env/tz.env
     user: "3105:3105" # svc-app-tfa
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -90,6 +93,8 @@ services:
       - "traefik.http.routers.traefik-forward-auth-monitor.entrypoints=monitoring"
       - "traefik.http.routers.traefik-forward-auth-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.traefik-forward-auth-monitor.service=traefik-forward-auth"
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
 networks:
   traefik-forward-auth-frontend:

@@ -70,6 +70,9 @@ services:
       - IMMICH_CONFIG_FILE=/config/immich.yaml
     user: "3106:3202" # svc-app-immich:private-photos
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -77,7 +80,6 @@ services:
     networks:
       - immich-frontend
       - immich-backend
-    # 4096m is not enough and the server will be killed automatically
     # Recommended: https://docs.immich.app/install/requirements/
     mem_limit: ${MEM_LIMIT:-6144m}
     pids_limit: 200
@@ -134,6 +136,8 @@ services:
       - "gatus.headers.Host=photos.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # Immich machine learning is a standard Python application (not s6-overlay).
   # It runs as non-root and supports user: directly.
@@ -157,6 +161,9 @@ services:
       - HF_HUB_DISABLE_XET=1 # Xet storage backend writes temp files to read-only rootfs paths; use standard HTTP downloads
     user: "3106:3202" # svc-app-immich:private-photos
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -198,6 +205,9 @@ services:
         required: false
       - path: ../shared/env/tz.env
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3

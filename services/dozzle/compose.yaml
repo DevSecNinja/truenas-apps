@@ -49,6 +49,9 @@ services:
       - DOZZLE_NO_ANALYTICS=true
     user: "3109:3109" # svc-app-dozzle
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -113,6 +116,9 @@ services:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: dozzle-docker-proxy
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
