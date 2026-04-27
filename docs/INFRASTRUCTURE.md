@@ -436,6 +436,61 @@ The script reads the deploy key from `age.key` (the `# public key:` comment) and
 
 After updating rules, re-encrypt all files: `sops updatekeys services/<app>/secret.sops.env` for each app.
 
+### Docker Hub Authentication (dhi.io)
+
+Several services use Docker Hardened Images from `dhi.io` (see [Architecture](ARCHITECTURE.md)). These require Docker Hub credentials even for pulling — unauthenticated pulls are rejected. `dccd.sh` will fail with a clear error if any compose file in scope references a `dhi.io` image but Docker has no stored credentials.
+
+#### Automated approach (recommended)
+
+Store a Docker Hub Personal Access Token in the SOPS-encrypted shared credentials file. `dccd.sh` decrypts this file on every run and automatically executes `docker login dhi.io` before pulling images — no manual per-server setup needed.
+
+**Step 1 — Create a Docker Hub PAT**
+
+1. Log in to [hub.docker.com](https://hub.docker.com)
+2. Go to **Account Settings → Personal Access Tokens → Generate new token**
+3. Give it a memorable description (e.g. `dhi-pull-<servername>`)
+4. Set permissions to **Read-only** (pull is sufficient)
+5. Copy the token — it is shown only once
+
+**Step 2 — Create `services/shared/secret.sops.env`**
+
+```sh
+# On your dev machine (where the deploy Age key is available)
+cat > /tmp/shared-secret.env <<'EOF'
+DOCKERHUB_USERNAME=<your-dockerhub-username>
+DOCKERHUB_TOKEN=<your-read-only-personal-access-token>
+EOF
+
+sops -e /tmp/shared-secret.env > services/shared/secret.sops.env
+rm /tmp/shared-secret.env
+```
+
+The SOPS rule in `.sops.yaml` for `services/shared/secret.sops.env` includes all server Age keys, so every server can decrypt it. The file is committed encrypted; `dccd.sh` decrypts it to `services/shared/.env` at deploy time.
+
+**How it works at runtime**
+
+```
+dccd.sh run
+  └─ decrypt_sops_files()          # decrypts services/shared/secret.sops.env → services/shared/.env
+  └─ auto_login_dhi()              # reads DOCKERHUB_USERNAME + DOCKERHUB_TOKEN, runs:
+  │                                #   sudo docker login dhi.io --username ... --password-stdin
+  └─ check_dhi_login()             # verifies root's Docker config has dhi.io credentials
+  └─ docker compose pull ...       # succeeds because Docker is authenticated
+```
+
+#### Manual approach (one-time per server)
+
+If you prefer not to store Docker Hub credentials in the repo, log in once on each server:
+
+```sh
+sudo docker login dhi.io
+# Enter your Docker Hub username and a Personal Access Token when prompted
+```
+
+The credentials are stored in `/root/.docker/config.json` and persist across reboots. Re-run this command if the PAT expires or is rotated.
+
+`dccd.sh` detects the existing credentials and proceeds without needing `services/shared/secret.sops.env`.
+
 ### Ansible Integration
 
 Each remote server (Azure VMs) is managed by Ansible-pull which:
