@@ -372,6 +372,11 @@ compute_config_hash() {
 # CONFIG_HASH, or "none" to disable config-change detection for this service.
 # Returns the label value on stdout, or an empty string when the label is absent.
 # Usage: get_config_watch_path <compose_file> [additional_compose_files...]
+#
+# Note: We intentionally use grep rather than yq here. yq is only required when
+# SERVER_NAME is set (server mode); it is not guaranteed to be on PATH in all
+# deployment environments. The label value is a simple key=value pair that grep
+# handles reliably for the normalised YAML that Compose files use.
 get_config_watch_path() {
     # Match: - "config.watch=value"  or  - config.watch=value
     grep -h 'config\.watch=' "$@" 2>/dev/null | head -1 |
@@ -721,8 +726,7 @@ redeploy_compose_file() {
     local app_dir
     app_dir=$(dirname "${file}")
     local config_watch
-    # shellcheck disable=SC2086,SC2068  # word splitting / array expansion is intentional for extra_files
-    config_watch=$(get_config_watch_path "${file}" ${extra_files[@]+"${extra_files[@]}"})
+    config_watch=$(get_config_watch_path "${file}" "${extra_files[@]+"${extra_files[@]}"}")
     CONFIG_HASH=$(compute_config_hash "${app_dir}" "${config_watch}")
     export CONFIG_HASH
 

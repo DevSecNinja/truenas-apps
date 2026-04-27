@@ -398,8 +398,11 @@ YAML
 }
 
 # ---------------------------------------------------------------------------
-# Test 17 — value is read from the first matching file when multiple compose
-#           files are provided (override scenario)
+# Test 17 — first match wins: when multiple compose files are provided the
+#           value from the first file that contains the label is returned.
+#           This is intentional: get_config_watch_path is NOT a Docker Compose
+#           override merge — it simply returns the first occurrence so the base
+#           compose file's config.watch setting is authoritative.
 # ---------------------------------------------------------------------------
 @test "get_config_watch_path: reads label from first file that defines it" {
     local base_file="${BASE_DIR}/multi/compose.yaml"
@@ -418,6 +421,7 @@ services:
       - "config.watch=config/override.yml"
 YAML
 
+    # The base file is listed first → its value is returned
     run get_config_watch_path "${base_file}" "${override_file}"
     assert_success
     assert_output "config/base.yml"
