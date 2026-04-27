@@ -104,7 +104,7 @@ The `adguard-unbound` container deviates from the standard hardening baseline:
 Unbound's healthcheck verifies two things in sequence:
 
 1. Resolves `healthcheck.${DOMAINNAME}` — proves Unbound is running, the config was loaded, and envsubst substituted `${DOMAINNAME}` correctly
-2. Resolves `example.com` — proves recursive resolution from root is working
+2. Resolves `dns.google` — proves recursive resolution from root is working
 
 AdGuard's healthcheck is a simple HTTP check against its web UI on port 80.
 

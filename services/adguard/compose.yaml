@@ -135,7 +135,7 @@ services:
       test:
         - "CMD-SHELL"
         - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' &&
-          drill -p 5335 @127.0.0.1 example.com | grep -q 'rcode: NOERROR'"
+          drill -p 5335 @127.0.0.1 dns.google | grep -q 'rcode: NOERROR'"
       interval: 30s
       timeout: 10s
       retries: 3
