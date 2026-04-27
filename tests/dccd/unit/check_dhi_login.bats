@@ -28,7 +28,7 @@ teardown() {
 ---
 services:
   app:
-    image: docker.io/library/nginx:alpine
+    image: docker.io/library/nginx:alpine@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
 YAML
     run check_dhi_login
     assert_success
@@ -39,14 +39,14 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/nginx:1-debian13
+    image: dhi.io/nginx:1-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     mkdir -p "${BASE_DIR}/services/otherapp"
     cat >"${BASE_DIR}/services/otherapp/compose.yaml" <<'YAML'
 ---
 services:
   app:
-    image: docker.io/library/redis:alpine
+    image: docker.io/library/redis:alpine@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     APP_FILTER="otherapp"
     run check_dhi_login
@@ -58,7 +58,7 @@ YAML
 ---
 services:
   app:
-    image: docker.io/library/nginx:alpine
+    image: docker.io/library/nginx:alpine@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
 YAML
     SERVER_APPS=("myapp")
     run check_dhi_login
@@ -74,7 +74,7 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/traefik:3.6-debian13
+    image: dhi.io/traefik:3.6-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     # cat mock returns empty (no docker config)
     create_mock "cat" 0 ""
@@ -88,7 +88,7 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/redis:8-debian13
+    image: dhi.io/redis:8-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     # docker config without dhi.io
     create_mock "cat" 0 '{"auths":{"index.docker.io":{"auth":"dummytoken"}}}'
@@ -102,7 +102,7 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/traefik:3.6-debian13
+    image: dhi.io/traefik:3.6-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     create_mock "cat" 0 '{"auths":{"dhi.io":{"auth":"dummytoken"},"index.docker.io":{}}}'
     run check_dhi_login
@@ -115,7 +115,7 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/traefik:3.6-debian13
+    image: dhi.io/traefik:3.6-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     create_mock "cat" 0 '{"credHelpers":{"dhi.io":"desktop"}}'
     run check_dhi_login
@@ -128,7 +128,7 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/traefik:3.6-debian13
+    image: dhi.io/traefik:3.6-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     create_mock "cat" 0 ""
     run check_dhi_login
@@ -145,14 +145,14 @@ YAML
 ---
 services:
   app:
-    image: dhi.io/traefik:3.6-debian13
+    image: dhi.io/traefik:3.6-debian13@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
     mkdir -p "${BASE_DIR}/services/otherapp"
     cat >"${BASE_DIR}/services/otherapp/compose.yaml" <<'YAML'
 ---
 services:
   app:
-    image: docker.io/library/nginx:alpine
+    image: docker.io/library/nginx:alpine@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
 YAML
     SERVER_APPS=("otherapp")
     run check_dhi_login

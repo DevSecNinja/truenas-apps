@@ -353,7 +353,9 @@ auto_login_dhi() {
     username=$(grep -E '^DOCKERHUB_USERNAME=' "${shared_env}" | cut -d= -f2-)
     token=$(grep -E '^DOCKERHUB_TOKEN=' "${shared_env}" | cut -d= -f2-)
 
-    [ -z "${username}" ] || [ -z "${token}" ] && return 0
+    if [ -z "${username}" ] || [ -z "${token}" ]; then
+        return 0
+    fi
 
     log_message "STATE: Logging in to dhi.io as ${username}..."
     if printf '%s' "${token}" | ${SUDO} docker login dhi.io \
