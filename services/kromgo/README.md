@@ -36,17 +36,20 @@ All metrics are defined in `config/config.yaml`. Each metric is served at two en
 - `GET /<name>` — shields.io-compatible JSON (default)
 - `GET /<name>?format=badge` — SVG badge
 
-| Metric name             | Badge title  | Status   | Description                                                                       |
-| ----------------------- | ------------ | -------- | --------------------------------------------------------------------------------- |
-| `host_load1`            | Load (1m)    | Active   | 1-minute load average on the primary NAS host (Alloy `prometheus.exporter.unix`)  |
-| `host_disk_free_pct`    | Disk Free    | Active   | Free space percentage on the apps pool root filesystem                            |
-| `compose_last_update`   | Last Update  | Hidden   | Human-readable duration since the CD pipeline last ran — needs Issue #15 Phase 2  |
-| `compose_last_success`  | Last Success | Hidden   | Human-readable duration since the CD pipeline last succeeded — same dependency   |
-| `compose_update_status` | CD Status    | Hidden   | `Success` or `Failed` result of the most recent CD run — same dependency         |
+| Metric name             | Badge title    | Status   | Description                                                                            |
+| ----------------------- | -------------- | -------- | -------------------------------------------------------------------------------------- |
+| `host_load1`            | Load (1m)      | Active   | 1-minute load average on the primary NAS host (Alloy `prometheus.exporter.unix`)       |
+| `host_disk_free_pct`    | Disk Free      | Active   | Free space percentage on the apps pool root filesystem                                 |
+| `compose_last_update`   | Last Update    | Hidden   | Human-readable duration since the CD pipeline last ran — needs Issue #15 Phase 2       |
+| `compose_last_success`  | Last Success   | Hidden   | Human-readable duration since the CD pipeline last succeeded — same dependency         |
+| `compose_update_status` | CD Status      | Hidden   | `Success` or `Failed` result of the most recent CD run — same dependency               |
+| `backup_last_run`       | Backup Run     | Hidden   | Human-readable duration since the backup last ran — needs backup-script push           |
+| `backup_last_success`   | Backup Success | Hidden   | Human-readable duration since the backup last succeeded — same dependency             |
+| `backup_status`         | Backup Status  | Hidden   | `Success` or `Failed` result of the most recent backup run — same dependency          |
 
 <!-- dprint-ignore -->
 !!! note "Pending follow-ups"
-    The `compose_*` badges depend on `dccd.sh` pushing `dccd_last_run_timestamp_seconds`, `dccd_last_success_timestamp_seconds`, and `dccd_last_run_success` gauges to Alloy's `prometheus.receive_http` listener (planned for Issue #15 Phase 2). They are kept in `config/config.yaml` with `hidden: true` so the queries are ready to switch on once the push integration lands. Container-count badges (`docker_*`) are commented out and will return once cAdvisor scrape is added to Alloy.
+    The `compose_*` badges depend on `dccd.sh` pushing `dccd_last_run_timestamp_seconds`, `dccd_last_success_timestamp_seconds`, and `dccd_last_run_success` gauges to Alloy's `prometheus.receive_http` listener (planned for Issue #15 Phase 2). The `backup_*` badges depend on the backup script pushing `backup_last_run_timestamp_seconds`, `backup_last_success_timestamp_seconds`, and `backup_last_run_success` gauges through the same listener. Both sets are kept in `config/config.yaml` with `hidden: true` so the queries are ready to switch on once the push integration lands. Container-count badges (`docker_*`) are commented out and will return once cAdvisor scrape is added to Alloy.
 
 ## Embedding Badges in a GitHub README
 
@@ -56,6 +59,7 @@ Paste the block below near the top of your `README.md`. Replace `badges.YOURDOMA
 [![CD Status](https://badges.YOURDOMAIN/badges/compose_update_status)](https://badges.YOURDOMAIN/badges/compose_update_status)
 [![Last Update](https://badges.YOURDOMAIN/badges/compose_last_update)](https://badges.YOURDOMAIN/badges/compose_last_update)
 [![Last Success](https://badges.YOURDOMAIN/badges/compose_last_success)](https://badges.YOURDOMAIN/badges/compose_last_success)
+[![Backup Status](https://badges.YOURDOMAIN/badges/backup_status)](https://badges.YOURDOMAIN/badges/backup_status)
 [![Containers](https://badges.YOURDOMAIN/badges/docker_containers_running)](https://badges.YOURDOMAIN/badges/docker_containers_running)
 [![Services](https://badges.YOURDOMAIN/badges/docker_services_running)](https://badges.YOURDOMAIN/badges/docker_services_running)
 ```
