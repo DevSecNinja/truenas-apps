@@ -3,11 +3,16 @@
 # Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
 #
 # Overrides:
+# - Ports: adds DNS-TCP (53/tcp) and DNS-UDP (53/udp) for AdGuard (runs on svlazext;
+#   Mosquitto does not, so port 1883 is intentionally omitted)
 # - Traefik network list: only traefik-backend + adguard-frontend + hadiscover-frontend
 #   (hadiscover is exposed via cloudflared through Traefik)
 # - Labels: removes svlnas-specific redirect, adjusts dashboard hostname
 services:
   traefik:
+    ports:
+      - "53:53/tcp" # DNS TCP (AdGuard)
+      - "53:53/udp" # DNS UDP (AdGuard)
     networks: !override
       - traefik-backend
       - adguard-frontend

@@ -9,7 +9,8 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 ## Compose File
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.yaml)
-- [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.svlazext.yaml) — Azure external VM override
+- [compose.svlnas.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.svlnas.yaml) — TrueNAS (svlnas) override: MQTT + DNS ports and mosquitto-frontend network
+- [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.svlazext.yaml) — Azure external VM override: DNS ports only
 
 ## Access
 
@@ -22,7 +23,7 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 - **Image**: [traefik](https://github.com/traefik/traefik) (official)
 - **User/Group**: `3100:3100` (`svc-app-traefik`)
 - **Networks**: Joins every service's frontend network individually for per-service isolation (see [Architecture](../ARCHITECTURE.md#networking-per-service-isolation))
-- **Ports**: `80` (HTTP → HTTPS redirect), `443` (HTTPS), `1883` (MQTT TCP, Mosquitto), `53/tcp` (DNS TCP, AdGuard), `53/udp` (DNS UDP, AdGuard), `8444` (internal monitoring entrypoint — not published)
+- **Ports**: `80` (HTTP → HTTPS redirect), `443` (HTTPS), `8444` (internal monitoring entrypoint — not published). Service-specific ports are added via server overrides: svlnas adds `1883` (MQTT, Mosquitto), `53/tcp`, `53/udp` (DNS, AdGuard); svlazext adds `53/tcp`, `53/udp` only (no Mosquitto)
 - **Reverse proxy**: Self-proxied dashboard with `chain-auth@file` middleware
 
 ### Key Features
@@ -53,8 +54,8 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 
 Traefik runs on multiple servers with compose overrides:
 
-- **svlnas** (TrueNAS) — primary instance, joins all service frontend networks
-- **svlazext** — Azure VM, joins AdGuard and public app backend frontend networks
+- **svlnas** (TrueNAS) — primary instance, joins all service frontend networks; `compose.svlnas.yaml` adds MQTT + DNS ports and `mosquitto-frontend` network
+- **svlazext** — Azure VM, joins AdGuard and public app backend frontend networks; `compose.svlazext.yaml` adds DNS ports only
 
 ## Secrets
 

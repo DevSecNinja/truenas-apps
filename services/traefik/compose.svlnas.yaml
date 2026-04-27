@@ -1,0 +1,21 @@
+---
+# Server-specific compose override for svlnas (TrueNAS SCALE — all services).
+# Applied automatically by dccd.sh -S svlnas on top of compose.yaml.
+#
+# Overrides:
+# - Ports: adds MQTT (1883/tcp), DNS-TCP (53/tcp), and DNS-UDP (53/udp)
+#   for Mosquitto and AdGuard which only run on this server
+# - Networks: adds mosquitto-frontend (Mosquitto only runs on svlnas)
+services:
+  traefik:
+    ports:
+      - "1883:1883" # MQTT TCP (Mosquitto)
+      - "53:53/tcp" # DNS TCP (AdGuard)
+      - "53:53/udp" # DNS UDP (AdGuard)
+    networks:
+      mosquitto-frontend:
+
+networks:
+  mosquitto-frontend:
+    name: mosquitto-frontend
+    external: true
