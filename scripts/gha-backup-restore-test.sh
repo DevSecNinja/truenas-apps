@@ -5,7 +5,7 @@
 #
 #   1. tiredofit/db-backup can produce an encrypted, ZSTD-compressed dump
 #      using the same settings as production services.
-#   2. The dump can be decrypted with openssl and decompressed with zstd.
+#   2. The dump can be decrypted with gpg and decompressed with zstd.
 #   3. pg_restore --list succeeds (structural integrity check).
 #   4. The dump restores cleanly into a fresh PostgreSQL instance.
 #   5. The restored data matches the original (sentinel row verification).
@@ -13,7 +13,7 @@
 # Images are intentionally kept in sync with services/*/compose.yaml so that
 # the test exercises the exact same backup toolchain used in production.
 #
-# Required host tools: docker, openssl, zstd, pg_restore (postgresql-client)
+# Required host tools: docker, gpg, zstd, pg_restore (postgresql-client)
 #
 # Exit codes:
 #   0 — all checks passed
@@ -45,6 +45,10 @@ WORK_DIR="$(mktemp -d /tmp/backup-restore-test.XXXXXX)"
 
 # Passphrase for the test backup (strength does not matter here).
 ENC_PASSPHRASE="ci_test_enc_key" # gitleaks:allow — CI-only test credential, not a real secret
+
+# UID/GID for the backup container so it writes files as the current user.
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
 
 # --- Helpers -----------------------------------------------------------------
 
@@ -113,8 +117,8 @@ log "Sentinel '${SENTINEL}' inserted successfully"
 log "Running tiredofit/db-backup to produce an encrypted dump..."
 docker run --rm \
     --network "${NETWORK}" \
-    -e USER_DBBACKUP=0 \
-    -e GROUP_DBBACKUP=0 \
+    -e USER_DBBACKUP="${HOST_UID}" \
+    -e GROUP_DBBACKUP="${HOST_GID}" \
     -e CONTAINER_NAME="backup-test-backup" \
     -e CONTAINER_ENABLE_MONITORING=FALSE \
     -e CONTAINER_ENABLE_SCHEDULING=FALSE \
@@ -139,19 +143,16 @@ docker run --rm \
 
 # SC2312: pipefail is active; find returns 0 even with no results.
 # shellcheck disable=SC2312
-mapfile -t ENC_FILES < <(find "${WORK_DIR}" -name "*.enc" -type f | sort)
+mapfile -t ENC_FILES < <(find "${WORK_DIR}" -name "*.gpg" -type f | sort)
 [ "${#ENC_FILES[@]}" -gt 0 ] || die "No encrypted backup file found in ${WORK_DIR} — backup may have failed"
 ENC_FILE="${ENC_FILES[0]}"
 log "Backup file: ${ENC_FILE}"
 
 # --- Step 6: Decrypt ---------------------------------------------------------
 
-log "Decrypting backup with openssl..."
-ZST_FILE="${ENC_FILE%.enc}"
-openssl enc -d -aes-256-cbc -pbkdf2 \
-    -in "${ENC_FILE}" \
-    -out "${ZST_FILE}" \
-    -pass "pass:${ENC_PASSPHRASE}"
+log "Decrypting backup with gpg..."
+ZST_FILE="${ENC_FILE%.gpg}"
+gpg --batch --passphrase "${ENC_PASSPHRASE}" --output "${ZST_FILE}" --decrypt "${ENC_FILE}"
 
 # --- Step 7: Decompress ------------------------------------------------------
 
