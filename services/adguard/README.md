@@ -65,7 +65,7 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `adguard-unbound-init`  | One-shot init: substitutes `${VAR}` placeholders in Unbound config templates, chowns output to `3101:3101`                                                      |
 | `adguard-redis`         | Ephemeral Redis cache backend for Unbound's `cachedb` module — cache survives Unbound restarts but is lost on Redis restart                                     |
-| `adguard-unbound`       | Recursive DNS resolver (Unbound) — resolves from root DNS servers, local-data for internal names                                                                 |
+| `adguard-unbound`       | Recursive DNS resolver (Unbound) — resolves from root DNS servers, local-data for internal names                                                                |
 | `adguard-unbound-flush` | One-shot sidecar: flushes Unbound's cache for `${DOMAINNAME}` via `unbound-control` — clears stale internal entries without wiping the Redis external DNS cache |
 | `adguard-init`          | One-shot init: copies `AdGuardHome.yaml` from repo config into `data/conf/`, chowns `data/work` and `data/conf` to `3101:3101`                                  |
 | `adguard`               | AdGuard Home DNS filter — listens on port 53, forwards to Unbound on the frontend network                                                                       |
