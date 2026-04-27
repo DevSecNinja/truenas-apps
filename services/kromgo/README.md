@@ -14,9 +14,9 @@ Embedding live status badges in READMEs, dashboards, or status pages requires a 
 
 ## Access
 
-| URL                            | Description                           |
-| ------------------------------ | ------------------------------------- |
-| `https://badges.${DOMAINNAME}` | Badge API — public, no authentication |
+| URL                            | Description                                                          |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `https://badges.${DOMAINNAME}` | Badge API — public, no authentication; exposed via Cloudflare Tunnel |
 
 ## Architecture
 
@@ -51,18 +51,20 @@ All metrics are defined in `config/config.yaml`. Each metric is served at two en
 
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
-| Variable         | Description                                                          |
-| ---------------- | -------------------------------------------------------------------- |
-| `PROMETHEUS_URL` | URL of the Prometheus instance Kromgo queries for all PromQL metrics |
-| `DOMAINNAME`     | Base domain for Traefik routing                                      |
+| Variable     | Description                     |
+| ------------ | ------------------------------- |
+| `DOMAINNAME` | Base domain for Traefik routing |
+
+`PROMETHEUS_URL` is not a secret — it defaults to `http://prometheus:9090` in `compose.yaml`. Override it via the `PROMETHEUS_URL` environment variable if your Prometheus instance has a different URL.
 
 ## First-Run Setup
 
 1. Create the dataset `vm-pool/apps/services/kromgo` in TrueNAS
 2. Create a `svc-app-kromgo` group (GID `3125`) and user (UID `3125`) on the TrueNAS host
-3. Set `PROMETHEUS_URL` in `secret.sops.env` to the internal URL of your Prometheus instance
-4. Review `config/config.yaml` — adjust PromQL queries and label selectors to match your Prometheus exporter's label schema (cAdvisor label names vary by version and deployment)
-5. Deploy — verify a badge at `https://badges.${DOMAINNAME}/badges/docker_containers_running`
+3. If your Prometheus instance has a different URL, set `PROMETHEUS_URL` in the environment (e.g., in a `compose.env` file)
+4. Configure the Cloudflare Tunnel rule in the [Zero Trust dashboard](https://one.dash.cloudflare.com/) to route `badges.${DOMAINNAME}` to `https://<IP_SVLNAS>` (NAS Traefik) with `noTLSVerify` enabled
+5. Review `config/config.yaml` — adjust PromQL queries and label selectors to match your Prometheus exporter's label schema (cAdvisor label names vary by version and deployment)
+6. Deploy — verify a badge at `https://badges.${DOMAINNAME}/badges/docker_containers_running`
 
 ## Upgrade Notes
 

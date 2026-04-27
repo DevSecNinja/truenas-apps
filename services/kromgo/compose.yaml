@@ -13,7 +13,7 @@ services:
       - path: ../shared/env/tz.env
     user: "3125:3125" # svc-app-kromgo
     environment:
-      - PROMETHEUS_URL=${PROMETHEUS_URL}
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
       - HEALTH_HOST=0.0.0.0
