@@ -39,7 +39,9 @@ services:
   # survives Unbound restarts, which is the primary goal (warm cache across deploys).
   # The madnuttah/unbound image is built with --with-libhiredis (Redis support).
   adguard-redis:
-    image: docker.io/library/redis:8.6.2-alpine@sha256:81b6f81d6a6c5b9019231a2e8eb10085e3a139a34f833dcc965a8a959b040b72
+    # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
+    # Same Redis version (8.6.2) as the previous alpine variant; runs as nonroot (UID 65532).
+    image: dhi.io/redis:8.6.2-debian13@sha256:3f877f99e20fb4584c3170fd92b29cc45f13fb0328fea7a27bfbc375719af490
     container_name: adguard-redis
     # --save "" disables RDB snapshots — Redis is used only as an ephemeral DNS
     # cache backend for Unbound. No persistence required; read_only: true is safe.
