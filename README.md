@@ -53,6 +53,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
+| [Prometheus](https://prometheus.io/)                                                          | Metrics collection and time-series database                    |
 | [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
 | [qBittorrent](https://www.qbittorrent.org/)                                                   | BitTorrent client with web interface                           |
 | [Radarr](https://radarr.video/)                                                               | Movie collection manager and download automation               |
@@ -94,6 +95,7 @@ vm-pool/apps/services/metube
 vm-pool/apps/services/mosquitto
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
+vm-pool/apps/services/prometheus
 vm-pool/apps/services/prowlarr
 vm-pool/apps/services/qbittorrent
 vm-pool/apps/services/radarr

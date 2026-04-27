@@ -50,6 +50,7 @@ The setup follows
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
+| [Prometheus](https://prometheus.io/)                                                          | Metrics collection and time-series database                    |
 | [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
 | [qBittorrent](https://www.qbittorrent.org/)                                                   | BitTorrent client with web interface                           |
 | [Radarr](https://radarr.video/)                                                               | Movie collection manager and download automation               |

@@ -89,6 +89,7 @@ nav:
       - Mosquitto: services/mosquitto.md
       - Outline: services/outline.md
       - Plex: services/plex.md
+      - Prometheus: services/prometheus.md
       - Prowlarr: services/prowlarr.md
       - qBittorrent: services/qbittorrent.md
       - Radarr: services/radarr.md
