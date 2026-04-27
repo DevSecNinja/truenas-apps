@@ -72,6 +72,7 @@ services:
       unifi-frontend:
       plex-frontend:
       metube-frontend:
+      netboot-xyz-frontend:
       immich-frontend:
       bazarr-frontend:
       dozzle-frontend:
@@ -232,6 +233,9 @@ networks:
     external: true
   metube-frontend:
     name: metube-frontend
+    external: true
+  netboot-xyz-frontend:
+    name: netboot-xyz-frontend
     external: true
   immich-frontend:
     name: immich-frontend
