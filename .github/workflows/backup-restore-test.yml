@@ -33,7 +33,7 @@ jobs:
 
       - name: Docker cleanup
         if: always()
-        run: |
+        run: |-
           docker rm -f backup-test-source backup-test-restore 2>/dev/null || true
           docker network rm backup-test-net 2>/dev/null || true
           docker system prune -f 2>/dev/null || true

@@ -96,7 +96,7 @@ wait_for_postgres "${SOURCE_DB}"
 # --- Step 3: Insert sentinel data --------------------------------------------
 
 log "Inserting sentinel data..."
-docker exec -e PGPASSWORD="${DB_PASS}" "${SOURCE_DB}" psql \
+docker exec -i -e PGPASSWORD="${DB_PASS}" "${SOURCE_DB}" psql \
     -U "${DB_USER}" -d "${DB_NAME}" <<SQL
 CREATE TABLE restore_sentinel (id SERIAL PRIMARY KEY, value TEXT NOT NULL);
 INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');
