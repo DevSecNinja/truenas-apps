@@ -76,6 +76,10 @@ services:
       - "gatus.headers.Host=apps.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Homepage natively detects config file changes and refreshes the page
+      # without a container restart, so config-hash-based recreation is disabled.
+      - "config.watch=none"
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
   # It does not support custom users, mods, or scripts.

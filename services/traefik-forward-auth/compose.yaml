@@ -93,6 +93,8 @@ services:
       - "traefik.http.routers.traefik-forward-auth-monitor.entrypoints=monitoring"
       - "traefik.http.routers.traefik-forward-auth-monitor.middlewares=chain-no-auth@file"
       - "traefik.http.routers.traefik-forward-auth-monitor.service=traefik-forward-auth"
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
 networks:
   traefik-forward-auth-frontend:
