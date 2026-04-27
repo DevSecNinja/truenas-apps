@@ -122,7 +122,7 @@ services:
   # need extensive writable paths beyond what can be covered by tmpfs mounts.
   # cap_drop: ALL is therefore omitted.
   unifi:
-    image: lscr.io/linuxserver/unifi-network-application:version-10.1.89@sha256:521f2dad190e259259c4c82bcc87c6440ec9ed3020f2141a9eaaaab881418744
+    image: lscr.io/linuxserver/unifi-network-application:version-10.3.55@sha256:90295d8eb83f9bcc059d12f5e4c0bbac812e0a2261365ba67f1d7df3c805c724
     container_name: unifi
     depends_on:
       unifi-db:
@@ -214,6 +214,8 @@ services:
       - "gatus.headers.Host=unifi.${DOMAINNAME}"
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
 networks:
   unifi-frontend:

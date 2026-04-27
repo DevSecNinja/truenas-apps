@@ -76,6 +76,8 @@ services:
       - homepage.name=Mosquitto
       - homepage.icon=mqtt.svg
       - homepage.description=MQTT broker for IoT devices
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
 networks:
   mosquitto-frontend:

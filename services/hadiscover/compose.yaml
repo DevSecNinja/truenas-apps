@@ -56,6 +56,9 @@ services:
       # with any co-located containers that also use a plain GITHUB_TOKEN variable).
       - GITHUB_TOKEN=${HADISCOVER_GITHUB_TOKEN}
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3

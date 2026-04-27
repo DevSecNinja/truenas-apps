@@ -157,6 +157,12 @@ services:
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.regex=^https?://svlnas\\.${DOMAINNAME}(.*)"
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.replacement=https://svlnas.${DOMAINNAME}:8443$${1}"
       - "traefik.http.middlewares.middlewares-redirect-to-nas-mgmt.redirectregex.permanent=true"
+      # Config hash — triggers container recreation when the static config changes.
+      # Only config/traefik.yml is watched (the static config that requires a restart).
+      # Dynamic rules under config/rules/ are hot-reloaded by Traefik's file provider
+      # without a container restart, so hashing the whole config/ dir is unnecessary.
+      - "config.watch=config/traefik.yml"
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
   # It does not support custom users, mods, or scripts.
@@ -166,6 +172,9 @@ services:
     image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
     container_name: traefik-docker-proxy
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3

@@ -54,6 +54,9 @@ services:
     env_file:
       - path: ../shared/env/tz.env
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -126,14 +129,15 @@ services:
       - ./config/unbound/conf.d/cachedb.conf:/usr/local/unbound/conf.d/cachedb.conf:ro
       - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
-      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      # Required only when tls-cert-bundle is enabled in server-overrides.conf (DoT forward zones):
+      # - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     healthcheck:
       # 1. Resolves the canary record from conf.d/a-records.conf — proves unbound is
       #    running, the config was loaded, and envsubst substituted ${DOMAINNAME}.
-      # 2. Resolves an external domain — proves forward zones and upstream TLS work.
+      # 2. Resolves an external domain — proves recursive resolution from root servers works.
       test:
         - "CMD-SHELL"
-        - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill -p 5335 @127.0.0.1 dns.quad9.net
+        - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill -p 5335 @127.0.0.1 dns.google
           | grep -q 'rcode: NOERROR'"
       interval: 30s
       timeout: 10s
@@ -287,6 +291,8 @@ services:
       - 'gatus.client={"ignore-redirect": true}'
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
 networks:
   adguard-frontend:
