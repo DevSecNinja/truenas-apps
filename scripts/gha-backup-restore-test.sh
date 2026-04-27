@@ -97,9 +97,10 @@ wait_for_postgres "${SOURCE_DB}"
 
 log "Inserting sentinel data..."
 docker exec -e PGPASSWORD="${DB_PASS}" "${SOURCE_DB}" psql \
-    -U "${DB_USER}" -d "${DB_NAME}" -c \
-    "CREATE TABLE restore_sentinel (id SERIAL PRIMARY KEY, value TEXT NOT NULL);
-     INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');"
+    -U "${DB_USER}" -d "${DB_NAME}" <<SQL
+CREATE TABLE restore_sentinel (id SERIAL PRIMARY KEY, value TEXT NOT NULL);
+INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');
+SQL
 
 INSERTED=$(docker exec -e PGPASSWORD="${DB_PASS}" "${SOURCE_DB}" psql \
     -U "${DB_USER}" -d "${DB_NAME}" -t -A -c \

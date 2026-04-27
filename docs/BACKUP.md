@@ -810,7 +810,7 @@ All times are local to the TrueNAS host.
 | 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
 | 07:00 daily             | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
 | On each `dccd.sh` run   | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
-| 04:00 Sat (weekly)      | Automated backup/restore cycle (CI)                | GitHub Actions         |
+| 04:00 weekly (Sat)      | Automated backup/restore cycle (CI)                | GitHub Actions         |
 
 Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline
 (`backup-restore-test.yml`) is independent of the NAS — it spins up ephemeral
