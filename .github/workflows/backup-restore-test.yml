@@ -1,0 +1,39 @@
+---
+name: Backup Restore Test
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/backup-restore-test.yml
+      - scripts/gha-backup-restore-test.sh
+  schedule:
+    - cron: "0 4 * * 6" # 04:00 UTC every Saturday
+  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow — no artifacts are produced.
+
+permissions:
+  contents: read
+
+jobs:
+  backup-restore-test:
+    name: PostgreSQL backup/restore cycle
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: sudo apt-get install -y --no-install-recommends postgresql-client zstd
+
+      - name: Run backup/restore test
+        run: bash scripts/gha-backup-restore-test.sh
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          docker rm -f backup-test-source backup-test-restore 2>/dev/null || true
+          docker network rm backup-test-net 2>/dev/null || true
+          docker system prune -f 2>/dev/null || true
