@@ -67,9 +67,11 @@ If direct TrueNAS host → HA communication is needed (e.g. for diagnostics), a 
 
 ```sh
 ip link add ha-macvlan-shim link <parent> type macvlan mode bridge
-ip addr add <host-ip-in-same-subnet>/24 dev ha-macvlan-shim
+ip addr add <unused-ip-in-same-subnet>/24 dev ha-macvlan-shim
 ip link set ha-macvlan-shim up
 ```
+
+Replace `<unused-ip-in-same-subnet>` with a free IP on the LAN that is neither `HA_LAN_IP` nor the host's primary IP (e.g. `192.168.1.201` if HA is `192.168.1.200` and the host uses `192.168.1.x`).
 
 Docker Compose deploys via `dccd.sh` use the Docker socket directly and do not require this shim.
 
@@ -78,8 +80,8 @@ Docker Compose deploys via `dccd.sh` use the Docker socket directly and do not r
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
 - `DOMAINNAME` — base domain for Traefik routing
-- `HA_LAN_IP` — HA's static IP address on the LAN (e.g. `192.168.1.200`) — must be outside the DHCP pool or reserved
-- `HA_LAN_MAC` — HA's MAC address for the macvlan interface (use a locally administered MAC, e.g. `02:42:c0:a8:01:c8`) — register in the DHCP server for consistent assignment
+- `HA_LAN_IP` — HA's static IP address on the LAN (e.g. `192.168.1.200`) — must be outside the DHCP pool or otherwise reserved to avoid address conflicts
+- `HA_LAN_MAC` — HA's MAC address for the macvlan interface — use a locally administered unicast MAC (second least-significant bit of the first octet set to 1, e.g. `02:42:c0:a8:01:c8`). The IP is assigned statically via `ipv4_address`, so DHCP reservation is not required; registering the MAC in the DHCP server is optional and useful only for network monitoring or firewall rules.
 - `HA_LAN_PARENT` — host NIC to attach the macvlan to (e.g. `eth0`, `bond0`) — must be the interface on the same LAN segment as IoT devices
 - `HA_LAN_SUBNET` — LAN subnet in CIDR notation (e.g. `192.168.1.0/24`)
 - `HA_LAN_GATEWAY` — LAN default gateway (e.g. `192.168.1.1`)
