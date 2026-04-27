@@ -126,14 +126,16 @@ services:
       - ./config/unbound/conf.d/cachedb.conf:/usr/local/unbound/conf.d/cachedb.conf:ro
       - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
+      # Required only when tls-cert-bundle is enabled in server-overrides.conf (DoT forward zones):
+      # - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     healthcheck:
       # 1. Resolves the canary record from conf.d/a-records.conf — proves unbound is
       #    running, the config was loaded, and envsubst substituted ${DOMAINNAME}.
       # 2. Resolves an external domain — proves recursive resolution from root servers works.
       test:
         - "CMD-SHELL"
-        - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill -p 5335 @127.0.0.1 example.com
-          | grep -q 'rcode: NOERROR'"
+        - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' &&
+          drill -p 5335 @127.0.0.1 example.com | grep -q 'rcode: NOERROR'"
       interval: 30s
       timeout: 10s
       retries: 3
