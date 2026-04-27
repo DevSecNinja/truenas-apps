@@ -35,17 +35,20 @@ All metrics are defined in `config/config.yaml`. Each metric is served at two en
 - `GET /badges/<name>` — SVG badge (rendered with the configured font and colors)
 - `GET /<name>?format=endpoint` — shields.io-compatible JSON
 
-| Metric name                 | Badge title  | Description                                                                   |
-| --------------------------- | ------------ | ----------------------------------------------------------------------------- |
-| `docker_containers_running` | Containers   | Count of running Docker containers across all Compose projects (via cAdvisor) |
-| `docker_services_running`   | Services     | Count of distinct Compose services across all projects (via cAdvisor)         |
-| `compose_last_update`       | Last Update  | Human-readable duration since the CD pipeline last ran                        |
-| `compose_last_success`      | Last Success | Human-readable duration since the CD pipeline last succeeded                  |
-| `compose_update_status`     | CD Status    | `Success` or `Failed` result of the most recent CD run                        |
+| Metric name                 | Badge title    | Description                                                                   |
+| --------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| `docker_containers_running` | Containers     | Count of running Docker containers across all Compose projects (via cAdvisor) |
+| `docker_services_running`   | Services       | Count of distinct Compose services across all projects (via cAdvisor)         |
+| `compose_last_update`       | Last Update    | Human-readable duration since the CD pipeline last ran                        |
+| `compose_last_success`      | Last Success   | Human-readable duration since the CD pipeline last succeeded                  |
+| `compose_update_status`     | CD Status      | `Success` or `Failed` result of the most recent CD run                        |
+| `backup_last_run`           | Backup Run     | Human-readable duration since the backup last ran                             |
+| `backup_last_success`       | Backup Success | Human-readable duration since the backup last succeeded                       |
+| `backup_status`             | Backup Status  | `Success` or `Failed` result of the most recent backup run                    |
 
 <!-- dprint-ignore -->
 !!! note "Exporter dependency"
-    The `docker_*` metrics require cAdvisor (or a compatible exporter) to be scraped by Prometheus with `container_label_com_docker_compose_project` labels populated. The `compose_*` metrics require the CD pipeline to push `dccd_last_run_timestamp_seconds`, `dccd_last_success_timestamp_seconds`, and `dccd_last_run_success` gauges to a Prometheus Pushgateway.
+    The `docker_*` metrics require cAdvisor (or a compatible exporter) to be scraped by Prometheus with `container_label_com_docker_compose_project` labels populated. The `compose_*` metrics require the CD pipeline to push `dccd_last_run_timestamp_seconds`, `dccd_last_success_timestamp_seconds`, and `dccd_last_run_success` gauges to a Prometheus Pushgateway. The `backup_*` metrics require a backup script to push `backup_last_run_timestamp_seconds`, `backup_last_success_timestamp_seconds`, and `backup_last_run_success` gauges to a Prometheus Pushgateway.
 
 ## Embedding Badges in a GitHub README
 
@@ -55,6 +58,7 @@ Paste the block below near the top of your `README.md`. Replace `badges.YOURDOMA
 [![CD Status](https://badges.YOURDOMAIN/badges/compose_update_status)](https://badges.YOURDOMAIN/badges/compose_update_status)
 [![Last Update](https://badges.YOURDOMAIN/badges/compose_last_update)](https://badges.YOURDOMAIN/badges/compose_last_update)
 [![Last Success](https://badges.YOURDOMAIN/badges/compose_last_success)](https://badges.YOURDOMAIN/badges/compose_last_success)
+[![Backup Status](https://badges.YOURDOMAIN/badges/backup_status)](https://badges.YOURDOMAIN/badges/backup_status)
 [![Containers](https://badges.YOURDOMAIN/badges/docker_containers_running)](https://badges.YOURDOMAIN/badges/docker_containers_running)
 [![Services](https://badges.YOURDOMAIN/badges/docker_services_running)](https://badges.YOURDOMAIN/badges/docker_services_running)
 ```

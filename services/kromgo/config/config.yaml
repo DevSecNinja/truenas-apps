@@ -115,5 +115,62 @@ metrics:
         min: 0
         max: 0
 
+  # ---------------------------------------------------------------------------
+  # Backup pipeline metrics
+  # Requires: a backup script (e.g. a TrueNAS cron job or shell script) pushing
+  # the following gauge metrics to a Prometheus Pushgateway after each run:
+  #   backup_last_run_timestamp_seconds     — Unix timestamp of last backup run
+  #   backup_last_success_timestamp_seconds — Unix timestamp of last successful backup
+  #   backup_last_run_success               — 1 = success, 0 = failure
+  # ---------------------------------------------------------------------------
+
+  # Last time the backup ran (seconds ago → human-readable duration)
+  - name: backup_last_run
+    query: "time() - backup_last_run_timestamp_seconds"
+    title: Backup Run
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 172800
+      - color: "orange"
+        min: 172801
+        max: 345600
+      - color: "red"
+        min: 345601
+        max: 99999999
+
+  # Last time the backup succeeded (seconds ago → human-readable duration)
+  - name: backup_last_success
+    query: "time() - backup_last_success_timestamp_seconds"
+    title: Backup Success
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 172800
+      - color: "orange"
+        min: 172801
+        max: 345600
+      - color: "red"
+        min: 345601
+        max: 99999999
+
+  # Status of the last backup run
+  - name: backup_status
+    query: "backup_last_run_success"
+    title: Backup Status
+    colors:
+      - valueOverride: "Success"
+        color: "green"
+        min: 1
+        max: 1
+      - valueOverride: "Failed"
+        color: "red"
+        min: 0
+        max: 0
+
 templates:
   uptime: "{{ . | humanDuration }}"

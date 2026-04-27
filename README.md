@@ -11,6 +11,7 @@ _... managed with Docker Compose, SOPS, Renovate, and a sprinkle of GitOps_ 🤖
 [![CD Status](https://badges.YOURDOMAIN/badges/compose_update_status)](https://badges.YOURDOMAIN/badges/compose_update_status)
 [![Last Update](https://badges.YOURDOMAIN/badges/compose_last_update)](https://badges.YOURDOMAIN/badges/compose_last_update)
 [![Last Success](https://badges.YOURDOMAIN/badges/compose_last_success)](https://badges.YOURDOMAIN/badges/compose_last_success)
+[![Backup Status](https://badges.YOURDOMAIN/badges/backup_status)](https://badges.YOURDOMAIN/badges/backup_status)
 [![Containers](https://badges.YOURDOMAIN/badges/docker_containers_running)](https://badges.YOURDOMAIN/badges/docker_containers_running)
 [![Services](https://badges.YOURDOMAIN/badges/docker_services_running)](https://badges.YOURDOMAIN/badges/docker_services_running)
 
