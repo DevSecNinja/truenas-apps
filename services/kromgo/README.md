@@ -47,6 +47,24 @@ All metrics are defined in `config/config.yaml`. Each metric is served at two en
 !!! note "Exporter dependency"
     The `docker_*` metrics require cAdvisor (or a compatible exporter) to be scraped by Prometheus with `container_label_com_docker_compose_project` labels populated. The `compose_*` metrics require the CD pipeline to push `dccd_last_run_timestamp_seconds`, `dccd_last_success_timestamp_seconds`, and `dccd_last_run_success` gauges to a Prometheus Pushgateway.
 
+## Embedding Badges in a GitHub README
+
+Paste the block below near the top of your `README.md`. Replace `badges.YOURDOMAIN` with your actual domain (e.g. `badges.example.com`).
+
+```markdown
+[![CD Status](https://badges.YOURDOMAIN/badges/compose_update_status)](https://badges.YOURDOMAIN/badges/compose_update_status)
+[![Last Update](https://badges.YOURDOMAIN/badges/compose_last_update)](https://badges.YOURDOMAIN/badges/compose_last_update)
+[![Last Success](https://badges.YOURDOMAIN/badges/compose_last_success)](https://badges.YOURDOMAIN/badges/compose_last_success)
+[![Containers](https://badges.YOURDOMAIN/badges/docker_containers_running)](https://badges.YOURDOMAIN/badges/docker_containers_running)
+[![Services](https://badges.YOURDOMAIN/badges/docker_services_running)](https://badges.YOURDOMAIN/badges/docker_services_running)
+```
+
+To use the shields.io-compatible JSON endpoint instead (allows custom styling via shields.io):
+
+```markdown
+![CD Status](https://img.shields.io/endpoint?url=https://badges.YOURDOMAIN/compose_update_status?format=endpoint)
+```
+
 ## Secrets
 
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
