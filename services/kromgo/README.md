@@ -48,6 +48,24 @@ All metrics are defined in `config/config.yaml`. Each metric is served at two en
 !!! note "Pending follow-ups"
     The `compose_*` badges depend on `dccd.sh` pushing `dccd_last_run_timestamp_seconds`, `dccd_last_success_timestamp_seconds`, and `dccd_last_run_success` gauges to Alloy's `prometheus.receive_http` listener (planned for Issue #15 Phase 2). They are kept in `config/config.yaml` with `hidden: true` so the queries are ready to switch on once the push integration lands. Container-count badges (`docker_*`) are commented out and will return once cAdvisor scrape is added to Alloy.
 
+## Embedding Badges in a GitHub README
+
+Paste the block below near the top of your `README.md`. Replace `badges.YOURDOMAIN` with your actual domain (e.g. `badges.example.com`).
+
+```markdown
+[![CD Status](https://badges.YOURDOMAIN/badges/compose_update_status)](https://badges.YOURDOMAIN/badges/compose_update_status)
+[![Last Update](https://badges.YOURDOMAIN/badges/compose_last_update)](https://badges.YOURDOMAIN/badges/compose_last_update)
+[![Last Success](https://badges.YOURDOMAIN/badges/compose_last_success)](https://badges.YOURDOMAIN/badges/compose_last_success)
+[![Containers](https://badges.YOURDOMAIN/badges/docker_containers_running)](https://badges.YOURDOMAIN/badges/docker_containers_running)
+[![Services](https://badges.YOURDOMAIN/badges/docker_services_running)](https://badges.YOURDOMAIN/badges/docker_services_running)
+```
+
+To use the shields.io-compatible JSON endpoint instead (allows custom styling via shields.io):
+
+```markdown
+![CD Status](https://img.shields.io/endpoint?url=https://badges.YOURDOMAIN/compose_update_status?format=endpoint)
+```
+
 ## Secrets
 
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
