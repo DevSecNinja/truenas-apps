@@ -330,21 +330,52 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted ${count} secret file(s)"
 }
 
-# Compute a SHA256 hash of all files under <app_dir>/config/ (sorted by path).
+# Compute a SHA256 hash of a path (file or directory) relative to <app_dir>.
+# Arguments:
+#   $1  app_dir   — absolute path to the app's service directory
+#   $2  watch     — optional: path relative to app_dir to hash, or "none" to
+#                   disable hashing. Defaults to "config" (the full config dir).
 # This hash is exported as CONFIG_HASH so compose.yaml labels can reference it
 # via ${CONFIG_HASH:-}, causing Docker Compose to recreate containers when the
-# config directory changes.
-# Returns the hash on stdout, or an empty string if no config directory exists.
+# watched path changes.
+# Returns the hash on stdout, or an empty string when hashing is disabled or
+# the target path does not exist.
 compute_config_hash() {
     local app_dir="$1"
-    local config_dir="${app_dir}/config"
-    if [ ! -d "${config_dir}" ]; then
+    local watch="${2:-config}"
+
+    # "none" explicitly disables config-change detection for this service
+    if [ "${watch}" = "none" ]; then
         echo ""
         return 0
     fi
-    # Hash the content and path of every file under config/, sorted for determinism.
-    # -r: do not run sha256sum when find produces no files (avoids reading from stdin).
-    find "${config_dir}" -type f | sort | xargs -r sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1
+
+    local target="${app_dir}/${watch}"
+
+    if [ ! -e "${target}" ]; then
+        echo ""
+        return 0
+    fi
+
+    if [ -f "${target}" ]; then
+        # Single file — hash its content and path directly
+        sha256sum "${target}" | cut -d' ' -f1
+    else
+        # Directory — hash the content and path of every file, sorted for
+        # determinism. -r: do not run sha256sum when find produces no files.
+        find "${target}" -type f | sort | xargs -r sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1
+    fi
+}
+
+# Extract the value of the config.watch label from one or more compose YAML files.
+# The label specifies which path (relative to the service directory) to hash for
+# CONFIG_HASH, or "none" to disable config-change detection for this service.
+# Returns the label value on stdout, or an empty string when the label is absent.
+# Usage: get_config_watch_path <compose_file> [additional_compose_files...]
+get_config_watch_path() {
+    # Match: - "config.watch=value"  or  - config.watch=value
+    grep -h 'config\.watch=' "$@" 2>/dev/null | head -1 |
+        sed 's/.*config\.watch=//' | tr -d '"'"'" | sed 's/[[:space:]]*$//'
 }
 
 # Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.
@@ -490,10 +521,15 @@ redeploy_truenas_apps() {
         log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
         _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
-        # Compute and export a hash of the app's config/ directory so compose.yaml
+        # Compute and export a hash of the app's watched config path so compose.yaml
         # labels that reference ${CONFIG_HASH:-} change when config files change,
         # causing Docker Compose to recreate affected containers automatically.
-        CONFIG_HASH=$(compute_config_hash "${BASE_DIR}/services/${app_name}")
+        # Read the config.watch label from the git-tracked compose file (not the
+        # TrueNAS-rendered one) so the setting is version-controlled with the app.
+        local config_watch
+        local git_compose="${BASE_DIR}/services/${app_name}/compose.yaml"
+        config_watch=$(get_config_watch_path "${git_compose}")
+        CONFIG_HASH=$(compute_config_hash "${BASE_DIR}/services/${app_name}" "${config_watch}")
         export CONFIG_HASH
 
         # Capture image state before pulling so we can report what changed
@@ -675,12 +711,19 @@ redeploy_compose_file() {
 
     _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
-    # Compute and export a hash of the app's config/ directory so compose.yaml
+    # Compute and export a hash of the app's watched config path so compose.yaml
     # labels that reference ${CONFIG_HASH:-} change when config files change,
     # causing Docker Compose to recreate affected containers automatically.
+    # The config.watch label in the compose file controls which path is hashed:
+    #   - absent      → hash the entire ./config directory (default)
+    #   - config/foo  → hash only that specific file or subdirectory
+    #   - none        → disable config-change detection for this service
     local app_dir
     app_dir=$(dirname "${file}")
-    CONFIG_HASH=$(compute_config_hash "${app_dir}")
+    local config_watch
+    # shellcheck disable=SC2086,SC2068  # word splitting / array expansion is intentional for extra_files
+    config_watch=$(get_config_watch_path "${file}" ${extra_files[@]+"${extra_files[@]}"})
+    CONFIG_HASH=$(compute_config_hash "${app_dir}" "${config_watch}")
     export CONFIG_HASH
 
     # Pull images unless NO_PULL is set

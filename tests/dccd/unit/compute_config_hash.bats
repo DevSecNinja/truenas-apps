@@ -1,11 +1,16 @@
 #!/usr/bin/env bats
-# Unit tests for compute_config_hash()
+# Unit tests for compute_config_hash() and get_config_watch_path()
 #
-# compute_config_hash <app_dir>:
-#   - Returns "" when <app_dir>/config does not exist.
-#   - Returns a non-empty SHA-256 hex string when <app_dir>/config/ has files.
-#   - Is deterministic: same files → same hash on repeated calls.
-#   - Is sensitive to changes: adding/modifying/removing a file changes the hash.
+# compute_config_hash <app_dir> [watch]:
+#   - watch absent or "config"  → hash all files under <app_dir>/config/
+#   - watch "none"              → return "" (config-change detection disabled)
+#   - watch "config/foo.yml"    → hash only that specific file
+#   - watch "config/subdir"     → hash all files in that subdirectory
+#   - target does not exist     → return ""
+#
+# get_config_watch_path <file> [...]
+#   - returns the value of the config.watch label from the compose YAML
+#   - returns "" when the label is absent
 #
 # The function uses real find/sort/sha256sum/xargs — no mocking needed for those.
 # We keep the logger/date mocks from common_setup so log_message doesn't fail.
@@ -249,4 +254,171 @@ _assert_is_sha256() {
         echo "Different apps produced the same hash: '${hash_a}'" >&2
         return 1
     }
+}
+
+# ---------------------------------------------------------------------------
+# Test 10 — watch="none" → empty string (config-change detection disabled)
+# ---------------------------------------------------------------------------
+@test "compute_config_hash: returns empty string when watch is 'none'" {
+    local app_dir
+    app_dir=$(_make_app_dir "nowatch")
+    mkdir -p "${app_dir}/config"
+    echo "data=123" >"${app_dir}/config/app.conf"
+
+    run compute_config_hash "${app_dir}" "none"
+    assert_success
+    assert_output ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 11 — watch points to a single file → hash only that file
+# ---------------------------------------------------------------------------
+@test "compute_config_hash: hashes a specific file when watch points to a file" {
+    local app_dir
+    app_dir=$(_make_app_dir "singlefile")
+    mkdir -p "${app_dir}/config"
+    echo "static=1" >"${app_dir}/config/static.yml"
+    echo "dynamic=2" >"${app_dir}/config/dynamic.yml"
+
+    # Hash only config/static.yml
+    run compute_config_hash "${app_dir}" "config/static.yml"
+    assert_success
+    local hash_static_only="${output}"
+    _assert_is_sha256 "${hash_static_only}"
+
+    # Hash the full config/ dir — must differ (dynamic.yml is included)
+    run compute_config_hash "${app_dir}"
+    assert_success
+    local hash_full="${output}"
+
+    [ "${hash_static_only}" != "${hash_full}" ] || {
+        echo "Single-file hash unexpectedly matches full-dir hash" >&2
+        return 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Test 12 — modifying the unwatched file does NOT change the hash
+# ---------------------------------------------------------------------------
+@test "compute_config_hash: unwatched file change does not affect hash" {
+    local app_dir
+    app_dir=$(_make_app_dir "unwatched")
+    mkdir -p "${app_dir}/config"
+    echo "static=1" >"${app_dir}/config/static.yml"
+    echo "dynamic=2" >"${app_dir}/config/dynamic.yml"
+
+    run compute_config_hash "${app_dir}" "config/static.yml"
+    assert_success
+    local hash_before="${output}"
+    _assert_is_sha256 "${hash_before}"
+
+    # Modify only the unwatched file
+    echo "dynamic=99" >"${app_dir}/config/dynamic.yml"
+
+    run compute_config_hash "${app_dir}" "config/static.yml"
+    assert_success
+    local hash_after="${output}"
+
+    [ "${hash_before}" = "${hash_after}" ] || {
+        echo "Hash changed after modifying unwatched file: '${hash_before}' → '${hash_after}'" >&2
+        return 1
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Test 13 — watch points to a non-existent path → empty string
+# ---------------------------------------------------------------------------
+@test "compute_config_hash: returns empty string when watch path does not exist" {
+    local app_dir
+    app_dir=$(_make_app_dir "missing-path")
+    mkdir -p "${app_dir}/config"
+
+    run compute_config_hash "${app_dir}" "config/nonexistent.yml"
+    assert_success
+    assert_output ""
+}
+
+# ---------------------------------------------------------------------------
+# get_config_watch_path tests
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Test 14 — label absent → empty string
+# ---------------------------------------------------------------------------
+@test "get_config_watch_path: returns empty string when label is absent" {
+    local compose_file="${BASE_DIR}/no-watch/compose.yaml"
+    mkdir -p "$(dirname "${compose_file}")"
+    cat >"${compose_file}" <<'YAML'
+services:
+  app:
+    labels:
+      - "config.sha256=${CONFIG_HASH:-}"
+YAML
+
+    run get_config_watch_path "${compose_file}"
+    assert_success
+    assert_output ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 15 — double-quoted label value is extracted correctly
+# ---------------------------------------------------------------------------
+@test "get_config_watch_path: extracts double-quoted label value" {
+    local compose_file="${BASE_DIR}/dq-watch/compose.yaml"
+    mkdir -p "$(dirname "${compose_file}")"
+    cat >"${compose_file}" <<'YAML'
+services:
+  traefik:
+    labels:
+      - "config.watch=config/traefik.yml"
+      - "config.sha256=${CONFIG_HASH:-}"
+YAML
+
+    run get_config_watch_path "${compose_file}"
+    assert_success
+    assert_output "config/traefik.yml"
+}
+
+# ---------------------------------------------------------------------------
+# Test 16 — unquoted label value is extracted correctly
+# ---------------------------------------------------------------------------
+@test "get_config_watch_path: extracts unquoted label value" {
+    local compose_file="${BASE_DIR}/uq-watch/compose.yaml"
+    mkdir -p "$(dirname "${compose_file}")"
+    cat >"${compose_file}" <<'YAML'
+services:
+  app:
+    labels:
+      - config.watch=none
+YAML
+
+    run get_config_watch_path "${compose_file}"
+    assert_success
+    assert_output "none"
+}
+
+# ---------------------------------------------------------------------------
+# Test 17 — value is read from the first matching file when multiple compose
+#           files are provided (override scenario)
+# ---------------------------------------------------------------------------
+@test "get_config_watch_path: reads label from first file that defines it" {
+    local base_file="${BASE_DIR}/multi/compose.yaml"
+    local override_file="${BASE_DIR}/multi/compose.override.yaml"
+    mkdir -p "$(dirname "${base_file}")"
+    cat >"${base_file}" <<'YAML'
+services:
+  app:
+    labels:
+      - "config.watch=config/base.yml"
+YAML
+    cat >"${override_file}" <<'YAML'
+services:
+  app:
+    labels:
+      - "config.watch=config/override.yml"
+YAML
+
+    run get_config_watch_path "${base_file}" "${override_file}"
+    assert_success
+    assert_output "config/base.yml"
 }
