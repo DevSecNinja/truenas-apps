@@ -30,12 +30,6 @@ Test DNSSEC chain:
 dig +dnssec internetsociety.org @<router IP>
 ```
 
-Test Quad9 DNS directly:
-
-```sh
-dig google.com @9.9.9.9
-```
-
 ## Permissions
 
 This section covers debugging file-permission errors on TrueNAS datasets. For the full permission model, see [INFRASTRUCTURE.md § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) and [§ Media Access](INFRASTRUCTURE.md#media-access).
