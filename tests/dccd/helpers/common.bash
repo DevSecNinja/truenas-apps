@@ -84,6 +84,8 @@ MOCK
     GATUS_DNS_SERVER=""
     WAIT_TIMEOUT=120
     SUDO=""
+    _ORIG_ARGS=()
+    _SCRIPT_PATH=""
 
     # Create the services directory
     mkdir -p "${BASE_DIR}/services"
