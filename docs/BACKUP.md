@@ -692,24 +692,23 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
 2. Decrypt and decompress:
 
    ```sh
-   # tiredofit/db-backup encrypts with openssl
-   openssl enc -d -aes-256-cbc -pbkdf2 \
-     -in immich_immich_20260411-020000.pgsql.zst.enc \
-     -out immich_immich_20260411-020000.pgsql.zst \
-     -pass "pass:<DB_ENC_PASSPHRASE>"
+   # tiredofit/db-backup encrypts with GPG symmetric passphrase encryption
+   gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
+     --output pgsql_immich_immich_20260411-020000.sql.zst \
+     --decrypt pgsql_immich_immich_20260411-020000.sql.zst.gpg
 
-   zstd -d immich_immich_20260411-020000.pgsql.zst
+   zstd -d pgsql_immich_immich_20260411-020000.sql.zst
    ```
 
 3. Restore into a running PostgreSQL container:
 
    ```sh
-   # Copy dump into the container
-   docker cp immich_immich_20260411-020000.pgsql immich-db:/tmp/
+   # Copy the plain-text SQL dump into the container
+   docker cp pgsql_immich_immich_20260411-020000.sql immich-db:/tmp/
 
-   # Restore (drop and recreate the database first if needed)
-   docker exec -it immich-db pg_restore \
-     -U immich -d immich --clean --if-exists /tmp/immich_immich_20260411-020000.pgsql
+   # Restore with psql (tiredofit/db-backup produces plain-text pg_dump output)
+   docker exec -it -e PGPASSWORD='<password>' immich-db psql \
+     -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
    ```
 
    For MongoDB (Unifi):
