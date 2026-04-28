@@ -878,6 +878,20 @@ update_compose_files() {
                 fi
                 log_message "INFO:  Pulled latest commits from origin/${REMOTE_BRANCH} (now at ${short_remote})"
 
+                # If the script itself was updated by this pull, re-exec with the new
+                # version so subsequent deployments run the updated code rather than
+                # the old in-memory copy.
+                local script_rel
+                script_rel=$(git "${GIT_OPTS[@]}" ls-files --full-name -- "${_SCRIPT_PATH}" 2>/dev/null) || true
+                local script_diff
+                script_diff=$(git "${GIT_OPTS[@]}" diff --name-only "${local_hash}" "${remote_hash}" -- "${script_rel}" 2>/dev/null) || true
+                if [ -n "${script_rel}" ] && [ -n "${script_diff}" ]; then
+                    log_message "INFO:  The dccd script itself was updated — re-executing with the new version..."
+                    flush_output_buffer
+                    trap - EXIT
+                    exec "${_SCRIPT_PATH}" "${_ORIG_ARGS[@]}"
+                fi
+
                 # Clean up any services that were removed by the incoming commits
                 cleanup_orphaned_projects "${dir}" "${_pre_pull_apps}"
             else
@@ -1249,6 +1263,18 @@ done
 ########################################
 # Script starts here
 ########################################
+
+# Preserve original CLI args and absolute script path so the script can
+# re-exec itself if a git pull updates the script file on disk.
+_ORIG_ARGS=("$@")
+_SCRIPT_PATH=$(readlink -f "$0" 2>/dev/null)
+if [ -z "${_SCRIPT_PATH}" ]; then
+    # readlink not available; resolve the absolute path manually
+    _script_dir=$(dirname "$0")
+    _script_name=$(basename "$0")
+    _SCRIPT_PATH=$(cd "${_script_dir}" && pwd)/${_script_name}
+    unset _script_dir _script_name
+fi
 
 # In quiet mode, initialise the output buffer now that options are parsed
 if [ "${QUIET}" -eq 1 ]; then
