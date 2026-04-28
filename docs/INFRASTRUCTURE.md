@@ -87,6 +87,7 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                   | Yes (`./config`)    |
 | 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init               | Yes (`./config`)    |
 | 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
+| 3125    | `svc-app-tinyauth`    | tinyauth, tinyauth-init                     | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the

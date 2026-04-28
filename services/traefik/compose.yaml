@@ -89,6 +89,7 @@ services:
       home-assistant-frontend:
       outline-frontend:
       sqlite-web-frontend:
+      tinyauth-frontend:
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -286,4 +287,7 @@ networks:
     external: true
   sqlite-web-frontend:
     name: sqlite-web-frontend
+    external: true
+  tinyauth-frontend:
+    name: tinyauth-frontend
     external: true

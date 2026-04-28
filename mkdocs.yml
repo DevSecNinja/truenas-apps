@@ -98,6 +98,7 @@ nav:
       - SQLite Web: services/sqlite-web.md
       - Traefik: services/traefik.md
       - Traefik Forward Auth: services/traefik-forward-auth.md
+      - Tinyauth: services/tinyauth.md
       - TubeSync: services/tubesync.md
       - Unifi: services/unifi.md
       - wmbusmeters: services/wmbusmeters.md
