@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   backup-restore-test:
-    name: PostgreSQL backup/restore cycle
+    name: Database backup/restore cycle (pgsql, mongo, sqlite3)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Install dependencies
-        run: sudo apt-get install -y --no-install-recommends zstd
+        run: sudo apt-get install -y --no-install-recommends zstd sqlite3
 
       - name: Run backup/restore test
         run: bash scripts/gha-backup-restore-test.sh
@@ -34,6 +34,9 @@ jobs:
       - name: Docker cleanup
         if: always()
         run: |-
-          docker rm -f backup-test-source backup-test-restore 2>/dev/null || true
+          docker rm -f \
+            backup-test-pg-source backup-test-pg-restore \
+            backup-test-mongo-source backup-test-mongo-restore \
+            2>/dev/null || true
           docker network rm backup-test-net 2>/dev/null || true
           docker system prune -f 2>/dev/null || true

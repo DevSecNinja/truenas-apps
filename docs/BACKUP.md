@@ -661,22 +661,23 @@ For the `archive-media` container, blobs move from Cool to Cold tier after 7 day
 
 ## Application-Level Database Backups
 
-All four stateful databases have `tiredofit/db-backup` sidecars in their compose files. These produce compressed, encrypted dump files independent of ZFS snapshots — providing an application-consistent recovery point that a raw filesystem snapshot may not guarantee (especially for PostgreSQL WAL consistency).
+All stateful databases in this repository have `tiredofit/db-backup` sidecars in their compose files. These produce compressed, encrypted dump files independent of ZFS snapshots — providing an application-consistent recovery point that a raw filesystem snapshot may not guarantee (especially for PostgreSQL WAL consistency).
 
 ### Covered Databases
 
-| Service | Database   | Backup sidecar      | Output path                           |
-| ------- | ---------- | ------------------- | ------------------------------------- |
-| Gatus   | PostgreSQL | `gatus-db-backup`   | `services/gatus/backups/db-backup/`   |
-| Immich  | PostgreSQL | `immich-db-backup`  | `services/immich/backups/db-backup/`  |
-| Outline | PostgreSQL | `outline-db-backup` | `services/outline/backups/db-backup/` |
-| Unifi   | MongoDB    | `unifi-db-backup`   | `services/unifi/backups/db-backup/`   |
+| Service        | Database   | Backup sidecar             | Output path                                  |
+| -------------- | ---------- | -------------------------- | -------------------------------------------- |
+| Gatus          | PostgreSQL | `gatus-db-backup`          | `services/gatus/backups/db-backup/`          |
+| Home Assistant | SQLite     | `home-assistant-db-backup` | `services/home-assistant/backups/db-backup/` |
+| Immich         | PostgreSQL | `immich-db-backup`         | `services/immich/backups/db-backup/`         |
+| Outline        | PostgreSQL | `outline-db-backup`        | `services/outline/backups/db-backup/`        |
+| Unifi          | MongoDB    | `unifi-db-backup`          | `services/unifi/backups/db-backup/`          |
 
 ### How They Run
 
 All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they run one backup and exit. The `dccd.sh` CD script restarts them on each deploy cycle (every 15 minutes via cron). Dumps are:
 
-- Compressed with zstd
+- Compressed with zstd (gzip for MongoDB — `mongodump --gzip` is invoked directly)
 - Encrypted with `DB_ENC_PASSPHRASE` (from each app's `secret.sops.env`)
 - Retained for 48 hours locally (`DEFAULT_CLEANUP_TIME=2880`)
 - Email notifications sent on success/failure
@@ -689,18 +690,25 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
    ls services/immich/backups/db-backup/
    ```
 
-2. Decrypt and decompress:
+2. Decrypt and decompress. The compressor depends on the engine — pgsql/sqlite3 dumps are zstd-compressed, while mongo dumps are gzip-compressed (`mongodump --gzip`):
 
    ```sh
-   # tiredofit/db-backup encrypts with GPG symmetric passphrase encryption
+   # PostgreSQL / SQLite — *.zst.gpg
    gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
      --output pgsql_immich_immich_20260411-020000.sql.zst \
      --decrypt pgsql_immich_immich_20260411-020000.sql.zst.gpg
-
    zstd -d pgsql_immich_immich_20260411-020000.sql.zst
+
+   # MongoDB — *.archive.gz.gpg
+   gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
+     --output mongo_unifi_unifi_20260411-020000.archive.gz \
+     --decrypt mongo_unifi_unifi_20260411-020000.archive.gz.gpg
+   gunzip mongo_unifi_unifi_20260411-020000.archive.gz
    ```
 
-3. Restore into a running PostgreSQL container:
+3. Restore — the procedure depends on the database engine:
+
+   **PostgreSQL** (Gatus, Immich, Outline) — plain-text `pg_dump` SQL:
 
    ```sh
    # Copy the plain-text SQL dump into the container
@@ -711,14 +719,41 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
      -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
    ```
 
-   For MongoDB (Unifi):
+   **MongoDB** (Unifi) — `mongodump --archive --gzip` single-file binary archive (gzip already removed in step 2):
 
    ```sh
+   docker cp mongo_unifi_unifi_20260411-020000.archive unifi-db:/tmp/restore.archive
+
    docker exec -it unifi-db mongorestore \
-     --uri="mongodb://root:<password>@localhost:27017" \
-     --authenticationDatabase=admin \
-     --gzip --drop /tmp/unifi-dump/
+     --username root --password '<password>' \
+     --authenticationDatabase admin \
+     --drop \
+     --archive=/tmp/restore.archive
    ```
+
+   **SQLite** (Home Assistant) — binary copy via the SQLite Online Backup API.
+   The `.sqlite3` file is a complete database, not a `.dump`, so it can simply
+   replace the live DB while Home Assistant is stopped:
+
+   ```sh
+   # Stop the Home Assistant stack first so the recorder DB isn't being written.
+   docker compose -f services/home-assistant/compose.yaml down
+
+   # Move the existing DB aside and drop in the restored copy.
+   mv services/home-assistant/data/config/home-assistant_v2.db{,.bak}
+   cp sqlite3_home-assistant_home-assistant_20260411-020000.sqlite3 \
+     services/home-assistant/data/config/home-assistant_v2.db
+
+   # Verify integrity, then restart.
+   sqlite3 services/home-assistant/data/config/home-assistant_v2.db \
+     "PRAGMA integrity_check;"
+   docker compose -f services/home-assistant/compose.yaml up -d
+   ```
+
+The full backup → decrypt → decompress → restore cycle for **every** database
+type above is exercised every Saturday by the `Backup Restore Test` GitHub
+Actions workflow (`scripts/gha-backup-restore-test.sh`), using the same
+`tiredofit/db-backup` image and settings as production.
 
 ---
 
@@ -808,12 +843,13 @@ All times are local to the TrueNAS host.
 | 05:00 daily             | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
 | 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
 | 07:00 daily             | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
-| On each `dccd.sh` run   | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
-| 04:00 weekly (Sat)      | Automated backup/restore cycle (CI)                | GitHub Actions         |
+| On each `dccd.sh` run   | Database dumps (all 5 DBs)                         | `tiredofit/db-backup`  |
+| 04:00 weekly (Sat)      | Automated backup/restore cycle (CI, all DB types)  | GitHub Actions         |
 
 Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline
 (`backup-restore-test.yml`) is independent of the NAS — it spins up ephemeral
-Docker containers and validates the full encrypt → decrypt → restore path.
+Docker containers and validates the full encrypt → decrypt → restore path for
+every database engine in use (`pgsql`, `mongo`, `sqlite3`).
 
 ---
 
