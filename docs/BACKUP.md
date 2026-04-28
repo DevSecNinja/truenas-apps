@@ -692,24 +692,23 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
 2. Decrypt and decompress:
 
    ```sh
-   # tiredofit/db-backup encrypts with openssl
-   openssl enc -d -aes-256-cbc -pbkdf2 \
-     -in immich_immich_20260411-020000.pgsql.zst.enc \
-     -out immich_immich_20260411-020000.pgsql.zst \
-     -pass "pass:<DB_ENC_PASSPHRASE>"
+   # tiredofit/db-backup encrypts with GPG symmetric passphrase encryption
+   gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
+     --output pgsql_immich_immich_20260411-020000.sql.zst \
+     --decrypt pgsql_immich_immich_20260411-020000.sql.zst.gpg
 
-   zstd -d immich_immich_20260411-020000.pgsql.zst
+   zstd -d pgsql_immich_immich_20260411-020000.sql.zst
    ```
 
 3. Restore into a running PostgreSQL container:
 
    ```sh
-   # Copy dump into the container
-   docker cp immich_immich_20260411-020000.pgsql immich-db:/tmp/
+   # Copy the plain-text SQL dump into the container
+   docker cp pgsql_immich_immich_20260411-020000.sql immich-db:/tmp/
 
-   # Restore (drop and recreate the database first if needed)
-   docker exec -it immich-db pg_restore \
-     -U immich -d immich --clean --if-exists /tmp/immich_immich_20260411-020000.pgsql
+   # Restore with psql (tiredofit/db-backup produces plain-text pg_dump output)
+   docker exec -it -e PGPASSWORD='<password>' immich-db psql \
+     -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
    ```
 
    For MongoDB (Unifi):
@@ -810,8 +809,11 @@ All times are local to the TrueNAS host.
 | 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
 | 07:00 daily             | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
 | On each `dccd.sh` run   | Database dumps (all 4 DBs)                         | `tiredofit/db-backup`  |
+| 04:00 weekly (Sat)      | Automated backup/restore cycle (CI)                | GitHub Actions         |
 
-Tasks are staggered to avoid overlapping I/O on the NAS.
+Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline
+(`backup-restore-test.yml`) is independent of the NAS — it spins up ephemeral
+Docker containers and validates the full encrypt → decrypt → restore path.
 
 ---
 
@@ -826,7 +828,7 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] Blob versioning is active on all containers (account-level setting, verify in Portal → Data Protection)
 - [ ] Snapshot browse test: `ls /mnt/vm-pool/apps/.zfs/snapshot/` shows recent entries
 - [ ] File restore test: copy a file from a snapshot and verify its contents
-- [ ] DB restore test: decrypt one dump with `DB_ENC_PASSPHRASE` and run `pg_restore --list` to verify integrity
+- [ ] DB restore test: automated weekly by the `backup-restore-test` CI pipeline — check the [Actions tab](https://github.com/DevSecNinja/truenas-apps/actions/workflows/backup-restore-test.yml) for the latest run status
 - [ ] Azure restore test: pull one file via rclone with the crypt passphrase and verify contents
 - [ ] All secrets in the [Secrets Inventory](#secrets-inventory) are present and current in your password manager
 - [ ] Cloud Sync email notifications fire on simulated failure (disable network briefly, verify alert arrives)
