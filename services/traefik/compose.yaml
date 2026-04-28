@@ -88,6 +88,7 @@ services:
       frigate-frontend:
       home-assistant-frontend:
       outline-frontend:
+      prometheus-frontend:
       sqlite-web-frontend:
     security_opt:
       - no-new-privileges=true
@@ -277,6 +278,9 @@ networks:
     external: true
   outline-frontend:
     name: outline-frontend
+    external: true
+  prometheus-frontend:
+    name: prometheus-frontend
     external: true
   esphome-frontend:
     name: esphome-frontend

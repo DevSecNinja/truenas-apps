@@ -140,6 +140,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                      |
 | frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
+| prometheus           | `prometheus-init`           | `./data` (TSDB)                                                                    |
 
 ---
 

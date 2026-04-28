@@ -1,0 +1,17 @@
+# Prometheus configuration — scrape jobs and global settings.
+# This file is git-tracked and mounted read-only into the prometheus container.
+# Restart Prometheus (or POST /-/reload) after changes to pick them up.
+
+global:
+    scrape_interval: 30s
+    evaluation_interval: 30s
+    # Attached to every metric so multi-server federations stay distinguishable.
+    external_labels:
+        host: svlnas
+
+scrape_configs:
+    # Prometheus self-monitoring
+    - job_name: prometheus
+      static_configs:
+          - targets:
+                - localhost:9090

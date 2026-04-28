@@ -1,0 +1,116 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount directory so Prometheus (UID 3125)
+  # can write its TSDB to /prometheus at startup. Runs once, then exits.
+  # NOTE: ./config is git-tracked and must NOT be chowned — doing so changes
+  # file ownership away from the deploy user and breaks git pull. It is mounted
+  # :ro into the main container; the init only chowns ./data.
+  prometheus-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: prometheus-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3125:3125
+      - DAC_OVERRIDE # Required to traverse host dirs owned by truenas_admin
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - chown -Rv 3125:3125 /data
+    volumes:
+      - ./data:/data
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.11.3@sha256:e4254400b85610324913f0dc4acf92603d9984e7519414c5a12811aa6146acc3
+    container_name: prometheus
+    depends_on:
+      prometheus-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3125:3125" # svc-app-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.external-url=https://prometheus.${DOMAINNAME}"
+      - "--web.enable-lifecycle"
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - prometheus-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data:/prometheus
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:9090/-/healthy"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Prometheus
+      - homepage.icon=prometheus.svg
+      - homepage.href=https://prometheus.${DOMAINNAME}
+      - homepage.description=Metrics & Monitoring
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=prometheus-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.prometheus-rtr.rule=Host(`prometheus.${DOMAINNAME}`)"
+      - "traefik.http.routers.prometheus-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.prometheus-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.prometheus-rtr.service=prometheus-svc"
+      - "traefik.http.services.prometheus-svc.loadbalancer.server.port=9090"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.prometheus-monitor.rule=Host(`prometheus.${DOMAINNAME}`)"
+      - "traefik.http.routers.prometheus-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.prometheus-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.prometheus-monitor.service=prometheus-svc"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/-/healthy"
+      - "gatus.headers.Host=prometheus.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
+
+networks:
+  prometheus-frontend:
+    name: prometheus-frontend
+    driver: bridge
