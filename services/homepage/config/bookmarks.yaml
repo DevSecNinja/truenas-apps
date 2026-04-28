@@ -32,7 +32,7 @@
         - icon: mdi-clock-outline-#e5e7eb
           href: https://crontab.guru/
     - Ad Blocker Tester:
-        - href: https://d3ward.github.io/toolz/adblock
+        - href: https://adblock.turtlecute.org/
           icon: si-adblock-#e5e7eb
     - Certificate Search:
         - href: https://crt.sh
