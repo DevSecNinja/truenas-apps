@@ -677,7 +677,7 @@ All stateful databases in this repository have `tiredofit/db-backup` sidecars in
 
 All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they run one backup and exit. The `dccd.sh` CD script restarts them on each deploy cycle (every 15 minutes via cron). Dumps are:
 
-- Compressed with zstd
+- Compressed with zstd (gzip for MongoDB — `mongodump --gzip` is invoked directly)
 - Encrypted with `DB_ENC_PASSPHRASE` (from each app's `secret.sops.env`)
 - Retained for 48 hours locally (`DEFAULT_CLEANUP_TIME=2880`)
 - Email notifications sent on success/failure
@@ -690,15 +690,20 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
    ls services/immich/backups/db-backup/
    ```
 
-2. Decrypt and decompress (same for every DB type — only the inner format differs):
+2. Decrypt and decompress. The compressor depends on the engine — pgsql/sqlite3 dumps are zstd-compressed, while mongo dumps are gzip-compressed (`mongodump --gzip`):
 
    ```sh
-   # tiredofit/db-backup encrypts with GPG symmetric passphrase encryption
+   # PostgreSQL / SQLite — *.zst.gpg
    gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
      --output pgsql_immich_immich_20260411-020000.sql.zst \
      --decrypt pgsql_immich_immich_20260411-020000.sql.zst.gpg
-
    zstd -d pgsql_immich_immich_20260411-020000.sql.zst
+
+   # MongoDB — *.archive.gz.gpg
+   gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
+     --output mongo_unifi_unifi_20260411-020000.archive.gz \
+     --decrypt mongo_unifi_unifi_20260411-020000.archive.gz.gpg
+   gunzip mongo_unifi_unifi_20260411-020000.archive.gz
    ```
 
 3. Restore — the procedure depends on the database engine:
@@ -714,10 +719,10 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
      -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
    ```
 
-   **MongoDB** (Unifi) — `mongodump --archive` single-file binary archive:
+   **MongoDB** (Unifi) — `mongodump --archive --gzip` single-file binary archive (gzip already removed in step 2):
 
    ```sh
-   docker cp mongo_unifi-db_unifi_20260411-020000.archive unifi-db:/tmp/restore.archive
+   docker cp mongo_unifi_unifi_20260411-020000.archive unifi-db:/tmp/restore.archive
 
    docker exec -it unifi-db mongorestore \
      --username root --password '<password>' \

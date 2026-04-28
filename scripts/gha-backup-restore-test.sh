@@ -117,17 +117,35 @@ wait_for_mongo() {
 
 # Decrypt a tiredofit/db-backup output file and decompress the resulting
 # zstd payload. Echoes the absolute path of the final plain dump file.
+# Decrypt a tiredofit/db-backup output file and decompress the resulting
+# payload. The compressor depends on the database engine: pgsql/sqlite3 use
+# zstd (`DEFAULT_COMPRESSION=ZSTD`), but mongo always uses gzip because the
+# sidecar invokes `mongodump --gzip` regardless of the compression default.
+# Echoes the absolute path of the final plain dump file.
 decrypt_and_decompress() {
     local enc_file="$1"
-    local zst_file="${enc_file%.gpg}"
-    local dump_file="${zst_file%.zst}"
+    local compressed="${enc_file%.gpg}"
+    local dump_file
 
     log "Decrypting ${enc_file} with gpg..."
     gpg --batch --passphrase "${ENC_PASSPHRASE}" \
-        --output "${zst_file}" --decrypt "${enc_file}" >/dev/null 2>&1
+        --output "${compressed}" --decrypt "${enc_file}" >/dev/null 2>&1
 
-    log "Decompressing ${zst_file} with zstd..."
-    zstd -df "${zst_file}" -o "${dump_file}" >/dev/null
+    case "${compressed}" in
+    *.zst)
+        dump_file="${compressed%.zst}"
+        log "Decompressing ${compressed} with zstd..."
+        zstd -df "${compressed}" -o "${dump_file}" >/dev/null
+        ;;
+    *.gz)
+        dump_file="${compressed%.gz}"
+        log "Decompressing ${compressed} with gzip..."
+        gunzip -c "${compressed}" >"${dump_file}"
+        ;;
+    *)
+        die "Unrecognised compression suffix on '${compressed}' (expected .zst or .gz)"
+        ;;
+    esac
 
     printf '%s' "${dump_file}"
 }
