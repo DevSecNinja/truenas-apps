@@ -379,8 +379,9 @@ compute_config_hash() {
 # handles reliably for the normalised YAML that Compose files use.
 get_config_watch_path() {
     # Match: - "config.watch=value"  or  - config.watch=value
+    # `|| true` ensures the function returns 0 when grep finds no match (set -o pipefail safe).
     grep -h 'config\.watch=' "$@" 2>/dev/null | head -1 |
-        sed 's/.*config\.watch=//' | tr -d '"'"'" | sed 's/[[:space:]]*$//'
+        sed 's/.*config\.watch=//' | tr -d '"'"'" | sed 's/[[:space:]]*$//' || true
 }
 
 # Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.

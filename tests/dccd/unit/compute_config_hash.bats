@@ -426,3 +426,31 @@ YAML
     assert_success
     assert_output "config/base.yml"
 }
+
+# ---------------------------------------------------------------------------
+# Test 18 — regression: function must not exit non-zero under set -euo pipefail
+#           when no config.watch label is present (bug: grep exits 1 → pipefail
+#           caused the deploy loop to exit silently after "STATE: Deploying").
+# ---------------------------------------------------------------------------
+@test "get_config_watch_path: returns exit 0 under set -euo pipefail when label is absent" {
+    local compose_file="${BASE_DIR}/pipefail-nowatch/compose.yaml"
+    mkdir -p "$(dirname "${compose_file}")"
+    cat >"${compose_file}" <<'YAML'
+services:
+  app:
+    labels:
+      - "config.sha256=${CONFIG_HASH:-}"
+YAML
+
+    # Run in a subshell with strict mode enabled to reproduce the original bug.
+    # The subshell sources dccd.sh and calls get_config_watch_path; if the
+    # function exits non-zero, the subshell exits non-zero and the test fails.
+    run bash -c "
+        set -euo pipefail
+        DCCD_TESTING=1 source '${REPO_ROOT}/scripts/dccd.sh'
+        result=\$(get_config_watch_path '${compose_file}')
+        printf '%s' \"\${result}\"
+    "
+    assert_success
+    assert_output ""
+}
