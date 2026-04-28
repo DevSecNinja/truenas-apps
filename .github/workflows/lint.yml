@@ -19,7 +19,7 @@ jobs:
       security-events: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.4.9"
+      mise-version: "2026.4.11"
       lint-config-drift: false
 
   # --- Repo-specific jobs (not centralized) ---
@@ -54,7 +54,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.4.9
+          version: 2026.4.11
 
       - name: Run dotenv-linter
         # renovate: datasource=github-releases depName=dotenv-linter/dotenv-linter
@@ -75,7 +75,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.4.9
+          version: 2026.4.11
 
       - name: Validate servers.yaml schema
         run: mise exec -- check-jsonschema --schemafile servers.schema.json servers.yaml
