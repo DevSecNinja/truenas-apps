@@ -48,6 +48,11 @@ services:
     # --tcp-keepalive 60 sends TCP keepalive probes every 60 s so the kernel
     # refreshes idle connections; without it the connection goes stale after ~2 h
     # and the next cachedb command fails with EAGAIN before Unbound reconnects.
+    # The dhi.io redis image's entrypoint is tini directly (not redis-server),
+    # so we must specify the binary explicitly — unlike the docker.io/library
+    # variant where the entrypoint already invokes redis-server.
+    entrypoint:
+      - "redis-server"
     command:
       - "--save"
       - ""
@@ -290,9 +295,9 @@ services:
       ## Gatus
       - "gatus.url=http://172.30.100.6:8444"
       - "gatus.headers.Host=adguard.${DOMAINNAME}"
-      - 'gatus.client={"ignore-redirect": true}'
-      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
-      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      - "gatus.client={\"ignore-redirect\": true}"
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
       # Config hash — triggers container recreation when ./config changes
       - "config.sha256=${CONFIG_HASH:-}"
 

@@ -132,8 +132,8 @@ services:
       ## Gatus
       - "gatus.url=http://172.30.100.6:8444/_health"
       - "gatus.headers.Host=docs.${DOMAINNAME}"
-      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
-      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
 
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
@@ -271,12 +271,19 @@ services:
   # command line because the REDIS_PASSWORD env var is not always picked up by the
   # Redis default configuration.
   outline-redis:
-    image: docker.io/library/redis:8.6.2-alpine@sha256:81b6f81d6a6c5b9019231a2e8eb10085e3a139a34f833dcc965a8a959b040b72
+    # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
+    # Same Redis version (8.6.2) as the previous alpine variant; runs as nonroot (UID 65532).
+    image: dhi.io/redis:8.6.2-debian13@sha256:3f877f99e20fb4584c3170fd92b29cc45f13fb0328fea7a27bfbc375719af490
     container_name: outline-redis
     # --save "" disables RDB snapshots — Redis is a session/cache store here,
     # not a data source. All persistent state lives in Postgres.
     # read_only: true would prevent writing dump.rdb without this flag.
     # --requirepass sets the password; env var interpolation works in list form.
+    # The dhi.io redis image's entrypoint is tini directly (not redis-server),
+    # so we must specify the binary explicitly — unlike the docker.io/library
+    # variant where the entrypoint already invokes redis-server.
+    entrypoint:
+      - "redis-server"
     command:
       - "--save"
       - ""
@@ -308,7 +315,7 @@ services:
     healthcheck:
       test:
         - "CMD-SHELL"
-        - 'redis-cli --no-auth-warning -a "$OUTLINE_REDIS_PASSWORD" ping | grep -q PONG || exit 1'
+        - "redis-cli --no-auth-warning -a \"$OUTLINE_REDIS_PASSWORD\" ping | grep -q PONG || exit 1"
       interval: 10s
       timeout: 10s
       retries: 3
