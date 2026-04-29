@@ -38,6 +38,7 @@ _DEPLOY_ATTEMPTED=0    # Count of deployment attempts
 _DEPLOY_CHANGED=0      # Count of apps where containers were recreated/updated
 _DEPLOY_UNCHANGED=0    # Count of apps where no changes were detected
 _DEPLOY_FAILED_APPS=() # Names of failed apps
+_DHI_LOGIN_OK=0        # Set to 1 by auto_login_dhi when dhi.io login succeeded (skips file-based check)
 # renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
@@ -369,6 +370,7 @@ auto_login_dhi() {
         if printf '%s' "${token}" | ${SUDO} docker login "${registry}" \
             --username "${username}" --password-stdin >/dev/null 2>&1; then
             log_message "INFO:  ${registry} login succeeded"
+            [ "${registry}" = "dhi.io" ] && _DHI_LOGIN_OK=1
         else
             log_message "ERROR: ${registry} login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
             exit 1
@@ -381,6 +383,15 @@ auto_login_dhi() {
 # SERVER_APPS and APP_FILTER). Exits with a helpful error if any dhi.io image
 # is referenced but Docker has no stored credentials for the registry.
 check_dhi_login() {
+    # If auto_login_dhi already logged in successfully this run, trust the
+    # exit code from `docker login` instead of inspecting config.json. The
+    # file-based check below is fragile under cron because sudo's HOME/env
+    # handling can cause `docker login` to write the config to a different
+    # path than the one we read here, even when the login itself succeeded.
+    if [ "${_DHI_LOGIN_OK}" -eq 1 ]; then
+        return 0
+    fi
+
     local compose_dir="${BASE_DIR}/services"
     local -a files_to_scan=()
 
