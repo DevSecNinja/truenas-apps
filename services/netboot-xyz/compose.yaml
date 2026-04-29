@@ -1,0 +1,87 @@
+---
+services:
+  # LinuxServer netboot.xyz uses s6-overlay which starts as root and drops to PUID:PGID.
+  # read_only: true is omitted — s6-overlay writes /etc/passwd and /etc/group at startup.
+  # user: is omitted — s6-overlay requires root to chown /config and /assets to PUID:PGID.
+  # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for s6-overlay.
+  # See ARCHITECTURE.md § Exceptions — s6-overlay and root-start containers.
+  netboot-xyz:
+    image: lscr.io/linuxserver/netbootxyz:0.7.5@sha256:74a87cf5b6e013fed2ae38fbb48852ae62b0339b5bf3088cf3d36c0f28b14b94
+    container_name: netboot-xyz
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - PUID=3125 # svc-app-netboot
+      - PGID=3125 # svc-app-netboot
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - netboot-xyz-frontend
+    mem_limit: ${MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # s6-overlay chowns /config and /assets to PUID:PGID at startup
+      - SETUID # s6-overlay drops from root to PUID
+      - SETGID # s6-overlay drops from root to PGID
+      - SETPCAP # clears bounding capability set before exec-ing the application
+    ports:
+      - 69:69/udp # TFTP — required for PXE booting; cannot be proxied through Traefik
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/config:/config
+      - ./data/assets:/assets
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:3000"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=netboot.xyz
+      - homepage.icon=netbootxyz.svg
+      - homepage.href=https://netboot.${DOMAINNAME}
+      - homepage.description=Network Boot Manager
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=netboot-xyz-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.netboot-xyz-rtr.rule=Host(`netboot.${DOMAINNAME}`)"
+      - "traefik.http.routers.netboot-xyz-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.netboot-xyz-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.netboot-xyz-rtr.service=netboot-xyz"
+      - "traefik.http.services.netboot-xyz.loadbalancer.server.port=3000"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.netboot-xyz-monitor.rule=Host(`netboot.${DOMAINNAME}`)"
+      - "traefik.http.routers.netboot-xyz-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.netboot-xyz-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.netboot-xyz-monitor.service=netboot-xyz"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444"
+      - "gatus.headers.Host=netboot.${DOMAINNAME}"
+      - 'gatus.client={"ignore-redirect": true}'
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  netboot-xyz-frontend:
+    name: netboot-xyz-frontend
+    driver: bridge

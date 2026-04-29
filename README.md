@@ -51,6 +51,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                         |
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
+| [netboot.xyz](https://netboot.xyz/)                                                           | Network boot manager for PXE-based OS installs                 |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
 | [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
@@ -92,6 +93,7 @@ vm-pool/apps/services/lidarr
 vm-pool/apps/services/matter-server
 vm-pool/apps/services/metube
 vm-pool/apps/services/mosquitto
+vm-pool/apps/services/netboot-xyz
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
 vm-pool/apps/services/prowlarr
