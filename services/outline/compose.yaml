@@ -313,9 +313,14 @@ services:
     tmpfs:
       - /tmp
     healthcheck:
+      # $$OUTLINE_REDIS_PASSWORD (double $) defers expansion to the container's
+      # shell, which reads the value from env_file at runtime. Using a single $
+      # would let compose interpolate the literal password into the command
+      # string at parse time and break the healthcheck if the password contains
+      # any shell-special characters ($, `, ", \, space, etc.).
       test:
         - "CMD-SHELL"
-        - "redis-cli --no-auth-warning -a \"$OUTLINE_REDIS_PASSWORD\" ping | grep -q PONG || exit 1"
+        - "redis-cli --no-auth-warning -a \"$$OUTLINE_REDIS_PASSWORD\" ping | grep -q PONG || exit 1"
       interval: 10s
       timeout: 10s
       retries: 3
