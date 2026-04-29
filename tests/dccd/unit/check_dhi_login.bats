@@ -163,58 +163,60 @@ YAML
 # auto_login_dhi
 # ---------------------------------------------------------------------------
 
-@test "auto_login_dhi: no-op when services/shared/.env does not exist" {
+@test "auto_login_dhi: no-op when services/shared/env/.env does not exist" {
     run auto_login_dhi
     assert_success
     assert_output ""
 }
 
 @test "auto_login_dhi: no-op when shared .env has no DOCKERHUB_USERNAME" {
-    mkdir -p "${BASE_DIR}/services/shared"
-    echo "SOME_OTHER_VAR=value" >"${BASE_DIR}/services/shared/.env"
+    mkdir -p "${BASE_DIR}/services/shared/env"
+    echo "SOME_OTHER_VAR=value" >"${BASE_DIR}/services/shared/env/.env"
     run auto_login_dhi
     assert_success
     assert_output ""
 }
 
 @test "auto_login_dhi: no-op when shared .env has no DOCKERHUB_TOKEN" {
-    mkdir -p "${BASE_DIR}/services/shared"
-    echo "DOCKERHUB_USERNAME=myuser" >"${BASE_DIR}/services/shared/.env"
+    mkdir -p "${BASE_DIR}/services/shared/env"
+    echo "DOCKERHUB_USERNAME=myuser" >"${BASE_DIR}/services/shared/env/.env"
     run auto_login_dhi
     assert_success
     assert_output ""
 }
 
-@test "auto_login_dhi: logs in successfully when both credentials are present" {
-    mkdir -p "${BASE_DIR}/services/shared"
+@test "auto_login_dhi: logs in to dhi.io and docker.io when both credentials are present" {
+    mkdir -p "${BASE_DIR}/services/shared/env"
     printf 'DOCKERHUB_USERNAME=myuser\nDOCKERHUB_TOKEN=mytoken\n' \
-        >"${BASE_DIR}/services/shared/.env"
+        >"${BASE_DIR}/services/shared/env/.env"
     # docker login succeeds
     create_mock "docker" 0 ""
     run auto_login_dhi
     assert_success
     assert_output --partial "Logging in to dhi.io as myuser"
     assert_output --partial "dhi.io login succeeded"
+    assert_output --partial "Logging in to docker.io as myuser"
+    assert_output --partial "docker.io login succeeded"
 }
 
 @test "auto_login_dhi: passes username to docker login" {
-    mkdir -p "${BASE_DIR}/services/shared"
+    mkdir -p "${BASE_DIR}/services/shared/env"
     printf 'DOCKERHUB_USERNAME=testuser\nDOCKERHUB_TOKEN=testtoken\n' \
-        >"${BASE_DIR}/services/shared/.env"
+        >"${BASE_DIR}/services/shared/env/.env"
     create_mock "docker" 0 ""
     auto_login_dhi
     assert_mock_called_with "docker" "--username testuser"
 }
 
 @test "auto_login_dhi: fails when docker login returns non-zero" {
-    mkdir -p "${BASE_DIR}/services/shared"
+    mkdir -p "${BASE_DIR}/services/shared/env"
     printf 'DOCKERHUB_USERNAME=baduser\nDOCKERHUB_TOKEN=badtoken\n' \
-        >"${BASE_DIR}/services/shared/.env"
+        >"${BASE_DIR}/services/shared/env/.env"
     create_mock "docker" 1 ""
     run auto_login_dhi
     assert_failure
     assert_output --partial "dhi.io login failed"
-    assert_output --partial "services/shared/secret.sops.env"
+    assert_output --partial "services/shared/env/secret.sops.env"
 }
 
 # ---------------------------------------------------------------------------
@@ -237,11 +239,11 @@ exit 1
 MOCK
     chmod +x "${SOPS_BIN}"
 
-    mkdir -p "${BASE_DIR}/services/shared"
-    touch "${BASE_DIR}/services/shared/secret.sops.env"
+    mkdir -p "${BASE_DIR}/services/shared/env"
+    touch "${BASE_DIR}/services/shared/env/secret.sops.env"
 
     SERVER_APPS=("otherapp")
     run decrypt_sops_files
     assert_success
-    assert_file_exists "${BASE_DIR}/services/shared/.env"
+    assert_file_exists "${BASE_DIR}/services/shared/env/.env"
 }

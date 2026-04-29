@@ -263,7 +263,7 @@ decrypt_sops_files() {
         # Always decrypt services/shared/env/secret.sops.env when it exists, regardless
         # of which apps are assigned to this server — it holds credentials shared
         # across all servers (e.g. DOCKERHUB_USERNAME / DOCKERHUB_TOKEN for dhi.io).
-        local shared_sops="${src_dir}/shared/secret.sops.env"
+        local shared_sops="${src_dir}/shared/env/secret.sops.env"
         if [ -f "${shared_sops}" ]; then
             if [ -n "${sops_files}" ]; then
                 sops_files="${sops_files}"$'\n'"${shared_sops}"
@@ -341,10 +341,16 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted ${count} secret file(s)"
 }
 
-# Auto-login to dhi.io using credentials from services/shared/env/.env (decrypted from
-# services/shared/env/secret.sops.env by decrypt_sops_files). Safe to call repeatedly —
-# if the credentials file doesn't exist or the variables are unset, this is a no-op.
-# The docker login token is passed via stdin so it never touches the filesystem.
+# Auto-login to Docker Hub registries (dhi.io for hardened images and docker.io
+# for regular images) using credentials from services/shared/env/.env (decrypted
+# from services/shared/env/secret.sops.env by decrypt_sops_files). Safe to call
+# repeatedly — if the credentials file doesn't exist or the variables are unset,
+# this is a no-op. The docker login token is passed via stdin so it never
+# touches the filesystem.
+#
+# Logging in to docker.io in addition to dhi.io raises the anonymous pull-rate
+# limit on the regular Docker Hub registry, which matters when many compose
+# stacks pull docker.io/library/* base images on every deploy.
 auto_login_dhi() {
     local shared_env="${BASE_DIR}/services/shared/env/.env"
     [ -f "${shared_env}" ] || return 0
@@ -357,14 +363,17 @@ auto_login_dhi() {
         return 0
     fi
 
-    log_message "STATE: Logging in to dhi.io as ${username}..."
-    if printf '%s' "${token}" | ${SUDO} docker login dhi.io \
-        --username "${username}" --password-stdin >/dev/null 2>&1; then
-        log_message "INFO:  dhi.io login succeeded"
-    else
-        log_message "ERROR: dhi.io login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
-        exit 1
-    fi
+    local registry
+    for registry in dhi.io docker.io; do
+        log_message "STATE: Logging in to ${registry} as ${username}..."
+        if printf '%s' "${token}" | ${SUDO} docker login "${registry}" \
+            --username "${username}" --password-stdin >/dev/null 2>&1; then
+            log_message "INFO:  ${registry} login succeeded"
+        else
+            log_message "ERROR: ${registry} login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
+            exit 1
+        fi
+    done
 }
 
 # Verify Docker is authenticated to dhi.io before attempting to pull images.
@@ -989,7 +998,10 @@ update_compose_files() {
                     log_message "INFO:  The dccd script itself was updated — re-executing with the new version..."
                     flush_output_buffer
                     trap - EXIT
-                    exec "${_SCRIPT_PATH}" "${_ORIG_ARGS[@]}"
+                    # Invoke via bash so re-exec works even when the script file
+                    # itself is not marked executable (common on TrueNAS Scale
+                    # where the cron entry runs `bash /path/to/dccd.sh`).
+                    exec bash "${_SCRIPT_PATH}" "${_ORIG_ARGS[@]}"
                 fi
 
                 # Clean up any services that were removed by the incoming commits
