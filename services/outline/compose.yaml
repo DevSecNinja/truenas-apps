@@ -313,14 +313,19 @@ services:
     tmpfs:
       - /tmp
     healthcheck:
-      # $$OUTLINE_REDIS_PASSWORD (double $) defers expansion to the container's
-      # shell, which reads the value from env_file at runtime. Using a single $
-      # would let compose interpolate the literal password into the command
-      # string at parse time and break the healthcheck if the password contains
-      # any shell-special characters ($, `, ", \, space, etc.).
+      # CMD (exec form) — the dhi.io/redis hardened image is distroless and
+      # does NOT ship /bin/sh, so CMD-SHELL fails with "no such file" and the
+      # container is reported unhealthy even when redis is up. Pass the password
+      # as a discrete argv element so compose interpolation is safe (no shell
+      # parsing of special characters). redis-cli ping exits 0 on PONG, non-zero
+      # on connect/auth failure, so no grep PONG check is needed.
       test:
-        - "CMD-SHELL"
-        - "redis-cli --no-auth-warning -a \"$$OUTLINE_REDIS_PASSWORD\" ping | grep -q PONG || exit 1"
+        - "CMD"
+        - "redis-cli"
+        - "--no-auth-warning"
+        - "-a"
+        - "${OUTLINE_REDIS_PASSWORD}"
+        - "ping"
       interval: 10s
       timeout: 10s
       retries: 3
