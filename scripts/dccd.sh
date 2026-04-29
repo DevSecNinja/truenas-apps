@@ -789,6 +789,18 @@ update_compose_files() {
         log_message "INFO:  Git repository found!"
     fi
 
+    # Persist core.filemode=false in the local .git/config so interactive
+    # `git status` (outside dccd) also ignores executable-bit-only changes.
+    # Init containers and ZFS mounts can flip the +x bit on tracked files,
+    # producing spurious "modified" entries that clutter the working tree.
+    # This is a one-time bootstrap; subsequent runs are a no-op when already set.
+    local _filemode
+    _filemode=$(git config --local --get core.filemode 2>/dev/null || echo true)
+    if [ "${_filemode}" != "false" ]; then
+        log_message "STATE: Setting core.filemode=false in local git config (ignore executable-bit changes)"
+        git config --local core.filemode false || log_message "WARNING: Failed to set core.filemode=false"
+    fi
+
     local SHOULD_DEPLOY=0
     local _pre_pull_apps=""
 
