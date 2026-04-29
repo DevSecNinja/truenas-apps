@@ -13,4 +13,12 @@
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
+  hostRules: [
+    {
+      matchHost: "dhi.io",
+      hostType: "docker",
+      username: "{{ secrets.MEND_DHI_USERNAME }}",
+      password: "{{ secrets.MEND_DHI_PASSWORD }}",
+    },
+  ],
 }
