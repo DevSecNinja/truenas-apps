@@ -128,6 +128,9 @@ services:
       - CHOWN # Required for entrypoint to chown dirs to UNBOUND_UID:UNBOUND_GID
       - SETUID # Required to drop from root to _unbound user
       - SETGID # Required to drop from root to _unbound group
+      - KILL # Required for tini (PID 1, root) to forward signals to unbound running as UID 3101;
+      # without CAP_KILL even root gets EPERM signalling a process with a different effective UID,
+      # producing "[FATAL tini (1)] Unexpected error when forwarding signal: 'Operation not permitted'" on stop.
     tmpfs:
       - /tmp
     volumes:
