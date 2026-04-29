@@ -324,8 +324,14 @@ networks:
     name: gatus-frontend
     driver: bridge
     ipam:
+      # ip_range restricts Docker's dynamic IPAM to .0/30 (usable .2-.3) so the
+      # static IP .6 (traefik) cannot be handed out to other containers that
+      # join this network without a fixed IP. Mirrors the adguard-frontend
+      # pattern; prevents "Address already in use" on a static-IP container if
+      # a dynamic peer ever lands on the reserved address.
       config:
         - subnet: 172.30.100.0/29
+          ip_range: 172.30.100.0/30
   gatus-backend:
     name: gatus-backend
     driver: bridge
