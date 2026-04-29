@@ -1,0 +1,116 @@
+---
+services:
+  # Prepares /data with correct ownership so the non-root tinyauth container
+  # can write its SQLite database, OIDC key files, and resource cache. Runs
+  # once, then exits.
+  # NOTE: ./config is not git-tracked for this service — no init chown needed
+  # for config. Only ./data (runtime-only, gitignored) is chown'd here.
+  tinyauth-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: tinyauth-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3125:3125 so the main container can write its database
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -Rv 3125:3125 /data"
+    volumes:
+      - ./data:/data
+
+  tinyauth:
+    image: ghcr.io/steveiliop56/tinyauth:v5.0.7@sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6
+    container_name: tinyauth
+    depends_on:
+      tinyauth-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3125:3125" # svc-app-tinyauth
+    environment:
+      # Defined here so ${DOMAINNAME} is interpolated by Compose rather than
+      # passed as a literal string from env_file.
+      TINYAUTH_APPURL: https://tinyauth.${DOMAINNAME}
+      TINYAUTH_DATABASE_PATH: /data/tinyauth.db
+      TINYAUTH_RESOURCES_PATH: /data/resources
+      # Redirect OIDC key paths from the default working-dir location to /data
+      # so they survive container recreation and work with read_only: true.
+      TINYAUTH_OIDC_PRIVATEKEYPATH: /data/tinyauth_oidc_key
+      TINYAUTH_OIDC_PUBLICKEYPATH: /data/tinyauth_oidc_key.pub
+      TINYAUTH_AUTH_SECURECOOKIE: "true"
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - tinyauth-frontend
+    mem_limit: ${MEM_LIMIT:-256m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "tinyauth"
+        - "healthcheck"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Tinyauth
+      - homepage.icon=sh-tinyauth
+      - homepage.href=https://tinyauth.${DOMAINNAME}
+      - homepage.description=Authentication Service
+      # Gatus
+      - "gatus.url=http://172.30.100.6:8444/api/health"
+      - "gatus.headers.Host=tinyauth.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=tinyauth-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.tinyauth-rtr.rule=Host(`tinyauth.${DOMAINNAME}`)"
+      - "traefik.http.routers.tinyauth-rtr.entrypoints=https"
+      ## Middlewares — no auth on the auth service itself
+      - "traefik.http.routers.tinyauth-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.tinyauth-rtr.service=tinyauth"
+      - "traefik.http.services.tinyauth.loadbalancer.server.port=3000"
+      ## Monitoring (Gatus — internal entrypoint only)
+      - "traefik.http.routers.tinyauth-monitor.rule=Host(`tinyauth.${DOMAINNAME}`)"
+      - "traefik.http.routers.tinyauth-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.tinyauth-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.tinyauth-monitor.service=tinyauth"
+
+networks:
+  tinyauth-frontend:
+    name: tinyauth-frontend
+    driver: bridge
