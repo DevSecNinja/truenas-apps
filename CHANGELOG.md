@@ -2,6 +2,132 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.0] - 2026-04-29
+
+### Bug Fixes
+
+- **dotenv-linter**: Exclude .sops.env files from dotenv-linter checks ([`abc531d`](https://github.com/DevSecNinja/truenas-apps/commit/abc531d14695174bc6e3c2ca0d915319dfd4f821))
+- **outline**: Update Redis healthcheck command to use discrete argv elements for password safety ([`9e318b3`](https://github.com/DevSecNinja/truenas-apps/commit/9e318b31e0cc742ed5a57e8ebde4a4690dc07020))
+- **outline**: Update Redis healthcheck command to defer password expansion for proper execution ([`9d40971`](https://github.com/DevSecNinja/truenas-apps/commit/9d409711e3e7ab03ae8253c3cefcbfe02b3c281f))
+- **gatus**: Restrict Docker IP range for gatus-frontend to prevent address conflicts ([`47aa2ed`](https://github.com/DevSecNinja/truenas-apps/commit/47aa2edf24cba5e658bbb76df325b37500b79bd1))
+- **adguard**: Improve healthcheck command formatting and restrict IP range for Docker network ([`62dee9b`](https://github.com/DevSecNinja/truenas-apps/commit/62dee9b67d9e2057f9d0baa89bc965a62cf22d3d))
+- **adguard**: Add CAP_KILL capability for proper signal forwarding to unbound ([`f20dab5`](https://github.com/DevSecNinja/truenas-apps/commit/f20dab56a62167b47ef81e423640449a2b7e0ad1))
+- Update Redis entrypoint and format healthcheck commands in compose files ([`514af77`](https://github.com/DevSecNinja/truenas-apps/commit/514af7745c77b339c88276dfd7fce1ea366ff5b7))
+- Update paths for shared environment secrets in dccd.sh and related tests ([`eb46678`](https://github.com/DevSecNinja/truenas-apps/commit/eb46678ab5e9c32e8f026dfdf7c0661e27aca025))
+- **dccd**: Update paths for shared environment secrets in dccd.sh ([`c419f85`](https://github.com/DevSecNinja/truenas-apps/commit/c419f85a937212ebf97e20a3a13c876aa7b6e338))
+- **dccd**: Persist core.filemode=false on first run ([`e046d16`](https://github.com/DevSecNinja/truenas-apps/commit/e046d166e44a61ec787983654ea496cf4108a5ac))
+- **ci**: Handle gzip-compressed mongo dumps in backup/restore test ([`25b16f1`](https://github.com/DevSecNinja/truenas-apps/commit/25b16f15de2d13fd3a9166bae2a5e07b6c80fcf1))
+- When dccd script itself is updated with a git pull, it should re-run itself ([`a4ef8bf`](https://github.com/DevSecNinja/truenas-apps/commit/a4ef8bfeb707da597fadcc7047d2574635c40706))
+- **dccd**: Get_config_watch_path must not fail under set -o pipefail ([`6bd2750`](https://github.com/DevSecNinja/truenas-apps/commit/6bd27504fcdf8ebcaf0a8a3ad76994dfde16bd43))
+- Use new Adblock tester fork ([`5897d66`](https://github.com/DevSecNinja/truenas-apps/commit/5897d6654579f7bac4b4981d9fb5ba2f78af182b))
+- **backup**: Use psql for plain-text dump restore ([`e0d367b`](https://github.com/DevSecNinja/truenas-apps/commit/e0d367b7c9af5042b7f797a3a01b5543f4dadecb))
+- **backup**: Fix GPG decryption and container file ownership ([`701a56a`](https://github.com/DevSecNinja/truenas-apps/commit/701a56a08e3648e0dbdfb9e21c62e83c533940fd))
+- **backup**: Fix docker exec stdin and yamlfmt run block style ([`a52bb8a`](https://github.com/DevSecNinja/truenas-apps/commit/a52bb8a9277f1527f53caf07f9e389a5afd79baa))
+- **adguard**: Let yamlfmt wrap long healthcheck string per max_line_length ([`85062a7`](https://github.com/DevSecNinja/truenas-apps/commit/85062a7447b80ddea098e552c7b78e858a42cbdc))
+- **adguard**: Fix yamlfmt and dprint CI failures ([`bb54a6d`](https://github.com/DevSecNinja/truenas-apps/commit/bb54a6d96b0dc4c149b86b5fe71f5498891ea3cf))
+- **backup**: Address review feedback on backup restore test script and docs ([`2bf637a`](https://github.com/DevSecNinja/truenas-apps/commit/2bf637a86c6b58aff9f8bc0f147f2202c3665fa8))
+- **mise**: Update tool shfmt ( 3.13.0 ➔ 3.13.1 ) ([`b707e21`](https://github.com/DevSecNinja/truenas-apps/commit/b707e21f2e3237c4b36e8dde994dc63a8cd4ae40))
+- **mise**: Update tool lefthook ( 2.1.4 ➔ 2.1.5 ) ([`5efc858`](https://github.com/DevSecNinja/truenas-apps/commit/5efc858c44521d6d807a97e51f7eacc18509ab39))
+- **mise**: Update tool pipx:checkov ( 3.2.517 ➔ 3.2.521 ) ([`59048f5`](https://github.com/DevSecNinja/truenas-apps/commit/59048f5029061b278502ebd54a589a034f2a06e2))
+- **dccd**: Address code review feedback on config.watch implementation ([`23510eb`](https://github.com/DevSecNinja/truenas-apps/commit/23510eb78d4e121a3519df9084c95bf9b3b6bbc8))
+- **dccd**: Use xargs -r in compute_config_hash to avoid stdin on empty dir ([`71dd8bf`](https://github.com/DevSecNinja/truenas-apps/commit/71dd8bfa4025bf9357a05f0b46fb16de4be54b40))
+- **dccd**: Address code review feedback on auto_login_dhi ([`e047284`](https://github.com/DevSecNinja/truenas-apps/commit/e04728416ba7957149b479b3cadf7a8bbab15b57))
+- **mosquitto**: Improve hardened image comment and remove noisy entrypoint detail ([`5f688a3`](https://github.com/DevSecNinja/truenas-apps/commit/5f688a3f5ff7b5a682c86b1ded3d1e15ae680ba2))
+- **adguard**: Pass remote-control config to unbound-control in flush container ([`a4fd539`](https://github.com/DevSecNinja/truenas-apps/commit/a4fd539d6484c332fa0209422997a84aec552795))
+- **github-release**: Update release jdx/mise ( v2026.4.5 ➔ v2026.4.9 ) ([`8da3218`](https://github.com/DevSecNinja/truenas-apps/commit/8da32187d05136d9946d91ea30448a0c63b3165a))
+- **mise**: Update tool pipx:checkov ( 3.2.513 ➔ 3.2.517 ) ([`afe4e63`](https://github.com/DevSecNinja/truenas-apps/commit/afe4e63308c55300084e2904ca792ae47bd62784))
+- **adguard**: Use targeted unbound-control flush_zone instead of full Redis FLUSHDB ([`6b0ab2a`](https://github.com/DevSecNinja/truenas-apps/commit/6b0ab2a0eb864db62831d62b9f3657cee52a4539))
+- **adguard**: Flush Redis DNS cache on deploy and re-enable unbound remote-control ([`70ea5cb`](https://github.com/DevSecNinja/truenas-apps/commit/70ea5cb079311e20e2c8a30badbe4374435f187f))
+- Repair broken emoji and add BATS extension recommendation ([`bd64c2f`](https://github.com/DevSecNinja/truenas-apps/commit/bd64c2f25d88398be58f600a11a1308194542442))
+- **dccd**: Handle edge case where img_after is empty in change detection ([`56a5786`](https://github.com/DevSecNinja/truenas-apps/commit/56a5786367db2c801790a2962179c76c4e3f1281))
+- Update config-sync.yml workflow reference ([`be22d28`](https://github.com/DevSecNinja/truenas-apps/commit/be22d28526396f1105938dac0044aebe34aac616))
+- Update config-sync workflow reference to latest commit ([`3182a7c`](https://github.com/DevSecNinja/truenas-apps/commit/3182a7cd2f2b269f17fa2bbd72048ddd938928e3))
+- **github-release**: Update release jdx/mise ( v2026.4.3 ➔ v2026.4.5 ) ([`98519ea`](https://github.com/DevSecNinja/truenas-apps/commit/98519ea9ac84c252211501b7506d39252eb8164d))
+- **dccd**: Log hint when external network is missing during deploy ([`4b25bf5`](https://github.com/DevSecNinja/truenas-apps/commit/4b25bf58f0920b376aaf6fb698b3b4a239a08ad3))
+- **cloudflared**: Create hadiscover-frontend network instead of expecting it ([`14466eb`](https://github.com/DevSecNinja/truenas-apps/commit/14466ebe2334b0d7dcff27744b463ca42a316938))
+- Update secret.sops.env files for HADISCOVER and TRAEFIK with new encrypted data ([`2354701`](https://github.com/DevSecNinja/truenas-apps/commit/2354701dd6110f47b9be2b5a548a390eb9f10330))
+- Update aliases.sh to use bash and improve DCCD_MODE handling ([`9634308`](https://github.com/DevSecNinja/truenas-apps/commit/96343083fefa2b0b85b1bbf8245da3d7696a433b))
+- Set default issue number to 0 if not provided ([`5a626c7`](https://github.com/DevSecNinja/truenas-apps/commit/5a626c7aa07b64cfb42c8aff33f1807d8f46fc48))
+- Set new workflow version ([`bb5d4e0`](https://github.com/DevSecNinja/truenas-apps/commit/bb5d4e01879a9e4da365906814447fa1e6632df3))
+- Update workflow reference for issue assignment ([`3d3af02`](https://github.com/DevSecNinja/truenas-apps/commit/3d3af0223063a8d993a366b264c4895cc043a34d))
+- Fix issue number extraction in workflow ([`53f0f37`](https://github.com/DevSecNinja/truenas-apps/commit/53f0f37ac523f8aa50574c376e36fc122b83b1ac))
+- **gatus**: Only report CD status for full deployments ([`2106f88`](https://github.com/DevSecNinja/truenas-apps/commit/2106f88fd747912bec623b160145366db7fd4add))
+- **wmbusmeters**: Update log and meter paths to writable data volume ([`9fd622c`](https://github.com/DevSecNinja/truenas-apps/commit/9fd622c2468c1b37753902b68e73d008dc6f8181))
+- **iot**: Fix sqlite-web entrypoint and wmbusmeters config permissions ([`6efdc88`](https://github.com/DevSecNinja/truenas-apps/commit/6efdc885b47277e4023eefd99774cb4e3e7fd257))
+- **iot**: Resolve runtime permission errors after image updates ([`6527184`](https://github.com/DevSecNinja/truenas-apps/commit/6527184758e494bf74c7f284083e191615266570))
+- **adguard**: Move zonemd-permissive-mode to server clause ([`25538a9`](https://github.com/DevSecNinja/truenas-apps/commit/25538a9e95398ef617cb55be64fb54adf79d7566))
+- **adguard**: Fix unbound startup errors ([`ccd3e76`](https://github.com/DevSecNinja/truenas-apps/commit/ccd3e767ffce5a97006931034d28f466116aa6ea))
+- **adguard**: Fix dprint table formatting in README ([`b113341`](https://github.com/DevSecNinja/truenas-apps/commit/b1133415879d74bece372004df2ef82257e26341))
+- **sqlite-web**: Update sqlite-web image to ghcr and version 0.7.2 ([`0075e7e`](https://github.com/DevSecNinja/truenas-apps/commit/0075e7e0855534f12c2212b866ab9ef6c7e730c8))
+
+### CI/CD
+
+- **github-action**: Update action actions/upload-artifact ( v7.0.0 ➔ v7.0.1 ) (#227) ([`67f31fe`](https://github.com/DevSecNinja/truenas-apps/commit/67f31fed76418a980437c573e6683deeee7394fa))
+- **github-action**: Update action mikepenz/action-junit-report ( v5.6.2 ➔ v6.4.0 ) ([`f928b7b`](https://github.com/DevSecNinja/truenas-apps/commit/f928b7bef538fec66ada86615a5110d8919e4be0))
+- **github-action**: Update action actions/upload-artifact ( v4.6.2 ➔ v7.0.0 ) ([`a86250e`](https://github.com/DevSecNinja/truenas-apps/commit/a86250e6ab808bda097faa9c592ee1e93b577df1))
+- Fix checkov skip format and disable config-drift in lint ([`bb1e6b2`](https://github.com/DevSecNinja/truenas-apps/commit/bb1e6b21a175f91f91dd285827178fb2397ca47e))
+
+### Documentation
+
+- **backup**: Fix restore procedure — gpg not openssl, psql not pg_restore ([`c85bc6c`](https://github.com/DevSecNinja/truenas-apps/commit/c85bc6ccdf47f5720024ffdf6fde153db837ac1c))
+- **adguard**: Document redis-flush init container and updated startup order ([`dcb90e0`](https://github.com/DevSecNinja/truenas-apps/commit/dcb90e06e88cfe1494e0ce00188eeae25ba96659))
+- Add test framework and task runner documentation ([`e3e5fc8`](https://github.com/DevSecNinja/truenas-apps/commit/e3e5fc8893a87df262862f6e1cd815ba0117b228))
+- **hadiscover,cloudflared**: Update docs for Traefik routing ([`3cb9c0e`](https://github.com/DevSecNinja/truenas-apps/commit/3cb9c0e9d2d8bea6370eb364b8b9aa5587f0ce05))
+- **architecture**: Fix dprint list indentation ([`fb47ae0`](https://github.com/DevSecNinja/truenas-apps/commit/fb47ae02e1a8ce7b20fb79cdf6e514e510021f5e))
+- **docker**: Add image preference notes ([`d532a14`](https://github.com/DevSecNinja/truenas-apps/commit/d532a14c2bdcb1bbe3cb720b15234ef179afd465))
+
+### Features
+
+- Add shared secret management for services and update encryption scripts. Also fix dotenv linter ([`d56f5fe`](https://github.com/DevSecNinja/truenas-apps/commit/d56f5fe1d154fa1707315c148ec6be218fb2e70f))
+- **ci**: Expand backup-restore test to mongo and sqlite3 ([`bede5df`](https://github.com/DevSecNinja/truenas-apps/commit/bede5df40e2a2f84bb8e715248534f5927e8dd75))
+- **backup**: Implement automated backup restoration tester pipeline ([`6f1bff8`](https://github.com/DevSecNinja/truenas-apps/commit/6f1bff86d7ebd2abe6f3ac4df44a961bf27e7f0f))
+- **container**: Update image lscr.io/linuxserver/unifi-network-application ( version-10.1.89 ➔ version-10.3.55 ) ([`8cb357c`](https://github.com/DevSecNinja/truenas-apps/commit/8cb357c0dedea412e9b5b72f066c61739a924ea2))
+- **docker**: Add config.watch label for custom config path per service ([`18d18c7`](https://github.com/DevSecNinja/truenas-apps/commit/18d18c7145383d1e4f3a8592a90dc92dd1a7a020))
+- **docker**: Auto-restart containers on config change via SHA256 hash label ([`e87da25`](https://github.com/DevSecNinja/truenas-apps/commit/e87da25a42cc940b2e249f3cf047aaf66e56afa5))
+- **dccd**: Implement zero-downtime deploys via start-first ([`036ed40`](https://github.com/DevSecNinja/truenas-apps/commit/036ed40e43075d4dde3d0cde9c93caf075e5ab45))
+- **dccd**: Add dhi.io login check and auto-login from shared SOPS credentials ([`b37d2d9`](https://github.com/DevSecNinja/truenas-apps/commit/b37d2d95db903cb8e58f71b25c902a6f13f78e16))
+- **docker**: Implement hardened image variants via dhi.io ([`6ac45c8`](https://github.com/DevSecNinja/truenas-apps/commit/6ac45c8e540b726c8bc486cbeb5764754cd943c5))
+- **mise**: Update tool dprint ( 0.53.2 ➔ 0.54.0 ) ([`f68f7c4`](https://github.com/DevSecNinja/truenas-apps/commit/f68f7c4a3972663265b90e9f18faf8f9c8ed0de7))
+- **container**: Update image docker.io/amir20/dozzle ( v10.2.1 ➔ v10.3.1 ) ([`9414ed1`](https://github.com/DevSecNinja/truenas-apps/commit/9414ed1745bc58b71c4fcc449b8c40ea6adcc67a))
+- Add Code Tester agent and code-testing skill ([`9b7095d`](https://github.com/DevSecNinja/truenas-apps/commit/9b7095d9b463a2a504880b948141cbc720012b30))
+- **dccd**: Report changed/unchanged app counts in deployment summary ([`d42401d`](https://github.com/DevSecNinja/truenas-apps/commit/d42401d9e08e7f637902c56b5cbea8dacc64c56b))
+- **traefik,hadiscover**: Route hadiscover-api through Traefik on svlazext ([`5d5d435`](https://github.com/DevSecNinja/truenas-apps/commit/5d5d435f9af7782000a4bfcbe2a3a8f0f8b3a55c))
+- **container**: Update image docker.io/cloudflare/cloudflared ( 2025.4.2 ➔ 2026.3.0 ) ([`99450f9`](https://github.com/DevSecNinja/truenas-apps/commit/99450f9f73fa19540cd1800988221b379a546ae1))
+- **cloudflared**: Add Cloudflare Tunnel and consolidate svlazextpub into svlazext ([`b4dfc67`](https://github.com/DevSecNinja/truenas-apps/commit/b4dfc677e0021898e6693dd939c7ff0dc466fe22))
+- **dccd**: Add quiet mode to suppress output during execution ([`c38d973`](https://github.com/DevSecNinja/truenas-apps/commit/c38d97381d37ab99cfa2da2fc6284e90f89659e6))
+- Add workflow dispatch input for issue assignment ([`3738d6d`](https://github.com/DevSecNinja/truenas-apps/commit/3738d6db93246a12b43f3fe5774bb2be32dc22fd))
+- Add workflow to assign issues to CODEOWNERS ([`0adcb73`](https://github.com/DevSecNinja/truenas-apps/commit/0adcb735992021ef216d9e80ee0f61b2d417b5a9))
+- **adguard**: Add Redis persistent DNS cache for Unbound via cachedb module ([`9ecc903`](https://github.com/DevSecNinja/truenas-apps/commit/9ecc9032d50599a91b348a200649bfe6336b35ac))
+- **container**: Update image ghcr.io/home-assistant-libs/python-matter-server ( 7.0.1 ➔ 8.1.0 ) ([`5356b7a`](https://github.com/DevSecNinja/truenas-apps/commit/5356b7a930525774d840efcfa95831eb3f8b851d))
+- **ci**: Enable workflow validation on PRs for image-security and label-sync ([`9efee13`](https://github.com/DevSecNinja/truenas-apps/commit/9efee1310749da0b72edbf10e95b886c25c8063a))
+- **image-security**: Add job to close stale Renovate container issues ([`e95d415`](https://github.com/DevSecNinja/truenas-apps/commit/e95d415f14ae6f82c4ed3367153d4c68a88bb7a0))
+- **mosquitto**: Update mosquitto image to version 2.1.2-alpine ([`b520830`](https://github.com/DevSecNinja/truenas-apps/commit/b5208302527b9766d15b879d6345e1f3b50fb733))
+- **devcontainer**: Add GitHub Actions extension to devcontainer ([`2f9663f`](https://github.com/DevSecNinja/truenas-apps/commit/2f9663f52613cb360bd0b29878c6c9e93f7db567))
+- **devcontainer**: Add EditorConfig extension ([`415ebfa`](https://github.com/DevSecNinja/truenas-apps/commit/415ebfa68e424a32661fbedca887d524d1d5453f))
+- **wmbusmeters**: Update wmbusmeters image to version 2.0.0 ([`4e7e05a`](https://github.com/DevSecNinja/truenas-apps/commit/4e7e05ad073ff18f5175b893e9792c3e807f65f6))
+- **container**: Update image ghcr.io/esphome/esphome ( 2025.12.7 ➔ 2026.4.0 ) ([`a46b8fe`](https://github.com/DevSecNinja/truenas-apps/commit/a46b8febd81c3e67850fff9b20f4c4a2dff23c39))
+- **container**: Update image ghcr.io/blakeblackshear/frigate ( 0.15.1 ➔ 0.17.1 ) ([`aedd56e`](https://github.com/DevSecNinja/truenas-apps/commit/aedd56efb55c46b4d2d2b33e5d4cf6f0a1e5898b))
+- **container**: Update image ghcr.io/devsecninja/hadiscover/backend ( 0.2.16 ➔ 0.3.0 ) ([`a39950c`](https://github.com/DevSecNinja/truenas-apps/commit/a39950cd2cf41d857ba87eacdcf34d70329c89ef))
+- **container**: Update image ghcr.io/esphome/esphome ( 2025.4.1 ➔ 2025.12.7 ) ([`87af036`](https://github.com/DevSecNinja/truenas-apps/commit/87af0363fab871040019e36a8ffb38b8aa1a0dd5))
+
+### Miscellaneous
+
+- Update mise locks ([`9b41641`](https://github.com/DevSecNinja/truenas-apps/commit/9b416414cb50d44a71cab9cabca20a04cea871b1))
+- **adguard**: Use dns.google instead of example.com for healthcheck external probe ([`b96d142`](https://github.com/DevSecNinja/truenas-apps/commit/b96d1425fc60e8b3b0a20d70f755b1493e4c7809))
+- **adguard**: Comment out removed forward zones and DoT config instead of deleting ([`305614d`](https://github.com/DevSecNinja/truenas-apps/commit/305614d8bc72aa9cd4121685a59e06b06f2c4159))
+- **adguard**: Migrate from Quad9 to root DNS servers ([`c1dbc85`](https://github.com/DevSecNinja/truenas-apps/commit/c1dbc85e31664d2fc2d1ebadf88ee2d4317f8c16))
+- Update settings to exclude tests/libs directory from file watchers and search ([`08b879c`](https://github.com/DevSecNinja/truenas-apps/commit/08b879c78dbd84503dd89bc80cf2319ab10bc3a9))
+- Improve CI triggers, lefthook globs, and gitignore for tests ([`a94b266`](https://github.com/DevSecNinja/truenas-apps/commit/a94b266ccce10c562f0ffca4bdd840cbe93b4571))
+- Add go-task Taskfile with testing, linting, and deployment tasks ([`cd102ff`](https://github.com/DevSecNinja/truenas-apps/commit/cd102ffe1cbfbda9181f03a899647210fd48254a))
+- Sync config files from DevSecNinja/.github ([`8f9ddd9`](https://github.com/DevSecNinja/truenas-apps/commit/8f9ddd9a406d6a9a2d0159d27cb2cad05aa7c78e))
+
+### Other
+
+- **adguard**: Fix yamlfmt block array style and dprint table alignment ([`5268bd3`](https://github.com/DevSecNinja/truenas-apps/commit/5268bd3f10306bcc00d49b355a8676e22c7a8cb5))
+- **adguard**: Fix table alignment in README services section ([`c5d6c04`](https://github.com/DevSecNinja/truenas-apps/commit/c5d6c045067b375cd03513d0288e0664dd5f3458))
+- **docs**: Fix markdown table formatting ([`3610a6c`](https://github.com/DevSecNinja/truenas-apps/commit/3610a6c1c997adb527f9649a4c433ac38fc7ff24))
+- **dccd**: Add comprehensive BATS test framework ([`1a039b9`](https://github.com/DevSecNinja/truenas-apps/commit/1a039b9ecb4605f0a9e6bb963b1e781e62b05bed))
+
 ## [0.17.0] - 2026-04-17
 
 ### Bug Fixes
@@ -70,6 +196,7 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous
 
+- **version**: V0.17.0 ([`2f4e5a5`](https://github.com/DevSecNinja/truenas-apps/commit/2f4e5a5316e979c5740cce65b1ed7ad03fe1d05a))
 - **cog**: Ignore 'Initial commit' in changelog and validation ([`7b61c00`](https://github.com/DevSecNinja/truenas-apps/commit/7b61c001ac53cc6c23cee574b0a6fa2db724d075))
 
 ### Refactoring
