@@ -59,6 +59,9 @@ services:
       # Gatus
       - GATUS_CONFIG_PATH=/config
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -99,6 +102,8 @@ services:
       - "traefik.http.services.gatus.loadbalancer.server.port=8080"
       ## Disable automatic monitoring with Gatus since ... this is Gatus!
       - "gatus.enabled=false"
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # Postgres starts as root and uses gosu to switch to the postgres user during
   # startup. cap_drop: ALL would break that privilege transition.
@@ -250,6 +255,9 @@ services:
     environment:
       - DOCKER_HOST=tcp://gatus-docker-proxy:2375
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -282,6 +290,9 @@ services:
       - EVENTS=1 # Allow access to the /events stream (required for gatus-sidecar docker mode)
       - POST=0 # Disallow any POST operations (effectively read-only)
     deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
       restart_policy:
         condition: on-failure
         max_attempts: 3

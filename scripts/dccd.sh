@@ -418,7 +418,61 @@ check_dhi_login() {
     log_message "INFO:  dhi.io authentication verified"
 }
 
+# Compute a SHA256 hash of a path (file or directory) relative to <app_dir>.
+# Arguments:
+#   $1  app_dir   — absolute path to the app's service directory
+#   $2  watch     — optional: path relative to app_dir to hash, or "none" to
+#                   disable hashing. Defaults to "config" (the full config dir).
+# This hash is exported as CONFIG_HASH so compose.yaml labels can reference it
+# via ${CONFIG_HASH:-}, causing Docker Compose to recreate containers when the
+# watched path changes.
+# Returns the hash on stdout, or an empty string when hashing is disabled or
+# the target path does not exist.
+compute_config_hash() {
+    local app_dir="$1"
+    local watch="${2:-config}"
 
+    # "none" explicitly disables config-change detection for this service
+    if [ "${watch}" = "none" ]; then
+        echo ""
+        return 0
+    fi
+
+    local target="${app_dir}/${watch}"
+
+    if [ ! -e "${target}" ]; then
+        echo ""
+        return 0
+    fi
+
+    if [ -f "${target}" ]; then
+        # Single file — hash its content and path directly
+        sha256sum "${target}" | cut -d' ' -f1
+    else
+        # Directory — hash the content and path of every file, sorted for
+        # determinism. -r: do not run sha256sum when find produces no files.
+        find "${target}" -type f | sort | xargs -r sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1
+    fi
+}
+
+# Extract the value of the config.watch label from one or more compose YAML files.
+# The label specifies which path (relative to the service directory) to hash for
+# CONFIG_HASH, or "none" to disable config-change detection for this service.
+# Returns the label value on stdout, or an empty string when the label is absent.
+# Usage: get_config_watch_path <compose_file> [additional_compose_files...]
+#
+# Note: We intentionally use grep rather than yq here. yq is only required when
+# SERVER_NAME is set (server mode); it is not guaranteed to be on PATH in all
+# deployment environments. The label value is a simple key=value pair that grep
+# handles reliably for the normalised YAML that Compose files use.
+get_config_watch_path() {
+    # Match: - "config.watch=value"  or  - config.watch=value
+    # `|| true` ensures the function returns 0 when grep finds no match (set -o pipefail safe).
+    grep -h 'config\.watch=' "$@" 2>/dev/null | head -1 |
+        sed 's/.*config\.watch=//' | tr -d '"'"'" | sed 's/[[:space:]]*$//' || true
+}
+
+# Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.
 # Uses docker inspect on container IDs for reliable image info (including digest).
 # Includes stopped/exited containers (-a) so one-shot services (e.g. backup sidecars) are
 # captured in the "before" snapshot and not falsely reported as "new".
@@ -560,6 +614,17 @@ redeploy_truenas_apps() {
 
         log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
         _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
+
+        # Compute and export a hash of the app's watched config path so compose.yaml
+        # labels that reference ${CONFIG_HASH:-} change when config files change,
+        # causing Docker Compose to recreate affected containers automatically.
+        # Read the config.watch label from the git-tracked compose file (not the
+        # TrueNAS-rendered one) so the setting is version-controlled with the app.
+        local config_watch
+        local git_compose="${BASE_DIR}/services/${app_name}/compose.yaml"
+        config_watch=$(get_config_watch_path "${git_compose}")
+        CONFIG_HASH=$(compute_config_hash "${BASE_DIR}/services/${app_name}" "${config_watch}")
+        export CONFIG_HASH
 
         # Capture image state before pulling so we can report what changed
         local img_before
@@ -740,6 +805,20 @@ redeploy_compose_file() {
 
     _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
+    # Compute and export a hash of the app's watched config path so compose.yaml
+    # labels that reference ${CONFIG_HASH:-} change when config files change,
+    # causing Docker Compose to recreate affected containers automatically.
+    # The config.watch label in the compose file controls which path is hashed:
+    #   - absent      → hash the entire ./config directory (default)
+    #   - config/foo  → hash only that specific file or subdirectory
+    #   - none        → disable config-change detection for this service
+    local app_dir
+    app_dir=$(dirname "${file}")
+    local config_watch
+    config_watch=$(get_config_watch_path "${file}" "${extra_files[@]+"${extra_files[@]}"}")
+    CONFIG_HASH=$(compute_config_hash "${app_dir}" "${config_watch}")
+    export CONFIG_HASH
+
     # Pull images unless NO_PULL is set
     if [ "${NO_PULL}" -eq 0 ]; then
         run_compose_command "${compose_file_args[@]}" pull --quiet
@@ -754,7 +833,7 @@ redeploy_compose_file() {
             _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
             local deploy_output
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-            if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
+            if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1); then
                 log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                 if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                     log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
@@ -771,7 +850,7 @@ redeploy_compose_file() {
         _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
         local deploy_output
         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull 2>&1); then
+        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1); then
             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
             if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                 log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
@@ -796,6 +875,18 @@ update_compose_files() {
         exit 1
     else
         log_message "INFO:  Git repository found!"
+    fi
+
+    # Persist core.filemode=false in the local .git/config so interactive
+    # `git status` (outside dccd) also ignores executable-bit-only changes.
+    # Init containers and ZFS mounts can flip the +x bit on tracked files,
+    # producing spurious "modified" entries that clutter the working tree.
+    # This is a one-time bootstrap; subsequent runs are a no-op when already set.
+    local _filemode
+    _filemode=$(git config --local --get core.filemode 2>/dev/null || echo true)
+    if [ "${_filemode}" != "false" ]; then
+        log_message "STATE: Setting core.filemode=false in local git config (ignore executable-bit changes)"
+        git config --local core.filemode false || log_message "WARNING: Failed to set core.filemode=false"
     fi
 
     local SHOULD_DEPLOY=0
@@ -886,6 +977,20 @@ update_compose_files() {
                     exit 1
                 fi
                 log_message "INFO:  Pulled latest commits from origin/${REMOTE_BRANCH} (now at ${short_remote})"
+
+                # If the script itself was updated by this pull, re-exec with the new
+                # version so subsequent deployments run the updated code rather than
+                # the old in-memory copy.
+                local script_rel
+                script_rel=$(git "${GIT_OPTS[@]}" ls-files --full-name -- "${_SCRIPT_PATH}" 2>/dev/null) || true
+                local script_diff
+                script_diff=$(git "${GIT_OPTS[@]}" diff --name-only "${local_hash}" "${remote_hash}" -- "${script_rel}" 2>/dev/null) || true
+                if [ -n "${script_rel}" ] && [ -n "${script_diff}" ]; then
+                    log_message "INFO:  The dccd script itself was updated — re-executing with the new version..."
+                    flush_output_buffer
+                    trap - EXIT
+                    exec "${_SCRIPT_PATH}" "${_ORIG_ARGS[@]}"
+                fi
 
                 # Clean up any services that were removed by the incoming commits
                 cleanup_orphaned_projects "${dir}" "${_pre_pull_apps}"
@@ -1269,6 +1374,18 @@ done
 ########################################
 # Script starts here
 ########################################
+
+# Preserve original CLI args and absolute script path so the script can
+# re-exec itself if a git pull updates the script file on disk.
+_ORIG_ARGS=("$@")
+_SCRIPT_PATH=$(readlink -f "$0" 2>/dev/null)
+if [ -z "${_SCRIPT_PATH}" ]; then
+    # readlink not available; resolve the absolute path manually
+    _script_dir=$(dirname "$0")
+    _script_name=$(basename "$0")
+    _SCRIPT_PATH=$(cd "${_script_dir}" && pwd)/${_script_name}
+    unset _script_dir _script_name
+fi
 
 # In quiet mode, initialise the output buffer now that options are parsed
 if [ "${QUIET}" -eq 1 ]; then

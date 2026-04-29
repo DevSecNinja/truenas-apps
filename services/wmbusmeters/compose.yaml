@@ -87,6 +87,8 @@ services:
       - homepage.name=wmbusmeters
       - homepage.icon=mdi-gauge-#ffffff
       - homepage.description=Wireless M-Bus smart meter reader
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
 networks:
   iot-backend:
