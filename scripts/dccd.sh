@@ -260,7 +260,7 @@ decrypt_sops_files() {
                 fi
             fi
         done
-        # Always decrypt services/shared/secret.sops.env when it exists, regardless
+        # Always decrypt services/shared/env/secret.sops.env when it exists, regardless
         # of which apps are assigned to this server — it holds credentials shared
         # across all servers (e.g. DOCKERHUB_USERNAME / DOCKERHUB_TOKEN for dhi.io).
         local shared_sops="${src_dir}/shared/secret.sops.env"
@@ -341,12 +341,12 @@ decrypt_sops_files() {
     log_message "INFO:  Decrypted ${count} secret file(s)"
 }
 
-# Auto-login to dhi.io using credentials from services/shared/.env (decrypted from
-# services/shared/secret.sops.env by decrypt_sops_files). Safe to call repeatedly —
+# Auto-login to dhi.io using credentials from services/shared/env/.env (decrypted from
+# services/shared/env/secret.sops.env by decrypt_sops_files). Safe to call repeatedly —
 # if the credentials file doesn't exist or the variables are unset, this is a no-op.
 # The docker login token is passed via stdin so it never touches the filesystem.
 auto_login_dhi() {
-    local shared_env="${BASE_DIR}/services/shared/.env"
+    local shared_env="${BASE_DIR}/services/shared/env/.env"
     [ -f "${shared_env}" ] || return 0
 
     local username token
@@ -362,7 +362,7 @@ auto_login_dhi() {
         --username "${username}" --password-stdin >/dev/null 2>&1; then
         log_message "INFO:  dhi.io login succeeded"
     else
-        log_message "ERROR: dhi.io login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/secret.sops.env"
+        log_message "ERROR: dhi.io login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
         exit 1
     fi
 }
@@ -406,7 +406,7 @@ check_dhi_login() {
     docker_cfg=$(${SUDO} cat /root/.docker/config.json 2>/dev/null || true)
     if [ -z "${docker_cfg}" ] || ! printf '%s' "${docker_cfg}" | grep -q '"dhi\.io"'; then
         log_message "ERROR: One or more compose files reference dhi.io images but Docker is not logged in."
-        log_message "ERROR: Automated (recommended): add credentials to services/shared/secret.sops.env:"
+        log_message "ERROR: Automated (recommended): add credentials to services/shared/env/secret.sops.env:"
         log_message "ERROR:   DOCKERHUB_USERNAME=<your-dockerhub-username>"
         log_message "ERROR:   DOCKERHUB_TOKEN=<read-only-personal-access-token>"
         log_message "ERROR:   dccd.sh will then log in automatically on every deploy."
@@ -1024,7 +1024,7 @@ update_compose_files() {
         # Decrypt SOPS-encrypted secret files before deploying
         decrypt_sops_files
 
-        # Auto-login to dhi.io if credentials are present in services/shared/.env.
+        # Auto-login to dhi.io if credentials are present in services/shared/env/.env.
         # Runs before the DECRYPT_ONLY check so the login is established even when
         # only decrypting (credentials persist for subsequent deploys).
         auto_login_dhi
@@ -1036,7 +1036,7 @@ update_compose_files() {
 
         # Verify Docker is logged in to dhi.io before pulling any images.
         # auto_login_dhi() above will have handled this if credentials are in
-        # services/shared/.env; this catches the case where no credentials file
+        # services/shared/env/.env; this catches the case where no credentials file
         # exists and no prior manual login has been done.
         check_dhi_login
 
