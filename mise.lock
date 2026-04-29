@@ -180,28 +180,24 @@ checksum = "sha256:f7ad2f6965c88153e4902019ec86e95414f0025cba0b6440f328f935a1f8b
 url = "https://github.com/docker/compose/releases/download/v5.1.1/docker-compose-windows-x86_64.exe"
 
 [[tools.dotenv-linter]]
-version = "4.0.0"
+version = "3.3.0"
 backend = "aqua:dotenv-linter/dotenv-linter"
 
 [tools.dotenv-linter."platforms.linux-x64"]
-checksum = "sha256:9e2f1f6eb88a71ac15ef209f78f5a68644db82f132d2677112b4f80ec2bd2127"
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-linux-x86_64.tar.gz"
+checksum = "blake3:77add11a73b36dcd53cfceaa71ef4f609823d510037df37abcf148184133406d"
+url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-linux-x86_64.tar.gz"
 
 [tools.dotenv-linter."platforms.linux-x64-musl"]
-checksum = "sha256:9e2f1f6eb88a71ac15ef209f78f5a68644db82f132d2677112b4f80ec2bd2127"
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-linux-x86_64.tar.gz"
+url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-linux-x86_64.tar.gz"
 
 [tools.dotenv-linter."platforms.macos-arm64"]
-checksum = "sha256:143361bcd3c859cac0b16a6eaa51f3f69f270f17a55431e2e44d76722a7f0271"
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-darwin-x86_64.tar.gz"
+url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-darwin-x86_64.tar.gz"
 
 [tools.dotenv-linter."platforms.macos-x64"]
-checksum = "sha256:143361bcd3c859cac0b16a6eaa51f3f69f270f17a55431e2e44d76722a7f0271"
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-darwin-x86_64.tar.gz"
+url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-darwin-x86_64.tar.gz"
 
 [tools.dotenv-linter."platforms.windows-x64"]
-checksum = "sha256:771214659b86d2de5c8c5214e6d59484ceb0de8a87037d488ce37d6ca6f6cc1a"
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-win-x64.zip"
+url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-win-x64.zip"
 
 [[tools.dprint]]
 version = "0.54.0"

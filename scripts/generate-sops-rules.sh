@@ -128,6 +128,14 @@ for k in "${ALL_ACCESS_KEYS[@]}"; do
     BASE_KEYS="${BASE_KEYS},${k}"
 done
 
+# Build the all-servers key set: deploy + every server key (regardless of apps list).
+# Used for shared secret files that every server must be able to decrypt.
+ALL_SERVERS_KEYS="${DEPLOY_KEY}"
+for server in "${!SERVER_KEYS[@]}"; do
+    ALL_SERVERS_KEYS="${ALL_SERVERS_KEYS},${SERVER_KEYS[${server}]}"
+done
+ALL_SERVERS_KEYS=$(echo "${ALL_SERVERS_KEYS}" | tr ',' '\n' | sort -u | paste -sd',')
+
 # For each app with a secret.sops.env, determine which keys should be recipients
 declare -A APP_KEYS
 
@@ -248,6 +256,12 @@ FALLBACK_KEYS=$(echo "${BASE_KEYS}" | tr ',' '\n' | sort -u | paste -sd',')
         fi
     done
 
+    # Shared secret files (services/shared/*/secret.sops.env): every server
+    # must be able to decrypt these, so include all server keys.
+    echo "  - path_regex: services/shared/.*/secret\\.sops\\.env\$"
+    echo "    age: >-"
+    format_age_keys "${ALL_SERVERS_KEYS}" "      "
+
     # Fallback rule: catches all remaining secret.sops.env files
     echo "  - path_regex: secret\\.sops\\.env\$"
     echo "    age: >-"
@@ -273,7 +287,9 @@ if [ "${UPDATE_KEYS}" -eq 1 ]; then
     update_count=0
     update_errors=0
 
-    for sops_file in "${BASE_DIR}"/services/*/secret*.sops.env; do
+    for sops_file in \
+        "${BASE_DIR}"/services/*/secret*.sops.env \
+        "${BASE_DIR}"/services/shared/*/secret*.sops.env; do
         [ -f "${sops_file}" ] || continue
         echo "  Updating: ${sops_file}"
         if sops updatekeys -y "${sops_file}"; then

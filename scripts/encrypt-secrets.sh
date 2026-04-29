@@ -79,7 +79,9 @@ is_encrypted() {
 unencrypted_files=()
 encrypted_files=()
 
-for secret_file in "${BASE_DIR}"/services/*/secret*.sops.env; do
+for secret_file in \
+    "${BASE_DIR}"/services/*/secret*.sops.env \
+    "${BASE_DIR}"/services/shared/*/secret*.sops.env; do
     [ -f "${secret_file}" ] || continue
 
     # shellcheck disable=SC2310 # is_encrypted is intentionally used in a conditional

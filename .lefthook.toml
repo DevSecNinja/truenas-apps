@@ -49,8 +49,10 @@ run = "mise exec -- mkdocs build --strict"
 glob = ["docs/**", "mkdocs.yml"]
 
 [pre-commit.commands.dotenv-linter]
-run = "uname -m | grep -qE 'aarch64|arm64' || mise exec -- dotenv-linter fix --no-backup {staged_files}"
+# Skip on arm (aqua backend has no arm builds) and when the binary is unavailable.
+run = "uname -m | grep -qE 'aarch64|arm64' || ! mise exec -- command -v dotenv-linter >/dev/null 2>&1 || mise exec -- dotenv-linter fix --no-backup {staged_files}"
 glob = ["services/shared/env/*.env"]
+exclude = ["**/*.sops.env"]
 stage_fixed = true
 
 [pre-commit.commands.sops-encryption-check]
@@ -66,8 +68,10 @@ run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u |
 glob = ["servers.yaml", "services/**/compose.yaml"]
 
 [pre-commit.commands.bats]
-run = "mise exec -- bats tests/"
-glob = ["scripts/*.sh", "tests/**"]
+# Only unit tests run pre-commit (fast feedback). Integration + e2e run in CI.
+# 60s timeout guards against runaway hangs (e.g. mocks failing to terminate).
+run = "timeout 60 mise exec -- bats tests/dccd/unit"
+glob = ["scripts/dccd.sh", "tests/dccd/unit/**", "tests/dccd/helpers/**", "tests/setup_libs.sh"]
 
 [commit-msg.commands.cocogitto]
 run = "mise exec -- cog verify \"$(cat {1})\""
