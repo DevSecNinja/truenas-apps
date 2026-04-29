@@ -309,8 +309,14 @@ networks:
     name: adguard-frontend
     driver: bridge
     ipam:
+      # ip_range restricts Docker's dynamic IPAM to .128–.254 so the static IPs
+      # .2 (adguard-unbound) and .3 (adguard) cannot be handed out to other
+      # containers (e.g. traefik) that join this network without a fixed IP.
+      # Without this, dynamic allocation can collide with our statics, producing
+      # "Address already in use" on the next adguard / adguard-unbound startup.
       config:
         - subnet: 172.30.53.0/24
+          ip_range: 172.30.53.128/25
   adguard-backend:
     name: adguard-backend
     driver: bridge
