@@ -10,6 +10,11 @@ creation_rules:
       age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n,
       age1dgw6l56j4qu7jnh06n9z7rpctgar3stk8hnxq3es9j88yqjpzdvqkrp7en,
       age1xmc30s0v8m4eng93d4lmdzvcsrhvtmm57nfgrwwjsew2nu2svgzqmgssvg
+  - path_regex: services/alloy/secret\.sops\.env$
+    age: >-
+      age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n,
+      age1dgw6l56j4qu7jnh06n9z7rpctgar3stk8hnxq3es9j88yqjpzdvqkrp7en,
+      age1xmc30s0v8m4eng93d4lmdzvcsrhvtmm57nfgrwwjsew2nu2svgzqmgssvg
   - path_regex: services/cloudflared/secret\.sops\.env$
     age: >-
       age18mdfujf864x66ys9slshhzknnq5argngyhu55zqenccjdf9fd3lqgpyp6n,

@@ -21,6 +21,7 @@ servers:
     age_public_key: "age1xmc30s0v8m4eng93d4lmdzvcsrhvtmm57nfgrwwjsew2nu2svgzqmgssvg"
     apps:
       - adguard
+      - alloy
       - cloudflared
       - hadiscover
       - traefik

@@ -35,6 +35,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | App                                                                                           | Purpose                                                        |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
+| [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
 | [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
@@ -78,6 +79,7 @@ Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and ba
 vm-pool/apps          # root — holds the git repo
 vm-pool/apps/services      # parent for all app datasets
 vm-pool/apps/services/adguard
+vm-pool/apps/services/alloy
 vm-pool/apps/services/bazarr
 vm-pool/apps/services/dozzle
 vm-pool/apps/services/drawio

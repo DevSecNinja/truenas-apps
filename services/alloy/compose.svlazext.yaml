@@ -1,0 +1,12 @@
+---
+# Server-specific compose override for svlazext (Azure VM).
+# Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
+#
+# Overrides only the HOSTNAME_OVERRIDE label so metrics/logs from this host
+# get the correct `host="svlazext"` label in Grafana Cloud. Everything else
+# (image, volumes, security options, healthcheck, Traefik labels) is identical
+# to the base compose file.
+services:
+  alloy:
+    environment:
+      - HOSTNAME_OVERRIDE=svlazext

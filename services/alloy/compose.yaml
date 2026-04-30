@@ -1,0 +1,172 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount directory so Alloy (UID 3125) can
+  # write its WAL, queue, and component state to /var/lib/alloy/data at startup.
+  # Runs once, then exits.
+  alloy-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: alloy-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3125:3125
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - chown -Rv 3125:3125 /data
+    volumes:
+      - ./data:/data
+
+  alloy:
+    # renovate: datasource=docker depName=grafana/alloy
+    image: docker.io/grafana/alloy:v1.16.0@sha256:6e00cf7c5a692ff5f24844529416ed017d76fce922f8199004e73d5eca46b6b8
+    container_name: alloy
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    depends_on:
+      alloy-init:
+        condition: service_completed_successfully
+      alloy-docker-proxy:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      # Static `host` label injected into every metric/log line shipped to
+      # Grafana Cloud. Defaults to svlnas (the TrueNAS host); overridden per
+      # non-default host via compose.<server>.yaml (e.g. compose.svlazext.yaml).
+      - HOSTNAME_OVERRIDE=svlnas
+    user: "3125:3125" # svc-app-alloy
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - alloy-frontend
+      - alloy-backend
+    mem_limit: ${MEM_LIMIT:-512m}
+    pids_limit: 200
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      # Config (git-tracked, read-only) — never chown'd by the init container
+      - ./config:/etc/alloy:ro
+      # WAL + queue (writable, gitignored)
+      - ./data:/var/lib/alloy/data
+      # Host filesystem mounts for prometheus.exporter.unix (host metrics)
+      - /:/host/rootfs:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -q --spider http://localhost:12345/-/ready || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Alloy
+      - homepage.icon=grafana-alloy.svg
+      - homepage.href=https://alloy.${DOMAINNAME}
+      - homepage.description=Telemetry collector (metrics, logs)
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=alloy-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.alloy-rtr.rule=Host(`alloy.${DOMAINNAME}`)"
+      - "traefik.http.routers.alloy-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.alloy-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.alloy-rtr.service=alloy-svc"
+      - "traefik.http.services.alloy-svc.loadbalancer.server.port=12345"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.alloy-monitor.rule=Host(`alloy.${DOMAINNAME}`)"
+      - "traefik.http.routers.alloy-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.alloy-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.alloy-monitor.service=alloy-svc"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/-/ready"
+      - "gatus.headers.Host=alloy.${DOMAINNAME}"
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
+
+  # LinuxServer socket-proxy runs as root by design (requires Docker socket access).
+  # See: https://github.com/linuxserver/docker-socket-proxy
+  # cap_drop: ALL is therefore omitted.
+  alloy-docker-proxy:
+    image: lscr.io/linuxserver/socket-proxy:version-3.2.14-r0@sha256:56dde3144ef213d2df1ee3d600baad521bd8b8c2bf844672719b07363606f4c2
+    container_name: alloy-docker-proxy
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - alloy-backend
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      - CONTAINERS=1 # Required: discover containers for log/stats collection
+      - EVENTS=1 # Required: react to container start/stop events
+      - INFO=1 # Required: read Docker engine info for daemon-level metrics
+      - PING=1 # Required: socket-proxy healthcheck endpoint
+      - VERSION=1 # Required: Docker API version negotiation
+      - POST=0 # Disallow any POST operations (effectively read-only)
+    security_opt:
+      - no-new-privileges=true
+    mem_limit: ${SOCKET_PROXY_MEM_LIMIT:-50m}
+    pids_limit: 50
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://localhost:2375/_ping"
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+networks:
+  alloy-frontend:
+    name: alloy-frontend
+    driver: bridge
+  alloy-backend:
+    name: alloy-backend
+    driver: bridge
+    internal: true

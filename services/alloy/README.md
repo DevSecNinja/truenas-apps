@@ -1,0 +1,124 @@
+# Grafana Alloy
+
+[Grafana Alloy](https://grafana.com/oss/alloy/) is a unified telemetry collector. One agent ships **host metrics**, **container metrics**, and **container logs** to [Grafana Cloud](https://grafana.com/products/cloud/) — replacing what would otherwise be three separate processes (node_exporter, cAdvisor, Promtail).
+
+## Why
+
+The lab needs trend-based visibility (per-container CPU/memory over weeks, host disk pressure, ZFS pool health) and centralised logs that survive container restarts. Self-hosting the full Grafana + Prometheus + Loki stack would cost ~500 MB RAM and require ongoing maintenance for zero functional benefit over the Grafana Cloud Free tier.
+
+Alloy collapses what previously required several agents into a single process:
+
+- **Host metrics** via `prometheus.exporter.unix` (the embedded `node_exporter` library — `/proc`, `/sys`, and the rootfs are bind-mounted from the host).
+- **Container metrics** via `otelcol.receiver.docker_stats`, polling the Docker `/stats` API through a read-only socket-proxy. Significantly lighter than cAdvisor — no cgroup walking, no per-container exporter — while covering everything we actually graph (CPU, memory, network, blkio).
+- **Container logs** via `loki.source.docker`, with a `discovery.docker` step that auto-discovers running containers and promotes compose project/service labels.
+- **Self-observability** via `prometheus.exporter.self`.
+
+Everything is shipped to **Grafana Cloud Free** (Frankfurt region) — Prometheus for metrics, Loki for logs, Grafana for dashboards and alerting.
+
+See [issue #15](https://github.com/DevSecNinja/truenas-apps/issues/15) for the full monitoring/IRM rollout plan.
+
+## Compose File
+
+- [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/alloy/compose.yaml)
+- [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/alloy/compose.svlazext.yaml) — per-host override (sets `HOSTNAME_OVERRIDE=svlazext`)
+
+## Access
+
+| URL                               | Description                                                    |
+| --------------------------------- | -------------------------------------------------------------- |
+| `https://alloy.${DOMAINNAME}`     | Alloy debug UI (component graph, scrape state) — SSO-protected |
+| `https://alloy-ext.${DOMAINNAME}` | Same UI on svlazext                                            |
+
+## Architecture
+
+- **Image**: [`grafana/alloy`](https://hub.docker.com/r/grafana/alloy) (Debian-based)
+- **User/Group**: `3125:3125` (`svc-app-alloy`)
+- **Networks**: `alloy-frontend` (Traefik-facing, also used for outbound Grafana Cloud traffic), `alloy-backend` (internal — Docker socket proxy)
+- **Reverse proxy**: Traefik with `chain-auth@file` (SSO required)
+
+### Services
+
+| Container            | Role                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `alloy-init`         | One-shot init: chowns `./data` to `3125:3125` so the Alloy WAL + queue path is writable                 |
+| `alloy`              | Telemetry collector — reads host `/proc`/`/sys`/rootfs, polls Docker stats, tails container logs        |
+| `alloy-docker-proxy` | LinuxServer socket-proxy — read-only Docker API access (`CONTAINERS=1`, `EVENTS=1`, `INFO=1`, `POST=0`) |
+
+### Volumes
+
+- `./config:/etc/alloy:ro` — `config.alloy` (git-tracked, read-only)
+- `./data:/var/lib/alloy/data` — WAL + queue (gitignored, chowned by init container)
+- `/:/host/rootfs:ro,rslave`, `/proc:/host/proc:ro`, `/sys:/host/sys:ro` — host filesystem visibility for `prometheus.exporter.unix`
+
+### Resource footprint
+
+Target on a host with ~30 containers: **<200 MB RAM, <2% sustained CPU**. Adjust `MEM_LIMIT` in `secret.sops.env` if a host scrapes additional targets.
+
+## Secrets
+
+Managed via `secret.sops.env` (decrypted to `.env` at deploy time):
+
+| Variable                | Source                                                               |
+| ----------------------- | -------------------------------------------------------------------- |
+| `GRAFANA_PROM_URL`      | Grafana Cloud → stack details → Prometheus push URL                  |
+| `GRAFANA_PROM_USERNAME` | Numeric instance ID shown next to the push URL                       |
+| `GRAFANA_PROM_PASSWORD` | Access Policy token with `metrics:write` scope                       |
+| `GRAFANA_LOKI_URL`      | Grafana Cloud → stack details → Loki push URL                        |
+| `GRAFANA_LOKI_USERNAME` | Numeric instance ID shown next to the Loki URL                       |
+| `GRAFANA_LOKI_PASSWORD` | Same Access Policy token (or a separate one with `logs:write` scope) |
+
+Optional resource overrides: `MEM_LIMIT`, `SOCKET_PROXY_MEM_LIMIT`.
+
+### Per-host configuration
+
+The static `host` label injected into every metric and log line is set via the
+`HOSTNAME_OVERRIDE` environment variable in
+[compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/alloy/compose.yaml)
+(default: `svlnas`). For non-default hosts, override it in a `compose.<server>.yaml`
+file — see
+[compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/alloy/compose.svlazext.yaml).
+It is **not a secret** and lives in the compose file rather than `secret.sops.env`.
+
+## First-Run Setup
+
+1. **Create the dataset**: `vm-pool/apps/services/alloy` on TrueNAS.
+2. **Create the TrueNAS service account**: `svc-app-alloy` with UID/GID `3125:3125`.
+3. **Create a Grafana Cloud Access Policy token**:
+   - Grafana Cloud → "Access Policies" → "Create access policy".
+   - Scopes: `metrics:write`, `logs:write`. Realms: limit to your stack.
+   - Generate a token; copy the `glc_…` value.
+4. **Populate `secret.sops.env`** with the URLs from the stack details page and the token from step 3.
+5. **Encrypt the secrets**:
+
+   ```sh
+   bash scripts/encrypt-secrets.sh
+   ```
+
+6. **Validate the compose file**:
+
+   ```sh
+   docker compose -f services/alloy/compose.yaml config --quiet
+   ```
+
+7. **Deploy**:
+
+   ```sh
+   bash scripts/dccd.sh -d /mnt/vm-pool/apps -t -f -A alloy   # svlnas
+   bash scripts/dccd.sh -d /opt/apps -S svlazext -A alloy      # svlazext
+   ```
+
+8. **Verify** in Grafana Cloud Explore:
+   - Metrics: `up{job="alloy",host="svlnas"} == 1`
+   - Logs: `{host="svlnas", job="docker"}`
+
+## Privacy Notes
+
+Container logs **leave the network** to Grafana Cloud. The default `loki.source.docker` config ships everything from every container; per-service redaction and exclusion rules are added in Phase 2 of #15. Until then, treat this as "everything that goes to stdout/stderr from any container is in Grafana Cloud (EU region) for 30 days."
+
+If a service must never have its logs leave the network, exclude it temporarily by adding a `discovery.relabel` drop rule against `__meta_docker_container_name` in `config.alloy`.
+
+## Reference
+
+- Alloy components: <https://grafana.com/docs/alloy/latest/reference/components/>
+- Grafana Cloud free-tier limits: <https://grafana.com/pricing/>
+- Issue #15 — full monitoring rollout plan: <https://github.com/DevSecNinja/truenas-apps/issues/15>

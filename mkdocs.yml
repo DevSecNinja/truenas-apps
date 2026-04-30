@@ -70,6 +70,7 @@ nav:
       - Troubleshooting: TROUBLESHOOTING.md
   - Services:
       - AdGuard Home: services/adguard.md
+      - Alloy: services/alloy.md
       - Bazarr: services/bazarr.md
       - Cloudflared: services/cloudflared.md
       - Dozzle: services/dozzle.md

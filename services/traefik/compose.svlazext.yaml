@@ -11,6 +11,7 @@ services:
     networks: !override
       - traefik-backend
       - adguard-frontend
+      - alloy-frontend
       - traefik-forward-auth-frontend
       - hadiscover-frontend
     labels: !override
@@ -39,6 +40,9 @@ networks:
     internal: true
   adguard-frontend:
     name: adguard-frontend
+    external: true
+  alloy-frontend:
+    name: alloy-frontend
     external: true
   traefik-forward-auth-frontend:
     name: traefik-forward-auth-frontend

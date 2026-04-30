@@ -65,6 +65,7 @@ services:
     networks:
       traefik-backend:
       adguard-frontend:
+      alloy-frontend:
       echo-server-frontend:
       excalidraw-frontend:
       gatus-frontend:
@@ -147,8 +148,8 @@ services:
       ## Gatus
       - "gatus.url=http://172.30.100.6:8444/api/overview"
       - "gatus.headers.Host=traefik.${DOMAINNAME}"
-      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
-      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
       ## SVLNAS redirect to TrueNAS portal (80/443 → 8443)
       - "traefik.http.routers.svlnas-rtr.rule=Host(`svlnas.${DOMAINNAME}`)"
       - "traefik.http.routers.svlnas-rtr.entrypoints=https"
@@ -216,6 +217,9 @@ networks:
     external: true
   adguard-frontend:
     name: adguard-frontend
+    external: true
+  alloy-frontend:
+    name: alloy-frontend
     external: true
   gatus-frontend:
     name: gatus-frontend

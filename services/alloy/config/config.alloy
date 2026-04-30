@@ -1,0 +1,217 @@
+// Grafana Alloy configuration — telemetry collector for the lab.
+//
+// Phase 1 scope (issue #15): host metrics, container metrics, container logs.
+// Ships everything to Grafana Cloud Free (Frankfurt region).
+//
+// Subsequent phases extend this file to scrape Traefik /metrics, the
+// github-actions exporter, Postgres exporters, and add log-redaction stages.
+//
+// Connection settings come from secret.sops.env (decrypted to .env at deploy
+// time by dccd.sh). See services/alloy/README.md for the required variables.
+
+////////////////////////////////////////////////////////////////////////////////
+// Remote-write endpoints (Grafana Cloud)
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.remote_write "grafana_cloud" {
+	endpoint {
+		url = sys.env("GRAFANA_PROM_URL")
+		basic_auth {
+			username = sys.env("GRAFANA_PROM_USERNAME")
+			password = sys.env("GRAFANA_PROM_PASSWORD")
+		}
+	}
+
+	// Disk-backed WAL keeps metrics safe across restarts and brief WAN outages.
+	wal {
+		truncate_frequency = "2h"
+		min_keepalive_time = "5m"
+		max_keepalive_time = "8h"
+	}
+}
+
+loki.write "grafana_cloud" {
+	endpoint {
+		url = sys.env("GRAFANA_LOKI_URL")
+		basic_auth {
+			username = sys.env("GRAFANA_LOKI_USERNAME")
+			password = sys.env("GRAFANA_LOKI_PASSWORD")
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Host metrics — prometheus.exporter.unix (node_exporter)
+//
+// Reads /proc, /sys, and the rootfs from the host bind-mounts declared in
+// compose.yaml. Expensive collectors (hugetlb, processes, perf, scheduler)
+// are disabled by default to keep cardinality and CPU low.
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.exporter.unix "host" {
+	rootfs_path = "/host/rootfs"
+	procfs_path = "/host/proc"
+	sysfs_path  = "/host/sys"
+
+	set_collectors = [
+		"cpu",
+		"diskstats",
+		"filesystem",
+		"hwmon",
+		"loadavg",
+		"meminfo",
+		"netdev",
+		"netstat",
+		"sockstat",
+		"stat",
+		"time",
+		"uname",
+		"vmstat",
+		"zfs",
+	]
+
+	filesystem {
+		fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+		mount_points_exclude = "^/(dev|proc|sys|var/lib/docker/.+|run/.+|host/(proc|sys))($|/)"
+	}
+
+	netdev {
+		device_exclude = "^(veth.*|docker.*|br-.*|lo)$"
+	}
+}
+
+prometheus.scrape "host" {
+	targets    = prometheus.exporter.unix.host.targets
+	forward_to = [prometheus.relabel.host.receiver]
+
+	scrape_interval = "60s"
+	scrape_timeout  = "10s"
+}
+
+prometheus.relabel "host" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "node"
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Container metrics — otelcol.receiver.docker_stats
+//
+// Polls the Docker /stats API via the local socket-proxy. Significantly
+// lighter than cAdvisor (no cgroup walking, no per-container exporter) and
+// covers everything we actually graph (CPU, memory, network, blkio).
+////////////////////////////////////////////////////////////////////////////////
+
+otelcol.receiver.docker_stats "containers" {
+	endpoint            = "tcp://alloy-docker-proxy:2375"
+	collection_interval = "30s"
+	api_version         = "1.43"
+
+	output {
+		metrics = [otelcol.processor.batch.docker.input]
+	}
+}
+
+otelcol.processor.batch "docker" {
+	output {
+		metrics = [otelcol.exporter.prometheus.docker.input]
+	}
+}
+
+otelcol.exporter.prometheus "docker" {
+	forward_to = [prometheus.relabel.docker.receiver]
+}
+
+prometheus.relabel "docker" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "docker"
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Container logs — loki.source.docker
+//
+// Discovers running containers via the socket-proxy and tails their logs.
+// Subsequent phases will add loki.process stages for redaction (Traefik
+// access-log IPs, request bodies) and exclude rules for noisy services.
+////////////////////////////////////////////////////////////////////////////////
+
+discovery.docker "containers" {
+	host             = "tcp://alloy-docker-proxy:2375"
+	refresh_interval = "30s"
+}
+
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	// Promote the container name (strip leading slash) into a label.
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+	// Promote the compose service label, when present.
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "compose_service"
+	}
+	// Promote the compose project label, when present.
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "compose_project"
+	}
+	// Static host label so the Loki UI can split per host.
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "docker"
+	}
+}
+
+loki.source.docker "containers" {
+	host       = "tcp://alloy-docker-proxy:2375"
+	targets    = discovery.relabel.containers.output
+	forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Self-observability — scrape Alloy's own /metrics endpoint.
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.exporter.self "alloy" {}
+
+prometheus.scrape "alloy_self" {
+	targets         = prometheus.exporter.self.alloy.targets
+	forward_to      = [prometheus.relabel.alloy_self.receiver]
+	scrape_interval = "60s"
+}
+
+prometheus.relabel "alloy_self" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "alloy"
+	}
+}
