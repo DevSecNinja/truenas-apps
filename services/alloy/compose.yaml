@@ -29,11 +29,12 @@ services:
 
   alloy:
     # Docker Hardened Image (DHI) variant of grafana/alloy on Debian 13.
-    # Pulled from the dhi/ namespace on Docker Hub — requires the host to be
-    # logged in to a Docker Hub account entitled to DHI.
+    # Pulled from the dhi.io registry — requires `docker login dhi.io` on
+    # every host that pulls this image (free with a Docker Hub account
+    # entitled to DHI).
     # See: https://hub.docker.com/hardened-images/catalog/dhi/alloy
-    # renovate: datasource=docker depName=dhi/alloy
-    image: docker.io/dhi/alloy:1.16.0-debian13@sha256:cd4fba2a0fd62b3a4fea5a3f5e05851b2863ef04c6e9e16e1fb884be79bdd5d1
+    # renovate: datasource=docker depName=dhi.io/alloy
+    image: dhi.io/alloy:1.16.0-debian13@sha256:cd4fba2a0fd62b3a4fea5a3f5e05851b2863ef04c6e9e16e1fb884be79bdd5d1
     container_name: alloy
     command:
       - "run"
