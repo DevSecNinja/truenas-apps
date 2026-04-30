@@ -658,7 +658,7 @@ redeploy_truenas_apps() {
                 "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
-                pull
+                pull --quiet
         else
             log_state "Skipping image pull for ${app_name} (no-pull mode)"
         fi
