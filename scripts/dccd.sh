@@ -91,6 +91,27 @@ flush_output_buffer() {
 # Non-root execution: always use sudo for docker commands
 SUDO="sudo"
 
+# log_pipe — read stdin line-by-line and re-emit each non-empty line through
+# log.sh so external command output (e.g. `docker compose pull` progress) is
+# rendered with the same timestamp/severity/tag prefix as the rest of the log.
+# Strips ANSI escape sequences and trailing whitespace for clean output.
+# Usage: <command> 2>&1 | log_pipe [KIND]
+#   KIND defaults to INFO; pass STATE for in-progress action lines.
+log_pipe() {
+    local kind="${1:-INFO}"
+    local line
+    while IFS= read -r line; do
+        # Strip ANSI escapes and CRs that docker compose emits for progress redraws
+        line=$(printf '%s' "${line}" | sed -E $'s/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\r//g; s/[[:space:]]+$//')
+        [ -z "${line}" ] && continue
+        case "${kind}" in
+        STATE) log_state "${line}" ;;
+        WARN) log_warn "${line}" ;;
+        *) log_info "${line}" ;;
+        esac
+    done
+}
+
 ensure_sops() {
     mkdir -p "${SOPS_INSTALL_DIR}"
     local sops_bin="${SOPS_INSTALL_DIR}/sops-${SOPS_VERSION}"
@@ -654,11 +675,15 @@ redeploy_truenas_apps() {
         # Pull images (unless NO_PULL is set)
         if [ "${NO_PULL}" -eq 0 ]; then
             log_state "Pulling images for ${app_name}"
-            ${SUDO} docker compose \
+            # Pipe pull output through log_pipe so each `[+] Pulling …` /
+            # `✔ service Pulled` line is timestamped and tagged like the rest
+            # of the log. pipefail (set at the top of the script) propagates a
+            # non-zero exit from docker compose through the pipe.
+            ${SUDO} docker compose --progress=plain \
                 "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
-                pull --quiet
+                pull 2>&1 | log_pipe
         else
             log_state "Skipping image pull for ${app_name} (no-pull mode)"
         fi
@@ -886,7 +911,7 @@ redeploy_compose_file() {
 
     # Pull images unless NO_PULL is set
     if [ "${NO_PULL}" -eq 0 ]; then
-        run_compose_command "${compose_file_args[@]}" pull --quiet
+        run_compose_command --progress=plain "${compose_file_args[@]}" pull 2>&1 | log_pipe
     else
         log_state "Skipping image pull for ${file} (no-pull mode)"
     fi
