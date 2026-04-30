@@ -9,7 +9,7 @@ set -eu
 
 mkdir -p /output/conf.d /output/zones.d
 
-for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zones.conf; do
+for f in conf.d/a-records.conf conf.d/server-overrides.conf conf.d/cachedb.conf zones.d/forward-zones.conf; do
     cp "/templates/${f}" "/output/${f}"
     # shellcheck disable=SC2312  # grep/sort exit codes are intentionally unmasked; empty output is handled
     grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "/templates/${f}" | sort -u | while read -r pattern; do
@@ -23,7 +23,7 @@ done
 # Verify no unresolved placeholders remain — catches missing secret.sops.env entries
 # before unbound starts with a broken config. Fails the init container loudly.
 failed=0
-for f in conf.d/a-records.conf conf.d/server-overrides.conf zones.d/forward-zones.conf; do
+for f in conf.d/a-records.conf conf.d/server-overrides.conf conf.d/cachedb.conf zones.d/forward-zones.conf; do
     # shellcheck disable=SC2312
     unresolved=$(grep -onE '\$\{[A-Z_][A-Z0-9_]*\}' "/output/${f}" 2>/dev/null || true)
     if [ -n "${unresolved}" ]; then

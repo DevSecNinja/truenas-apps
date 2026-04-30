@@ -58,7 +58,14 @@ services:
       - ""
       - "--tcp-keepalive"
       - "60"
+      # Password protection — the same value must appear in cachedb.conf via
+      # adguard-unbound-init substitution. Argv form avoids shell parsing of
+      # special characters in the password.
+      - "--requirepass"
+      - "${ADGUARD_REDIS_PASSWORD}"
     env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
       - path: ../shared/env/tz.env
     deploy:
       update_config:
@@ -80,9 +87,18 @@ services:
     tmpfs:
       - /tmp
     healthcheck:
+      # CMD (exec form) — the dhi.io/redis hardened image is distroless and
+      # does NOT ship /bin/sh, so CMD-SHELL fails with "no such file" and the
+      # container is reported unhealthy even when redis is up. Pass the password
+      # as a discrete argv element so compose interpolation is safe (no shell
+      # parsing of special characters). redis-cli ping exits 0 on PONG, non-zero
+      # on connect/auth failure.
       test:
         - "CMD"
         - "redis-cli"
+        - "--no-auth-warning"
+        - "-a"
+        - "${ADGUARD_REDIS_PASSWORD}"
         - "ping"
       interval: 10s
       timeout: 5s
@@ -136,7 +152,7 @@ services:
     volumes:
       - ./data/unbound/conf.d/a-records.conf:/usr/local/unbound/conf.d/a-records.conf:ro
       - ./data/unbound/conf.d/server-overrides.conf:/usr/local/unbound/conf.d/server-overrides.conf:ro
-      - ./config/unbound/conf.d/cachedb.conf:/usr/local/unbound/conf.d/cachedb.conf:ro
+      - ./data/unbound/conf.d/cachedb.conf:/usr/local/unbound/conf.d/cachedb.conf:ro
       - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
       - ./data/unbound/zones.d/forward-zones.conf:/usr/local/unbound/zones.d/forward-zones.conf:ro
       # Required only when tls-cert-bundle is enabled in server-overrides.conf (DoT forward zones):
