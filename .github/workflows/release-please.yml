@@ -1,0 +1,38 @@
+---
+name: Release Please
+
+# Drives semver bumping via the central reusable workflow. On every push
+# to main this opens (or updates) a `chore: release vX.Y.Z` PR with the
+# next version's CHANGELOG bump (computed from Conventional Commits).
+# Merging that PR creates the `vX.Y.Z` tag, which triggers
+# `.github/workflows/release.yml` (the existing tag-triggered workflow
+# that publishes the GitHub Release via the central reusable).
+#
+# Branch protection is fully respected: every release commit lands via
+# PR through normal CI. No bypass actor required.
+#
+# Reusable workflow:
+#   https://github.com/DevSecNinja/.github/blob/main/.github/workflows/release-please.yml
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    # NOTE: pinned to the PR branch in DevSecNinja/.github#33. Re-pin to
+    # the merged-on-main SHA once that PR lands.
+    # renovate: datasource=github-tags depName=DevSecNinja/.github
+    uses: DevSecNinja/.github/.github/workflows/release-please.yml@7ed381a72cf3d86d34aa5db3818dd468968e46ce # feat/release-please-reusable
+    permissions:
+      contents: write
+      pull-requests: write
