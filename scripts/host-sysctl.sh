@@ -13,12 +13,11 @@
 
 set -euo pipefail
 
-log() {
-    local ts
-    ts=$(date '+%Y-%m-%d %H:%M:%S')
-    logger -t host-sysctl "$1"
-    echo "${ts} - $1"
-}
+_HOST_SYSCTL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_HOST_SYSCTL_DIR}/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="host-sysctl"
 
 ########################################
 # Matter Server — multicast group limit
@@ -32,9 +31,9 @@ IGMP_WANT=256
 igmp_current=$(sysctl -n "${IGMP_KEY}" 2>/dev/null || echo 0)
 if [ "${igmp_current}" -lt "${IGMP_WANT}" ]; then
     sysctl -w "${IGMP_KEY}=${IGMP_WANT}" >/dev/null
-    log "Set ${IGMP_KEY}=${IGMP_WANT} (was ${igmp_current})"
+    log_state "Set ${IGMP_KEY}=${IGMP_WANT} (was ${igmp_current})"
 else
-    log "${IGMP_KEY} already ${igmp_current} (>= ${IGMP_WANT}), skipping"
+    log_info "${IGMP_KEY} already ${igmp_current} (>= ${IGMP_WANT}), skipping"
 fi
 
-log "Host sysctl tuning complete"
+log_result "Host sysctl tuning complete"

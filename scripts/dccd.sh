@@ -49,8 +49,33 @@ SOPS_BIN=""            # Path to SOPS binary (set by ensure_sops)
 # Functions
 ########################################
 
-# Output buffer for quiet mode (created lazily, cleaned up on EXIT)
+# Source the vendored log.sh library for severity/kind helpers, journald
+# integration, ANSI/newline injection protection, and TTY-aware colours.
+# See docs/logging.md in DevSecNinja/dotfiles for the full API.
+_DCCD_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_DCCD_SCRIPT_DIR}/lib/log.sh"
+# log.sh reads LOG_TAG from the shell environment (same scope, no export needed).
+# shellcheck disable=SC2034
+LOG_TAG="dccd"
+
+# Output buffer for quiet mode (created lazily by enable_quiet_mode below,
+# cleaned up on EXIT)
 _QUIET_BUF=""
+
+# enable_quiet_mode — route log.sh output to _QUIET_BUF instead of stdio.
+# Called once after option parsing when -q is set. Uses log.sh's native
+# LOG_FILE/LOG_TO_STDIO knobs so every log_*/log_state/log_error call
+# transparently writes to the buffer with ASCII-safe formatting.
+enable_quiet_mode() {
+    [ -n "${_QUIET_BUF}" ] || return 0
+    export LOG_FILE="${_QUIET_BUF}"
+    # log.sh requires either LOG_FILE_MAX_BYTES or LOG_FILE_TTL_DAYS to be set
+    # before it will write to LOG_FILE. 100 MiB is a generous upper bound — the
+    # buffer is short-lived and rm-ed on EXIT.
+    export LOG_FILE_MAX_BYTES=$((100 * 1024 * 1024))
+    export LOG_TO_STDIO=0
+}
 
 # Flush the quiet-mode buffer to stdout (called when we decide to deploy or on error)
 flush_output_buffer() {
@@ -59,36 +84,8 @@ flush_output_buffer() {
         : >"${_QUIET_BUF}" # truncate after flushing
     fi
     QUIET=0 # switch to normal output for the rest of the run
-}
-
-log_message() {
-    local message="$1"
-    local formatted
-    formatted="$(date +'%Y-%m-%d %H:%M:%S') - ${message}"
-
-    # Colorize output when writing to a terminal
-    if [ -t 1 ]; then
-        local color=""
-        local reset=$'\033[0m'
-        case "${message}" in
-        ERROR:*) color=$'\033[1;31m' ;;   # bold red
-        WARNING:*) color=$'\033[1;33m' ;; # bold yellow
-        STATE:*) color=$'\033[36m' ;;     # cyan
-        RESULT:*) color=$'\033[32m' ;;    # green
-        *) color="" ;;                    # default
-        esac
-        if [ -n "${color}" ]; then
-            formatted="${color}${formatted}${reset}"
-        fi
-    fi
-
-    # In quiet mode, buffer stdout; otherwise print immediately
-    if [ "${QUIET}" -eq 1 ] && [ -n "${_QUIET_BUF}" ]; then
-        echo "${formatted}" >>"${_QUIET_BUF}"
-    else
-        echo "${formatted}"
-    fi
-    logger -t dccd "${message}"
+    unset LOG_FILE LOG_FILE_MAX_BYTES
+    export LOG_TO_STDIO=1
 }
 
 # Non-root execution: always use sudo for docker commands
@@ -108,7 +105,7 @@ ensure_sops() {
     x86_64) arch="amd64" ;;
     aarch64) arch="arm64" ;;
     *)
-        log_message "ERROR: Unsupported architecture: ${arch}"
+        log_error "Unsupported architecture: ${arch}"
         exit 1
         ;;
     esac
@@ -119,16 +116,16 @@ ensure_sops() {
     local tmp_bin="/tmp/sops-${SOPS_VERSION}"
     local tmp_checksums="/tmp/sops-${SOPS_VERSION}.checksums.txt"
 
-    log_message "STATE: Downloading SOPS ${SOPS_VERSION}..."
+    log_state "Downloading SOPS ${SOPS_VERSION}..."
     if ! curl -fsSL -o "${tmp_bin}" "${url}"; then
-        log_message "ERROR: Failed to download SOPS from ${url}"
+        log_error "Failed to download SOPS from ${url}"
         rm -f "${tmp_bin}"
         exit 1
     fi
 
-    log_message "STATE: Verifying SOPS ${SOPS_VERSION} checksum..."
+    log_state "Verifying SOPS ${SOPS_VERSION} checksum..."
     if ! curl -fsSL -o "${tmp_checksums}" "${checksums_url}"; then
-        log_message "ERROR: Failed to download SOPS checksums from ${checksums_url}"
+        log_error "Failed to download SOPS checksums from ${checksums_url}"
         rm -f "${tmp_bin}" "${tmp_checksums}"
         exit 1
     fi
@@ -138,7 +135,7 @@ ensure_sops() {
     rm -f "${tmp_checksums}"
 
     if [ -z "${expected_hash}" ]; then
-        log_message "ERROR: Could not find checksum for ${binary_name} in checksums file"
+        log_error "Could not find checksum for ${binary_name} in checksums file"
         rm -f "${tmp_bin}"
         exit 1
     fi
@@ -147,23 +144,23 @@ ensure_sops() {
     actual_hash=$(sha256sum "${tmp_bin}" | awk '{print $1}')
 
     if [ "${expected_hash}" != "${actual_hash}" ]; then
-        log_message "ERROR: SOPS checksum mismatch for ${binary_name} (expected: ${expected_hash}, got: ${actual_hash})"
+        log_error "SOPS checksum mismatch for ${binary_name} (expected: ${expected_hash}, got: ${actual_hash})"
         rm -f "${tmp_bin}"
         exit 1
     fi
 
-    log_message "INFO:  SOPS ${SOPS_VERSION} checksum verified"
+    log_info "SOPS ${SOPS_VERSION} checksum verified"
 
     if ! ${SUDO} mv "${tmp_bin}" "${sops_bin}"; then
-        log_message "ERROR: Failed to move SOPS binary to ${sops_bin} (permission denied?)"
+        log_error "Failed to move SOPS binary to ${sops_bin} (permission denied?)"
         exit 1
     fi
     if ! ${SUDO} chmod +x "${sops_bin}"; then
-        log_message "ERROR: Failed to make ${sops_bin} executable"
+        log_error "Failed to make ${sops_bin} executable"
         exit 1
     fi
     SOPS_BIN="${sops_bin}"
-    log_message "INFO:  SOPS ${SOPS_VERSION} installed to ${sops_bin}"
+    log_info "SOPS ${SOPS_VERSION} installed to ${sops_bin}"
 }
 
 # Parse the apps assigned to a server from servers.yaml.
@@ -171,14 +168,14 @@ ensure_sops() {
 # Requires yq on PATH.
 parse_server_apps() {
     if ! command -v yq >/dev/null 2>&1; then
-        log_message "ERROR: yq is required for server mode (-S) but not found on PATH"
-        log_message "ERROR: Install yq: https://github.com/mikefarah/yq or run 'mise install'"
+        log_error "yq is required for server mode (-S) but not found on PATH"
+        log_error "Install yq: https://github.com/mikefarah/yq or run 'mise install'"
         exit 1
     fi
 
     local servers_yaml="${BASE_DIR}/servers.yaml"
     if [ ! -f "${servers_yaml}" ]; then
-        log_message "ERROR: servers.yaml not found at ${servers_yaml}"
+        log_error "servers.yaml not found at ${servers_yaml}"
         exit 1
     fi
 
@@ -186,10 +183,10 @@ parse_server_apps() {
     local server_exists
     server_exists=$(yq -r ".servers.\"${SERVER_NAME}\" // \"\"" "${servers_yaml}")
     if [ -z "${server_exists}" ] || [ "${server_exists}" = "null" ]; then
-        log_message "ERROR: Server '${SERVER_NAME}' not found in ${servers_yaml}"
+        log_error "Server '${SERVER_NAME}' not found in ${servers_yaml}"
         local available
         available=$(yq -r '.servers | keys | .[]' "${servers_yaml}" | paste -sd', ') || true
-        log_message "ERROR: Available servers: ${available}"
+        log_error "Available servers: ${available}"
         exit 1
     fi
 
@@ -197,20 +194,20 @@ parse_server_apps() {
     local has_apps
     has_apps=$(yq -r ".servers.\"${SERVER_NAME}\" | has(\"apps\")" "${servers_yaml}")
     if [ "${has_apps}" != "true" ]; then
-        log_message "INFO:  Server '${SERVER_NAME}' has no apps list — deploying all apps"
+        log_info "Server '${SERVER_NAME}' has no apps list — deploying all apps"
         return
     fi
 
     local app_list
     app_list=$(yq -r ".servers.\"${SERVER_NAME}\".apps[]" "${servers_yaml}")
     if [ -z "${app_list}" ]; then
-        log_message "ERROR: Server '${SERVER_NAME}' has an empty apps list in ${servers_yaml}"
+        log_error "Server '${SERVER_NAME}' has an empty apps list in ${servers_yaml}"
         exit 1
     fi
 
     while IFS= read -r app; do
         if [ ! -d "${BASE_DIR}/services/${app}" ]; then
-            log_message "ERROR: App '${app}' listed for server '${SERVER_NAME}' but services/${app}/ does not exist"
+            log_error "App '${app}' listed for server '${SERVER_NAME}' but services/${app}/ does not exist"
             exit 1
         fi
         SERVER_APPS+=("${app}")
@@ -233,7 +230,7 @@ parse_server_apps() {
         SERVER_APPS=("${reordered[@]}")
     fi
 
-    log_message "INFO:  Server '${SERVER_NAME}' has ${#SERVER_APPS[@]} app(s): ${SERVER_APPS[*]}"
+    log_info "Server '${SERVER_NAME}' has ${#SERVER_APPS[@]} app(s): ${SERVER_APPS[*]}"
 }
 
 decrypt_sops_files() {
@@ -277,17 +274,17 @@ decrypt_sops_files() {
     fi
 
     if [ -z "${sops_files}" ]; then
-        log_message "INFO:  No *.sops.env files found, skipping decryption"
+        log_info "No *.sops.env files found, skipping decryption"
         return
     fi
 
     if [ -z "${SOPS_AGE_KEY_FILE}" ]; then
-        log_message "ERROR: SOPS_AGE_KEY_FILE is not set; use -k to specify the Age private key file"
+        log_error "SOPS_AGE_KEY_FILE is not set; use -k to specify the Age private key file"
         exit 1
     fi
 
     if [ ! -f "${SOPS_AGE_KEY_FILE}" ]; then
-        log_message "ERROR: SOPS Age key file not found: ${SOPS_AGE_KEY_FILE}"
+        log_error "SOPS Age key file not found: ${SOPS_AGE_KEY_FILE}"
         exit 1
     fi
 
@@ -308,13 +305,13 @@ decrypt_sops_files() {
             # Server mode: select the right secret file per app
             if [ "${sops_basename}" != "secret.sops.env" ] && [ "${sops_basename}" != "secret.${SERVER_NAME}.sops.env" ]; then
                 # Skip other servers' secret files (can't decrypt with this server's key)
-                log_message "INFO:  Skipping ${sops_basename} (not for server ${SERVER_NAME})"
+                log_info "Skipping ${sops_basename} (not for server ${SERVER_NAME})"
                 continue
             elif [ "${sops_basename}" = "secret.sops.env" ]; then
                 local server_specific="${dir}/secret.${SERVER_NAME}.sops.env"
                 if [ -f "${server_specific}" ]; then
                     # Skip base when server-specific exists (credential isolation)
-                    log_message "INFO:  Skipping base secret.sops.env for $(basename "${dir}") (using server-specific file)"
+                    log_info "Skipping base secret.sops.env for $(basename "${dir}") (using server-specific file)"
                     continue
                 fi
             fi
@@ -329,17 +326,17 @@ decrypt_sops_files() {
         # compose env_file references work without changes.
         local secret_env="${dir}/.env"
 
-        log_message "STATE: Decrypting $(basename "${dir}")/${sops_basename}"
+        log_state "Decrypting $(basename "${dir}")/${sops_basename}"
         if "${SOPS_BIN}" -d "${sops_file}" >"${secret_env}"; then
             chmod 600 "${secret_env}"
             count=$((count + 1))
         else
-            log_message "ERROR: Failed to decrypt ${sops_file}"
+            log_error "Failed to decrypt ${sops_file}"
             exit 1
         fi
     done <<<"${sops_files}"
 
-    log_message "INFO:  Decrypted ${count} secret file(s)"
+    log_info "Decrypted ${count} secret file(s)"
 }
 
 # Auto-login to Docker Hub registries (dhi.io for hardened images and docker.io
@@ -366,10 +363,10 @@ auto_login_dhi() {
 
     local registry
     for registry in dhi.io docker.io; do
-        log_message "STATE: Logging in to ${registry} as ${username}..."
+        log_state "Logging in to ${registry} as ${username}..."
         if printf '%s' "${token}" | ${SUDO} docker login "${registry}" \
             --username "${username}" --password-stdin >/dev/null 2>&1; then
-            log_message "INFO:  ${registry} login succeeded"
+            log_info "${registry} login succeeded"
             # Note: do not use `[ ... ] && _DHI_LOGIN_OK=1` here — when this is
             # the last command of an iteration where the test is false (i.e.
             # registry=docker.io), the && chain exits 1, becomes the function's
@@ -378,7 +375,7 @@ auto_login_dhi() {
                 _DHI_LOGIN_OK=1
             fi
         else
-            log_message "ERROR: ${registry} login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
+            log_error "${registry} login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
             exit 1
         fi
     done
@@ -431,17 +428,17 @@ check_dhi_login() {
     local docker_cfg
     docker_cfg=$(${SUDO} cat /root/.docker/config.json 2>/dev/null || true)
     if [ -z "${docker_cfg}" ] || ! printf '%s' "${docker_cfg}" | grep -q '"dhi\.io"'; then
-        log_message "ERROR: One or more compose files reference dhi.io images but Docker is not logged in."
-        log_message "ERROR: Automated (recommended): add credentials to services/shared/env/secret.sops.env:"
-        log_message "ERROR:   DOCKERHUB_USERNAME=<your-dockerhub-username>"
-        log_message "ERROR:   DOCKERHUB_TOKEN=<read-only-personal-access-token>"
-        log_message "ERROR:   dccd.sh will then log in automatically on every deploy."
-        log_message "ERROR: Manual (one-time per server): sudo docker login dhi.io"
-        log_message "ERROR: See docs/INFRASTRUCTURE.md for full setup instructions."
+        log_error "One or more compose files reference dhi.io images but Docker is not logged in."
+        log_error "Automated (recommended): add credentials to services/shared/env/secret.sops.env:"
+        log_error "DOCKERHUB_USERNAME=<your-dockerhub-username>"
+        log_error "DOCKERHUB_TOKEN=<read-only-personal-access-token>"
+        log_error "dccd.sh will then log in automatically on every deploy."
+        log_error "Manual (one-time per server): sudo docker login dhi.io"
+        log_error "See docs/INFRASTRUCTURE.md for full setup instructions."
         exit 1
     fi
 
-    log_message "INFO:  dhi.io authentication verified"
+    log_info "dhi.io authentication verified"
 }
 
 # Compute a SHA256 hash of a path (file or directory) relative to <app_dir>.
@@ -524,26 +521,26 @@ log_image_changes() {
     fi
 
     local sep="========================================"
-    log_message "${sep}"
+    log_info "${sep}"
 
     if [ -z "${before}" ]; then
-        log_message "RESULT: ${app_name}: Initial deployment:"
+        log_result "${app_name}: Initial deployment:"
         while IFS= read -r line; do
             local svc="${line%%=*}"
             local img="${line#*=}"
-            log_message "RESULT:   ${svc}: ${img}"
+            log_result "${svc}: ${img}"
         done <<<"${after}"
-        log_message "${sep}"
+        log_info "${sep}"
         return
     fi
 
     if [ "${before}" = "${after}" ]; then
-        log_message "RESULT: ${app_name}: No updates (images unchanged)"
-        log_message "${sep}"
+        log_result "${app_name}: No updates (images unchanged)"
+        log_info "${sep}"
         return
     fi
 
-    log_message "RESULT: ${app_name}: Image changes detected!"
+    log_result "${app_name}: Image changes detected!"
     while IFS= read -r after_line; do
         local svc="${after_line%%=*}"
         local after_img="${after_line#*=}"
@@ -551,23 +548,23 @@ log_image_changes() {
         before_line=$(echo "${before}" | grep "^${svc}=" | head -1) || true
         local before_img="${before_line#*=}"
         if [ -z "${before_img}" ]; then
-            log_message "RESULT:   ${svc}: new -> ${after_img}"
+            log_result "${svc}: new -> ${after_img}"
         elif [ "${before_img}" = "${after_img}" ]; then
-            log_message "RESULT:   ${svc}: unchanged (${after_img})"
+            log_result "${svc}: unchanged (${after_img})"
         else
-            log_message "RESULT:   ${svc}: UPDATED"
-            log_message "RESULT:     from: ${before_img}"
-            log_message "RESULT:     to:   ${after_img}"
+            log_result "${svc}: UPDATED"
+            log_result "from: ${before_img}"
+            log_result "to:   ${after_img}"
         fi
     done <<<"${after}"
-    log_message "${sep}"
+    log_info "${sep}"
 }
 
 redeploy_truenas_apps() {
     local src_dir="${BASE_DIR}/services"
 
     if [ ! -d "${src_dir}" ]; then
-        log_message "ERROR: Source directory ${src_dir} does not exist, exiting..."
+        log_error "Source directory ${src_dir} does not exist, exiting..."
         exit 1
     fi
 
@@ -589,7 +586,7 @@ redeploy_truenas_apps() {
 
         # If EXCLUDE is set and the app matches, skip it
         if [ -n "${EXCLUDE}" ] && [[ "${app_name}" == *"${EXCLUDE}"* ]]; then
-            log_message "STATE: Skipping excluded app '${app_name}'"
+            log_state "Skipping excluded app '${app_name}'"
             continue
         fi
 
@@ -600,7 +597,7 @@ redeploy_truenas_apps() {
         fi
 
         if [ ! -d "${app_config_dir}" ]; then
-            log_message "ERROR: TrueNAS app config directory not found: ${app_config_dir}, skipping..."
+            log_error "TrueNAS app config directory not found: ${app_config_dir}, skipping..."
             continue
         fi
 
@@ -609,7 +606,7 @@ redeploy_truenas_apps() {
         version_dir=$(find "${app_config_dir}" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
 
         if [ -z "${version_dir}" ]; then
-            log_message "ERROR: No version directory found in ${app_config_dir}, skipping..."
+            log_error "No version directory found in ${app_config_dir}, skipping..."
             continue
         fi
 
@@ -617,7 +614,7 @@ redeploy_truenas_apps() {
         local compose_file="${rendered_dir}/docker-compose.yaml"
 
         if [ ! -f "${compose_file}" ]; then
-            log_message "ERROR: Compose file not found: ${compose_file}, skipping..."
+            log_error "Compose file not found: ${compose_file}, skipping..."
             continue
         fi
 
@@ -626,7 +623,7 @@ redeploy_truenas_apps() {
 
         # Validate the compose file before touching any running containers
         if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" --project-name "${project_name}" --file "${compose_file}" config --quiet 2>/dev/null; then
-            log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
+            log_warn "${app_name}: Skipping deployment — compose config validation failed"
             continue
         fi
 
@@ -634,11 +631,11 @@ redeploy_truenas_apps() {
         local _services
         _services=$(${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" --project-name "${project_name}" --file "${compose_file}" config --services 2>/dev/null)
         if [ -z "${_services}" ]; then
-            log_message "INFO:  ${app_name}: Skipping — no services match active profiles"
+            log_info "${app_name}: Skipping — no services match active profiles"
             continue
         fi
 
-        log_message "STATE: Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
+        log_state "Deploying TrueNAS app ${app_name} (version ${version}, project ${project_name})"
         _DEPLOY_ATTEMPTED=$((_DEPLOY_ATTEMPTED + 1))
 
         # Compute and export a hash of the app's watched config path so compose.yaml
@@ -659,23 +656,23 @@ redeploy_truenas_apps() {
 
         # Pull images (unless NO_PULL is set)
         if [ "${NO_PULL}" -eq 0 ]; then
-            log_message "STATE: Pulling images for ${app_name}"
+            log_state "Pulling images for ${app_name}"
             ${SUDO} docker compose \
                 "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 pull
         else
-            log_message "STATE: Skipping image pull for ${app_name} (no-pull mode)"
+            log_state "Skipping image pull for ${app_name} (no-pull mode)"
         fi
 
         # Deploy
-        log_message "STATE: Starting containers for ${app_name}"
+        log_state "Starting containers for ${app_name}"
         if [[ "${project_name}" == *bootstrap* ]]; then
             # One-shot project: run in foreground and abort when the container exits.
             # --abort-on-container-exit is incompatible with -d, which is fine — we
             # want to block until the init work is done before deploying later apps.
-            log_message "INFO:  ${app_name} output suppressed — check 'sudo docker compose --project-name ${project_name} logs' if needed"
+            log_info "${app_name} output suppressed — check 'sudo docker compose --project-name ${project_name} logs' if needed"
             if ! ${SUDO} docker compose \
                 "${COMPOSE_PROFILE_ARGS[@]}" \
                 --project-name "${project_name}" \
@@ -684,7 +681,7 @@ redeploy_truenas_apps() {
                 --build \
                 --abort-on-container-exit \
                 >/dev/null 2>&1; then
-                log_message "ERROR: ${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                log_error "${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
@@ -692,7 +689,7 @@ redeploy_truenas_apps() {
             local deploy_output
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
             if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" --project-name "${project_name}" --file "${compose_file}"); then
-                log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                log_error "${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
                 if [ -n "${deploy_output}" ]; then
                     # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
                     echo "${deploy_output}" | sed 's/^/  /'
@@ -728,11 +725,11 @@ remove_compose_project() {
     containers=$(${SUDO} docker ps -aq --filter "label=com.docker.compose.project=${project}" 2>/dev/null) || true
 
     if [ -z "${containers}" ]; then
-        log_message "INFO:  No containers found for project '${project}'"
+        log_info "No containers found for project '${project}'"
         return 0
     fi
 
-    log_message "STATE: Stopping and removing containers for project '${project}'"
+    log_state "Stopping and removing containers for project '${project}'"
     # shellcheck disable=SC2086  # intentional word splitting on container IDs
     ${SUDO} docker stop ${containers} 2>/dev/null || true
     # shellcheck disable=SC2086
@@ -742,12 +739,12 @@ remove_compose_project() {
     local networks
     networks=$(${SUDO} docker network ls --filter "label=com.docker.compose.project=${project}" -q 2>/dev/null) || true
     if [ -n "${networks}" ]; then
-        log_message "STATE: Removing networks for project '${project}'"
+        log_state "Removing networks for project '${project}'"
         # shellcheck disable=SC2086
         ${SUDO} docker network rm ${networks} 2>/dev/null || true
     fi
 
-    log_message "INFO:  Project '${project}' cleaned up"
+    log_info "Project '${project}' cleaned up"
 }
 
 # Detect compose projects that were running before a git pull but whose
@@ -778,7 +775,7 @@ cleanup_orphaned_projects() {
             project_name="ix-${app#_}"
         fi
 
-        log_message "STATE: Detected removed service '${app}' — tearing down project '${project_name}'"
+        log_state "Detected removed service '${app}' — tearing down project '${project_name}'"
         remove_compose_project "${project_name}"
     done <<<"${before_apps}"
 }
@@ -837,7 +834,7 @@ compose_up_wait_tolerant() {
                 grep -oE "container [^ ]+ has no healthcheck" |
                 awk '{print $2}' |
                 paste -sd, -)
-            log_message "WARNING: ${app_name}: container(s) without healthcheck (${missing}) — using \"running\" state as readiness"
+            log_warn "${app_name}: container(s) without healthcheck (${missing}) — using \"running\" state as readiness"
             return 0
         fi
     fi
@@ -862,7 +859,7 @@ redeploy_compose_file() {
 
     # Validate the compose file(s) before touching any running containers
     if ! ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --quiet 2>/dev/null; then
-        log_message "WARNING: ${app_name}: Skipping deployment — compose config validation failed"
+        log_warn "${app_name}: Skipping deployment — compose config validation failed"
         return 0
     fi
 
@@ -870,7 +867,7 @@ redeploy_compose_file() {
     local _services
     _services=$(${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_file_args[@]}" config --services 2>/dev/null)
     if [ -z "${_services}" ]; then
-        log_message "INFO:  ${app_name}: Skipping — no services match active profiles"
+        log_info "${app_name}: Skipping — no services match active profiles"
         return 0
     fi
 
@@ -894,45 +891,45 @@ redeploy_compose_file() {
     if [ "${NO_PULL}" -eq 0 ]; then
         run_compose_command "${compose_file_args[@]}" pull --quiet
     else
-        log_message "STATE: Skipping image pull for ${file} (no-pull mode)"
+        log_state "Skipping image pull for ${file} (no-pull mode)"
     fi
 
     if [ "${GRACEFUL}" -eq 1 ]; then
         run_compose_command "${compose_file_args[@]}" up -d --dry-run &>"${TMPRESTART}"
         if grep -q "Recreate" "${TMPRESTART}"; then
-            log_message "GRACEFUL: Redeploying compose file for ${file}"
+            log_info "Redeploying compose file for ${file}"
             _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
             local deploy_output
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
             if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
-                log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                log_error "Failed to deploy ${file} - containers may be unhealthy"
                 if [ -n "${deploy_output}" ]; then
                     # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
                     echo "${deploy_output}" | sed 's/^/  /'
                 fi
                 if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
-                    log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
+                    log_hint "An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
                 fi
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
         else
-            log_message "GRACEFUL: Skipping Redeploying compose file for ${file} (no change)"
+            log_info "Skipping Redeploying compose file for ${file} (no change)"
             _DEPLOY_UNCHANGED=$((_DEPLOY_UNCHANGED + 1))
         fi
     else
-        log_message "STATE: Redeploying compose file for ${file}"
+        log_state "Redeploying compose file for ${file}"
         _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
         local deploy_output
         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
         if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
-            log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+            log_error "Failed to deploy ${file} - containers may be unhealthy"
             if [ -n "${deploy_output}" ]; then
                 # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
                 echo "${deploy_output}" | sed 's/^/  /'
             fi
             if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
-                log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
+                log_hint "An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
             fi
             _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
             _DEPLOY_FAILED_APPS+=("${app_name}")
@@ -944,16 +941,16 @@ update_compose_files() {
     local dir="$1"
 
     cd "${dir}" || {
-        log_message "ERROR: Directory doesn't exist, exiting..."
+        log_error "Directory doesn't exist, exiting..."
         exit 127
     }
 
     # Make sure we're in a git repo
     if [ ! -d .git ]; then
-        log_message "ERROR: Directory is not a git repository, exiting..."
+        log_error "Directory is not a git repository, exiting..."
         exit 1
     else
-        log_message "INFO:  Git repository found!"
+        log_info "Git repository found!"
     fi
 
     # Persist core.filemode=false in the local .git/config so interactive
@@ -964,15 +961,15 @@ update_compose_files() {
     local _filemode
     _filemode=$(git config --local --get core.filemode 2>/dev/null || echo true)
     if [ "${_filemode}" != "false" ]; then
-        log_message "STATE: Setting core.filemode=false in local git config (ignore executable-bit changes)"
-        git config --local core.filemode false || log_message "WARNING: Failed to set core.filemode=false"
+        log_state "Setting core.filemode=false in local git config (ignore executable-bit changes)"
+        git config --local core.filemode false || log_warn "Failed to set core.filemode=false"
     fi
 
     local SHOULD_DEPLOY=0
     local _pre_pull_apps=""
 
     if [ "${NO_PULL}" -eq 1 ]; then
-        log_message "STATE: No-pull mode enabled, skipping git sync..."
+        log_state "No-pull mode enabled, skipping git sync..."
         SHOULD_DEPLOY=1
     else
         # Rewrite SSH remote URLs to HTTPS so fetch/pull works without SSH keys (for public repos in cron)
@@ -986,13 +983,13 @@ update_compose_files() {
         current_user=$(whoami) || true
         bad_git_files=$(find "${dir}/.git" -maxdepth 2 ! -user "$(id -u)" -print 2>/dev/null) || true
         if [ -n "${bad_git_files}" ]; then
-            log_message "ERROR: .git/ contains files not owned by the current user (${current_user}):"
+            log_error ".git/ contains files not owned by the current user (${current_user}):"
             local file_owner
             while IFS= read -r f; do
                 file_owner=$(stat -c '%U' "${f}" 2>/dev/null) || file_owner="unknown"
-                log_message "ERROR:   ${f}  (owner: ${file_owner})"
+                log_error "${f}  (owner: ${file_owner})"
             done <<<"${bad_git_files}"
-            log_message "ERROR: Fix with: sudo chown -R ${current_user} ${dir}/.git"
+            log_error "Fix with: sudo chown -R ${current_user} ${dir}/.git"
             exit 1
         fi
 
@@ -1005,12 +1002,12 @@ update_compose_files() {
             xargs -0 -I{} find "${dir}/{}" -maxdepth 0 ! -user "$(id -u)" -print 2>/dev/null |
             grep -v '/data/' | grep -v '/backups/') || true
         if [ -n "${bad_tracked_files}" ]; then
-            log_message "ERROR: Git-tracked files not owned by the current user (${current_user}):"
+            log_error "Git-tracked files not owned by the current user (${current_user}):"
             while IFS= read -r f; do
                 file_owner=$(stat -c '%U(%u)' "${f}" 2>/dev/null) || file_owner="unknown"
-                log_message "ERROR:   ${f}  (owner: ${file_owner})"
+                log_error "${f}  (owner: ${file_owner})"
             done <<<"${bad_tracked_files}"
-            log_message "ERROR: git pull will fail. Fix with: sudo chown -R ${current_user} <affected-dirs>"
+            log_error "git pull will fail. Fix with: sudo chown -R ${current_user} <affected-dirs>"
             exit 1
         fi
 
@@ -1021,7 +1018,7 @@ update_compose_files() {
 
         # Check if there are any changes in the Git repository
         if ! git "${GIT_OPTS[@]}" fetch --quiet origin; then
-            log_message "ERROR: Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
+            log_error "Unable to fetch changes from the remote repository (the server may be offline or unreachable)"
             exit 1
         fi
 
@@ -1031,13 +1028,13 @@ update_compose_files() {
         # Check for uncommitted local changes
         uncommitted_changes=$(git "${GIT_OPTS[@]}" status --porcelain)
         if [ -n "${uncommitted_changes}" ]; then
-            log_message "ERROR: Uncommitted changes detected in ${dir}, exiting..."
+            log_error "Uncommitted changes detected in ${dir}, exiting..."
             exit 1
         fi
 
         # Ensure we are on the expected branch before comparing hashes or pulling
         if ! git "${GIT_OPTS[@]}" checkout --quiet "${REMOTE_BRANCH}"; then
-            log_message "ERROR: Unable to checkout branch ${REMOTE_BRANCH}. Verify the branch exists and there are no uncommitted changes."
+            log_error "Unable to checkout branch ${REMOTE_BRANCH}. Verify the branch exists and there are no uncommitted changes."
             exit 1
         fi
 
@@ -1050,12 +1047,12 @@ update_compose_files() {
         if [ "${FORCE}" -eq 1 ] || [ "${local_hash}" != "${remote_hash}" ]; then
             # Pull any changes in the Git repository
             if [ "${local_hash}" != "${remote_hash}" ]; then
-                log_message "STATE: New commits available on origin/${REMOTE_BRANCH} — pulling (local: ${short_local}, remote: ${short_remote})"
+                log_state "New commits available on origin/${REMOTE_BRANCH} — pulling (local: ${short_local}, remote: ${short_remote})"
                 if ! git "${GIT_OPTS[@]}" pull --quiet origin "${REMOTE_BRANCH}"; then
-                    log_message "ERROR: Unable to pull changes from the remote repository (the server may be offline or unreachable)"
+                    log_error "Unable to pull changes from the remote repository (the server may be offline or unreachable)"
                     exit 1
                 fi
-                log_message "INFO:  Pulled latest commits from origin/${REMOTE_BRANCH} (now at ${short_remote})"
+                log_info "Pulled latest commits from origin/${REMOTE_BRANCH} (now at ${short_remote})"
 
                 # If the script itself was updated by this pull, re-exec with the new
                 # version so subsequent deployments run the updated code rather than
@@ -1065,7 +1062,7 @@ update_compose_files() {
                 local script_diff
                 script_diff=$(git "${GIT_OPTS[@]}" diff --name-only "${local_hash}" "${remote_hash}" -- "${script_rel}" 2>/dev/null) || true
                 if [ -n "${script_rel}" ] && [ -n "${script_diff}" ]; then
-                    log_message "INFO:  The dccd script itself was updated — re-executing with the new version..."
+                    log_info "The dccd script itself was updated — re-executing with the new version..."
                     flush_output_buffer
                     trap - EXIT
                     # Invoke via bash so re-exec works even when the script file
@@ -1077,7 +1074,7 @@ update_compose_files() {
                 # Clean up any services that were removed by the incoming commits
                 cleanup_orphaned_projects "${dir}" "${_pre_pull_apps}"
             else
-                log_message "INFO:  Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — force mode, redeploying"
+                log_info "Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — force mode, redeploying"
             fi
 
             SHOULD_DEPLOY=1
@@ -1086,10 +1083,10 @@ update_compose_files() {
             local running_containers
             running_containers=$(${SUDO} docker ps --quiet 2>/dev/null | head -1) || true
             if [ -z "${running_containers}" ]; then
-                log_message "STATE: Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) but no containers running — deploying"
+                log_state "Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) but no containers running — deploying"
                 SHOULD_DEPLOY=1
             else
-                log_message "STATE: Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — nothing to do"
+                log_state "Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — nothing to do"
             fi
         fi
     fi
@@ -1112,7 +1109,7 @@ update_compose_files() {
         auto_login_dhi
 
         if [ "${DECRYPT_ONLY}" -eq 1 ]; then
-            log_message "INFO:  Decrypt-only mode enabled, skipping deployment"
+            log_info "Decrypt-only mode enabled, skipping deployment"
             return 0
         fi
 
@@ -1135,7 +1132,7 @@ update_compose_files() {
                 for app in "${SERVER_APPS[@]}"; do
                     local compose_file="./services/${app}/compose.yaml"
                     if [ ! -f "${compose_file}" ]; then
-                        log_message "WARNING: ${app}: compose.yaml not found, skipping"
+                        log_warn "${app}: compose.yaml not found, skipping"
                         continue
                     fi
                     if [[ "${app}" == *traefik* ]]; then
@@ -1180,7 +1177,7 @@ update_compose_files() {
                 if [ -n "${SERVER_NAME}" ]; then
                     local override_file="${dir}/compose.${SERVER_NAME}.yaml"
                     if [ -f "${override_file}" ]; then
-                        log_message "INFO:  Applying server override: ${override_file}"
+                        log_info "Applying server override: ${override_file}"
                         override_args=("${override_file}")
                     fi
                 fi
@@ -1192,7 +1189,7 @@ update_compose_files() {
 
     # Check if PRUNE is provided
     if [ "${PRUNE}" -eq 1 ]; then
-        log_message "STATE: Pruning images"
+        log_state "Pruning images"
         ${SUDO} docker image prune --all --force
     fi
 
@@ -1206,43 +1203,43 @@ update_compose_files() {
     local root_owned
     root_owned=$(find "${BASE_DIR}" \( -name data -o -name backups \) -prune -o -user root -print 2>/dev/null) || true
     if [ -n "${root_owned}" ]; then
-        log_message "WARNING: Files owned by root detected (git fetch/pull or SOPS may have created them):"
+        log_warn "Files owned by root detected (git fetch/pull or SOPS may have created them):"
         while IFS= read -r f; do
-            log_message "WARNING:   ${f}"
+            log_warn "${f}"
         done <<<"${root_owned}"
         local current_user
         current_user=$(whoami) || true
-        log_message "WARNING: To fix, run manually:"
-        log_message "WARNING:   find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown ${current_user}:${current_user}"
+        log_warn "To fix, run manually:"
+        log_warn "find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown ${current_user}:${current_user}"
     fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
         local sep="========================================"
-        log_message "${sep}"
+        log_info "${sep}"
         local succeeded
         succeeded=$((_DEPLOY_ATTEMPTED - _DEPLOY_ERRORS))
         if [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
-            log_message "RESULT: All ${_DEPLOY_ATTEMPTED} app(s) deployed successfully"
+            log_result "All ${_DEPLOY_ATTEMPTED} app(s) deployed successfully"
         else
-            log_message "RESULT: ${succeeded}/${_DEPLOY_ATTEMPTED} app(s) deployed successfully, ${_DEPLOY_ERRORS} failed:"
+            log_result "${succeeded}/${_DEPLOY_ATTEMPTED} app(s) deployed successfully, ${_DEPLOY_ERRORS} failed:"
             if [ "${#_DEPLOY_FAILED_APPS[@]}" -gt 0 ]; then
                 for app in "${_DEPLOY_FAILED_APPS[@]}"; do
-                    log_message "RESULT:   FAILED: ${app}"
+                    log_result "FAILED: ${app}"
                 done
             fi
         fi
         if [ "$((_DEPLOY_CHANGED + _DEPLOY_UNCHANGED))" -gt 0 ]; then
-            log_message "RESULT: ${_DEPLOY_CHANGED} changed, ${_DEPLOY_UNCHANGED} unchanged"
+            log_result "${_DEPLOY_CHANGED} changed, ${_DEPLOY_UNCHANGED} unchanged"
         fi
-        log_message "${sep}"
+        log_info "${sep}"
     fi
 
     local end_time elapsed_time
     end_time=$(date +%s)
     elapsed_time=$((end_time - _CD_START_TIME))
-    log_message "INFO:  Total execution time: ${elapsed_time}s"
+    log_info "Total execution time: ${elapsed_time}s"
 
-    log_message "STATE: Done!"
+    log_state "Done!"
 }
 
 # Simple URL encoding for query string values (handles spaces and common special chars)
@@ -1280,9 +1277,9 @@ report_cd_status_to_gatus() {
     local curl_output
     if curl_output=$(curl "${curl_opts[@]}" \
         "${GATUS_URL%/}/api/v1/endpoints/${key}/external?${query}" 2>&1 >/dev/null); then
-        log_message "INFO:  CD status (success=${success}) reported to Gatus"
+        log_info "CD status (success=${success}) reported to Gatus"
     else
-        log_message "WARNING: Failed to report CD status to Gatus${curl_output:+: ${curl_output}}"
+        log_warn "Failed to report CD status to Gatus${curl_output:+: ${curl_output}}"
     fi
 }
 
@@ -1472,21 +1469,22 @@ fi
 # In quiet mode, initialise the output buffer now that options are parsed
 if [ "${QUIET}" -eq 1 ]; then
     _QUIET_BUF=$(mktemp /tmp/dccd-quiet.XXXXXX)
+    enable_quiet_mode
 fi
 
 # Check if BASE_DIR is provided
 if [ -z "${BASE_DIR}" ]; then
-    log_message "ERROR: The base directory (-d) is required, exiting..."
+    log_error "The base directory (-d) is required, exiting..."
     usage
 else
-    log_message "INFO:  Base directory is set to ${BASE_DIR}"
+    log_info "Base directory is set to ${BASE_DIR}"
 fi
 
 # Check if REMOTE_BRANCH is provided
 if [ -z "${REMOTE_BRANCH}" ]; then
-    log_message "INFO:  The remote branch isn't specified, so using ${REMOTE_BRANCH}"
+    log_info "The remote branch isn't specified, so using ${REMOTE_BRANCH}"
 else
-    log_message "INFO:  The remote branch is set to ${REMOTE_BRANCH}"
+    log_info "The remote branch is set to ${REMOTE_BRANCH}"
 fi
 
 # Forward COMPOSE_PROFILES as --profile CLI flags (sudo strips env vars,
@@ -1498,61 +1496,61 @@ if [ -n "${COMPOSE_PROFILES:-}" ]; then
         COMPOSE_PROFILE_ARGS+=(--profile "${_p}")
     done
     unset _profiles _p
-    log_message "INFO:  Docker Compose profiles: ${COMPOSE_PROFILES}"
+    log_info "Docker Compose profiles: ${COMPOSE_PROFILES}"
 fi
 
 # Check if COMPOSE_OPTS is provided
 if [ -n "${COMPOSE_OPTS}" ]; then
-    log_message "INFO:  Using additional docker compose options: ${COMPOSE_OPTS}"
+    log_info "Using additional docker compose options: ${COMPOSE_OPTS}"
 fi
 
 # Check if EXCLUDE is provided
 if [ -n "${EXCLUDE}" ]; then
-    log_message "INFO:  Will be excluding pattern ${EXCLUDE}"
+    log_info "Will be excluding pattern ${EXCLUDE}"
 fi
 
 # Check if FORCE mode is enabled
 if [ "${FORCE}" -eq 1 ]; then
-    log_message "INFO:  Force mode enabled, will redeploy regardless of hash match"
+    log_info "Force mode enabled, will redeploy regardless of hash match"
 fi
 
 # Check if NO_PULL mode is enabled
 if [ "${NO_PULL}" -eq 1 ]; then
-    log_message "INFO:  No-pull mode enabled, will skip pulling images"
+    log_info "No-pull mode enabled, will skip pulling images"
 fi
 
 # Check if APP_FILTER is provided
 if [ -n "${APP_FILTER}" ]; then
-    log_message "INFO:  Will only deploy app '${APP_FILTER}'"
+    log_info "Will only deploy app '${APP_FILTER}'"
 fi
 
 # Check if SERVER_NAME is provided and validate mutual exclusivity
 if [ -n "${SERVER_NAME}" ]; then
     if [ "${TRUENAS}" -eq 1 ]; then
-        log_message "ERROR: -S (server mode) and -t (TrueNAS mode) are mutually exclusive"
+        log_error "-S (server mode) and -t (TrueNAS mode) are mutually exclusive"
         exit 1
     fi
-    log_message "INFO:  Server mode enabled for '${SERVER_NAME}'"
+    log_info "Server mode enabled for '${SERVER_NAME}'"
 fi
 
 # Resolve SOPS install directory now that BASE_DIR is known
 if [ -z "${SOPS_INSTALL_DIR}" ]; then
     SOPS_INSTALL_DIR="${BASE_DIR}/bin"
 fi
-log_message "INFO:  SOPS install directory is set to ${SOPS_INSTALL_DIR}"
+log_info "SOPS install directory is set to ${SOPS_INSTALL_DIR}"
 
 # Resolve SOPS Age key file now that BASE_DIR is known
 if [ -z "${SOPS_AGE_KEY_FILE}" ]; then
     SOPS_AGE_KEY_FILE="${BASE_DIR}/age.key"
 fi
-log_message "INFO:  SOPS Age key file is set to ${SOPS_AGE_KEY_FILE}"
+log_info "SOPS Age key file is set to ${SOPS_AGE_KEY_FILE}"
 
 # Check if TRUENAS mode is enabled
 if [ "${TRUENAS}" -eq 1 ]; then
-    log_message "INFO:  TrueNAS Scale mode enabled (apps base: ${TRUENAS_APPS_BASE})"
+    log_info "TrueNAS Scale mode enabled (apps base: ${TRUENAS_APPS_BASE})"
 fi
 
-log_message "INFO:  Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
+log_info "Wait timeout is set to ${WAIT_TIMEOUT}s (0 = no timeout)"
 
 # Source the already-decrypted gatus .env to pick up GATUS_CD_TOKEN and
 # DOMAINNAME. The -G flag takes precedence over the derived URL.
@@ -1582,12 +1580,12 @@ fi
 if [ -n "${GATUS_URL}" ]; then
     if [ -n "${GATUS_CD_TOKEN:-}" ]; then
         if [ -n "${GATUS_DNS_SERVER}" ]; then
-            log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL}, DNS: ${GATUS_DNS_SERVER})"
+            log_info "Gatus CD reporting enabled (${GATUS_URL}, DNS: ${GATUS_DNS_SERVER})"
         else
-            log_message "INFO:  Gatus CD reporting enabled (${GATUS_URL})"
+            log_info "Gatus CD reporting enabled (${GATUS_URL})"
         fi
     else
-        log_message "WARNING: GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
+        log_warn "GATUS_URL is set but GATUS_CD_TOKEN is missing - Gatus reporting disabled"
     fi
 fi
 
@@ -1607,8 +1605,8 @@ if [ -n "${SERVER_NAME}" ]; then
             fi
         done
         if [ "${_filter_found}" -eq 0 ]; then
-            log_message "ERROR: App '${APP_FILTER}' is not assigned to server '${SERVER_NAME}' in servers.yaml"
-            log_message "ERROR: Assigned apps: ${SERVER_APPS[*]}"
+            log_error "App '${APP_FILTER}' is not assigned to server '${SERVER_NAME}' in servers.yaml"
+            log_error "Assigned apps: ${SERVER_APPS[*]}"
             exit 1
         fi
         unset _filter_found _srv_app
@@ -1627,7 +1625,7 @@ fi
 
 # Remove mode: tear down a single app and exit
 if [ -n "${REMOVE_APP}" ]; then
-    log_message "STATE: Remove mode — tearing down '${REMOVE_APP}'"
+    log_state "Remove mode — tearing down '${REMOVE_APP}'"
 
     local_compose="${BASE_DIR}/services/${REMOVE_APP}/compose.yaml"
 
@@ -1644,19 +1642,19 @@ if [ -n "${REMOVE_APP}" ]; then
         if [ -n "${SERVER_NAME}" ]; then
             override="${BASE_DIR}/services/${REMOVE_APP}/compose.${SERVER_NAME}.yaml"
             if [ -f "${override}" ]; then
-                log_message "INFO:  Applying server override: ${override}"
+                log_info "Applying server override: ${override}"
                 compose_args+=(-f "${override}")
             fi
         fi
-        log_message "STATE: Running docker compose down for '${REMOVE_APP}' (project: ${project_name})"
+        log_state "Running docker compose down for '${REMOVE_APP}' (project: ${project_name})"
         ${SUDO} docker compose "${COMPOSE_PROFILE_ARGS[@]}" "${compose_args[@]}" -p "${project_name}" down --remove-orphans || true
     else
         # Compose file already gone — fall back to label-based cleanup
-        log_message "INFO:  Compose file not found — using label-based cleanup"
+        log_info "Compose file not found — using label-based cleanup"
         remove_compose_project "${project_name}"
     fi
 
-    log_message "STATE: Done removing '${REMOVE_APP}'"
+    log_state "Done removing '${REMOVE_APP}'"
     exit 0
 fi
 
