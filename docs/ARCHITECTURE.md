@@ -66,6 +66,34 @@ services:
 - Volumes mounted `:ro` wherever the container only reads
 - **`./config` volumes must always be mounted `:ro`** — config files are git-tracked and must never be modified by a container at runtime. If a service needs to write config at runtime, copy the file from `./config` to `./data` in an init container and mount the `./data` copy read-write (see the gatus pattern). Any exception requires explicit approval and a comment in the compose file explaining why
 
+## Image Selection: Docker Hardened Images
+
+DHI images at `dhi.io/<image>:<tag>` are preferred whenever the [catalog](https://hub.docker.com/hardened-images/catalog) lists the upstream — they ship with near-zero CVEs, signed SBOMs, and SLSA Build Level 3 provenance, and are free under the Community tier (Apache 2.0). Pulls require `docker login dhi.io`; `scripts/dccd.sh` performs that login automatically when DHI credentials are present. Current DHI consumers: `services/adguard/compose.yaml` (redis), `services/alloy/compose.yaml`, `services/traefik/compose.yaml`.
+
+Two caveats apply when adopting a DHI (or any new) image — the full procedure lives in the `new-docker-app` skill at `.github/skills/new-docker-app/SKILL.md`:
+
+1. **Verify multi-arch before adoption.** This homelab runs both `svlnas` (x86_64) and `svlazext` (arm64). Confirm the catalog page lists `LINUX/AMD64` **and** `LINUX/ARM64`. DHI has previously republished tags as amd64-only manifest digests for short windows, breaking arm64 hosts (see commits `b3cfb8c`, `dbd9f59`, `d3660cb`).
+2. **Initial commit must be tag-only — no `@sha256` digest.** Renovate runs on an amd64 GitHub runner and pins the digest on its next pass. Pinning manually from a stale snapshot can lock the deployment to an amd64-only digest if the registry has not yet republished as multi-arch. The tag itself stays pinned (e.g. `8.6.2-debian13`) for reproducibility.
+
+## Healthchecks on Distroless Bases
+
+DHI and other distroless images (typically Debian-13 minimal) ship with `/bin/sh` (dash) but no `curl`, `wget`, `nc`, or `bash`. When the application itself does not expose an HTTP probe binary, verify the listener via `/proc/net/tcp` (with `/proc/net/tcp6` as IPv6 fallback) using only `sh`:
+
+```yaml
+healthcheck:
+  test:
+    - CMD
+    - sh
+    - -c
+    - grep -q ':3039 ' /proc/net/tcp || grep -q ':3039 ' /proc/net/tcp6
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 10s
+```
+
+The port is the listening port in **uppercase hex** (e.g. `12345` decimal → `3039`). The canonical example is `services/alloy/compose.yaml`. A real probe is always preferred over no healthcheck — `scripts/dccd.sh` provides a `compose_up_wait_tolerant` fallback for services that genuinely cannot expose one, but this `/proc/net/tcp` pattern covers most listener-based services.
+
 ## Volume Permissions: Init Container Pattern
 
 Named Docker volumes and bind-mounted directories are created as `root:root` by Docker. A container with a hardcoded non-root `user:` and `cap_drop: ALL` has no `CAP_CHOWN` and cannot fix this at runtime — it will fail to write on first deploy.
