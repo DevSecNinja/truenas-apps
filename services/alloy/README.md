@@ -10,6 +10,7 @@ Alloy collapses what previously required several agents into a single process:
 
 - **Host metrics** via `prometheus.exporter.unix` (the embedded `node_exporter` library — `/proc`, `/sys`, and the rootfs are bind-mounted from the host).
 - **Container logs** via `loki.source.docker`, with a `discovery.docker` step that auto-discovers running containers and promotes compose project/service labels. Reaches the Docker socket through a read-only LinuxServer socket-proxy.
+- **Traefik metrics** via `prometheus.scrape "traefik"`, targeting the local Traefik instance at `traefik:8082/metrics` over the shared `alloy-frontend` Docker network (60s interval, `host` and `job=traefik` labels added via relabeling). Per-router, per-service, and per-entrypoint label cardinality is enabled on the Traefik side. The `:8082` entrypoint is internal-only and gated by an `ipAllowList` restricted to the pinned `alloy-frontend` subnet (`172.30.100.8/29`) — see [Architecture § Alloy Metrics Scrape Entrypoint](../ARCHITECTURE.md#alloy-metrics-scrape-entrypoint).
 - **Self-observability** via `prometheus.exporter.self`.
 
 ### Out of scope

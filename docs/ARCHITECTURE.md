@@ -319,6 +319,28 @@ Other container attempting to use monitoring entrypoint:
 | `services/traefik/config/rules/middlewares.yml` | `monitoring-ipallowlist.ipAllowList.sourceRange` |
 | `services/traefik/config/traefik.yml`           | Comment documenting the subnet (for reference)   |
 
+### Alloy Metrics Scrape Entrypoint
+
+Alloy scrapes Traefik's Prometheus metrics over a second internal entrypoint, `metrics`, listening on port 8082. The entrypoint is **not host-published** — only containers on a Docker network Traefik joins can reach it. An entrypoint-level `metrics-ipallowlist@file` middleware further restricts source IPs to the `alloy-frontend` subnet (`172.30.100.8/29`), pinned in `services/alloy/compose.yaml`. This mirrors the Gatus monitoring-entrypoint security model (unpublished port + Docker network isolation + entrypoint-level `ipAllowList`).
+
+The `metrics.prometheus` block in `traefik.yml` enables `addRoutersLabels`, `addServicesLabels`, and `addEntryPointsLabels` so per-router, per-service, and per-entrypoint cardinality is exposed. Each Alloy instance scrapes the local Traefik instance running on the same host (works for both svlnas and svlazext, since Traefik's `compose.svlazext.yaml` already lists `alloy-frontend` in its network list).
+
+**Subnets and entrypoints in use:**
+
+| Entrypoint   | Port | Source range allowed                 | Purpose                            |
+| ------------ | ---- | ------------------------------------ | ---------------------------------- |
+| `monitoring` | 8444 | `gatus-frontend` (`172.30.100.0/29`) | Gatus auth-free health checks      |
+| `metrics`    | 8082 | `alloy-frontend` (`172.30.100.8/29`) | Alloy Prometheus scrape of Traefik |
+
+**Configuration locations (keep in sync when changing the subnet):**
+
+| File                                            | What to update                                      |
+| ----------------------------------------------- | --------------------------------------------------- |
+| `services/alloy/compose.yaml`                   | `alloy-frontend` network `ipam.config[0].subnet`    |
+| `services/traefik/config/rules/middlewares.yml` | `metrics-ipallowlist.ipAllowList.sourceRange`       |
+| `services/traefik/config/traefik.yml`           | `metrics` entrypoint address + `metrics.prometheus` |
+| `services/alloy/config/config.alloy`            | `prometheus.scrape "traefik"` target host:port      |
+
 ## Docker Socket Proxy
 
 Services never mount `/var/run/docker.sock` directly. Instead, each gets its own [LinuxServer socket-proxy](https://github.com/linuxserver/docker-socket-proxy) instance with minimal permissions:

@@ -31,9 +31,24 @@ entryPoints:
     http:
       middlewares:
         - monitoring-ipallowlist@file
+  # Internal-only entrypoint for Prometheus metrics scraping by Alloy. Not
+  # published to the host; only reachable via the alloy-frontend Docker
+  # network. An entrypoint-level ipAllowList restricts access to the
+  # alloy-frontend subnet (172.30.100.8/29) so that no other container on a
+  # frontend network Traefik joins can scrape /metrics (which exposes router,
+  # service, and entrypoint topology).
+  metrics:
+    address: ":8082"
+    http:
+      middlewares:
+        - metrics-ipallowlist@file
 
 metrics:
   prometheus:
+    entryPoint: metrics
+    addRoutersLabels: true
+    addServicesLabels: true
+    addEntryPointsLabels: true
     buckets:
       - 0.1
       - 0.3

@@ -22,7 +22,7 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 - **Image**: [traefik](https://github.com/traefik/traefik) (official)
 - **User/Group**: `3100:3100` (`svc-app-traefik`)
 - **Networks**: Joins every service's frontend network individually for per-service isolation (see [Architecture](../ARCHITECTURE.md#networking-per-service-isolation))
-- **Ports**: `80` (HTTP → HTTPS redirect), `443` (HTTPS), `8444` (internal monitoring entrypoint — not published)
+- **Ports**: `80` (HTTP → HTTPS redirect), `443` (HTTPS), `8444` (internal monitoring entrypoint — not published), `8082` (internal metrics entrypoint — not published)
 - **Reverse proxy**: Self-proxied dashboard with `chain-auth@file` middleware
 
 ### Key Features
@@ -31,6 +31,7 @@ Exposing 20+ services to the network without a reverse proxy would mean managing
 - **Docker provider**: Auto-discovers services from Docker labels via socket proxy
 - **Per-service networks**: Each service gets its own frontend network — containers can only talk to Traefik, not to each other
 - **Monitoring entrypoint**: Port 8444 with IP allowlist restricted to the `gatus-frontend` subnet for auth-free health checks
+- **Metrics entrypoint**: Port 8082 with IP allowlist restricted to the `alloy-frontend` subnet — Prometheus scrape target for Alloy (per-router / per-service / per-entrypoint labels enabled)
 
 ### Services
 
