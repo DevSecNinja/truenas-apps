@@ -3,21 +3,9 @@ name: Tests
 
 on:
   pull_request:
-    paths:
-      - "scripts/**"
-      - "tests/**"
-      - ".github/workflows/test.yml"
-      - ".github/workflows/bats.yml"
-      - ".github/workflows/bats-e2e.yml"
   push:
     branches:
       - main
-    paths:
-      - "scripts/**"
-      - "tests/**"
-      - ".github/workflows/test.yml"
-      - ".github/workflows/bats.yml"
-      - ".github/workflows/bats-e2e.yml"
   workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow -- no artifacts produced
 
 concurrency:
