@@ -906,6 +906,10 @@ redeploy_compose_file() {
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
             if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
                 log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+                if [ -n "${deploy_output}" ]; then
+                    # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
+                    echo "${deploy_output}" | sed 's/^/  /'
+                fi
                 if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                     log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
                 fi
@@ -923,6 +927,10 @@ redeploy_compose_file() {
         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
         if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
+            if [ -n "${deploy_output}" ]; then
+                # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
+                echo "${deploy_output}" | sed 's/^/  /'
+            fi
             if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                 log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
             fi
