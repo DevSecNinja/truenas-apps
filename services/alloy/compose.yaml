@@ -28,8 +28,12 @@ services:
       - ./data:/data
 
   alloy:
-    # renovate: datasource=docker depName=grafana/alloy
-    image: docker.io/grafana/alloy:v1.16.0@sha256:6e00cf7c5a692ff5f24844529416ed017d76fce922f8199004e73d5eca46b6b8
+    # Docker Hardened Image (DHI) variant of grafana/alloy on Debian 13.
+    # Pulled from the dhi/ namespace on Docker Hub — requires the host to be
+    # logged in to a Docker Hub account entitled to DHI.
+    # See: https://hub.docker.com/hardened-images/catalog/dhi/alloy
+    # renovate: datasource=docker depName=dhi/alloy
+    image: docker.io/dhi/alloy:1-debian13@sha256:cd4fba2a0fd62b3a4fea5a3f5e05851b2863ef04c6e9e16e1fb884be79bdd5d1
     container_name: alloy
     command:
       - "run"
@@ -84,19 +88,16 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
     healthcheck:
-      # The Alloy image (Ubuntu noble) does not include wget or curl, so we
-      # use bash's built-in /dev/tcp to probe the HTTP listener on :12345.
-      # The listener is only opened once Alloy has loaded its config and
-      # components, so a successful TCP open is a meaningful liveness signal.
-      test:
-        - "CMD"
-        - "bash"
-        - "-c"
-        - "exec 3<>/dev/tcp/localhost/12345"
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      # The DHI Debian-13 base provides /bin/sh (dash) but no bash, wget, curl,
+      # or netcat — so there is no in-container probe we can reliably use.
+      # Liveness is therefore monitored externally:
+      #   - Gatus probes https://alloy.${DOMAINNAME}/-/ready every 60s
+      #   - Traefik logs every request
+      #   - Alloy self-metrics (alloy_* in Grafana Cloud) cover health
+      # `dccd.sh --wait` falls back to "container started" when no healthcheck
+      # is defined, which is sufficient here because Alloy refuses to bind its
+      # HTTP listener on :12345 unless the config parsed successfully.
+      disable: true
     labels:
       # Homepage
       - homepage.group=Infrastructure

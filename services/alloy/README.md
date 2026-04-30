@@ -34,7 +34,7 @@ See [issue #15](https://github.com/DevSecNinja/truenas-apps/issues/15) for the f
 
 ## Architecture
 
-- **Image**: [`grafana/alloy`](https://hub.docker.com/r/grafana/alloy) (Debian-based)
+- **Image**: [`dhi/alloy`](https://hub.docker.com/hardened-images/catalog/dhi/alloy) (Docker Hardened Image, Debian 13 base) — minimal rootfs, no shell beyond `/bin/sh` (dash), continuously rebuilt against patched bases. Requires the host to be logged in to a DHI-entitled Docker Hub account.
 - **User/Group**: `3125:3125` (`svc-app-alloy`)
 - **Networks**: `alloy-frontend` (Traefik-facing, also used for outbound Grafana Cloud traffic), `alloy-backend` (internal — Docker socket proxy)
 - **Reverse proxy**: Traefik with `chain-auth@file` (SSO required)
@@ -50,7 +50,7 @@ See [issue #15](https://github.com/DevSecNinja/truenas-apps/issues/15) for the f
 ### Volumes
 
 - `./config:/etc/alloy:ro` — `config.alloy` (git-tracked, read-only)
-- `./data:/var/lib/alloy/data` — WAL + queue (gitignored, chowned by init container)
+- `./data:/var/lib/alloy` — Alloy state directory; Alloy creates `data/` (WAL + queue) and `remotecfg/` subdirectories at startup (gitignored, chowned by init container)
 - `/:/host/rootfs:ro,rslave`, `/proc:/host/proc:ro`, `/sys:/host/sys:ro` — host filesystem visibility for `prometheus.exporter.unix`
 
 ### Resource footprint
