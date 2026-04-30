@@ -1,6 +1,6 @@
 # Grafana Alloy
 
-[Grafana Alloy](https://grafana.com/oss/alloy/) is a unified telemetry collector. One agent ships **host metrics**, **container metrics**, and **container logs** to [Grafana Cloud](https://grafana.com/products/cloud/) — replacing what would otherwise be three separate processes (node_exporter, cAdvisor, Promtail).
+[Grafana Alloy](https://grafana.com/oss/alloy/) is a unified telemetry collector. One agent ships **host metrics** and **container logs** to [Grafana Cloud](https://grafana.com/products/cloud/) — replacing what would otherwise be two separate processes (node_exporter, Promtail). Per-container metrics are deferred to a later phase of #15 (see [Out of scope](#out-of-scope) below).
 
 ## Why
 
@@ -9,9 +9,12 @@ The lab needs trend-based visibility (per-container CPU/memory over weeks, host 
 Alloy collapses what previously required several agents into a single process:
 
 - **Host metrics** via `prometheus.exporter.unix` (the embedded `node_exporter` library — `/proc`, `/sys`, and the rootfs are bind-mounted from the host).
-- **Container metrics** via `otelcol.receiver.docker_stats`, polling the Docker `/stats` API through a read-only socket-proxy. Significantly lighter than cAdvisor — no cgroup walking, no per-container exporter — while covering everything we actually graph (CPU, memory, network, blkio).
-- **Container logs** via `loki.source.docker`, with a `discovery.docker` step that auto-discovers running containers and promotes compose project/service labels.
+- **Container logs** via `loki.source.docker`, with a `discovery.docker` step that auto-discovers running containers and promotes compose project/service labels. Reaches the Docker socket through a read-only LinuxServer socket-proxy.
 - **Self-observability** via `prometheus.exporter.self`.
+
+### Out of scope
+
+**Per-container metrics** (CPU, memory, network per container) are deliberately deferred. Alloy's only built-in option is `prometheus.exporter.cadvisor`, which wraps the embedded cAdvisor library and requires `privileged: true` plus mounts on `/sys`, `/var/lib/docker`, `/dev/disk`, and `/var/run` — conflicting with the hardened-container posture used elsewhere in this repo. Container logs already surface the signals that matter for alerting (restarts, OOM, crashes), so this is a deliberate Phase 2 decision rather than an oversight.
 
 Everything is shipped to **Grafana Cloud Free** (Frankfurt region) — Prometheus for metrics, Loki for logs, Grafana for dashboards and alerting.
 

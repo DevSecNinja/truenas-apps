@@ -102,45 +102,22 @@ prometheus.relabel "host" {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Container metrics — otelcol.receiver.docker_stats
+// Container metrics — DEFERRED to a later phase of #15.
 //
-// Polls the Docker /stats API via the local socket-proxy. Significantly
-// lighter than cAdvisor (no cgroup walking, no per-container exporter) and
-// covers everything we actually graph (CPU, memory, network, blkio).
+// There is no `otelcol.receiver.docker_stats` component in Alloy (the OTel
+// `dockerstatsreceiver` is part of upstream collector-contrib but was never
+// wrapped as an Alloy component). The available alternative is
+// `prometheus.exporter.cadvisor`, which the embedded cAdvisor library powers —
+// but cAdvisor wants `privileged: true` plus several host mounts (`/sys`,
+// `/var/lib/docker`, `/dev/disk`, `/var/run`), which conflicts with the
+// hardened-container posture used elsewhere in this repo.
+//
+// For now we ship only host metrics + container logs. Container logs already
+// surface the signals that matter for alerting (restarts, OOM, crashes).
+// Per-container CPU/memory dashboards are a deliberate Phase 2 decision —
+// either run a hardened cAdvisor with the necessary mounts, or accept that
+// host-level metrics + log-based detection is enough for a home lab.
 ////////////////////////////////////////////////////////////////////////////////
-
-otelcol.receiver.docker_stats "containers" {
-	endpoint            = "tcp://alloy-docker-proxy:2375"
-	collection_interval = "30s"
-	api_version         = "1.43"
-
-	output {
-		metrics = [otelcol.processor.batch.docker.input]
-	}
-}
-
-otelcol.processor.batch "docker" {
-	output {
-		metrics = [otelcol.exporter.prometheus.docker.input]
-	}
-}
-
-otelcol.exporter.prometheus "docker" {
-	forward_to = [prometheus.relabel.docker.receiver]
-}
-
-prometheus.relabel "docker" {
-	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
-
-	rule {
-		target_label = "host"
-		replacement  = sys.env("HOSTNAME_OVERRIDE")
-	}
-	rule {
-		target_label = "job"
-		replacement  = "docker"
-	}
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Container logs — loki.source.docker
