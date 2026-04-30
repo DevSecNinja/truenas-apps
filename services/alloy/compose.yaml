@@ -74,8 +74,11 @@ services:
     volumes:
       # Config (git-tracked, read-only) — never chown'd by the init container
       - ./config:/etc/alloy:ro
-      # WAL + queue (writable, gitignored)
-      - ./data:/var/lib/alloy/data
+      # Alloy state (WAL, queue, remotecfg cache) — mounted at the parent so
+      # Alloy can mkdir its own subdirectories (data/, remotecfg/) at startup.
+      # `read_only: true` makes the rest of /var/lib/alloy in the image read-only,
+      # so Alloy must own a writable parent for any path it tries to create.
+      - ./data:/var/lib/alloy
       # Host filesystem mounts for prometheus.exporter.unix (host metrics)
       - /:/host/rootfs:ro,rslave
       - /proc:/host/proc:ro
