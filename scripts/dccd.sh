@@ -520,27 +520,25 @@ log_image_changes() {
         return
     fi
 
-    local sep="========================================"
-    log_info "${sep}"
-
     if [ -z "${before}" ]; then
-        log_result "${app_name}: Initial deployment:"
+        log_rule RESULT "${app_name}"
+        log_result "Initial deployment:"
         while IFS= read -r line; do
             local svc="${line%%=*}"
             local img="${line#*=}"
             log_result "${svc}: ${img}"
         done <<<"${after}"
-        log_info "${sep}"
         return
     fi
 
     if [ "${before}" = "${after}" ]; then
-        log_result "${app_name}: No updates (images unchanged)"
-        log_info "${sep}"
+        log_rule RESULT "${app_name}"
+        log_result "No updates (images unchanged)"
         return
     fi
 
-    log_result "${app_name}: Image changes detected!"
+    log_rule RESULT "${app_name}"
+    log_result "Image changes detected!"
     while IFS= read -r after_line; do
         local svc="${after_line%%=*}"
         local after_img="${after_line#*=}"
@@ -557,7 +555,6 @@ log_image_changes() {
             log_result "to:   ${after_img}"
         fi
     done <<<"${after}"
-    log_info "${sep}"
 }
 
 redeploy_truenas_apps() {
@@ -1214,8 +1211,7 @@ update_compose_files() {
     fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
-        local sep="========================================"
-        log_info "${sep}"
+        log_banner "Deployment Summary" RESULT
         local succeeded
         succeeded=$((_DEPLOY_ATTEMPTED - _DEPLOY_ERRORS))
         if [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
@@ -1231,7 +1227,6 @@ update_compose_files() {
         if [ "$((_DEPLOY_CHANGED + _DEPLOY_UNCHANGED))" -gt 0 ]; then
             log_result "${_DEPLOY_CHANGED} changed, ${_DEPLOY_UNCHANGED} unchanged"
         fi
-        log_info "${sep}"
     fi
 
     local end_time elapsed_time
