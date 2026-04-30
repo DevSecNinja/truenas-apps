@@ -8,9 +8,6 @@
 # - Labels: removes svlnas-specific redirect, adjusts dashboard hostname
 services:
   traefik:
-    # See adguard/compose.svlazext.yaml for rationale (DHI digest is
-    # amd64-only on arm64 host — use tag to resolve via manifest list).
-    image: dhi.io/traefik:3.6.14-debian13
     networks: !override
       - traefik-backend
       - adguard-frontend

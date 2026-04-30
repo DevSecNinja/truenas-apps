@@ -1,20 +1,10 @@
 ---
-# Server-specific compose override for svlazext (Azure DNS/VPN VM, arm64).
+# Server-specific compose override for svlazext (Azure DNS/VPN VM).
 # Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
 #
 # Overrides:
 # - Labels: adjusts dashboard hostname for the svlazext instance
-# - Image: drops the DHI digest pin for redis. Renovate captures DHI digests
-#   from an amd64 runner, which are per-platform manifest digests rather
-#   than multi-arch manifest-list digests. Pulling those by digest forces
-#   amd64 even on arm64 hosts (svlazext is arm64), producing emulated
-#   binaries that fail healthchecks. Using the tag without digest lets
-#   Docker resolve via the manifest list to the correct arch. The DHI
-#   tag itself remains version-pinned, so reproducibility is preserved
-#   at the tag level (only the immutable digest pin is dropped).
 services:
-  adguard-redis:
-    image: dhi.io/redis:8.6.2-debian13
   adguard:
     labels: !override
       - homepage.group=Infrastructure

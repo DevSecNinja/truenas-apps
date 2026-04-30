@@ -9,9 +9,6 @@
 #   distinguish the Homepage tile.
 services:
   alloy:
-    # See adguard/compose.svlazext.yaml for rationale (DHI digest is
-    # amd64-only on arm64 host — use tag to resolve via manifest list).
-    image: dhi.io/alloy:1.16.0-debian13
     environment:
       - HOSTNAME_OVERRIDE=svlazext
     labels: !override

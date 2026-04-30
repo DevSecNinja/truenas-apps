@@ -34,7 +34,9 @@ services:
     # entitled to DHI).
     # See: https://hub.docker.com/hardened-images/catalog/dhi/alloy
     # renovate: datasource=docker depName=dhi.io/alloy
-    image: dhi.io/alloy:1.16.0-debian13@sha256:cd4fba2a0fd62b3a4fea5a3f5e05851b2863ef04c6e9e16e1fb884be79bdd5d1
+    # NOTE: DHI digest intentionally not pinned — see services/adguard/compose.yaml
+    # for rationale (multi-arch manifest list resolution on arm64 hosts).
+    image: dhi.io/alloy:1.16.0-debian13
     container_name: alloy
     command:
       - "run"
