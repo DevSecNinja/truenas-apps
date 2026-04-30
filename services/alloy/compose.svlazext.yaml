@@ -2,11 +2,40 @@
 # Server-specific compose override for svlazext (Azure VM).
 # Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
 #
-# Overrides only the HOSTNAME_OVERRIDE label so metrics/logs from this host
-# get the correct `host="svlazext"` label in Grafana Cloud. Everything else
-# (image, volumes, security options, healthcheck, Traefik labels) is identical
-# to the base compose file.
+# Overrides:
+# - HOSTNAME_OVERRIDE so metrics/logs from this host get the correct
+#   `host="svlazext"` label in Grafana Cloud.
+# - Labels: route Traefik via the svlazext-only DNS name (alloy-ext.*) and
+#   distinguish the Homepage tile.
 services:
   alloy:
     environment:
       - HOSTNAME_OVERRIDE=svlazext
+    labels: !override
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Alloy (svlazext)
+      - homepage.icon=alloy.svg
+      - homepage.href=https://alloy-ext.${DOMAINNAME}
+      - homepage.description=Telemetry collector (svlazext)
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=alloy-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.alloy-rtr.rule=Host(`alloy-ext.${DOMAINNAME}`)"
+      - "traefik.http.routers.alloy-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.alloy-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.alloy-rtr.service=alloy-svc"
+      - "traefik.http.services.alloy-svc.loadbalancer.server.port=12345"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.alloy-monitor.rule=Host(`alloy-ext.${DOMAINNAME}`)"
+      - "traefik.http.routers.alloy-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.alloy-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.alloy-monitor.service=alloy-svc"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/-/ready"
+      - "gatus.headers.Host=alloy-ext.${DOMAINNAME}"
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"

@@ -103,7 +103,7 @@ services:
       # Homepage
       - homepage.group=Infrastructure
       - homepage.name=Alloy
-      - homepage.icon=grafana-alloy.svg
+      - homepage.icon=alloy.svg
       - homepage.href=https://alloy.${DOMAINNAME}
       - homepage.description=Telemetry collector (metrics, logs)
       # Traefik
