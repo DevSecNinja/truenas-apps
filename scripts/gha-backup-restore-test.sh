@@ -132,19 +132,21 @@ decrypt_and_decompress() {
     local compressed="${enc_file%.gpg}"
     local dump_file
 
-    log_info "Decrypting ${enc_file} with gpg..."
+    # NOTE: this function returns the dump path on stdout, so all log output
+    # must go to stderr to avoid polluting the captured value.
+    log_info "Decrypting ${enc_file} with gpg..." >&2
     gpg --batch --passphrase "${ENC_PASSPHRASE}" \
         --output "${compressed}" --decrypt "${enc_file}" >/dev/null 2>&1
 
     case "${compressed}" in
     *.zst)
         dump_file="${compressed%.zst}"
-        log_info "Decompressing ${compressed} with zstd..."
+        log_info "Decompressing ${compressed} with zstd..." >&2
         zstd -df "${compressed}" -o "${dump_file}" >/dev/null
         ;;
     *.gz)
         dump_file="${compressed%.gz}"
-        log_info "Decompressing ${compressed} with gzip..."
+        log_info "Decompressing ${compressed} with gzip..." >&2
         gunzip -c "${compressed}" >"${dump_file}"
         ;;
     *)
