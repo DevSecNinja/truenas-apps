@@ -142,6 +142,7 @@ services:
       - CONTAINERS=1 # Required: discover containers for log/stats collection
       - EVENTS=1 # Required: react to container start/stop events
       - INFO=1 # Required: read Docker engine info for daemon-level metrics
+      - NETWORKS=1 # Required: discovery.docker queries /networks to compute network labels
       - PING=1 # Required: socket-proxy healthcheck endpoint
       - VERSION=1 # Required: Docker API version negotiation
       - POST=0 # Disallow any POST operations (effectively read-only)
