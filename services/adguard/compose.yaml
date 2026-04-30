@@ -41,11 +41,6 @@ services:
   adguard-redis:
     # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
     # Same Redis version (8.6.2) as the previous alpine variant; runs as nonroot (UID 65532).
-    # NOTE: DHI digest intentionally not pinned. Renovate runs on an amd64
-    # GitHub runner and the digest it captures from dhi.io points at the
-    # amd64-only per-platform manifest, which forces amd64 even on arm64
-    # hosts (e.g. svlazext). Using only the version tag lets Docker resolve
-    # via the multi-arch manifest list to the correct arch on each host.
     image: dhi.io/redis:8.6.2-debian13@sha256:ed5e2e3edeed2962bccb7e6f71cfe1c0b0a6537d6754c8969d6d39c9430f2f03
     container_name: adguard-redis
     # --save "" disables RDB snapshots — Redis is used only as an ephemeral DNS
