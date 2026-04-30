@@ -26,9 +26,15 @@ metrics:
     title: Load (1m)
     valueTemplate: '{{ printf "%.2f" . }}'
     colors:
-      - { color: "green", min: 0, max: 4 }
-      - { color: "orange", min: 4.01, max: 8 }
-      - { color: "red", min: 8.01, max: 9999 }
+      - color: "green"
+        min: 0
+        max: 4
+      - color: "orange"
+        min: 4.01
+        max: 8
+      - color: "red"
+        min: 8.01
+        max: 9999
 
   # Free space percentage on the apps pool root filesystem
   - name: host_disk_free_pct
@@ -40,9 +46,15 @@ metrics:
     suffix: "%"
     valueTemplate: '{{ printf "%.0f" . }}'
     colors:
-      - { color: "red", min: 0, max: 9.99 }
-      - { color: "orange", min: 10, max: 24.99 }
-      - { color: "green", min: 25, max: 100 }
+      - color: "red"
+        min: 0
+        max: 9.99
+      - color: "orange"
+        min: 10
+        max: 24.99
+      - color: "green"
+        min: 25
+        max: 100
 
   # ---------------------------------------------------------------------------
   # CD pipeline metrics — REQUIRES a follow-up integration:
@@ -63,9 +75,15 @@ metrics:
     valueTemplate: "{{ . | humanDuration }}"
     suffix: " ago"
     colors:
-      - { color: "green", min: 0, max: 86400 }
-      - { color: "orange", min: 86401, max: 172800 }
-      - { color: "red", min: 172801, max: 99999999 }
+      - color: "green"
+        min: 0
+        max: 86400
+      - color: "orange"
+        min: 86401
+        max: 172800
+      - color: "red"
+        min: 172801
+        max: 99999999
 
   - name: compose_last_success
     hidden: true
@@ -74,17 +92,29 @@ metrics:
     valueTemplate: "{{ . | humanDuration }}"
     suffix: " ago"
     colors:
-      - { color: "green", min: 0, max: 86400 }
-      - { color: "orange", min: 86401, max: 172800 }
-      - { color: "red", min: 172801, max: 99999999 }
+      - color: "green"
+        min: 0
+        max: 86400
+      - color: "orange"
+        min: 86401
+        max: 172800
+      - color: "red"
+        min: 172801
+        max: 99999999
 
   - name: compose_update_status
     hidden: true
     query: "dccd_last_run_success"
     title: CD Status
     colors:
-      - { color: "green", min: 1, max: 1, valueOverride: "Success" }
-      - { color: "red", min: 0, max: 0, valueOverride: "Failed" }
+      - color: "green"
+        min: 1
+        max: 1
+        valueOverride: "Success"
+      - color: "red"
+        min: 0
+        max: 0
+        valueOverride: "Failed"
 
   # ---------------------------------------------------------------------------
   # Container metrics — REQUIRES Issue #15 Phase 2 (cAdvisor scrape in Alloy).
