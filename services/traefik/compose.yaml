@@ -42,7 +42,7 @@ services:
     # Runs as nonroot (UID 65532) by default; overridden to 3100:3100 via user: below.
     # NOTE: DHI digest intentionally not pinned — see services/adguard/compose.yaml
     # for rationale (multi-arch manifest list resolution on arm64 hosts).
-    image: dhi.io/traefik:3.6.14-debian13
+    image: dhi.io/traefik:3.6.14-debian13@sha256:b71ffbb608f77f14c6b14290096670e9c2a51df5d8247710b8eac6ac4142025a
     container_name: traefik
     depends_on:
       traefik-init:
