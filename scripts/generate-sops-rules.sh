@@ -310,10 +310,11 @@ if [ "${UPDATE_KEYS}" -eq 1 ]; then
         log_result "Updated keys on ${update_count} file(s), ${update_errors} failed"
     fi
 else
-    log_hint "Next steps:"
-    log_hint "  1. Review the generated .sops.yaml"
-    log_hint "  2. Run '$0 -d ${BASE_DIR} -u' or 'sops updatekeys' on each secret file"
-    log_hint "  3. For new per-server files, create them plaintext then encrypt:"
-    log_hint "     sops -e -i services/<app>/secret.<server>.sops.env"
-    log_hint "  4. Commit the updated .sops.yaml and re-encrypted secret files"
+    printf '%s\n' \
+        "1. Review the generated .sops.yaml" \
+        "2. Run '$0 -d ${BASE_DIR} -u' or 'sops updatekeys' on each secret file" \
+        "3. For new per-server files, create them plaintext then encrypt:" \
+        "     sops -e -i services/<app>/secret.<server>.sops.env" \
+        "4. Commit the updated .sops.yaml and re-encrypted secret files" |
+        log_data HINT "Next steps"
 fi

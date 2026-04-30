@@ -52,9 +52,10 @@ if [[ "${MODE}" == "check" ]]; then
     missing=()
     collect_missing missing
 
-    for name in "${missing[@]}"; do
-        log_warn "NO DATASET: ${name}  (${SERVICES_PATH}/${name})"
-    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        printf '%s\n' "${missing[@]}" |
+            log_data WARN "Service directories without a dedicated ZFS dataset"
+    fi
 
     if [[ ${#missing[@]} -eq 0 ]]; then
         log_result "All service directories have a dedicated ZFS dataset."
@@ -78,10 +79,8 @@ if [[ ${#missing[@]} -eq 0 ]]; then
     exit 0
 fi
 
-log_info "The following ${#missing[@]} service(s) have no dedicated dataset:"
-for name in "${missing[@]}"; do
-    log_info "  - ${name}"
-done
+printf '%s\n' "${missing[@]}" |
+    log_data INFO "The following ${#missing[@]} service(s) have no dedicated dataset"
 
 read -r -p "Proceed with the fix workflow? [y/N] " confirm
 if [[ "${confirm}" != [yY] ]]; then
@@ -94,8 +93,8 @@ log_step "Step 1/4: Stopping Docker Compose projects"
 for name in "${missing[@]}"; do
     compose_file="${SERVICES_PATH}/${name}/compose.yaml"
     if [[ -f "${compose_file}" ]]; then
-        log_state "Stopping ${name}..."
-        docker compose -f "${compose_file}" down --timeout 30 2>&1 | sed 's/^/    /'
+        docker compose -f "${compose_file}" down --timeout 30 2>&1 |
+            log_data STATE "Stopping ${name}"
     else
         log_warn "Skipping ${name} (no compose.yaml found)"
     fi
@@ -114,15 +113,14 @@ done
 log_step "Step 3/4: Create datasets now"
 log_hint "Go to the TrueNAS UI and create a dataset for each service listed below."
 log_hint "The dataset mountpoint must match the original path exactly."
-log_info "Datasets to create:"
 for name in "${missing[@]}"; do
-    log_info "  ${SERVICES_PATH}/${name}"
-done
+    printf '%s/%s\n' "${SERVICES_PATH}" "${name}"
+done | log_data INFO "Datasets to create"
 
 read -r -p "Press ENTER when all datasets have been created..." _
 
 # Verify datasets were created
-log_state "Verifying datasets..."
+log_state "Verifying datasets"
 not_created=()
 for name in "${missing[@]}"; do
     if ! zfs list -H -o mountpoint 2>/dev/null | grep -qx "${SERVICES_PATH}/${name}"; then
@@ -131,10 +129,9 @@ for name in "${missing[@]}"; do
 done
 
 if [[ ${#not_created[@]} -gt 0 ]]; then
-    log_warn "The following datasets were NOT detected:"
     for name in "${not_created[@]}"; do
-        log_warn "  - ${name}  (expected mountpoint: ${SERVICES_PATH}/${name})"
-    done
+        printf -- '- %s  (expected mountpoint: %s/%s)\n' "${name}" "${SERVICES_PATH}" "${name}"
+    done | log_data WARN "The following datasets were NOT detected"
     read -r -p "Continue anyway? Data will be moved but may not be on a dataset. [y/N] " confirm
     if [[ "${confirm}" != [yY] ]]; then
         log_error "Aborted. Your data is still in the -tmp directories."

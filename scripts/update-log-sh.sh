@@ -17,11 +17,17 @@ LOG_SH_SHA_URL="https://github.com/DevSecNinja/dotfiles/releases/download/v0.1.2
 DEST_DIR="$(cd "$(dirname "$0")" && pwd)/lib"
 mkdir -p "${DEST_DIR}"
 
-echo "Fetching ${LOG_SH_URL}"
+# Source log.sh from the existing vendored copy (refreshed below).
+# shellcheck source=lib/log.sh disable=SC1091
+. "${DEST_DIR}/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="update-log-sh"
+
+log_state "Fetching ${LOG_SH_URL}"
 curl -fsSL -o "${DEST_DIR}/log.sh" "${LOG_SH_URL}"
 curl -fsSL -o "${DEST_DIR}/log.sh.sha256" "${LOG_SH_SHA_URL}"
 
-echo "Verifying checksum..."
+log_state "Verifying checksum"
 (cd "${DEST_DIR}" && sha256sum -c log.sh.sha256)
 
-echo "log.sh installed at ${DEST_DIR}/log.sh"
+log_result "log.sh installed at ${DEST_DIR}/log.sh"

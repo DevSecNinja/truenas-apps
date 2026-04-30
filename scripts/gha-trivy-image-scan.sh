@@ -11,6 +11,12 @@
 
 set -euo pipefail
 
+_TRIVY_SCAN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_TRIVY_SCAN_DIR}/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="trivy-image-scan"
+
 # sarif-tmp/ holds the per-image working files; sarif-output/ holds only the
 # final merged trivy-images.sarif that the workflow uploads.
 mkdir -p sarif-tmp sarif-output
@@ -21,7 +27,7 @@ mkdir -p sarif-tmp sarif-output
 while IFS= read -r full_image; do
     slug=$(echo "${full_image}" | tr '/:@' '_' | tr -cd '[:alnum:]_-')
     outfile="sarif-tmp/${slug}.sarif"
-    echo "Scanning ${full_image}..."
+    log_state "Scanning ${full_image}"
     if mise exec -- trivy image \
         --scanners vuln \
         --ignore-unfixed \
@@ -32,11 +38,11 @@ while IFS= read -r full_image; do
         # Validate that the output is parseable SARIF before keeping it.
         # Trivy may write a partial/empty file on non-fatal errors.
         if ! jq -e '.runs[0]' "${outfile}" >/dev/null 2>&1; then
-            echo "  WARN: ${outfile} is not valid SARIF, discarding"
+            log_warn "${outfile} is not valid SARIF, discarding"
             rm -f "${outfile}"
         fi
     else
-        echo "  WARN: trivy scan failed for ${full_image}, skipping"
+        log_warn "trivy scan failed for ${full_image}, skipping"
         rm -f "${outfile}"
     fi
 done < <(
@@ -52,7 +58,7 @@ done < <(
 mapfile -t sarif_files < <(find sarif-tmp -name '*.sarif' | sort)
 
 if [ "${#sarif_files[@]}" -eq 0 ]; then
-    echo "No valid SARIF files produced — all scans skipped or failed."
+    log_warn "No valid SARIF files produced — all scans skipped or failed"
     # Emit a minimal valid empty SARIF so the upload-sarif action does not error.
     # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
     # shellcheck disable=SC2016
@@ -78,4 +84,5 @@ else
 
     # Remove the per-image working files; sarif-output/ now has only trivy-images.sarif.
     rm -rf sarif-tmp
+    log_result "Merged ${#sarif_files[@]} SARIF file(s) into sarif-output/trivy-images.sarif"
 fi
