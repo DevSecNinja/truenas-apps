@@ -11,22 +11,25 @@ teardown() {
     common_teardown
 }
 
-@test "quiet mode: log_message buffers when QUIET=1" {
+@test "quiet mode: log helpers buffer when enable_quiet_mode is active" {
     QUIET=1
     _QUIET_BUF="$(mktemp)"
-    log_message "INFO:  First message"
-    log_message "INFO:  Second message"
+    enable_quiet_mode
+    log_info "First message"
+    log_info "Second message"
     # stdout should be empty
     run cat "${_QUIET_BUF}"
     assert_output --partial "First message"
     assert_output --partial "Second message"
+    flush_output_buffer >/dev/null 2>&1
     rm -f "${_QUIET_BUF}"
 }
 
 @test "quiet mode: flush_output_buffer writes to stdout" {
     QUIET=1
     _QUIET_BUF="$(mktemp)"
-    log_message "INFO:  Buffered content"
+    enable_quiet_mode
+    log_info "Buffered content"
     run flush_output_buffer
     assert_output --partial "Buffered content"
     rm -f "${_QUIET_BUF}"
@@ -34,7 +37,7 @@ teardown() {
 
 @test "quiet mode: normal mode writes directly to stdout" {
     QUIET=0
-    run log_message "INFO:  Direct output"
+    run log_info "Direct output"
     assert_output --partial "Direct output"
 }
 
@@ -48,7 +51,8 @@ teardown() {
 @test "quiet mode: buffer is truncated after flush" {
     QUIET=1
     _QUIET_BUF="$(mktemp)"
-    log_message "INFO:  Data"
+    enable_quiet_mode
+    log_info "Data"
     flush_output_buffer >/dev/null 2>&1
     run flush_output_buffer
     # Second flush should have nothing

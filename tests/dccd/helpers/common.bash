@@ -30,7 +30,7 @@ common_setup() {
     # Prepend mock bin to PATH
     export PATH="${MOCK_BIN}:${PATH}"
 
-    # Create default mocks for logger and date (used by log_message)
+    # Create default mocks for logger and date (used by log.sh)
     cat >"${MOCK_BIN}/logger" <<'MOCK'
 #!/bin/bash
 exit 0

@@ -13,7 +13,7 @@ permissions:
 jobs:
   # --- Centralized reusable lint workflow from DevSecNinja/.github ---
   lint:
-    uses: DevSecNinja/.github/.github/workflows/lint.yml@e744bc05bb096d6356cc913900ff62482e656046 # main
+    uses: DevSecNinja/.github/.github/workflows/lint.yml@0c4551a1ebe5f5332511514e4d45a9bb4df2df09 # main
     permissions:
       contents: read
       security-events: write
@@ -21,8 +21,33 @@ jobs:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.4.15"
       lint-config-drift: false
+      # Vendored upstream libraries (e.g. scripts/lib/log.sh from
+      # DevSecNinja/dotfiles) are excluded from shell linting/formatting.
+      lint-shellcheck-exclude: "scripts/lib/*"
+      lint-shfmt-exclude: "scripts/lib/*"
 
   # --- Repo-specific jobs (not centralized) ---
+  vendored-libs-in-sync:
+    name: vendored libs in sync
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Verify scripts/lib/log.sh checksum
+        run: cd scripts/lib && sha256sum -c log.sh.sha256
+
+      - name: Re-run vendor refresher and check for drift
+        run: |
+          bash scripts/update-log-sh.sh
+          if ! git diff --exit-code -- scripts/lib/; then
+            echo "::error::scripts/lib/ is out of sync with the URL pinned in scripts/update-log-sh.sh"
+            echo "Run 'bash scripts/update-log-sh.sh' locally and commit the result."
+            exit 1
+          fi
+
   docker-compose-config:
     name: docker compose config
     runs-on: ubuntu-24.04

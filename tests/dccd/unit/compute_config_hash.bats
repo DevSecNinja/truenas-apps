@@ -13,7 +13,7 @@
 #   - returns "" when the label is absent
 #
 # The function uses real find/sort/sha256sum/xargs — no mocking needed for those.
-# We keep the logger/date mocks from common_setup so log_message doesn't fail.
+# We keep the logger/date mocks from common_setup so log.sh helpers don't fail.
 
 setup() {
     load '../helpers/common'

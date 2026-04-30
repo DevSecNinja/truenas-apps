@@ -19,8 +19,8 @@ teardown() {
     assert_output --partial "No *.sops.env files found"
 }
 
-@test "edge case: log_message handles empty string" {
-    run log_message ""
+@test "edge case: log_info handles empty string" {
+    run log_info ""
     assert_success
 }
 

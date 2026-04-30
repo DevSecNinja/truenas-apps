@@ -74,7 +74,7 @@ If BATS is on your `PATH`:
 
 ```sh
 bats tests/ --recursive
-bats tests/dccd/unit/log_message.bats
+bats tests/dccd/integration/quiet_mode.bats
 ```
 
 ## Test Categories
@@ -88,7 +88,7 @@ Each file tests a single function:
 
 | File                             | Function under test           |
 | -------------------------------- | ----------------------------- |
-| `log_message.bats`               | `log_message()`               |
+| `quiet_mode.bats`                | quiet mode buffering          |
 | `ensure_sops.bats`               | `ensure_sops()`               |
 | `decrypt_sops_files.bats`        | `decrypt_sops_files()`        |
 | `parse_server_apps.bats`         | `parse_server_apps()`         |
