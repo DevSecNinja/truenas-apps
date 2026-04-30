@@ -33,6 +33,8 @@ Work through each step in order. Skip any that don't apply.
 Create `services/<app>/compose.yaml` following all compose conventions:
 
 - **Image**: Explicit registry prefix (`docker.io/library/...`, `ghcr.io/...`), digest-pinned (`@sha256:...`). No bare image names.
+  - **Prefer Docker Hardened Images (DHI)** when available at `dhi.io/<image>` — check the catalog at <https://hub.docker.com/hardened-images/catalog>. DHI provides minimal, near-zero-CVE base images with signed SBOMs and SLSA Level 3 provenance. Confirm the DHI tag declares `LINUX/AMD64` **and** `LINUX/ARM64` on the catalog page before adopting it (svlnas is x86_64; svlazext is arm64).
+  - **Initial commit: tag only, no digest.** Add the image with just the version tag (e.g. `dhi.io/redis:8.6.2-debian13`) and let Renovate add the `@sha256:...` pin in the next run. Renovate's HEAD request to dhi.io receives the multi-arch manifest-list digest only after the image has been republished as multi-arch; if you pin manually from a snapshot that was still single-platform, you'll lock the repo to amd64 and break arm64 hosts. Letting Renovate pin avoids this race.
 - **Security**: `read_only: true`, `security_opt: [no-new-privileges:true]`, `cap_drop: [ALL]`, `mem_limit`, `pids_limit: 100`. Add `cap_add` only when provably required — include a comment explaining why.
 - **Health check**: Mandatory on every service (required for `--wait` deploys).
 - **Init container**: Required when a service uses `user: "UID:GID"` with writable volumes. Use the busybox init pattern from ARCHITECTURE.md. Must only `chown ./data` paths — never `./config` directories.
