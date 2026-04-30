@@ -89,16 +89,19 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
     healthcheck:
-      # The DHI Debian-13 base provides /bin/sh (dash) but no bash, wget, curl,
-      # or netcat — so there is no in-container probe we can reliably use.
-      # Liveness is therefore monitored externally:
-      #   - Gatus probes https://alloy.${DOMAINNAME}/-/ready every 60s
-      #   - Traefik logs every request
-      #   - Alloy self-metrics (alloy_* in Grafana Cloud) cover health
-      # `dccd.sh --wait` falls back to "container started" when no healthcheck
-      # is defined, which is sufficient here because Alloy refuses to bind its
-      # HTTP listener on :12345 unless the config parsed successfully.
-      disable: true
+      # DHI Debian-13 has no curl/wget/nc/bash, but dash + /proc/net/tcp is
+      # enough to verify the HTTP listener is bound. Port 12345 = 0x3039.
+      # Also covers IPv6 by checking /proc/net/tcp6 as a fallback.
+      # See https://hub.docker.com/hardened-images/catalog/dhi/alloy
+      test:
+        - CMD
+        - sh
+        - -c
+        - grep -q ':3039 ' /proc/net/tcp || grep -q ':3039 ' /proc/net/tcp6
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       # Homepage
       - homepage.group=Infrastructure
