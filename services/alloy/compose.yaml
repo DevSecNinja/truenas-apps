@@ -71,6 +71,12 @@ services:
       # /api/prometheus endpoint. HA is only deployed on svlnas; on svlazext
       # this network is removed via compose.svlazext.yaml's `networks: !override`.
       - home-assistant-frontend
+      # Postgres exporter sidecars sit on each app's *-backend network. Alloy
+      # joins those networks to scrape the exporters' :9187 endpoint. These
+      # apps run on svlnas only — compose.svlazext.yaml drops both networks
+      # via `networks: !override`.
+      - immich-backend
+      - outline-backend
     mem_limit: ${MEM_LIMIT:-512m}
     pids_limit: 200
     security_opt:
@@ -193,4 +199,10 @@ networks:
     internal: true
   home-assistant-frontend:
     name: home-assistant-frontend
+    external: true
+  immich-backend:
+    name: immich-backend
+    external: true
+  outline-backend:
+    name: outline-backend
     external: true

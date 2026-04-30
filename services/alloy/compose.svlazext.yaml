@@ -15,7 +15,8 @@ services:
     # network from compose.yaml does not exist on this host. Override the list
     # to drop it (compose merges the top-level `networks:` map; the unused
     # external declaration there is silently ignored as long as no service
-    # references it).
+    # references it). Same applies to immich-backend and outline-backend —
+    # neither immich nor outline is deployed on svlazext.
     networks: !override
       - alloy-frontend
       - alloy-backend

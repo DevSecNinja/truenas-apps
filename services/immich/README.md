@@ -46,14 +46,15 @@ Key settings in `config/immich.yaml`:
 
 ### Services
 
-| Container                 | Role                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `immich-init`             | One-shot init: chowns all writable paths to `3106:3202` and substitutes config placeholders |
-| `immich-server`           | Main API server and web UI                                                                  |
-| `immich-machine-learning` | Face recognition, CLIP embeddings, smart search                                             |
-| `immich-redis`            | Valkey (Redis-compatible) — job queue cache, ephemeral only                                 |
-| `immich-db`               | Custom Postgres with pgvecto.rs and vectorchord vector extensions                           |
-| `immich-db-backup`        | One-shot nightly backup sidecar (restarted by `dccd.sh`, then exits)                        |
+| Container                 | Role                                                                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `immich-init`             | One-shot init: chowns all writable paths to `3106:3202` and substitutes config placeholders                                                               |
+| `immich-server`           | Main API server and web UI                                                                                                                                |
+| `immich-machine-learning` | Face recognition, CLIP embeddings, smart search                                                                                                           |
+| `immich-redis`            | Valkey (Redis-compatible) — job queue cache, ephemeral only                                                                                               |
+| `immich-db`               | Custom Postgres with pgvecto.rs and vectorchord vector extensions                                                                                         |
+| `immich-db-backup`        | One-shot nightly backup sidecar (restarted by `dccd.sh`, then exits)                                                                                      |
+| `immich-db-exporter`      | `postgres_exporter` sidecar — exposes Postgres metrics on `immich-backend:9187` for Alloy to scrape (reuses `IMMICH_DB_PASSWORD`; no host port published) |
 
 ### Init Container
 
