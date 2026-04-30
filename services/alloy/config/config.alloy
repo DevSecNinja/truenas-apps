@@ -192,3 +192,44 @@ prometheus.relabel "alloy_self" {
 		replacement  = "alloy"
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Traefik — scrape the Prometheus /metrics endpoint exposed on the internal
+// `metrics` entrypoint (:8082) of the local Traefik instance.
+//
+// The metrics entrypoint is unpublished (no host port mapping) and gated by
+// an entrypoint-level ipAllowList middleware (metrics-ipallowlist@file in
+// services/traefik/config/rules/middlewares.yml) restricted to the
+// alloy-frontend subnet (172.30.100.8/29). Alloy reaches Traefik via the
+// shared `alloy-frontend` Docker network (joined by both this Alloy instance
+// and the Traefik instance running on the same host).
+//
+// `addRoutersLabels`, `addServicesLabels`, and `addEntryPointsLabels` are
+// enabled in traefik.yml, so the metrics include per-router / per-service /
+// per-entrypoint cardinality. Acceptable for this lab's router count; revisit
+// if Grafana Cloud Free's active-series budget tightens.
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.scrape "traefik" {
+	targets = [
+		{ __address__ = "traefik:8082", instance = sys.env("HOSTNAME_OVERRIDE") },
+	]
+	forward_to = [prometheus.relabel.traefik.receiver]
+
+	scrape_interval = "60s"
+	scrape_timeout  = "10s"
+	metrics_path    = "/metrics"
+}
+
+prometheus.relabel "traefik" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "traefik"
+	}
+}

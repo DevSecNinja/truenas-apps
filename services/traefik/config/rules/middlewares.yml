@@ -9,6 +9,14 @@ http:
       ipAllowList:
         sourceRange:
           - "172.30.100.0/29"
+    # Restricts the metrics entrypoint (:8082, Prometheus /metrics) to the
+    # alloy-frontend subnet so only Alloy can scrape Traefik metrics. Applied
+    # at the entrypoint level in traefik.yml. If the alloy-frontend IPAM
+    # subnet changes (services/alloy/compose.yaml), update sourceRange here.
+    metrics-ipallowlist:
+      ipAllowList:
+        sourceRange:
+          - "172.30.100.8/29"
     middlewares-rate-limit:
       rateLimit:
         average: 100

@@ -177,6 +177,12 @@ networks:
   alloy-frontend:
     name: alloy-frontend
     driver: bridge
+    # Pinned subnet so Traefik's metrics-ipallowlist middleware (in
+    # config/rules/middlewares.yml) can restrict :8082 (Prometheus metrics
+    # entrypoint) to Alloy. Mirrors the gatus-frontend pattern.
+    ipam:
+      config:
+        - subnet: 172.30.100.8/29
   alloy-backend:
     name: alloy-backend
     driver: bridge
