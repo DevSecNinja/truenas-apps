@@ -325,6 +325,8 @@ Alloy scrapes Traefik's Prometheus metrics over a second internal entrypoint, `m
 
 The `metrics.prometheus` block in `traefik.yml` enables `addRoutersLabels`, `addServicesLabels`, and `addEntryPointsLabels` so per-router, per-service, and per-entrypoint cardinality is exposed. Each Alloy instance scrapes the local Traefik instance running on the same host (works for both svlnas and svlazext, since Traefik's `compose.svlazext.yaml` already lists `alloy-frontend` in its network list).
 
+Alloy also scrapes **Home Assistant**'s built-in Prometheus integration at `home-assistant:8123/api/prometheus` (60s interval, bearer-token auth via `HOME_ASSISTANT_PROM_TOKEN` in `services/alloy/secret.sops.env`). Reachability is provided by joining Alloy to the `home-assistant-frontend` Docker network — declared `external: true` in `services/alloy/compose.yaml` and dropped on svlazext via `compose.svlazext.yaml` (HA is not deployed on svlazext, so the override sets `networks: !override [alloy-frontend, alloy-backend]`).
+
 **Subnets and entrypoints in use:**
 
 | Entrypoint   | Port | Source range allowed                 | Purpose                            |

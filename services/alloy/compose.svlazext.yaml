@@ -11,6 +11,14 @@ services:
   alloy:
     environment:
       - HOSTNAME_OVERRIDE=svlazext
+    # home-assistant is not deployed on svlazext, so the home-assistant-frontend
+    # network from compose.yaml does not exist on this host. Override the list
+    # to drop it (compose merges the top-level `networks:` map; the unused
+    # external declaration there is silently ignored as long as no service
+    # references it).
+    networks: !override
+      - alloy-frontend
+      - alloy-backend
     labels: !override
       # Homepage
       - homepage.group=Infrastructure

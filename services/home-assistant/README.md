@@ -32,7 +32,18 @@ Home Assistant uses s6-overlay internally. See [Architecture](../ARCHITECTURE.md
 
 ### Init Container
 
-`home-assistant-init` seeds template config files from `./config` into `./data/config/` on first deploy only (`cp -n` — never overwrites). These templates include `configuration.yaml` (with `http: trusted_proxies` for Traefik), and empty stub files (`automations.yaml`, `scripts.yaml`, `scenes.yaml`) required by HA's `!include` directives. Without these stubs, HA enters recovery mode and ignores the `http:` block.
+`home-assistant-init` seeds template config files from `./config` into `./data/config/` on first deploy only (`cp -n` — never overwrites). These templates include `configuration.yaml` (with `http: trusted_proxies` for Traefik and a `prometheus: namespace: hass` block exposing `/api/prometheus` for Alloy to scrape), and empty stub files (`automations.yaml`, `scripts.yaml`, `scenes.yaml`) required by HA's `!include` directives. Without these stubs, HA enters recovery mode and ignores the `http:` block.
+
+<!-- dprint-ignore -->
+!!! warning "Already-deployed hosts must update configuration.yaml manually"
+    Because `home-assistant-init` only seeds the template on first deploy, existing installations will not pick up the `prometheus:` block automatically. On those hosts, add the following to `data/config/configuration.yaml` and restart Home Assistant:
+
+    ```yaml
+    prometheus:
+      namespace: hass
+    ```
+
+    The endpoint requires a Long-Lived Access Token (created in HA's Profile → Security UI) which lives in `services/alloy/secret.sops.env` as `HOME_ASSISTANT_PROM_TOKEN`.
 
 ## Secrets
 

@@ -67,6 +67,10 @@ services:
     networks:
       - alloy-frontend
       - alloy-backend
+      # Joins the home-assistant frontend network so Alloy can scrape HA's
+      # /api/prometheus endpoint. HA is only deployed on svlnas; on svlazext
+      # this network is removed via compose.svlazext.yaml's `networks: !override`.
+      - home-assistant-frontend
     mem_limit: ${MEM_LIMIT:-512m}
     pids_limit: 200
     security_opt:
@@ -187,3 +191,6 @@ networks:
     name: alloy-backend
     driver: bridge
     internal: true
+  home-assistant-frontend:
+    name: home-assistant-frontend
+    external: true

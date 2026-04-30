@@ -233,3 +233,44 @@ prometheus.relabel "traefik" {
 		replacement  = "traefik"
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Home Assistant — scrape the prometheus integration on /api/prometheus.
+//
+// HA is only deployed on svlnas; the home-assistant-frontend Docker network
+// is joined by Alloy on svlnas only (see compose.yaml + compose.svlazext.yaml
+// `networks: !override`). On other hosts the DNS name `home-assistant` will
+// not resolve and the scrape fails silently — this is expected and is the
+// reason the HA scrape is not gated on the host label.
+//
+// Auth: HA's prometheus integration requires a Long-Lived Access Token sent
+// as `Authorization: Bearer …`. The token is created in HA's Profile →
+// Security → Long-lived access tokens UI and stored in secret.sops.env as
+// HOME_ASSISTANT_PROM_TOKEN. Required scope is the user's normal API access
+// (no special permissions); read-only on the prometheus endpoint.
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.scrape "home_assistant" {
+	targets = [
+		{ __address__ = "home-assistant:8123", instance = "home-assistant" },
+	]
+	forward_to = [prometheus.relabel.home_assistant.receiver]
+
+	scrape_interval = "60s"
+	scrape_timeout  = "10s"
+	metrics_path    = "/api/prometheus"
+	bearer_token    = sys.env("HOME_ASSISTANT_PROM_TOKEN")
+}
+
+prometheus.relabel "home_assistant" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "home_assistant"
+	}
+}
