@@ -370,7 +370,13 @@ auto_login_dhi() {
         if printf '%s' "${token}" | ${SUDO} docker login "${registry}" \
             --username "${username}" --password-stdin >/dev/null 2>&1; then
             log_message "INFO:  ${registry} login succeeded"
-            [ "${registry}" = "dhi.io" ] && _DHI_LOGIN_OK=1
+            # Note: do not use `[ ... ] && _DHI_LOGIN_OK=1` here — when this is
+            # the last command of an iteration where the test is false (i.e.
+            # registry=docker.io), the && chain exits 1, becomes the function's
+            # final exit status, and `set -e` aborts the script silently.
+            if [ "${registry}" = "dhi.io" ]; then
+                _DHI_LOGIN_OK=1
+            fi
         else
             log_message "ERROR: ${registry} login failed — check DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in services/shared/env/secret.sops.env"
             exit 1
