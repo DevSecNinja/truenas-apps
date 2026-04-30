@@ -89,19 +89,15 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
     healthcheck:
-      # DHI Debian-13 has no curl/wget/nc/bash, but dash + /proc/net/tcp is
-      # enough to verify the HTTP listener is bound. Port 12345 = 0x3039.
-      # Also covers IPv6 by checking /proc/net/tcp6 as a fallback.
-      # See https://hub.docker.com/hardened-images/catalog/dhi/alloy
-      test:
-        - CMD
-        - sh
-        - -c
-        - grep -q ':3039 ' /proc/net/tcp || grep -q ':3039 ' /proc/net/tcp6
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      # The DHI alloy image is binary-only — no shell, no probe utilities.
+      # Liveness is monitored externally instead:
+      #   - Gatus probes https://alloy.${DOMAINNAME}/-/ready every 60s
+      #   - Traefik logs every request
+      #   - Alloy self-metrics (alloy_*) cover internal health
+      # `dccd.sh` (compose_up_wait_tolerant) treats "no healthcheck" as
+      # successful once the container reaches "running", which is sufficient
+      # because Alloy refuses to bind :12345 unless config parsed.
+      disable: true
     labels:
       # Homepage
       - homepage.group=Infrastructure

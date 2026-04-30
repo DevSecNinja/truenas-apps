@@ -77,7 +77,12 @@ Two caveats apply when adopting a DHI (or any new) image — the full procedure 
 
 ## Healthchecks on Distroless Bases
 
-DHI and other distroless images (typically Debian-13 minimal) ship with `/bin/sh` (dash) but no `curl`, `wget`, `nc`, or `bash`. When the application itself does not expose an HTTP probe binary, verify the listener via `/proc/net/tcp` (with `/proc/net/tcp6` as IPv6 fallback) using only `sh`:
+Hardened bases vary in how minimal they are:
+
+- **Debian-13 minimal** variants (e.g. `dhi.io/redis`, `dhi.io/traefik`) include `/bin/sh` (dash) but no `curl`, `wget`, `nc`, or `bash`.
+- **Binary-only** variants (e.g. `dhi.io/alloy`) ship _only_ the application binary — no shell, no probe utilities at all.
+
+For Debian-13-minimal images, when the application itself does not expose an HTTP probe binary, verify the listener via `/proc/net/tcp` (with `/proc/net/tcp6` as IPv6 fallback) using only `sh`:
 
 ```yaml
 healthcheck:
@@ -92,7 +97,9 @@ healthcheck:
   start_period: 10s
 ```
 
-The port is the listening port in **uppercase hex** (e.g. `12345` decimal → `3039`). The canonical example is `services/alloy/compose.yaml`. A real probe is always preferred over no healthcheck — `scripts/dccd.sh` provides a `compose_up_wait_tolerant` fallback for services that genuinely cannot expose one, but this `/proc/net/tcp` pattern covers most listener-based services.
+The port is the listening port in **uppercase hex** (e.g. `12345` decimal → `3039`). Confirm `/bin/sh` is actually present (`docker run --rm --entrypoint sh <image> -c true`) before adopting this pattern.
+
+For binary-only images where no in-container probe is possible, set `healthcheck: { disable: true }` with a comment explaining why. `scripts/dccd.sh` (via `compose_up_wait_tolerant`) treats "no healthcheck" as successful once the container reaches `running`, so the deploy still completes. Pair this with external monitoring (Gatus + Traefik logs + the application's self-metrics) for actual liveness signal. The canonical example is `services/alloy/compose.yaml`.
 
 ## Volume Permissions: Init Container Pattern
 
