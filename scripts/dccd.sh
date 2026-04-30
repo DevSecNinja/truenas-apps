@@ -583,7 +583,7 @@ redeploy_truenas_apps() {
 
         # If EXCLUDE is set and the app matches, skip it
         if [ -n "${EXCLUDE}" ] && [[ "${app_name}" == *"${EXCLUDE}"* ]]; then
-            log_state "Skipping excluded app '${app_name}'"
+            log_info "Skipping excluded app '${app_name}'"
             continue
         fi
 
@@ -664,7 +664,7 @@ redeploy_truenas_apps() {
                 --file "${compose_file}" \
                 pull 2>&1 | log_data INFO "Pulling images for ${app_name}"
         else
-            log_state "Skipping image pull for ${app_name} (no-pull mode)"
+            log_info "Skipping image pull for ${app_name} (no-pull mode)"
         fi
 
         # Deploy
@@ -893,7 +893,7 @@ redeploy_compose_file() {
         run_compose_command --progress=plain "${compose_file_args[@]}" pull 2>&1 |
             log_data INFO "Pulling images for ${app_name}"
     else
-        log_state "Skipping image pull for ${file} (no-pull mode)"
+        log_info "Skipping image pull for ${file} (no-pull mode)"
     fi
 
     if [ "${GRACEFUL}" -eq 1 ]; then
@@ -985,13 +985,13 @@ update_compose_files() {
         current_user=$(whoami) || true
         bad_git_files=$(find "${dir}/.git" -maxdepth 2 ! -user "$(id -u)" -print 2>/dev/null) || true
         if [ -n "${bad_git_files}" ]; then
-            log_error ".git/ contains files not owned by the current user (${current_user}):"
             local file_owner
             while IFS= read -r f; do
                 file_owner=$(stat -c '%U' "${f}" 2>/dev/null) || file_owner="unknown"
-                log_error "${f}  (owner: ${file_owner})"
-            done <<<"${bad_git_files}"
-            log_error "Fix with: sudo chown -R ${current_user} ${dir}/.git"
+                printf '%s  (owner: %s)\n' "${f}" "${file_owner}"
+            done <<<"${bad_git_files}" |
+                log_data ERROR ".git/ contains files not owned by the current user (${current_user})"
+            log_hint "Fix with: sudo chown -R ${current_user} ${dir}/.git"
             exit 1
         fi
 
@@ -1004,12 +1004,12 @@ update_compose_files() {
             xargs -0 -I{} find "${dir}/{}" -maxdepth 0 ! -user "$(id -u)" -print 2>/dev/null |
             grep -v '/data/' | grep -v '/backups/') || true
         if [ -n "${bad_tracked_files}" ]; then
-            log_error "Git-tracked files not owned by the current user (${current_user}):"
             while IFS= read -r f; do
                 file_owner=$(stat -c '%U(%u)' "${f}" 2>/dev/null) || file_owner="unknown"
-                log_error "${f}  (owner: ${file_owner})"
-            done <<<"${bad_tracked_files}"
-            log_error "git pull will fail. Fix with: sudo chown -R ${current_user} <affected-dirs>"
+                printf '%s  (owner: %s)\n' "${f}" "${file_owner}"
+            done <<<"${bad_tracked_files}" |
+                log_data ERROR "Git-tracked files not owned by the current user (${current_user})"
+            log_hint "git pull will fail. Fix with: sudo chown -R ${current_user} <affected-dirs>"
             exit 1
         fi
 
@@ -1205,14 +1205,12 @@ update_compose_files() {
     local root_owned
     root_owned=$(find "${BASE_DIR}" \( -name data -o -name backups \) -prune -o -user root -print 2>/dev/null) || true
     if [ -n "${root_owned}" ]; then
-        log_warn "Files owned by root detected (git fetch/pull or SOPS may have created them):"
-        while IFS= read -r f; do
-            log_warn "${f}"
-        done <<<"${root_owned}"
+        printf '%s\n' "${root_owned}" |
+            log_data WARN "Files owned by root detected (git fetch/pull or SOPS may have created them)"
         local current_user
         current_user=$(whoami) || true
-        log_warn "To fix, run manually:"
-        log_warn "find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown ${current_user}:${current_user}"
+        log_hint "To fix, run manually:"
+        log_hint "find \"${BASE_DIR}\" \\( -name data -o -name backups \\) -prune -o -user root -print0 | xargs -0 -r sudo chown ${current_user}:${current_user}"
     fi
 
     if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
@@ -1222,11 +1220,10 @@ update_compose_files() {
         if [ "${_DEPLOY_ERRORS}" -eq 0 ]; then
             log_result "All ${_DEPLOY_ATTEMPTED} app(s) deployed successfully"
         else
-            log_result "${succeeded}/${_DEPLOY_ATTEMPTED} app(s) deployed successfully, ${_DEPLOY_ERRORS} failed:"
+            log_result "${succeeded}/${_DEPLOY_ATTEMPTED} app(s) deployed successfully, ${_DEPLOY_ERRORS} failed"
             if [ "${#_DEPLOY_FAILED_APPS[@]}" -gt 0 ]; then
-                for app in "${_DEPLOY_FAILED_APPS[@]}"; do
-                    log_result "FAILED: ${app}"
-                done
+                printf '%s\n' "${_DEPLOY_FAILED_APPS[@]}" |
+                    log_data ERROR "Failed apps"
             fi
         fi
         if [ "$((_DEPLOY_CHANGED + _DEPLOY_UNCHANGED))" -gt 0 ]; then
@@ -1237,9 +1234,9 @@ update_compose_files() {
     local end_time elapsed_time
     end_time=$(date +%s)
     elapsed_time=$((end_time - _CD_START_TIME))
-    log_info "Total execution time: ${elapsed_time}s"
+    log_kv duration_seconds="${elapsed_time}"
 
-    log_state "Done!"
+    log_result "Done"
 }
 
 # Simple URL encoding for query string values (handles spaces and common special chars)

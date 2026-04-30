@@ -91,7 +91,7 @@ wait_for_postgres() {
     local container="$1"
     local attempts=0
     local max=30
-    log_info "Waiting for PostgreSQL in ${container} to become ready..."
+    log_state "Waiting for PostgreSQL in ${container} to become ready"
     until docker exec "${container}" pg_isready -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
         attempts=$((attempts + 1))
         [ "${attempts}" -ge "${max}" ] && die "${container} did not become ready after ${max} attempts"
@@ -104,7 +104,7 @@ wait_for_mongo() {
     local container="$1"
     local attempts=0
     local max=30
-    log_info "Waiting for MongoDB in ${container} to become ready..."
+    log_state "Waiting for MongoDB in ${container} to become ready"
     # mongosh is shipped in the official mongo image. Authenticate against the
     # admin DB to be sure user provisioning has finished, not just the daemon.
     until docker exec "${container}" mongosh \
@@ -134,19 +134,19 @@ decrypt_and_decompress() {
 
     # NOTE: this function returns the dump path on stdout, so all log output
     # must go to stderr to avoid polluting the captured value.
-    log_info "Decrypting ${enc_file} with gpg..." >&2
+    log_state "Decrypting ${enc_file} with gpg" >&2
     gpg --batch --passphrase "${ENC_PASSPHRASE}" \
         --output "${compressed}" --decrypt "${enc_file}" >/dev/null 2>&1
 
     case "${compressed}" in
     *.zst)
         dump_file="${compressed%.zst}"
-        log_info "Decompressing ${compressed} with zstd..." >&2
+        log_state "Decompressing ${compressed} with zstd" >&2
         zstd -df "${compressed}" -o "${dump_file}" >/dev/null
         ;;
     *.gz)
         dump_file="${compressed%.gz}"
-        log_info "Decompressing ${compressed} with gzip..." >&2
+        log_state "Decompressing ${compressed} with gzip" >&2
         gunzip -c "${compressed}" >"${dump_file}"
         ;;
     *)
@@ -174,12 +174,12 @@ find_backup_file() {
 # --- Scenario 1: PostgreSQL --------------------------------------------------
 
 run_postgres_scenario() {
-    log_info "=== PostgreSQL backup/restore cycle ==="
+    log_rule STATE "PostgreSQL backup/restore cycle"
 
     local backup_dir="${WORK_DIR}/pgsql"
     mkdir -p "${backup_dir}"
 
-    log_info "Starting source PostgreSQL (${PG_SOURCE})..."
+    log_state "Starting source PostgreSQL (${PG_SOURCE})"
     docker run -d \
         --name "${PG_SOURCE}" \
         --network "${NETWORK}" \
@@ -190,14 +190,14 @@ run_postgres_scenario() {
 
     wait_for_postgres "${PG_SOURCE}"
 
-    log_info "Inserting sentinel row..."
+    log_state "Inserting sentinel row"
     docker exec -i -e PGPASSWORD="${DB_PASS}" "${PG_SOURCE}" psql \
         -U "${DB_USER}" -d "${DB_NAME}" >/dev/null <<SQL
 CREATE TABLE restore_sentinel (id SERIAL PRIMARY KEY, value TEXT NOT NULL);
 INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');
 SQL
 
-    log_info "Running tiredofit/db-backup (pgsql)..."
+    log_state "Running tiredofit/db-backup (pgsql)"
     docker run --rm \
         --network "${NETWORK}" \
         -e USER_DBBACKUP="${HOST_UID}" \
@@ -228,13 +228,13 @@ SQL
     dump_file="$(decrypt_and_decompress "${enc_file}")"
     log_info "Dump ready: ${dump_file}"
 
-    log_info "Verifying plain-text pg_dump structure..."
+    log_state "Verifying plain-text pg_dump structure"
     grep -q '^-- PostgreSQL database dump' "${dump_file}" ||
         die "dump file does not contain the expected PostgreSQL dump header"
     grep -q 'restore_sentinel' "${dump_file}" ||
         die "dump file does not reference the expected sentinel table"
 
-    log_info "Starting restore-target PostgreSQL (${PG_RESTORE})..."
+    log_state "Starting restore-target PostgreSQL (${PG_RESTORE})"
     docker run -d \
         --name "${PG_RESTORE}" \
         --network "${NETWORK}" \
@@ -245,14 +245,14 @@ SQL
 
     wait_for_postgres "${PG_RESTORE}"
 
-    log_info "Restoring dump with psql..."
+    log_state "Restoring dump with psql"
     docker cp "${dump_file}" "${PG_RESTORE}:/tmp/restore.sql"
     docker exec -e PGPASSWORD="${DB_PASS}" "${PG_RESTORE}" psql \
         -U "${DB_USER}" -d "${DB_NAME}" \
         --set ON_ERROR_STOP=on \
         -f /tmp/restore.sql >/dev/null
 
-    log_info "Verifying sentinel row in restored database..."
+    log_state "Verifying sentinel row in restored database"
     local restored
     restored=$(docker exec -e PGPASSWORD="${DB_PASS}" "${PG_RESTORE}" psql \
         -U "${DB_USER}" -d "${DB_NAME}" -t -A -c \
@@ -262,18 +262,18 @@ SQL
 
     docker rm -f "${PG_SOURCE}" "${PG_RESTORE}" >/dev/null 2>&1 || true
 
-    log_info "PostgreSQL scenario PASSED"
+    log_result "PostgreSQL scenario PASSED"
 }
 
 # --- Scenario 2: MongoDB -----------------------------------------------------
 
 run_mongo_scenario() {
-    log_info "=== MongoDB backup/restore cycle ==="
+    log_rule STATE "MongoDB backup/restore cycle"
 
     local backup_dir="${WORK_DIR}/mongo"
     mkdir -p "${backup_dir}"
 
-    log_info "Starting source MongoDB (${MONGO_SOURCE})..."
+    log_state "Starting source MongoDB (${MONGO_SOURCE})"
     docker run -d \
         --name "${MONGO_SOURCE}" \
         --network "${NETWORK}" \
@@ -283,7 +283,7 @@ run_mongo_scenario() {
 
     wait_for_mongo "${MONGO_SOURCE}"
 
-    log_info "Inserting sentinel document..."
+    log_state "Inserting sentinel document"
     docker exec -i "${MONGO_SOURCE}" mongosh \
         --quiet \
         --username "${DB_USER}" \
@@ -293,7 +293,7 @@ run_mongo_scenario() {
 db.restore_sentinel.insertOne({ value: "${SENTINEL}" });
 JS
 
-    log_info "Running tiredofit/db-backup (mongo)..."
+    log_state "Running tiredofit/db-backup (mongo)"
     docker run --rm \
         --network "${NETWORK}" \
         -e USER_DBBACKUP="${HOST_UID}" \
@@ -325,7 +325,7 @@ JS
     dump_file="$(decrypt_and_decompress "${enc_file}")"
     log_info "Dump ready: ${dump_file}"
 
-    log_info "Verifying mongodump archive header..."
+    log_state "Verifying mongodump archive header"
     # mongodump --archive files start with the magic bytes "8199e26d" (LE) per
     # the BSON archive format spec. Check the magic to ensure the file is a
     # well-formed mongodump archive and not a partial / corrupt download.
@@ -334,7 +334,7 @@ JS
     [ "${magic}" = "6de29981" ] ||
         die "dump file does not have a valid mongodump archive header (got '${magic}')"
 
-    log_info "Starting restore-target MongoDB (${MONGO_RESTORE})..."
+    log_state "Starting restore-target MongoDB (${MONGO_RESTORE})"
     docker run -d \
         --name "${MONGO_RESTORE}" \
         --network "${NETWORK}" \
@@ -344,7 +344,7 @@ JS
 
     wait_for_mongo "${MONGO_RESTORE}"
 
-    log_info "Restoring dump with mongorestore..."
+    log_state "Restoring dump with mongorestore"
     docker cp "${dump_file}" "${MONGO_RESTORE}:/tmp/restore.archive"
     docker exec "${MONGO_RESTORE}" mongorestore \
         --username "${DB_USER}" \
@@ -353,7 +353,7 @@ JS
         --drop \
         --archive=/tmp/restore.archive >/dev/null 2>&1
 
-    log_info "Verifying sentinel document in restored database..."
+    log_state "Verifying sentinel document in restored database"
     local restored
     restored=$(docker exec "${MONGO_RESTORE}" mongosh \
         --quiet \
@@ -368,13 +368,13 @@ JS
 
     docker rm -f "${MONGO_SOURCE}" "${MONGO_RESTORE}" >/dev/null 2>&1 || true
 
-    log_info "MongoDB scenario PASSED"
+    log_result "MongoDB scenario PASSED"
 }
 
 # --- Scenario 3: SQLite ------------------------------------------------------
 
 run_sqlite_scenario() {
-    log_info "=== SQLite backup/restore cycle ==="
+    log_rule STATE "SQLite backup/restore cycle"
 
     local src_dir="${WORK_DIR}/sqlite_src"
     local backup_dir="${WORK_DIR}/sqlite_backup"
@@ -382,13 +382,13 @@ run_sqlite_scenario() {
     mkdir -p "${src_dir}" "${backup_dir}" "${restore_dir}"
 
     local src_db="${src_dir}/${DB_NAME}.db"
-    log_info "Creating source SQLite database with sentinel..."
+    log_state "Creating source SQLite database with sentinel"
     sqlite3 "${src_db}" <<SQL
 CREATE TABLE restore_sentinel (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL);
 INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');
 SQL
 
-    log_info "Running tiredofit/db-backup (sqlite3)..."
+    log_state "Running tiredofit/db-backup (sqlite3)"
     # SQLite doesn't need a server; mount the db read-only into the backup
     # container, mirroring the home-assistant compose setup.
     docker run --rm \
@@ -418,7 +418,7 @@ SQL
     dump_file="$(decrypt_and_decompress "${enc_file}")"
     log_info "Dump ready: ${dump_file}"
 
-    log_info "Verifying SQLite backup magic bytes..."
+    log_state "Verifying SQLite backup magic bytes"
     # tiredofit/db-backup for sqlite3 uses the SQLite Online Backup API
     # (sqlite3 .backup), producing a *binary* SQLite database file — not a
     # plain-text .dump. Validate by checking the SQLite file magic header
@@ -428,7 +428,7 @@ SQL
     [ "${magic}" = "SQLite format 3" ] ||
         die "dump file does not have a valid SQLite database header"
 
-    log_info "Restoring dump into a fresh SQLite database..."
+    log_state "Restoring dump into a fresh SQLite database"
     local restore_db="${restore_dir}/${DB_NAME}.db"
     cp "${dump_file}" "${restore_db}"
     # Sanity-check the copied file with PRAGMA integrity_check.
@@ -437,23 +437,23 @@ SQL
     [ "${integrity}" = "ok" ] ||
         die "restored SQLite db failed integrity_check (got '${integrity}')"
 
-    log_info "Verifying sentinel row in restored database..."
+    log_state "Verifying sentinel row in restored database"
     local restored
     restored=$(sqlite3 "${restore_db}" \
         "SELECT COUNT(*) FROM restore_sentinel WHERE value = '${SENTINEL}';")
     [ "${restored}" = "1" ] ||
         die "SQLite sentinel mismatch after restore (expected 1, got '${restored}')"
 
-    log_info "SQLite scenario PASSED"
+    log_result "SQLite scenario PASSED"
 }
 
 # --- Run all scenarios -------------------------------------------------------
 
-log_state "Creating Docker test network..."
+log_state "Creating Docker test network"
 docker network create "${NETWORK}" >/dev/null
 
 run_postgres_scenario
 run_mongo_scenario
 run_sqlite_scenario
 
-log_result "full backup/restore cycle passed for pgsql, mongo, and sqlite3"
+log_banner "Backup/restore cycle PASSED for pgsql, mongo, and sqlite3" RESULT

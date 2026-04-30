@@ -17,6 +17,12 @@
 
 set -euo pipefail
 
+_IMG_AGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_IMG_AGE_DIR}/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="image-age-check"
+
 STALE=()
 
 # get_age_days IMAGE
@@ -100,24 +106,24 @@ get_age_days() {
 while IFS= read -r full_image; do
     # Strip @sha256:... to get the name:tag for display (keep the version)
     bare="${full_image%%@*}"
-    echo "Checking ${bare}..."
+    log_state "Checking ${bare}"
 
     age_days=$(get_age_days "${bare}")
     if [ -z "${age_days}" ]; then
-        echo "  WARN: could not determine push date for ${bare}, skipping"
+        log_warn "Could not determine push date for ${bare}, skipping"
         continue
     fi
 
     if [ "${age_days}" = "skip" ]; then
-        echo "  SKIP: ${bare} has a zero-time placeholder timestamp (reproducible build image)"
+        log_info "${bare} has a zero-time placeholder timestamp (reproducible build image) — skipping"
         continue
     fi
 
     if [ "${age_days}" -gt "${THRESHOLD_DAYS}" ]; then
-        echo "  STALE: ${bare} (${age_days} days old)"
+        log_warn "STALE: ${bare} (${age_days} days old)"
         STALE+=("${full_image}")
     else
-        echo "  OK:    ${bare} (${age_days} days old)"
+        log_info "OK: ${bare} (${age_days} days old)"
     fi
 done < <(
     grep -rh 'image:' services/*/compose.yaml |
@@ -130,13 +136,10 @@ done < <(
 # --- Open new issues for freshly discovered stale images ---------------------
 
 if [ "${#STALE[@]}" -eq 0 ]; then
-    echo "All images are within the ${THRESHOLD_DAYS}-day threshold."
+    log_result "All images are within the ${THRESHOLD_DAYS}-day threshold"
 else
-    printf '\nStale images detected: %d\n' "${#STALE[@]}"
-    for image in "${STALE[@]}"; do
-        echo "  - ${image}"
-    done
-    echo ""
+    printf '%s\n' "${STALE[@]}" |
+        log_data WARN "Stale images detected: ${#STALE[@]}"
 
     for image in "${STALE[@]}"; do
         # Strip digest for the issue title so it stays readable
@@ -166,9 +169,9 @@ else
 ${sources}
 
 Please update the image digest to a more recent version to reduce exposure to known security vulnerabilities. If Renovate is not auto-updating this image, check whether the registry exposes reliable timestamp metadata."
-            echo "Created issue: ${title}"
+            log_result "Created issue: ${title}"
         else
-            echo "Still stale, issue already open: ${title}"
+            log_info "Still stale, issue already open: ${title}"
         fi
     done
 fi
@@ -178,7 +181,7 @@ fi
 # compose files. If the image is now fresh (or has been removed entirely),
 # close the issue automatically.
 
-printf '\nChecking open stale-dependency issues for resolution...\n'
+log_rule STATE "Checking open stale-dependency issues for resolution"
 
 # shellcheck disable=SC2312
 while IFS= read -r issue_json; do
@@ -189,7 +192,7 @@ while IFS= read -r issue_json; do
     case "${issue_title}" in
     *"] Stale image detected") ;;
     *)
-        echo "  SKIP: issue #${issue_number} does not match expected title format"
+        log_info "Issue #${issue_number} does not match expected title format — skipping"
         continue
         ;;
     esac
@@ -207,7 +210,7 @@ while IFS= read -r issue_json; do
         grep -F "${title_image}@" | head -1 || true)
 
     if [ -z "${current_full}" ]; then
-        echo "  ${title_image}: no longer in any compose file — closing issue #${issue_number}"
+        log_result "${title_image}: no longer in any compose file — closing issue #${issue_number}"
         gh issue close "${issue_number}" \
             --comment "This image is no longer referenced in any compose file. Closing automatically."
         continue
@@ -216,21 +219,21 @@ while IFS= read -r issue_json; do
     current_bare="${current_full%%@*}"
     age_days=$(get_age_days "${current_bare}")
     if [ -z "${age_days}" ]; then
-        echo "  WARN: could not re-check age for ${current_bare}, skipping issue #${issue_number}"
+        log_warn "Could not re-check age for ${current_bare}, skipping issue #${issue_number}"
         continue
     fi
 
     if [ "${age_days}" = "skip" ]; then
-        echo "  SKIP: ${current_bare} has a placeholder timestamp — skipping issue #${issue_number}"
+        log_info "${current_bare} has a placeholder timestamp — skipping issue #${issue_number}"
         continue
     fi
 
     if [ "${age_days}" -le "${THRESHOLD_DAYS}" ]; then
-        echo "  RESOLVED: ${current_bare} is now ${age_days} days old — closing issue #${issue_number}"
+        log_result "${current_bare} is now ${age_days} days old — closing issue #${issue_number}"
         gh issue close "${issue_number}" \
             --comment "The image \`${current_bare}\` is no longer stale (${age_days} days old, threshold: ${THRESHOLD_DAYS} days). Closing automatically."
     else
-        echo "  STILL STALE: ${current_bare} (${age_days} days old) — issue #${issue_number} remains open"
+        log_info "STILL STALE: ${current_bare} (${age_days} days old) — issue #${issue_number} remains open"
     fi
 done < <(
     gh issue list \
