@@ -689,16 +689,14 @@ redeploy_truenas_apps() {
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
         else
-            if ! ${SUDO} docker compose \
-                "${COMPOSE_PROFILE_ARGS[@]}" \
-                --project-name "${project_name}" \
-                --file "${compose_file}" \
-                up \
-                -d \
-                --build \
-                --wait \
-                --wait-timeout "${WAIT_TIMEOUT}"; then
+            local deploy_output
+            # shellcheck disable=SC2310  # failure is handled by the surrounding if block
+            if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" --project-name "${project_name}" --file "${compose_file}"); then
                 log_message "ERROR: ${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                if [ -n "${deploy_output}" ]; then
+                    # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
+                    echo "${deploy_output}" | sed 's/^/  /'
+                fi
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
@@ -802,6 +800,53 @@ run_compose_command() {
     "${cmd[@]}"
 }
 
+# Run `docker compose ... up -d --build --quiet-pull --wait --wait-timeout`,
+# tolerating the case where one or more services have no healthcheck.
+#
+# Compose's `--wait` exits non-zero immediately with the message
+#   "container <name> has no healthcheck configured"
+# when a long-running service has neither a healthcheck nor a
+# service_completed_successfully dependency. The containers themselves are
+# still created and started — we just cannot poll them to readiness. When
+# this is the only failure cause and the containers are actually running,
+# treat the deploy as successful with a warning. This lets us run
+# distroless/hardened images that intentionally have no probe binaries.
+#
+# Args: $1 = app_name (for log messages); $2…$N = compose flag args
+#       (e.g. --project-name X --file Y --file Z)
+# Globals: SUDO, WAIT_TIMEOUT, COMPOSE_PROFILE_ARGS (via run_compose_command)
+# Outputs: deploy output to stdout on real failure; nothing on success
+# Returns: 0 on success (incl. healthcheck-fallback success), 1 on real failure
+compose_up_wait_tolerant() {
+    local app_name=$1
+    shift
+    local out rc
+    out=$(run_compose_command "$@" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1)
+    rc=$?
+    if [ "${rc}" -eq 0 ]; then
+        return 0
+    fi
+
+    if echo "${out}" | grep -q "has no healthcheck configured"; then
+        # Verify the containers actually came up before declaring success.
+        local running_count
+        running_count=$(run_compose_command "$@" ps --status=running --quiet 2>/dev/null | wc -l)
+        if [ "${running_count}" -gt 0 ]; then
+            local missing
+            missing=$(echo "${out}" |
+                grep -oE "container [^ ]+ has no healthcheck" |
+                awk '{print $2}' |
+                paste -sd, -)
+            log_message "WARNING: ${app_name}: container(s) without healthcheck (${missing}) — using \"running\" state as readiness"
+            return 0
+        fi
+    fi
+
+    # Real failure — surface output for the caller to log
+    echo "${out}"
+    return 1
+}
+
 # Deploy a single compose file (with optional overrides)
 redeploy_compose_file() {
     local file=$1
@@ -859,7 +904,7 @@ redeploy_compose_file() {
             _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
             local deploy_output
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-            if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1); then
+            if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
                 log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
                 if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                     log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
@@ -876,7 +921,7 @@ redeploy_compose_file() {
         _DEPLOY_CHANGED=$((_DEPLOY_CHANGED + 1))
         local deploy_output
         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-        if ! deploy_output=$(run_compose_command "${compose_file_args[@]}" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1); then
+        if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
             log_message "ERROR: Failed to deploy ${file} - containers may be unhealthy"
             if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                 log_message "HINT:  An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
