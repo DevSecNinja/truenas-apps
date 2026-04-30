@@ -9,9 +9,15 @@
 
 set -euo pipefail
 
+_CHECK_DATASETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_CHECK_DATASETS_DIR}/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="check-datasets"
+
 # --- Require root ---
 if [[ "${EUID}" -ne 0 ]]; then
-    echo "ERROR: This script must be run as root (use sudo)." >&2
+    log_error "This script must be run as root (use sudo)."
     exit 1
 fi
 
@@ -41,94 +47,82 @@ collect_missing() {
 
 # --- CHECK mode ---
 if [[ "${MODE}" == "check" ]]; then
-    echo "Checking service directories under: ${SERVICES_PATH}"
-    echo ""
+    log_info "Checking service directories under: ${SERVICES_PATH}"
 
     missing=()
     collect_missing missing
 
     for name in "${missing[@]}"; do
-        echo "NO DATASET: ${name}  (${SERVICES_PATH}/${name})"
+        log_warn "NO DATASET: ${name}  (${SERVICES_PATH}/${name})"
     done
 
-    echo ""
     if [[ ${#missing[@]} -eq 0 ]]; then
-        echo "All service directories have a dedicated ZFS dataset."
+        log_result "All service directories have a dedicated ZFS dataset."
     else
-        echo "${#missing[@]} service director(y/ies) without a dedicated dataset."
-        echo ""
-        echo "Run with --fix to interactively create datasets:"
-        echo "  sudo $0 --fix ${SERVICES_PATH}"
+        log_result "${#missing[@]} service director(y/ies) without a dedicated dataset."
+        log_hint "Run with --fix to interactively create datasets:"
+        log_hint "  sudo $0 --fix ${SERVICES_PATH}"
     fi
     exit 0
 fi
 
 # --- FIX mode ---
-echo "=== ZFS Dataset Fix Wizard ==="
-echo "Services path: ${SERVICES_PATH}"
-echo ""
+log_banner "ZFS Dataset Fix Wizard"
+log_info "Services path: ${SERVICES_PATH}"
 
 missing=()
 collect_missing missing
 
 if [[ ${#missing[@]} -eq 0 ]]; then
-    echo "All service directories already have a dedicated ZFS dataset. Nothing to do."
+    log_result "All service directories already have a dedicated ZFS dataset. Nothing to do."
     exit 0
 fi
 
-echo "The following ${#missing[@]} service(s) have no dedicated dataset:"
-echo ""
+log_info "The following ${#missing[@]} service(s) have no dedicated dataset:"
 for name in "${missing[@]}"; do
-    echo "  - ${name}"
+    log_info "  - ${name}"
 done
 
-echo ""
 read -r -p "Proceed with the fix workflow? [y/N] " confirm
 if [[ "${confirm}" != [yY] ]]; then
-    echo "Aborted."
+    log_warn "Aborted."
     exit 0
 fi
 
 # --- Step 1: Stop Docker Compose projects ---
-echo ""
-echo "=== Step 1/4: Stopping Docker Compose projects ==="
+log_step "Step 1/4: Stopping Docker Compose projects"
 for name in "${missing[@]}"; do
     compose_file="${SERVICES_PATH}/${name}/compose.yaml"
     if [[ -f "${compose_file}" ]]; then
-        echo "  Stopping ${name}..."
+        log_state "Stopping ${name}..."
         docker compose -f "${compose_file}" down --timeout 30 2>&1 | sed 's/^/    /'
     else
-        echo "  Skipping ${name} (no compose.yaml found)"
+        log_warn "Skipping ${name} (no compose.yaml found)"
     fi
 done
 
 # --- Step 2: Move dirs to -tmp ---
-echo ""
-echo "=== Step 2/4: Moving directories to temporary names ==="
+log_step "Step 2/4: Moving directories to temporary names"
 for name in "${missing[@]}"; do
     src="${SERVICES_PATH}/${name}"
     dst="${SERVICES_PATH}/${name}-tmp"
-    echo "  ${name}/ -> ${name}-tmp/"
+    log_state "${name}/ -> ${name}-tmp/"
     mv "${src}" "${dst}"
 done
 
 # --- Step 3: Wait for user to create datasets ---
-echo ""
-echo "=== Step 3/4: Create datasets now ==="
-echo ""
-echo "Go to the TrueNAS UI and create a dataset for each service listed below."
-echo "The dataset mountpoint must match the original path exactly."
-echo ""
-echo "Datasets to create:"
+log_step "Step 3/4: Create datasets now"
+log_hint "Go to the TrueNAS UI and create a dataset for each service listed below."
+log_hint "The dataset mountpoint must match the original path exactly."
+log_info "Datasets to create:"
 for name in "${missing[@]}"; do
-    echo "  ${SERVICES_PATH}/${name}"
+    log_info "  ${SERVICES_PATH}/${name}"
 done
-echo ""
-echo "Press ENTER when all datasets have been created..."
-read -r
+
+read -r -p "Press ENTER when all datasets have been created..." _
 
 # Verify datasets were created
-echo "Verifying datasets..."
+log_state "Verifying datasets..."
 not_created=()
 for name in "${missing[@]}"; do
     if ! zfs list -H -o mountpoint 2>/dev/null | grep -qx "${SERVICES_PATH}/${name}"; then
@@ -137,24 +131,20 @@ for name in "${missing[@]}"; do
 done
 
 if [[ ${#not_created[@]} -gt 0 ]]; then
-    echo ""
-    echo "WARNING: The following datasets were NOT detected:"
+    log_warn "The following datasets were NOT detected:"
     for name in "${not_created[@]}"; do
-        echo "  - ${name}  (expected mountpoint: ${SERVICES_PATH}/${name})"
+        log_warn "  - ${name}  (expected mountpoint: ${SERVICES_PATH}/${name})"
     done
-    echo ""
     read -r -p "Continue anyway? Data will be moved but may not be on a dataset. [y/N] " confirm
     if [[ "${confirm}" != [yY] ]]; then
-        echo ""
-        echo "Aborted. Your data is still in the -tmp directories."
-        echo "To restore manually:  mv <name>-tmp <name>"
+        log_error "Aborted. Your data is still in the -tmp directories."
+        log_hint "To restore manually:  mv <name>-tmp <name>"
         exit 1
     fi
 fi
 
 # --- Step 4: Move contents back (including dotfiles) ---
-echo ""
-echo "=== Step 4/4: Moving contents back from temporary directories ==="
+log_step "Step 4/4: Moving contents back from temporary directories"
 for name in "${missing[@]}"; do
     src="${SERVICES_PATH}/${name}-tmp"
     dst="${SERVICES_PATH}/${name}"
@@ -162,19 +152,17 @@ for name in "${missing[@]}"; do
     # Ensure the target exists (dataset mount creates it, but just in case)
     mkdir -p "${dst}"
 
-    echo "  ${name}-tmp/ -> ${name}/"
+    log_state "${name}-tmp/ -> ${name}/"
 
     # Move all files including dotfiles; use find to handle both cases
     # without relying on shell globbing options
     find "${src}" -mindepth 1 -maxdepth 1 -exec mv -t "${dst}" {} +
 
     # Remove the now-empty temp directory
-    rmdir "${src}" 2>/dev/null || echo "    NOTE: ${name}-tmp/ not empty, leaving in place"
+    rmdir "${src}" 2>/dev/null || log_warn "${name}-tmp/ not empty, leaving in place"
 done
 
-echo ""
-echo "=== Done ==="
-echo ""
-echo "Don't forget to restart your services, e.g.:"
-echo "  cd ${SERVICES_PATH}/.."
-echo "  bash scripts/dccd.sh -a"
+log_result "Done"
+log_hint "Don't forget to restart your services, e.g.:"
+log_hint "  cd ${SERVICES_PATH}/.."
+log_hint "  bash scripts/dccd.sh -a"

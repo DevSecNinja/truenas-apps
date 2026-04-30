@@ -16,6 +16,12 @@
 
 set -euo pipefail
 
+_GEN_SOPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_GEN_SOPS_DIR}/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="generate-sops-rules"
+
 ########################################
 # Default configuration
 ########################################
@@ -47,11 +53,11 @@ while getopts ":d:uh" opt; do
     u) UPDATE_KEYS=1 ;;
     h) usage ;;
     \?)
-        echo "Invalid option: -${OPTARG}" >&2
+        log_error "Invalid option: -${OPTARG}"
         usage
         ;;
     :)
-        echo "Option -${OPTARG} requires an argument." >&2
+        log_error "Option -${OPTARG} requires an argument."
         usage
         ;;
     *) usage ;;
@@ -59,12 +65,12 @@ while getopts ":d:uh" opt; do
 done
 
 if [ -z "${BASE_DIR}" ]; then
-    echo "ERROR: -d is required." >&2
+    log_error "-d is required."
     usage
 fi
 
 if ! command -v yq >/dev/null 2>&1; then
-    echo "ERROR: yq is required but not found on PATH" >&2
+    log_error "yq is required but not found on PATH"
     exit 1
 fi
 
@@ -73,12 +79,12 @@ SOPS_YAML="${BASE_DIR}/.sops.yaml"
 AGE_KEY="${BASE_DIR}/age.key"
 
 if [ ! -f "${SERVERS_YAML}" ]; then
-    echo "ERROR: servers.yaml not found at ${SERVERS_YAML}" >&2
+    log_error "servers.yaml not found at ${SERVERS_YAML}"
     exit 1
 fi
 
 if [ ! -f "${AGE_KEY}" ]; then
-    echo "ERROR: age.key not found at ${AGE_KEY}" >&2
+    log_error "age.key not found at ${AGE_KEY}"
     exit 1
 fi
 
@@ -88,11 +94,11 @@ fi
 
 DEPLOY_KEY=$(grep -oP '# public key: \K(age1[a-z0-9]+)' "${AGE_KEY}") || true
 if [ -z "${DEPLOY_KEY}" ]; then
-    echo "ERROR: Could not extract public key from ${AGE_KEY}" >&2
-    echo "ERROR: Expected a line like: # public key: age1..." >&2
+    log_error "Could not extract public key from ${AGE_KEY}"
+    log_error "Expected a line like: # public key: age1..."
     exit 1
 fi
-echo "Deploy key: ${DEPLOY_KEY}"
+log_info "Deploy key: ${DEPLOY_KEY}"
 
 ########################################
 # Build app → server key mapping
@@ -106,7 +112,7 @@ local_server_list=$(yq -r '.servers | keys | .[]' "${SERVERS_YAML}") || true
 while IFS= read -r server; do
     key=$(yq -r ".servers.\"${server}\".age_public_key" "${SERVERS_YAML}")
     if [ -z "${key}" ] || [ "${key}" = "null" ]; then
-        echo "WARNING: Server '${server}' has no age_public_key set, skipping" >&2
+        log_warn "Server '${server}' has no age_public_key set, skipping"
         continue
     fi
     SERVER_KEYS["${server}"]="${key}"
@@ -115,10 +121,10 @@ while IFS= read -r server; do
     has_apps=$(yq -r ".servers.\"${server}\" | has(\"apps\")" "${SERVERS_YAML}")
     if [ "${has_apps}" != "true" ]; then
         ALL_ACCESS_KEYS+=("${key}")
-        echo "Server '${server}': all-access (no apps list)"
+        log_info "Server '${server}': all-access (no apps list)"
     else
         app_count=$(yq -r ".servers.\"${server}\".apps | length" "${SERVERS_YAML}")
-        echo "Server '${server}': ${app_count} app(s)"
+        log_info "Server '${server}': ${app_count} app(s)"
     fi
 done <<<"${local_server_list}"
 
@@ -154,7 +160,7 @@ for server_sops_file in "${BASE_DIR}"/services/*/secret.*.sops.env; do
     fi
     app_name=$(basename "$(dirname "${server_sops_file}")")
     HAS_SERVER_SECRETS["${app_name}:${server_name}"]="1"
-    echo "  Per-server secret: ${app_name}/secret.${server_name}.sops.env"
+    log_info "Per-server secret: ${app_name}/secret.${server_name}.sops.env"
 done
 
 for sops_file in "${BASE_DIR}"/services/*/secret.sops.env; do
@@ -200,7 +206,7 @@ for server_sops_file in "${BASE_DIR}"/services/*/secret.*.sops.env; do
 
     server_key="${SERVER_KEYS[${server_name}]:-}"
     if [ -z "${server_key}" ]; then
-        echo "WARNING: Server '${server_name}' in filename ${server_basename} not found in servers.yaml, skipping" >&2
+        log_warn "Server '${server_name}' in filename ${server_basename} not found in servers.yaml, skipping"
         continue
     fi
 
@@ -269,8 +275,7 @@ FALLBACK_KEYS=$(echo "${BASE_KEYS}" | tr ',' '\n' | sort -u | paste -sd',')
 } >"${SOPS_YAML}"
 
 rule_count=$(grep -c 'path_regex:' "${SOPS_YAML}") || true
-echo ""
-echo "Generated ${SOPS_YAML} with ${rule_count} rule(s)"
+log_result "Generated ${SOPS_YAML} with ${rule_count} rule(s)"
 
 ########################################
 # Update keys on existing encrypted files
@@ -278,12 +283,11 @@ echo "Generated ${SOPS_YAML} with ${rule_count} rule(s)"
 
 if [ "${UPDATE_KEYS}" -eq 1 ]; then
     if ! command -v sops >/dev/null 2>&1; then
-        echo "ERROR: sops is required for -u but not found on PATH" >&2
+        log_error "sops is required for -u but not found on PATH"
         exit 1
     fi
 
-    echo ""
-    echo "Updating keys on all secret files..."
+    log_state "Updating keys on all secret files..."
     update_count=0
     update_errors=0
 
@@ -291,27 +295,25 @@ if [ "${UPDATE_KEYS}" -eq 1 ]; then
         "${BASE_DIR}"/services/*/secret*.sops.env \
         "${BASE_DIR}"/services/shared/*/secret*.sops.env; do
         [ -f "${sops_file}" ] || continue
-        echo "  Updating: ${sops_file}"
+        log_state "Updating: ${sops_file}"
         if sops updatekeys -y "${sops_file}"; then
             update_count=$((update_count + 1))
         else
-            echo "  WARNING: Failed to update keys for ${sops_file}" >&2
+            log_warn "Failed to update keys for ${sops_file}"
             update_errors=$((update_errors + 1))
         fi
     done
 
-    echo ""
     if [ "${update_errors}" -eq 0 ]; then
-        echo "Updated keys on ${update_count} file(s)"
+        log_result "Updated keys on ${update_count} file(s)"
     else
-        echo "Updated keys on ${update_count} file(s), ${update_errors} failed"
+        log_result "Updated keys on ${update_count} file(s), ${update_errors} failed"
     fi
 else
-    echo ""
-    echo "Next steps:"
-    echo "  1. Review the generated .sops.yaml"
-    echo "  2. Run '$0 -d ${BASE_DIR} -u' or 'sops updatekeys' on each secret file"
-    echo "  3. For new per-server files, create them plaintext then encrypt:"
-    echo "     sops -e -i services/<app>/secret.<server>.sops.env"
-    echo "  4. Commit the updated .sops.yaml and re-encrypted secret files"
+    log_hint "Next steps:"
+    log_hint "  1. Review the generated .sops.yaml"
+    log_hint "  2. Run '$0 -d ${BASE_DIR} -u' or 'sops updatekeys' on each secret file"
+    log_hint "  3. For new per-server files, create them plaintext then encrypt:"
+    log_hint "     sops -e -i services/<app>/secret.<server>.sops.env"
+    log_hint "  4. Commit the updated .sops.yaml and re-encrypted secret files"
 fi

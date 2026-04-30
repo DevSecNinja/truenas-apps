@@ -447,3 +447,66 @@ Reusable env files live in `services/shared/env/` and are referenced via relativ
 | `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
+
+## Shell Script Logging
+
+Utility scripts under `scripts/` source the vendored [`lib/log.sh`](https://github.com/DevSecNinja/dotfiles) library (pinned to a tagged release) for consistent, colorized, timestamped output with severity-aware routing (`INFO`/`STATE`/`RESULT`/`HINT`/`STEP` to stdout; `WARN`/`ERROR`/`FATAL` to stderr).
+
+Every script sources `lib/log.sh` and sets a `LOG_TAG` matching the script's purpose:
+
+```sh
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${_SCRIPT_DIR}/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="dccd"
+```
+
+### Helpers
+
+Severity helpers (pick by intent, not by colour):
+
+| Helper       | Use for                                              |
+| ------------ | ---------------------------------------------------- |
+| `log_error`  | Failures that abort the operation                    |
+| `log_warn`   | Recoverable issues, fallbacks, deprecations          |
+| `log_info`   | Neutral progress and informational messages          |
+| `log_state`  | An action that is **in progress** (e.g. "Deploying") |
+| `log_result` | A completed outcome or summary line                  |
+| `log_hint`   | Suggested next steps for the user                    |
+| `log_step`   | Numbered steps inside a wizard or multi-stage flow   |
+
+Structural helpers for visual grouping:
+
+| Helper                      | Renders                                 |
+| --------------------------- | --------------------------------------- |
+| `log_banner <title> [KIND]` | Boxed banner for major phase boundaries |
+| `log_rule [KIND] <title>`   | Titled horizontal divider               |
+| `log_sep [KIND]`            | Plain horizontal rule                   |
+
+`KIND` is one of `INFO`, `STATE`, `RESULT`, `HINT`, `STEP`, `WARN`, `ERROR` and selects the colour.
+
+### Constraints
+
+- **Functions that return data via stdout** (`printf '%s' "$value"`) must redirect any internal log calls to stderr — otherwise log lines contaminate the captured value:
+
+  ```sh
+  get_thing() {
+      log_info "looking up thing" >&2
+      printf '%s' "${value}"
+  }
+  ```
+
+- **Heredoc / grouped redirects to a file** (`{ echo …; echo …; } > FILE`) must keep using plain `echo`. Those blocks produce file content, not log output, and routing them through `log_*` would prepend timestamps and tags into the written file.
+
+- **GitHub Actions annotation scripts** (`scripts/gha-image-age-check.sh`, `scripts/gha-trivy-image-scan.sh`) intentionally use plain `echo` so that `::warning::` / `::error::` workflow commands reach the runner verbatim. Do not migrate these to `log.sh`.
+
+### Refreshing the vendored copy
+
+`scripts/lib/log.sh` is vendored from a pinned upstream release. To bump it, run:
+
+```sh
+bash scripts/update-log-sh.sh
+```
+
+The refresher script downloads the configured release, verifies the SHA-256 against `scripts/lib/log.sh.sha256`, and updates both files in place. Commit the result as a `chore` change.

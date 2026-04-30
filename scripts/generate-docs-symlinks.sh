@@ -15,6 +15,11 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${0}")/.." && pwd)"
+# shellcheck source=lib/log.sh disable=SC1091
+. "${REPO_ROOT}/scripts/lib/log.sh"
+# shellcheck disable=SC2034
+LOG_TAG="generate-docs-symlinks"
+
 DOCS_SERVICES="${REPO_ROOT}/docs/services"
 SERVICES_DIR="${REPO_ROOT}/services"
 
@@ -23,7 +28,7 @@ mkdir -p "${DOCS_SERVICES}"
 # Remove stale symlinks (service was retired or README removed)
 find "${DOCS_SERVICES}" -maxdepth 1 -type l | while read -r link; do
     if [[ ! -e "${link}" ]]; then
-        echo "Removing stale symlink: ${link}"
+        log_state "Removing stale symlink: ${link}"
         rm "${link}"
     fi
 done
@@ -54,8 +59,8 @@ for readme in "${SERVICES_DIR}"/*/README.md; do
     fi
 
     ln -s "${target}" "${symlink}"
-    echo "Created symlink: docs/services/${service_name}.md → ${target}"
+    log_state "Created symlink: docs/services/${service_name}.md → ${target}"
     ((created++)) || true
 done
 
-echo "Done. ${created} symlink(s) created."
+log_result "${created} symlink(s) created."
