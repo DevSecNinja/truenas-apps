@@ -84,9 +84,15 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
     healthcheck:
+      # The Alloy image (Ubuntu noble) does not include wget or curl, so we
+      # use bash's built-in /dev/tcp to probe the HTTP listener on :12345.
+      # The listener is only opened once Alloy has loaded its config and
+      # components, so a successful TCP open is a meaningful liveness signal.
       test:
-        - "CMD-SHELL"
-        - "wget -q --spider http://localhost:12345/-/ready || exit 1"
+        - "CMD"
+        - "bash"
+        - "-c"
+        - "exec 3<>/dev/tcp/localhost/12345"
       interval: 30s
       timeout: 5s
       retries: 3
