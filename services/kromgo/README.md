@@ -36,16 +36,16 @@ All metrics are defined in `config/config.yaml`. Each metric is served at two en
 - `GET /<name>` — shields.io-compatible JSON (default)
 - `GET /<name>?format=badge` — SVG badge
 
-| Metric name             | Badge title    | Status   | Description                                                                            |
-| ----------------------- | -------------- | -------- | -------------------------------------------------------------------------------------- |
-| `host_load1`            | Load (1m)      | Active   | 1-minute load average on the primary NAS host (Alloy `prometheus.exporter.unix`)       |
-| `host_disk_free_pct`    | Disk Free      | Active   | Free space percentage on the apps pool root filesystem                                 |
-| `compose_last_update`   | Last Update    | Hidden   | Human-readable duration since the CD pipeline last ran — needs Issue #15 Phase 2       |
-| `compose_last_success`  | Last Success   | Hidden   | Human-readable duration since the CD pipeline last succeeded — same dependency         |
-| `compose_update_status` | CD Status      | Hidden   | `Success` or `Failed` result of the most recent CD run — same dependency               |
-| `backup_last_run`       | Backup Run     | Hidden   | Human-readable duration since the backup last ran — needs backup-script push           |
-| `backup_last_success`   | Backup Success | Hidden   | Human-readable duration since the backup last succeeded — same dependency             |
-| `backup_status`         | Backup Status  | Hidden   | `Success` or `Failed` result of the most recent backup run — same dependency          |
+| Metric name             | Badge title    | Status | Description                                                                      |
+| ----------------------- | -------------- | ------ | -------------------------------------------------------------------------------- |
+| `host_load1`            | Load (1m)      | Active | 1-minute load average on the primary NAS host (Alloy `prometheus.exporter.unix`) |
+| `host_disk_free_pct`    | Disk Free      | Active | Free space percentage on the apps pool root filesystem                           |
+| `compose_last_update`   | Last Update    | Hidden | Human-readable duration since the CD pipeline last ran — needs Issue #15 Phase 2 |
+| `compose_last_success`  | Last Success   | Hidden | Human-readable duration since the CD pipeline last succeeded — same dependency   |
+| `compose_update_status` | CD Status      | Hidden | `Success` or `Failed` result of the most recent CD run — same dependency         |
+| `backup_last_run`       | Backup Run     | Hidden | Human-readable duration since the backup last ran — needs backup-script push     |
+| `backup_last_success`   | Backup Success | Hidden | Human-readable duration since the backup last succeeded — same dependency        |
+| `backup_status`         | Backup Status  | Hidden | `Success` or `Failed` result of the most recent backup run — same dependency     |
 
 <!-- dprint-ignore -->
 !!! note "Pending follow-ups"
@@ -74,10 +74,10 @@ To use the shields.io-compatible JSON endpoint instead (allows custom styling vi
 
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
-| Variable         | Description                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ |
-| `PROMETHEUS_URL` | Grafana Cloud Mimir endpoint with credentials as userinfo: `https://<instance-id>:<token>@<host>/api/prom`   |
-| `DOMAINNAME`     | Base domain for Traefik routing                                                                              |
+| Variable         | Description                                                                                                |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `PROMETHEUS_URL` | Grafana Cloud Mimir endpoint with credentials as userinfo: `https://<instance-id>:<token>@<host>/api/prom` |
+| `DOMAINNAME`     | Base domain for Traefik routing                                                                            |
 
 ## First-Run Setup
 
