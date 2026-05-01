@@ -478,9 +478,27 @@ loki.relabel "journal" {
 	// an empty list (the argument is required syntax).
 	forward_to = []
 
+	// `unit` is set from `__journal__systemd_unit` when present (the normal case
+	// for entries written through systemd-managed services like sshd.service or
+	// smartd.service). For entries written through the syslog transport with no
+	// owning systemd unit — `dccd.sh` is the canonical example, since it
+	// `logger -t dccd`s from a cron-spawned shell — `__journal__systemd_unit`
+	// is empty, so we fall back to `__journal_syslog_identifier`. This makes
+	// the Grafana Cloud "Linux Server" Logs dashboard's `unit` variable list
+	// `dccd` (and any other syslog identifier) directly, which is the only
+	// reason this fallback exists.
 	rule {
 		source_labels = ["__journal__systemd_unit"]
+		regex         = "(.+)"
 		target_label  = "unit"
+		replacement   = "$1"
+	}
+	rule {
+		source_labels = ["unit", "__journal_syslog_identifier"]
+		separator     = ";"
+		regex         = ";(.+)"
+		target_label  = "unit"
+		replacement   = "$1"
 	}
 	rule {
 		source_labels = ["__journal_syslog_identifier"]
