@@ -33,6 +33,7 @@ The setup follows
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
+| [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
 | [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |

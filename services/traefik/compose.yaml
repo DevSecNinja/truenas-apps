@@ -92,6 +92,7 @@ services:
       home-assistant-frontend:
       outline-frontend:
       sqlite-web-frontend:
+      bitwarden-frontend:
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -292,4 +293,7 @@ networks:
     external: true
   sqlite-web-frontend:
     name: sqlite-web-frontend
+    external: true
+  bitwarden-frontend:
+    name: bitwarden-frontend
     external: true

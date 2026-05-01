@@ -72,6 +72,7 @@ nav:
       - AdGuard Home: services/adguard.md
       - Alloy: services/alloy.md
       - Bazarr: services/bazarr.md
+      - Bitwarden Lite: services/bitwarden.md
       - Cloudflared: services/cloudflared.md
       - Dozzle: services/dozzle.md
       - Draw.io: services/drawio.md
