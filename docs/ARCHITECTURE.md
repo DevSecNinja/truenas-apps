@@ -62,7 +62,7 @@ services:
 - `cap_drop: ALL` on every container — this is a hard security requirement. If a container needs a specific capability, declare `cap_add` with only the minimum required capability and add a comment on the container in the compose file explaining why the exception is necessary
 - Memory limits with env-var overrides for per-environment tuning
 - `pids_limit` on every container to prevent fork-bomb DoS
-- Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`
+- Health checks are mandatory — `dccd.sh` uses `docker compose up --wait`. Probe URLs must use `127.0.0.1` (not `localhost`) — see [Healthcheck URLs: Prefer `127.0.0.1` Over `localhost`](#healthcheck-urls-prefer-127001-over-localhost)
 - Volumes mounted `:ro` wherever the container only reads
 - **`./config` volumes must always be mounted `:ro`** — config files are git-tracked and must never be modified by a container at runtime. If a service needs to write config at runtime, copy the file from `./config` to `./data` in an init container and mount the `./data` copy read-write (see the gatus pattern). Any exception requires explicit approval and a comment in the compose file explaining why
 
@@ -100,6 +100,21 @@ healthcheck:
 The port is the listening port in **uppercase hex** (e.g. `12345` decimal → `3039`). Confirm `/bin/sh` is actually present (`docker run --rm --entrypoint sh <image> -c true`) before adopting this pattern.
 
 For binary-only images where no in-container probe is possible, set `healthcheck: { disable: true }` with a comment explaining why. `scripts/dccd.sh` (via `compose_up_wait_tolerant`) treats "no healthcheck" as successful once the container reaches `running`, so the deploy still completes. Pair this with external monitoring (Gatus + Traefik logs + the application's self-metrics) for actual liveness signal. The canonical example is `services/alloy/compose.yaml`.
+
+## Healthcheck URLs: Prefer `127.0.0.1` Over `localhost`
+
+**Rule:** Healthcheck URLs must always target `127.0.0.1` (or `[::1]` if the service is IPv6-only) — never `localhost`.
+
+Alpine's `/etc/hosts` (and many other minimal base images) lists `::1` before `127.0.0.1`, so `localhost` resolves to IPv6 first. On hosts without IPv6 bridge support — including TrueNAS SCALE — Docker fails to bind the IPv6 listener and the application ends up listening on `0.0.0.0` only. Busybox `wget`, the default `nc`, and most minimal probe binaries do not fall back from a refused IPv6 connect to IPv4, so the probe returns `Connection refused` even though the service is fully running.
+
+```yaml
+# Good — always reachable on IPv4
+- "http://127.0.0.1:8080/alive"
+# Bad — resolves to ::1 first on Alpine; fails when the listener is IPv4 only
+- "http://localhost:8080/alive"
+```
+
+**Symptom:** the container reports `unhealthy` indefinitely. `docker exec <ctr> netstat -tlnp` shows the port `LISTEN`-ing on `0.0.0.0`, the application is fully serving requests through Traefik, but the in-container probe returns exit code `1` with `Connection refused`. Swapping `localhost` for `127.0.0.1` in the healthcheck `test:` resolves it. See `services/bitwarden/compose.yaml` for an annotated example.
 
 ## Volume Permissions: Init Container Pattern
 

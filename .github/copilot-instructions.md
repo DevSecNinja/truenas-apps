@@ -114,7 +114,7 @@ Read `docs/ARCHITECTURE.md` (compose patterns) and `docs/INFRASTRUCTURE.md` (UID
 
 - **Images**: Always include explicit registry prefix (`docker.io/library/...`, `ghcr.io/...`). Always digest-pinned (`@sha256:...`). Bare names like `busybox` are forbidden.
 - **Security**: Every container must have `read_only: true`, `no-new-privileges`, `cap_drop: ALL`, `mem_limit`, `pids_limit: 100`. Add `cap_add` only when provably required with a comment explaining why.
-- **Health checks**: Mandatory on every service (required for `--wait` deploys).
+- **Health checks**: Mandatory on every service (required for `--wait` deploys). Probe URLs must use `127.0.0.1`, never `localhost` (Alpine resolves `localhost` to `::1` first; IPv6 bridge bind fails on TrueNAS).
 - **Init containers**: Required when a service uses `user: "UID:GID"` with writable volumes. Use the busybox init pattern from ARCHITECTURE.md. Must only chown `./data` (runtime) paths — **never** chown `./config` (git-tracked) directories.
 - **Config volumes**: `./config` directories must always be mounted `:ro`. No container may write to git-tracked config at runtime. If runtime writes are needed, copy to `./data` in an init container.
 - **Networks**: Each app gets its own `<app>-frontend` network. Must be added to `services/traefik/compose.yaml`.
