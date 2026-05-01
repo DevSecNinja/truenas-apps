@@ -349,6 +349,12 @@ services:
       - path: ../shared/env/tz.env
     environment:
       - DATA_SOURCE_NAME=postgresql://outline:${OUTLINE_DB_PASSWORD}@outline-db:5432/outline?sslmode=disable
+    # Point --config.file at /dev/null (always present in the container's /dev,
+    # parses as empty YAML) so the exporter does not log a startup warning
+    # about the missing optional auth_modules config. This deployment uses a
+    # single DATA_SOURCE_NAME, so no auth_modules config is needed.
+    command:
+      - --config.file=/dev/null
     user: "65534:65534" # nobody:nogroup
     deploy:
       restart_policy:
