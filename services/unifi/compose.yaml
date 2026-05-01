@@ -7,7 +7,7 @@ services:
   # MongoDB starts as root and uses gosu to switch to the mongodb user during
   # startup. cap_drop: ALL would break that privilege transition.
   unifi-db:
-    image: docker.io/library/mongo:8.2.6@sha256:eea8506335198f8b359865b32004036310854a935fbd317083817c614152818f
+    image: docker.io/library/mongo:8.2.7@sha256:7abfba0d07c9330373f8173981ea4d09cd8a82cdf0e86ccaf7008848d1d24f62
     container_name: unifi-db
     env_file:
       - path: .env # Decrypted from secret.sops.env
