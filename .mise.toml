@@ -3,7 +3,7 @@ min_version = "2026.4.15"
 
 [tools]
 age = "1.3.1"
-bats = "1.11.1"
+bats = "1.13.0"
 "pipx:check-jsonschema" = "0.37.1"
 "pipx:checkov" = "3.2.521"
 "pipx:mkdocs-material" = { version = "9.7.6", uvx = "false", pipx_args = "--include-deps" }
