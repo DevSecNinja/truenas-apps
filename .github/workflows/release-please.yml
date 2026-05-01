@@ -1,12 +1,13 @@
 ---
 name: Release Please
 
-# Drives semver bumping via the central reusable workflow. On every push
-# to main this opens (or updates) a `chore: release vX.Y.Z` PR with the
-# next version's CHANGELOG bump (computed from Conventional Commits).
-# Merging that PR creates the `vX.Y.Z` tag, which triggers
-# `.github/workflows/release.yml` (the existing tag-triggered workflow
-# that publishes the GitHub Release via the central reusable).
+# Drives semver bumping AND release publishing via the central
+# reusable workflow. On every push to main this opens (or updates)
+# a `chore(main): release vX.Y.Z` PR with the next version's
+# CHANGELOG bump (computed from Conventional Commits). Merging that
+# PR creates the `vX.Y.Z` git tag *and* publishes the GitHub Release
+# in a single run (`skip-github-release: false` in
+# release-please-config.json).
 #
 # The release PR is opened by the DevSecNinja Release Please GitHub
 # App (not GITHUB_TOKEN) so required CI checks fire on the PR — see
@@ -42,3 +43,25 @@ jobs:
       app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
     secrets:
       app-private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
+  # --- Page on main-branch release-please failure (homelab IRM pager) ---
+  # Fires only on push to main (not on workflow_dispatch reruns) and only
+  # when release-please itself failed — covers both the version-PR phase
+  # and the post-merge tag/release-publish phase, since both run inside
+  # the same reusable workflow now that `skip-github-release: false`.
+  notify-irm:
+    name: Notify Grafana IRM
+    needs:
+      - release-please
+    if: ${{ always() && github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Notify Grafana IRM
+        uses: DevSecNinja/.github/.github/actions/notify-irm@b2509636243e456253c938184dfe1855d6401e6d # main
+        with:
+          webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
+          # `needs.*.result` is system-controlled, safe to interpolate.
+          job-failed: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+          resolve-on-success: "false"
