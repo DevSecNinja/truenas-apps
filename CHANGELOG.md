@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.0](https://github.com/DevSecNinja/truenas-apps/compare/v0.19.0...v0.20.0) (2026-05-01)
+
+
+### Features
+
+* **gatus:** add digitalsecurity endpoint health check ([#307](https://github.com/DevSecNinja/truenas-apps/issues/307)) ([b1b0cb9](https://github.com/DevSecNinja/truenas-apps/commit/b1b0cb9352c08ca4f03d81b720e0a2531017bd43))
+
+
+### Bug Fixes
+
+* **gatus:** update digital security body match pattern ([#310](https://github.com/DevSecNinja/truenas-apps/issues/310)) ([7a952d2](https://github.com/DevSecNinja/truenas-apps/commit/7a952d2e6e4cf87145b6b4d4797836e4cfcb6189))
+* **github-release:** update release jdx/mise ( v2026.4.15 ➔ v2026.4.16 ) ([#313](https://github.com/DevSecNinja/truenas-apps/issues/313)) ([01138b8](https://github.com/DevSecNinja/truenas-apps/commit/01138b861d06989c7ee443a065778852e7402902))
+* **release:** let release-please own tag + GitHub Release creation ([#312](https://github.com/DevSecNinja/truenas-apps/issues/312)) ([544a1d0](https://github.com/DevSecNinja/truenas-apps/commit/544a1d08a31d9f5c32a7392d48222c1a7155f597))
+
 ## [0.19.0](https://github.com/DevSecNinja/truenas-apps/compare/v0.18.0...v0.19.0) (2026-05-01)
 
 
