@@ -156,6 +156,16 @@ endpoints:
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
+  - name: digitalsecurity - HTTP
+    <<: *defaults
+    url: "https://digitalsecurity.${DOMAINNAME}"
+    group: External
+    conditions:
+      - "[BODY] == pat(*DIGITAL SECURITY FOR NONPROFIT LEADERS*)"
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
   - name: traefik-ext - HTTP
     <<: *defaults
     url: "https://traefik-ext.${DOMAINNAME}"
