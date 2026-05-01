@@ -103,26 +103,27 @@ done
 ########################################
 
 total=$((${#encrypted_files[@]} + ${#unencrypted_files[@]}))
-log_kv total="${total}" encrypted="${#encrypted_files[@]}" unencrypted="${#unencrypted_files[@]}"
+log_info "Found ${total} secret.sops.env file(s):"
+log_info "  ${#encrypted_files[@]} encrypted, ${#unencrypted_files[@]} unencrypted"
 
 if [ ${#unencrypted_files[@]} -eq 0 ]; then
     log_result "All secret files are encrypted."
     exit 0
 fi
 
-printf '%s\n' "${unencrypted_files[@]}" |
-    log_data WARN "Unencrypted files"
+log_warn "Unencrypted files:"
+for f in "${unencrypted_files[@]}"; do
+    log_warn "  ${f}"
+done
 
 ########################################
 # Encrypt (if requested)
 ########################################
 
 if [ "${DO_ENCRYPT}" -eq 0 ]; then
-    printf '%s\n' \
-        "Run with --encrypt to encrypt these files in-place." \
-        "Make sure .sops.yaml creation_rules are up to date first:" \
-        "  bash scripts/generate-sops-rules.sh -d ${BASE_DIR}" |
-        log_data HINT "To fix"
+    log_hint "Run with --encrypt to encrypt these files in-place."
+    log_hint "Make sure .sops.yaml creation_rules are up to date first:"
+    log_hint "  bash scripts/generate-sops-rules.sh -d ${BASE_DIR}"
     exit 1
 fi
 
@@ -140,16 +141,14 @@ done
 
 if [ "${failed}" -eq 1 ]; then
     log_error "Some files failed to encrypt. Check the output above."
-    printf '%s\n' \
-        "Missing .sops.yaml creation_rule for the file" \
-        "No Age key available (set SOPS_AGE_KEY_FILE or SOPS_AGE_KEY)" |
-        log_data HINT "Common causes"
+    log_hint "Common causes:"
+    log_hint "  - Missing .sops.yaml creation_rule for the file"
+    log_hint "  - No Age key available (set SOPS_AGE_KEY_FILE or SOPS_AGE_KEY)"
     exit 1
 fi
 
 log_result "All files encrypted successfully."
-printf '%s\n' \
-    "1. Review changes: git diff" \
-    "2. If server-app mappings changed, regenerate SOPS rules:" \
-    "   bash scripts/generate-sops-rules.sh -d ${BASE_DIR}" |
-    log_data HINT "Next steps"
+log_hint "Next steps:"
+log_hint "  1. Review changes: git diff"
+log_hint "  2. If server-app mappings changed, regenerate SOPS rules:"
+log_hint "     bash scripts/generate-sops-rules.sh -d ${BASE_DIR}"
