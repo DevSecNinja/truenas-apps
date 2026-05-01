@@ -8,6 +8,10 @@ name: Release Please
 # `.github/workflows/release.yml` (the existing tag-triggered workflow
 # that publishes the GitHub Release via the central reusable).
 #
+# The release PR is opened by the DevSecNinja Release Please GitHub
+# App (not GITHUB_TOKEN) so required CI checks fire on the PR — see
+# DevSecNinja/.github docs/release-please-onboarding.md.
+#
 # Branch protection is fully respected: every release commit lands via
 # PR through normal CI. No bypass actor required.
 #
@@ -29,10 +33,12 @@ concurrency:
 
 jobs:
   release-please:
-    # NOTE: pinned to the PR branch in DevSecNinja/.github#33. Re-pin to
-    # the merged-on-main SHA once that PR lands.
     # renovate: datasource=github-tags depName=DevSecNinja/.github
-    uses: DevSecNinja/.github/.github/workflows/release-please.yml@7ed381a72cf3d86d34aa5db3818dd468968e46ce # feat/release-please-reusable
+    uses: DevSecNinja/.github/.github/workflows/release-please.yml@e7037884132e77504ca7f50a23e98f594d1c764b # v1.1.0
     permissions:
       contents: write
       pull-requests: write
+    with:
+      app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+    secrets:
+      app-private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
