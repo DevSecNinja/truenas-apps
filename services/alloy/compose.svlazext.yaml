@@ -11,6 +11,10 @@ services:
   alloy:
     environment:
       - HOSTNAME_OVERRIDE=svlazext
+    # systemd-journal group GID on svlazext (compose.yaml defaults to 102 for
+    # svlnas). Verify with `getent group systemd-journal` if rebuilding the host.
+    group_add: !override
+      - "999"
     # immich and outline are not deployed on svlazext, so their *-backend
     # networks (declared external in compose.yaml) do not exist on this host.
     # Override the list to drop them; the unused external declarations in the
