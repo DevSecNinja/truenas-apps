@@ -95,9 +95,18 @@ prometheus.relabel "host" {
 		target_label = "host"
 		replacement  = sys.env("HOSTNAME_OVERRIDE")
 	}
+	// `instance` and `job=integrations/node_exporter` are required by Grafana
+	// Cloud's "Linux Server" integration — its dashboards and alerts query
+	// `node_*` series with that exact job label and use `instance` as the
+	// per-host variable. The same label set is mirrored on the journal stream
+	// below so the integration's "Logs" dashboard works against this Alloy.
+	rule {
+		target_label = "instance"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
 	rule {
 		target_label = "job"
-		replacement  = "node"
+		replacement  = "integrations/node_exporter"
 	}
 }
 
@@ -405,16 +414,23 @@ prometheus.relabel "github_truenas_apps" {
 //   - smartd / zfs / kernel events (OOM, link flaps, pool degradation)
 //   - systemd unit failures
 //
-// Cardinality: only `unit` and `syslog_identifier` are promoted as labels.
-// Higher-cardinality fields like `_PID`, `_HOSTNAME`, or message-derived
-// values stay as structured metadata or in the log line itself.
+// Labels: `unit`, `syslog_identifier`, `transport`, and `level` (from
+// __journal_priority_keyword) are promoted from journal fields. `host`,
+// `instance`, and `job=integrations/node_exporter` are static. `__journal__boot_id`
+// is intentionally NOT promoted — it's bounded but a fresh stream per reboot
+// adds up over months. Higher-cardinality fields like `_PID` or `_HOSTNAME`
+// stay on the line.
+//
+// Job/instance label set matches the metrics stream above so Grafana Cloud's
+// "Linux Server" integration "Logs" dashboard works without modification.
 //
 // Cursor state: stored in /var/lib/alloy/data/<component>/positions.yml so
 // restarts resume where they left off.
 //
 // Filtering: a small loki.process drop stage removes trivial high-volume
-// PAM/cron session-open/close pairs that have no operational value. Tighten
-// further here if Loki ingestion volume grows.
+// PAM/cron session-open/close pairs that have no operational value, and a
+// stale-entry drop matching the docker pipeline's 167h cutoff guards Cloud
+// Free's 168h ingest window after long Alloy outages.
 ////////////////////////////////////////////////////////////////////////////////
 
 loki.relabel "journal" {
@@ -432,12 +448,24 @@ loki.relabel "journal" {
 		target_label  = "syslog_identifier"
 	}
 	rule {
+		source_labels = ["__journal__transport"]
+		target_label  = "transport"
+	}
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		target_label  = "level"
+	}
+	rule {
 		target_label = "host"
 		replacement  = sys.env("HOSTNAME_OVERRIDE")
 	}
 	rule {
+		target_label = "instance"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
 		target_label = "job"
-		replacement  = "systemd-journal"
+		replacement  = "integrations/node_exporter"
 	}
 }
 
@@ -451,13 +479,33 @@ loki.process "journal" {
 		selector = "{syslog_identifier=~\"CRON|systemd-logind\"} |~ \"pam_unix.*session (opened|closed)\""
 		action   = "drop"
 	}
+
+	// Stale-entry guardrail — same 167h cutoff as the docker pipeline (see
+	// the comment above `loki.process "containers"`). Protects against the
+	// 168h ingest window in Grafana Cloud Free's Loki when Alloy has been
+	// down long enough that the journal cursor points to entries older than
+	// the cutoff. Counted in
+	// loki_process_dropped_lines_total{reason="too_old_for_cloud_free"}.
+	stage.drop {
+		older_than          = "167h"
+		drop_counter_reason = "too_old_for_cloud_free"
+	}
 }
 
 loki.source.journal "host" {
 	path          = "/var/log/journal"
 	relabel_rules = loki.relabel.journal.rules
 	forward_to    = [loki.process.journal.receiver]
+	// Cap how far back the source reads on first start (or after losing its
+	// cursor). 12h is enough to bridge typical maintenance windows but well
+	// under the 167h Loki ingest cutoff, so a fresh tail can never produce
+	// rejected batches. Matches the Grafana Cloud "Linux Server" reference
+	// config.
+	max_age = "12h0m0s"
 	labels = {
-		job = "systemd-journal",
+		// Static label echoed by the relabel rules above; kept here for
+		// clarity so the source's stream identity is obvious without chasing
+		// the rule list.
+		job = "integrations/node_exporter",
 	}
 }
