@@ -118,6 +118,23 @@ jobs:
             fi
           done
 
+  # --- TEMPORARY: deliberately fail on push to main to test the IRM
+  # failure webhook end-to-end. Revert immediately after a page is
+  # received. Tracked under #15 Phase 3 verification. The job is gated
+  # so PR runs (this very PR included) stay green and can merge cleanly;
+  # only the post-merge push-to-main run will fail.
+  trigger-irm-failure-test:
+    name: TEMPORARY — deliberate failure to test IRM webhook
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Fail on purpose
+        run: |
+          echo "::warning::Deliberate failure to verify the Grafana IRM webhook integration. Revert this job once a page has been received."
+          exit 1
+
   # --- Page on main-branch CI failure (Phase 3 of #15) ---
   #
   # Posts a JSON alert to a Grafana IRM webhook integration when any prior
@@ -132,6 +149,7 @@ jobs:
       - docker-compose-config
       - dotenv-linter
       - validate-servers
+      - trigger-irm-failure-test
     if: ${{ always() && failure() && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     permissions:
