@@ -1,11 +1,11 @@
 ---
 name: Tests
 
+# PR-only (plus dispatch). Branch protection makes the merge commit
+# identical to the last PR head, so re-running on push to main is
+# duplicate work. See DevSecNinja/.github docs/workflow-trigger-conventions.md.
 on:
   pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow -- no artifacts produced
 
 concurrency:

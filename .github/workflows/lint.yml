@@ -1,11 +1,15 @@
 ---
 name: Lint
 
+# PR-only: branch protection makes the merge commit identical to the
+# last PR head, so re-running on push to main is duplicate work. See
+# DevSecNinja/.github docs/workflow-trigger-conventions.md.
 on:
   pull_request:
-  push:
-    branches:
-      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
