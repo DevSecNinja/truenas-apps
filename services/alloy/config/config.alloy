@@ -370,3 +370,70 @@ prometheus.relabel "github_truenas_apps" {
 		replacement  = "integrations/github_exporter"
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Host systemd journal — loki.source.journal
+//
+// Tails the host's persistent journal (bind-mounted at /var/log/journal in
+// compose.yaml). Surfaces signals not visible from container logs alone:
+//   - dccd.sh deploy output (logger tag "dccd")
+//   - sshd auth events
+//   - smartd / zfs / kernel events (OOM, link flaps, pool degradation)
+//   - systemd unit failures
+//
+// Cardinality: only `unit` and `syslog_identifier` are promoted as labels.
+// Higher-cardinality fields like `_PID`, `_HOSTNAME`, or message-derived
+// values stay as structured metadata or in the log line itself.
+//
+// Cursor state: stored in /var/lib/alloy/data/<component>/positions.yml so
+// restarts resume where they left off.
+//
+// Filtering: a small loki.process drop stage removes trivial high-volume
+// PAM/cron session-open/close pairs that have no operational value. Tighten
+// further here if Loki ingestion volume grows.
+////////////////////////////////////////////////////////////////////////////////
+
+loki.relabel "journal" {
+	// Used purely as a rules source via `.rules` from loki.source.journal —
+	// log entries are not routed through this component, so forward_to is
+	// an empty list (the argument is required syntax).
+	forward_to = []
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		target_label  = "unit"
+	}
+	rule {
+		source_labels = ["__journal_syslog_identifier"]
+		target_label  = "syslog_identifier"
+	}
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "systemd-journal"
+	}
+}
+
+loki.process "journal" {
+	forward_to = [loki.write.grafana_cloud.receiver]
+
+	// Drop low-value PAM session noise from cron and systemd-logind.
+	// These messages fire on every cron tick and login session and contain
+	// no actionable information.
+	stage.match {
+		selector = "{syslog_identifier=~\"CRON|systemd-logind\"} |~ \"pam_unix.*session (opened|closed)\""
+		action   = "drop"
+	}
+}
+
+loki.source.journal "host" {
+	path          = "/var/log/journal"
+	relabel_rules = loki.relabel.journal.rules
+	forward_to    = [loki.process.journal.receiver]
+	labels = {
+		job = "systemd-journal",
+	}
+}

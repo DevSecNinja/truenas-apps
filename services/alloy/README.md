@@ -14,6 +14,7 @@ Alloy collapses what previously required several agents into a single process:
 - **Immich Postgres** via `prometheus.scrape "postgres_immich"`, targeting `immich-db-exporter:9187` over the `immich-backend` Docker network (60s interval, `host` and `job=postgres_immich` labels added via relabeling). The exporter sidecar lives in `services/immich/compose.yaml` and reuses Immich's `IMMICH_DB_PASSWORD` — no DB credentials are added to Alloy's `secret.sops.env`. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
 - **Outline Postgres** via `prometheus.scrape "postgres_outline"`, targeting `outline-db-exporter:9187` over the `outline-backend` Docker network (60s interval, `host` and `job=postgres_outline` labels added via relabeling). The exporter sidecar lives in `services/outline/compose.yaml` and reuses Outline's `OUTLINE_DB_PASSWORD`. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
 - **GitHub repo stats** via `prometheus.exporter.github` polling the GitHub REST API for `DevSecNinja/truenas-apps` and `DevSecNinja/dotfiles` (10m interval, `host` and `job=integrations/github_exporter` labels added via relabeling). Surfaces rate-limit headroom, stars/forks/watchers, open PR/issue counts, and repo size. Authenticates with a fine-grained GitHub PAT (`Metadata` + `Issues` + `Pull requests` read-only on the listed repos) stored as `GITHUB_API_TOKEN` in `secret.sops.env`. **Single-host scrape**: gated to `svlnas` via a `discovery.relabel` keep rule on `HOSTNAME_OVERRIDE` so only one Alloy instance polls the API; on svlazext the target list filters to empty and `prometheus.scrape` is a no-op.
+- **Host systemd journal** via `loki.source.journal`, reading `/var/log/journal` directly so host-level signals not visible from container logs (sshd, smartd, kernel/OOM, ZFS events) become searchable in Loki — and so `dccd.sh` deploy logs (already emitted to journald via `logger -t dccd`) land in the same place as everything else. The pipeline is `loki.source.journal.host` → `loki.relabel.journal` → `loki.process.journal` → `loki.write.grafana_cloud`. Only `__journal__systemd_unit` and `__journal_syslog_identifier` are promoted to indexed labels (`unit`, `syslog_identifier`) alongside the static `host` and `job=systemd-journal` — every other journal field is kept on the line itself rather than as a label, since unit and identifier are the only two that are bounded enough to keep Loki's stream cardinality flat. A small `loki.process` drop stage suppresses `pam_unix .* session (opened|closed)` messages from `CRON` and `systemd-logind` (high-volume, zero operational value). Read access is granted by mounting `/var/log/journal`, `/run/log/journal`, and `/etc/machine-id` read-only and adding the host's `systemd-journal` GID via `group_add: ["${SYSTEMD_JOURNAL_GID:-999}"]` (the numeric GID differs per host; set per-host in `secret.sops.env`).
 - **Self-observability** via `prometheus.exporter.self`.
 
 ### Out of scope
@@ -56,6 +57,7 @@ See [issue #15](https://github.com/DevSecNinja/truenas-apps/issues/15) for the f
 - `./config:/etc/alloy:ro` — `config.alloy` (git-tracked, read-only)
 - `./data:/var/lib/alloy` — Alloy state directory; Alloy creates `data/` (WAL + queue) and `remotecfg/` subdirectories at startup (gitignored, chowned by init container)
 - `/:/host/rootfs:ro,rslave`, `/proc:/host/proc:ro`, `/sys:/host/sys:ro` — host filesystem visibility for `prometheus.exporter.unix`
+- `/var/log/journal:/var/log/journal:ro`, `/run/log/journal:/run/log/journal:ro`, `/etc/machine-id:/etc/machine-id:ro` — host systemd journal access for `loki.source.journal` (read-only; readability granted via `group_add` with the host's `systemd-journal` GID)
 
 ### Resource footprint
 
@@ -65,15 +67,18 @@ Target on a host with ~30 containers: **<200 MB RAM, <2% sustained CPU**. Adjust
 
 Managed via `secret.sops.env` (decrypted to `.env` at deploy time):
 
-| Variable                | Source                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `GRAFANA_PROM_URL`      | Grafana Cloud → stack details → Prometheus push URL                                  |
-| `GRAFANA_PROM_USERNAME` | Numeric instance ID shown next to the push URL                                       |
-| `GRAFANA_PROM_PASSWORD` | Access Policy token with `metrics:write` scope                                       |
-| `GRAFANA_LOKI_URL`      | Grafana Cloud → stack details → Loki push URL                                        |
-| `GRAFANA_LOKI_USERNAME` | Numeric instance ID shown next to the Loki URL                                       |
-| `GRAFANA_LOKI_PASSWORD` | Same Access Policy token (or a separate one with `logs:write` scope)                 |
-| `GITHUB_API_TOKEN`      | Fine-grained GitHub PAT, read-only `Metadata`/`Issues`/`Pull requests` (svlnas only) |
+| Variable                | Source                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GRAFANA_PROM_URL`      | Grafana Cloud → stack details → Prometheus push URL                                                   |
+| `GRAFANA_PROM_USERNAME` | Numeric instance ID shown next to the push URL                                                        |
+| `GRAFANA_PROM_PASSWORD` | Access Policy token with `metrics:write` scope                                                        |
+| `GRAFANA_LOKI_URL`      | Grafana Cloud → stack details → Loki push URL                                                         |
+| `GRAFANA_LOKI_USERNAME` | Numeric instance ID shown next to the Loki URL                                                        |
+| `GRAFANA_LOKI_PASSWORD` | Same Access Policy token (or a separate one with `logs:write` scope)                                  |
+| `GITHUB_API_TOKEN`      | Fine-grained GitHub PAT, read-only `Metadata`/`Issues`/`Pull requests` (svlnas only)                  |
+| `SYSTEMD_JOURNAL_GID`   | Numeric GID of the host's `systemd-journal` group (run `getent group systemd-journal` on each host).¹ |
+
+¹ Not actually a secret — it's a non-sensitive per-host integer. It lives in `secret.sops.env` purely because that file is the deploy-time interpolation source for `${VAR}` references in `compose.yaml`; storing it elsewhere would require a second env-file mechanism. Required because journal files are mode-0640 owned by `root:systemd-journal`, and the GID differs per host.
 
 Optional resource overrides: `MEM_LIMIT`, `SOCKET_PROXY_MEM_LIMIT`.
 

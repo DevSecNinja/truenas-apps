@@ -56,6 +56,13 @@ services:
       # non-default host via compose.<server>.yaml (e.g. compose.svlazext.yaml).
       - HOSTNAME_OVERRIDE=svlnas
     user: "3125:3125" # svc-app-alloy
+    # Supplementary group needed to read the host's systemd journal files
+    # under /var/log/journal — they are typically mode 0640 root:systemd-journal,
+    # so a UID outside that group can't read them. The numeric GID of the
+    # `systemd-journal` group differs per host (run `getent group systemd-journal`),
+    # so it's set via SYSTEMD_JOURNAL_GID in secret.sops.env on each host.
+    group_add:
+      - "${SYSTEMD_JOURNAL_GID:-999}"
     deploy:
       update_config:
         order: start-first
@@ -94,6 +101,16 @@ services:
       - /:/host/rootfs:ro,rslave
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      # Host systemd journal — read-only, consumed by loki.source.journal so
+      # `dccd.sh` deploy logs (logger tag `dccd`) and other host-level signals
+      # (sshd, smartd, kernel OOM, zfs) are searchable in Loki. Both paths are
+      # mounted because persistent storage may be at /var/log/journal and
+      # runtime-only at /run/log/journal — sd-journal reads whichever exists.
+      # /etc/machine-id is required by the journal reader to resolve the
+      # current boot.
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
     healthcheck:
       # The DHI alloy image is binary-only — no shell, no probe utilities.
       # Liveness is monitored externally instead:
