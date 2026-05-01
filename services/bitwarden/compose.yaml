@@ -145,7 +145,12 @@ services:
         - "wget"
         - "--spider"
         - "-q"
-        - "http://localhost:8080/alive"
+        # Use 127.0.0.1 explicitly — Alpine's /etc/hosts resolves "localhost"
+        # to ::1 first, but the rendered nginx config only listens on
+        # 0.0.0.0:8080 (IPv6 listener fails to bind on hosts without IPv6
+        # bridge support, e.g. TrueNAS). busybox wget does not fall back to
+        # IPv4, so localhost always reports "Connection refused".
+        - "http://127.0.0.1:8080/alive"
       interval: 30s
       timeout: 5s
       retries: 3
