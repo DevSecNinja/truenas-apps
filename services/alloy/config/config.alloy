@@ -53,6 +53,10 @@ prometheus.exporter.unix "host" {
 	procfs_path = "/host/proc"
 	sysfs_path  = "/host/sys"
 
+	// `netstat` is intentionally omitted: it produces ~400 series of
+	// per-protocol TCP/UDP/ICMP counters that are rarely useful at homelab
+	// scale and contribute disproportionately to Grafana Cloud Free's 10k
+	// active-series budget. Re-enable if a specific dashboard needs it.
 	set_collectors = [
 		"cpu",
 		"diskstats",
@@ -61,7 +65,6 @@ prometheus.exporter.unix "host" {
 		"loadavg",
 		"meminfo",
 		"netdev",
-		"netstat",
 		"sockstat",
 		"stat",
 		"time",
@@ -224,6 +227,16 @@ prometheus.relabel "alloy_self" {
 		target_label = "job"
 		replacement  = "alloy"
 	}
+	// Cardinality control for Grafana Cloud Free's 10k active-series budget.
+	// Drops Go runtime, process-level, and Prometheus library internal
+	// histograms that are not useful for homelab self-monitoring. Keeps
+	// `up`, `alloy_build_info`, `alloy_component_*`, WAL state, and
+	// remote-write health metrics intact.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "go_.*|process_.*|prometheus_fanout_latency_.*|prometheus_remote_storage_string_interner_.*|prometheus_target_.*_pool_.*|net_conntrack_.*"
+		action        = "drop"
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,6 +278,16 @@ prometheus.relabel "traefik" {
 		target_label = "job"
 		replacement  = "traefik"
 	}
+	// Drop the per-router/service/entrypoint duration histogram buckets.
+	// At ~25 routers + ~25 services + several entrypoints these contribute
+	// ~600 active series. `_count` and `_sum` are retained, which is enough
+	// to compute average latency — percentile dashboards are unused on this
+	// lab. Re-enable if SLO/percentile views are needed.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "traefik_(router|service|entrypoint)_request_duration_seconds_bucket"
+		action        = "drop"
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -303,6 +326,16 @@ prometheus.relabel "postgres_immich" {
 		target_label = "job"
 		replacement  = "postgres_immich"
 	}
+	// Drop per-table and per-index statistics — by far the largest series
+	// contributor on this stack (~17 metrics × ~100 tables = ~1.7k series
+	// per database). Database-level (`pg_stat_database_*`),
+	// background-writer, replication, and connection metrics are retained,
+	// which covers what the homelab dashboards and alerts actually use.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "pg_stat_user_tables_.*|pg_stat_user_indexes_.*|pg_statio_user_.*"
+		action        = "drop"
+	}
 }
 
 prometheus.scrape "postgres_outline" {
@@ -325,6 +358,12 @@ prometheus.relabel "postgres_outline" {
 	rule {
 		target_label = "job"
 		replacement  = "postgres_outline"
+	}
+	// See the postgres_immich relabel block above for rationale.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "pg_stat_user_tables_.*|pg_stat_user_indexes_.*|pg_statio_user_.*"
+		action        = "drop"
 	}
 }
 
