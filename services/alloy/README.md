@@ -13,6 +13,7 @@ Alloy collapses what previously required several agents into a single process:
 - **Traefik metrics** via `prometheus.scrape "traefik"`, targeting the local Traefik instance at `traefik:8082/metrics` over the shared `alloy-frontend` Docker network (60s interval, `host` and `job=traefik` labels added via relabeling). Per-router, per-service, and per-entrypoint label cardinality is enabled on the Traefik side. The `:8082` entrypoint is internal-only and gated by an `ipAllowList` restricted to the pinned `alloy-frontend` subnet (`172.30.100.8/29`) — see [Architecture § Alloy Metrics Scrape Entrypoint](../ARCHITECTURE.md#alloy-metrics-scrape-entrypoint).
 - **Immich Postgres** via `prometheus.scrape "postgres_immich"`, targeting `immich-db-exporter:9187` over the `immich-backend` Docker network (60s interval, `host` and `job=postgres_immich` labels added via relabeling). The exporter sidecar lives in `services/immich/compose.yaml` and reuses Immich's `IMMICH_DB_PASSWORD` — no DB credentials are added to Alloy's `secret.sops.env`. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
 - **Outline Postgres** via `prometheus.scrape "postgres_outline"`, targeting `outline-db-exporter:9187` over the `outline-backend` Docker network (60s interval, `host` and `job=postgres_outline` labels added via relabeling). The exporter sidecar lives in `services/outline/compose.yaml` and reuses Outline's `OUTLINE_DB_PASSWORD`. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
+- **GitHub repo stats** via `prometheus.exporter.github` polling the GitHub REST API for `DevSecNinja/truenas-apps` and `DevSecNinja/dotfiles` (10m interval, `host` and `job=integrations/github_exporter` labels added via relabeling). Surfaces rate-limit headroom, stars/forks/watchers, open PR/issue counts, and repo size. Authenticates with a fine-grained GitHub PAT (`Metadata` + `Issues` + `Pull requests` read-only on the listed repos) stored as `GITHUB_API_TOKEN` in `secret.sops.env`. **Single-host scrape**: gated to `svlnas` via a `discovery.relabel` keep rule on `HOSTNAME_OVERRIDE` so only one Alloy instance polls the API; on svlazext the target list filters to empty and `prometheus.scrape` is a no-op.
 - **Self-observability** via `prometheus.exporter.self`.
 
 ### Out of scope
@@ -64,14 +65,15 @@ Target on a host with ~30 containers: **<200 MB RAM, <2% sustained CPU**. Adjust
 
 Managed via `secret.sops.env` (decrypted to `.env` at deploy time):
 
-| Variable                | Source                                                               |
-| ----------------------- | -------------------------------------------------------------------- |
-| `GRAFANA_PROM_URL`      | Grafana Cloud → stack details → Prometheus push URL                  |
-| `GRAFANA_PROM_USERNAME` | Numeric instance ID shown next to the push URL                       |
-| `GRAFANA_PROM_PASSWORD` | Access Policy token with `metrics:write` scope                       |
-| `GRAFANA_LOKI_URL`      | Grafana Cloud → stack details → Loki push URL                        |
-| `GRAFANA_LOKI_USERNAME` | Numeric instance ID shown next to the Loki URL                       |
-| `GRAFANA_LOKI_PASSWORD` | Same Access Policy token (or a separate one with `logs:write` scope) |
+| Variable                | Source                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `GRAFANA_PROM_URL`      | Grafana Cloud → stack details → Prometheus push URL                                  |
+| `GRAFANA_PROM_USERNAME` | Numeric instance ID shown next to the push URL                                       |
+| `GRAFANA_PROM_PASSWORD` | Access Policy token with `metrics:write` scope                                       |
+| `GRAFANA_LOKI_URL`      | Grafana Cloud → stack details → Loki push URL                                        |
+| `GRAFANA_LOKI_USERNAME` | Numeric instance ID shown next to the Loki URL                                       |
+| `GRAFANA_LOKI_PASSWORD` | Same Access Policy token (or a separate one with `logs:write` scope)                 |
+| `GITHUB_API_TOKEN`      | Fine-grained GitHub PAT, read-only `Metadata`/`Issues`/`Pull requests` (svlnas only) |
 
 Optional resource overrides: `MEM_LIMIT`, `SOCKET_PROXY_MEM_LIMIT`.
 

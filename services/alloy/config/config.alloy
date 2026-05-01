@@ -294,3 +294,79 @@ prometheus.relabel "postgres_outline" {
 		replacement  = "postgres_outline"
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// GitHub — repository-level stats via the GitHub REST API. Polls publicly:
+// no Docker network, no compose service. Surfaces `up`, `github_rate_limit`,
+// `github_rate_remaining`, `github_repo_stars`, `github_repo_forks`,
+// `github_repo_open_issues`, `github_repo_pull_request_count`, `github_repo_size_kb`,
+// `github_repo_watchers`. Pairs with the official Grafana Cloud "GitHub
+// integration" dashboards (GitHub API Usage, GitHub Repository Stats).
+//
+// Auth: a fine-grained GitHub PAT (read-only "Metadata" + "Issues" + "Pull
+// requests" permissions on the listed repositories). Stored in secret.sops.env
+// as GITHUB_API_TOKEN. The exporter calls api.github.com directly.
+//
+// Single-host scrape: this exporter polls the public GitHub API, so we only
+// want one Alloy instance scraping it (avoids doubled API quota and
+// duplicated metrics on `host` cardinality). The discovery.relabel below
+// keeps the target only when HOSTNAME_OVERRIDE == "svlnas"; on svlazext the
+// target list filters to empty and prometheus.scrape becomes a no-op.
+//
+// Phase 3 (issue #15) builds a Grafana dashboard from these metrics for the
+// static repo-health view (rate-limit headroom, open PR/issue count, repo
+// size growth). For workflow-run / CI-failure paging we use an `if: failure()`
+// step posting directly to Grafana IRM — no third-party webhook exporter.
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.exporter.github "truenas_apps" {
+	repositories = [
+		"DevSecNinja/truenas-apps",
+		"DevSecNinja/dotfiles",
+	]
+	api_token = sys.env("GITHUB_API_TOKEN")
+}
+
+discovery.relabel "github_truenas_apps" {
+	targets = prometheus.exporter.github.truenas_apps.targets
+
+	// Tag each target with the current host, then keep only on svlnas.
+	rule {
+		target_label = "_alloy_host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		source_labels = ["_alloy_host"]
+		regex         = "svlnas"
+		action        = "keep"
+	}
+	rule {
+		regex  = "_alloy_host"
+		action = "labeldrop"
+	}
+}
+
+prometheus.scrape "github_truenas_apps" {
+	targets    = discovery.relabel.github_truenas_apps.output
+	forward_to = [prometheus.relabel.github_truenas_apps.receiver]
+
+	// 10m is a comfortable default for repo-level stats that barely change
+	// minute-to-minute. Keeps API budget low (a handful of calls per repo per
+	// scrape × ~20 repos = well under the 5000/hour PAT limit) and halves
+	// active-series ingestion vs a 5m interval.
+	scrape_interval = "10m"
+	scrape_timeout  = "60s"
+}
+
+prometheus.relabel "github_truenas_apps" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "integrations/github_exporter"
+	}
+}
