@@ -75,7 +75,7 @@ jobs:
       contents: read
     steps:
       - name: Notify Grafana IRM
-        uses: DevSecNinja/.github/.github/actions/notify-irm@a877d35266a54e54ef043e60a290ed76b4d7b34e # main
+        uses: DevSecNinja/.github/.github/actions/notify-irm@b2509636243e456253c938184dfe1855d6401e6d # main
         with:
           webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
           # `needs.*.result` is system-controlled, safe to interpolate.
