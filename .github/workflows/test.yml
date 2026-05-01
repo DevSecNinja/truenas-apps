@@ -23,7 +23,7 @@ jobs:
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.4.15"
+      mise-version: "2026.4.16"
       test-dirs: "tests/dccd/unit tests/dccd/integration"
       check-name: "dccd Unit & Integration Tests"
 
@@ -35,7 +35,7 @@ jobs:
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.4.15"
+      mise-version: "2026.4.16"
       test-dirs: "tests/dccd/e2e"
       check-name: "dccd E2E Tests"
 
