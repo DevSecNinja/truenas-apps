@@ -117,3 +117,57 @@ jobs:
               exit 1
             fi
           done
+
+  # --- Page on main-branch CI failure (Phase 3 of #15) ---
+  #
+  # Posts a JSON alert to a Grafana IRM webhook integration when any prior
+  # job in this workflow fails on a push to main. The step is silently
+  # skipped if the GRAFANA_IRM_WEBHOOK_URL secret is unset, so the workflow
+  # remains usable on forks and during initial repo bring-up.
+  notify-irm-on-failure:
+    name: Notify Grafana IRM on failure
+    needs:
+      - lint
+      - vendored-libs-in-sync
+      - docker-compose-config
+      - dotenv-linter
+      - validate-servers
+    if: ${{ always() && failure() && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: POST failure to Grafana IRM webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |-
+          set -euo pipefail
+          if [ -z "${WEBHOOK_URL}" ]; then
+            echo "::warning::GRAFANA_IRM_WEBHOOK_URL secret not set — skipping IRM notification."
+            exit 0
+          fi
+          run_url="${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}"
+          # Grafana IRM "Custom" webhook payload — fields map to the standard
+          # alert grouping keys; alert_uid keeps repeated runs of the same
+          # workflow on the same commit as a single incident.
+          payload=$(jq -n \
+            --arg uid "gha-${REPOSITORY}-${WORKFLOW_NAME}-${SHA}" \
+            --arg title "CI failure on main: ${WORKFLOW_NAME}" \
+            --arg state "alerting" \
+            --arg severity "critical" \
+            --arg link "${run_url}" \
+            --arg msg "Workflow '${WORKFLOW_NAME}' failed on ${REF_NAME} @ ${SHA} (actor: ${ACTOR})." \
+            '{alert_uid: $uid, title: $title, state: $state, severity: $severity, link_to_upstream_details: $link, message: $msg}')
+          curl --silent --show-error --fail-with-body \
+            --max-time 30 \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "${payload}" \
+            "${WEBHOOK_URL}"
