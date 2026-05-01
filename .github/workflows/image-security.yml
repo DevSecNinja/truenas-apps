@@ -73,3 +73,24 @@ jobs:
         with:
           sarif_file: sarif-output/trivy-images.sarif
           category: trivy-images
+
+  # --- Page on scheduled/manual run failure (Phase 3 of #15) ---
+  # PR runs are excluded — they only execute on workflow-file edits and a
+  # red PR check is signal enough. Schedule + workflow_dispatch failures
+  # warrant a page because nobody is watching the run interactively.
+  notify-irm:
+    name: Notify Grafana IRM
+    needs:
+      - image-age-check
+      - trivy-image-scan
+    if: ${{ always() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Notify Grafana IRM
+        uses: DevSecNinja/.github/.github/actions/notify-irm@a877d35266a54e54ef043e60a290ed76b4d7b34e # main
+        with:
+          webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
+          # `needs.*.result` is system-controlled, safe to interpolate.
+          job-failed: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}

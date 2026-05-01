@@ -18,3 +18,24 @@ jobs:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.4.15"
       tag: ${{ github.ref_name }}
+
+  # --- Page on tag-push release failure (Phase 3 of #15) ---
+  # alert_uid is keyed on the tag (REF_NAME), so each release has its own
+  # alert group. resolve-on-success is disabled because there is no
+  # subsequent run on the same tag to post a green resolve.
+  notify-irm:
+    name: Notify Grafana IRM
+    needs:
+      - release
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Notify Grafana IRM
+        uses: DevSecNinja/.github/.github/actions/notify-irm@a877d35266a54e54ef043e60a290ed76b4d7b34e # main
+        with:
+          webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
+          # `needs.*.result` is system-controlled, safe to interpolate.
+          job-failed: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+          resolve-on-success: "false"

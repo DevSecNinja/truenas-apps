@@ -38,3 +38,21 @@ jobs:
       mise-version: "2026.4.15"
       test-dirs: "tests/dccd/e2e"
       check-name: "dccd E2E Tests"
+
+  # --- Page on main-branch CI failure (Phase 3 of #15) ---
+  notify-irm:
+    name: Notify Grafana IRM
+    needs:
+      - unit-integration
+      - e2e
+    if: ${{ always() && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Notify Grafana IRM
+        uses: DevSecNinja/.github/.github/actions/notify-irm@a877d35266a54e54ef043e60a290ed76b4d7b34e # main
+        with:
+          webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
+          # `needs.*.result` is system-controlled, safe to interpolate.
+          job-failed: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
