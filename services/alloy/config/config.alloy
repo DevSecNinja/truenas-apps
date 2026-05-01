@@ -233,3 +233,64 @@ prometheus.relabel "traefik" {
 		replacement  = "traefik"
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Postgres — scrape postgres_exporter sidecars deployed alongside Immich and
+// Outline. Each sidecar joins its app's `*-backend` Docker network and exposes
+// /metrics on :9187. Alloy joins the same `*-backend` networks (see
+// compose.yaml; dropped on svlazext via compose.svlazext.yaml `!override`).
+//
+// Both apps run on svlnas only. On hosts where they are not deployed the
+// Docker DNS names will not resolve and the scrapes fail silently —
+// `up{job="postgres_*"}=0` is the only signal, which is the intended
+// behaviour for a host where the database does not exist.
+//
+// Connection string is configured on the exporter side (DATA_SOURCE_NAME
+// env var); Alloy needs no DB credentials.
+////////////////////////////////////////////////////////////////////////////////
+
+prometheus.scrape "postgres_immich" {
+	targets = [
+		{ __address__ = "immich-db-exporter:9187", instance = "immich-db" },
+	]
+	forward_to = [prometheus.relabel.postgres_immich.receiver]
+
+	scrape_interval = "60s"
+	scrape_timeout  = "10s"
+}
+
+prometheus.relabel "postgres_immich" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "postgres_immich"
+	}
+}
+
+prometheus.scrape "postgres_outline" {
+	targets = [
+		{ __address__ = "outline-db-exporter:9187", instance = "outline-db" },
+	]
+	forward_to = [prometheus.relabel.postgres_outline.receiver]
+
+	scrape_interval = "60s"
+	scrape_timeout  = "10s"
+}
+
+prometheus.relabel "postgres_outline" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "postgres_outline"
+	}
+}

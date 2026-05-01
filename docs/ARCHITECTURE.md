@@ -325,6 +325,8 @@ Alloy scrapes Traefik's Prometheus metrics over a second internal entrypoint, `m
 
 The `metrics.prometheus` block in `traefik.yml` enables `addRoutersLabels`, `addServicesLabels`, and `addEntryPointsLabels` so per-router, per-service, and per-entrypoint cardinality is exposed. Each Alloy instance scrapes the local Traefik instance running on the same host (works for both svlnas and svlazext, since Traefik's `compose.svlazext.yaml` already lists `alloy-frontend` in its network list).
 
+Alloy additionally scrapes per-app **`postgres_exporter` sidecars** for Immich (`postgres_immich` job → `immich-db-exporter:9187`) and Outline (`postgres_outline` job → `outline-db-exporter:9187`) at 60s intervals. The exporters live in each app's own compose file and reuse that app's existing `*_DB_PASSWORD` secret — no DB credentials are added to Alloy's `secret.sops.env`. Reachability is provided by joining Alloy to the `immich-backend` and `outline-backend` Docker networks (both declared `external: true` in `services/alloy/compose.yaml`); `compose.svlazext.yaml` drops both via `networks: !override`, since neither app is deployed on svlazext. Unifi is intentionally **not** included — it uses MongoDB, not Postgres.
+
 **Subnets and entrypoints in use:**
 
 | Entrypoint   | Port | Source range allowed                 | Purpose                            |
