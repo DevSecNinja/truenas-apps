@@ -45,15 +45,15 @@ jobs:
       app-private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
 
   # --- Page on main-branch release-please failure (homelab IRM pager) ---
-  # Fires only on push to main (not on workflow_dispatch reruns) and only
-  # when release-please itself failed — covers both the version-PR phase
+  # Fires when release-please failed — covers both the version-PR phase
   # and the post-merge tag/release-publish phase, since both run inside
   # the same reusable workflow now that `skip-github-release: false`.
+  # Workflow_dispatch reruns also page so manual reruns are observable.
   notify-irm:
     name: Notify Grafana IRM
     needs:
       - release-please
-    if: ${{ always() && github.event_name == 'push' }}
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read

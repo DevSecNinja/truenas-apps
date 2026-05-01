@@ -137,7 +137,7 @@ jobs:
     # Run on every completed push to main so we can fire either an
     # `alerting` (on failure) or an `ok` (on success) payload with the
     # same alert_uid. PR runs and pushes to other branches are skipped.
-    if: ${{ always() && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
