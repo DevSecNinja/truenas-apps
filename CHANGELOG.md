@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.0](https://github.com/DevSecNinja/truenas-apps/compare/v0.18.0...v0.19.0) (2026-05-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scripts:** log_message() has been removed from dccd.sh. All callers must use the log.sh severity helpers directly. The companion BATS test tests/dccd/unit/log_message.bats has been removed; quiet_mode.bats and edge_cases.bats updated accordingly.
+
+### Features
+
+* **alloy:** deploy Grafana Alloy as unified telemetry agent ([1f549b7](https://github.com/DevSecNinja/truenas-apps/commit/1f549b74cf48a29784970732c4501b64b59a2938))
+* **alloy:** scrape Traefik /metrics endpoint ([8c9119d](https://github.com/DevSecNinja/truenas-apps/commit/8c9119df3f6b264973fe47808a23c697c79367e2))
+* **alloy:** scrape Traefik /metrics endpoint (refs [#15](https://github.com/DevSecNinja/truenas-apps/issues/15)) ([e4d88b2](https://github.com/DevSecNinja/truenas-apps/commit/e4d88b2b21e838dd2e31db4282614d4dd1298522))
+* **alloy:** switch to Docker Hardened Image (DHI) variant ([6f6ddf7](https://github.com/DevSecNinja/truenas-apps/commit/6f6ddf7b14f8bf723f6b7cff3f202bbe694ffffa))
+* **dccd:** show human-readable duration in deployment summary ([a228401](https://github.com/DevSecNinja/truenas-apps/commit/a228401a27b8b517f6b1992d921d5a0eddd01e10))
+* **dccd:** show human-readable duration in deployment summary ([c86a07b](https://github.com/DevSecNinja/truenas-apps/commit/c86a07b4d284c1264f1dc118a207566a2285f4a2))
+* **dccd:** tolerate services with no healthcheck during --wait ([d7a8409](https://github.com/DevSecNinja/truenas-apps/commit/d7a84099077a081df4bfa6425cf75ef00aadfa10))
+* **post-create:** set global defaults for tools in VS Code extensions ([8e58ba4](https://github.com/DevSecNinja/truenas-apps/commit/8e58ba41931efd64b9d0c88033c6251e6f7d6fa7))
+* **release:** adopt release-please for branch-protection-respecting bumps ([cf9a615](https://github.com/DevSecNinja/truenas-apps/commit/cf9a615ccc7d2d29135630040fa658d42d6ee52a))
+* **release:** adopt release-please for branch-protection-respecting bumps ([2ed704c](https://github.com/DevSecNinja/truenas-apps/commit/2ed704c63cf156e9c41254cabefc57b47937e86d))
+* **scripts:** integrate vendored log.sh logging library ([f069f6b](https://github.com/DevSecNinja/truenas-apps/commit/f069f6b59c788ad44e3676f017cc828d61eba25f))
+
+
+### Bug Fixes
+
+* **adguard:** require password on adguard-redis (closes [#189](https://github.com/DevSecNinja/truenas-apps/issues/189)) ([c781c95](https://github.com/DevSecNinja/truenas-apps/commit/c781c9547277a1a0cd939617af8703da5425da37))
+* **adguard:** require password on adguard-redis (closes [#189](https://github.com/DevSecNinja/truenas-apps/issues/189)) ([8e70178](https://github.com/DevSecNinja/truenas-apps/commit/8e701782c12c7db0d275b5ec446cbfbe964cfbdc))
+* **alloy:** allow socket-proxy /networks for discovery.docker ([df30683](https://github.com/DevSecNinja/truenas-apps/commit/df30683b71a965a214fd080c934509d3357f30c0))
+* **alloy:** disable healthcheck on binary-only DHI image ([98ad31e](https://github.com/DevSecNinja/truenas-apps/commit/98ad31e5cf76dd866e3c2c2feec072ec104008ea))
+* **alloy:** drop bogus otelcol.receiver.docker_stats component ([d1b4b5b](https://github.com/DevSecNinja/truenas-apps/commit/d1b4b5b472b334b4ed25f403c8725712db9eb2f0))
+* **alloy:** mount ./data at /var/lib/alloy parent so remotecfg can mkdir data/ ([8f75196](https://github.com/DevSecNinja/truenas-apps/commit/8f75196326ebc37e8d9cd6543c58ed1ca8387ea5))
+* **alloy:** pull DHI image from dhi.io registry, not docker.io/dhi ([0132236](https://github.com/DevSecNinja/truenas-apps/commit/0132236bb825d342fe1ad92bd1bac1422f846b24))
+* **alloy:** re-enable healthcheck via /proc/net/tcp on DHI base ([1d660d8](https://github.com/DevSecNinja/truenas-apps/commit/1d660d8c5cdc6d71f0e02a83ee255db652e7cbed))
+* **alloy:** rekey SOPS for svlazext + correct icon + add svlazext Traefik labels ([744afcd](https://github.com/DevSecNinja/truenas-apps/commit/744afcd3410f7121c651b077c50e661192744619))
+* **alloy:** tolerate ZFS chown failures in init container ([948160e](https://github.com/DevSecNinja/truenas-apps/commit/948160e831949d94dc8e6e56374dd94a61f670bd))
+* **alloy:** update secret.sops.env with new domain and metadata ([d6944fa](https://github.com/DevSecNinja/truenas-apps/commit/d6944fa80a0e4c51da2cd5e3cd10aee83ce8ca12))
+* **alloy:** use bash /dev/tcp healthcheck (image has no wget/curl) ([e55c6b2](https://github.com/DevSecNinja/truenas-apps/commit/e55c6b25ad192f04d5baac01e8c5ae1c9468b36d))
+* **dccd:** add login success flag for dhi.io to improve credential handling ([c0dbeb0](https://github.com/DevSecNinja/truenas-apps/commit/c0dbeb0c0bceb4ca7e94133f53351277e91470c3))
+* **dccd:** print compose deploy_output on failure ([e35413f](https://github.com/DevSecNinja/truenas-apps/commit/e35413fcac31797215763dbedf3825653ae9a217))
+* **dccd:** update login success flag handling for dhi.io to prevent silent script failures ([17e493c](https://github.com/DevSecNinja/truenas-apps/commit/17e493cb7487d0da6d4bfe69204aa9da73621834))
+* **github-release:** update release jdx/mise ( v2026.4.9 ➔ v2026.4.15 ) ([#231](https://github.com/DevSecNinja/truenas-apps/issues/231)) ([7b19257](https://github.com/DevSecNinja/truenas-apps/commit/7b192576687140a28947540b7196e9d298d7de9d))
+* **images:** unpin DHI image digests on multi-arch services ([b3cfb8c](https://github.com/DevSecNinja/truenas-apps/commit/b3cfb8c10b4a540cb9d323eba2578566e99cc3bc))
+* **scripts:** send log output to stderr in decrypt_and_decompress ([057d40c](https://github.com/DevSecNinja/truenas-apps/commit/057d40c3e3fd0afac52b3131c8332e9df2aa5506))
+* **svlazext:** unpin DHI digests on arm64 host ([6b55797](https://github.com/DevSecNinja/truenas-apps/commit/6b55797c5010b7a21a4cf1e4f54602f14320893d))
+
 ## [0.18.0] - 2026-04-29
 
 ### Bug Fixes
