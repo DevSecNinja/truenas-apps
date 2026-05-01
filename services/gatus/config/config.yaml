@@ -161,7 +161,7 @@ endpoints:
     url: "https://digitalsecurity.${DOMAINNAME}"
     group: External
     conditions:
-      - "[BODY] == pat(*DIGITAL SECURITY FOR NONPROFIT LEADERS*)"
+      - "[BODY] == pat(*Digital Security for Nonprofit Leaders*)"
       - "[STATUS] == 200"
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
