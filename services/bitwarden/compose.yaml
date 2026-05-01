@@ -154,4 +154,4 @@ services:
 networks:
   bitwarden-frontend:
     name: bitwarden-frontend
-    external: true
+    driver: bridge
