@@ -16,7 +16,7 @@ jobs:
       contents: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.4.15"
+      mise-version: "2026.4.16"
       tag: ${{ github.ref_name }}
 
   # --- Page on tag-push release failure (Phase 3 of #15) ---
