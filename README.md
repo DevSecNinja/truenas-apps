@@ -37,6 +37,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
 | [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
+| [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
 | [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
@@ -81,6 +82,7 @@ vm-pool/apps/services      # parent for all app datasets
 vm-pool/apps/services/adguard
 vm-pool/apps/services/alloy
 vm-pool/apps/services/bazarr
+vm-pool/apps/services/bitwarden
 vm-pool/apps/services/dozzle
 vm-pool/apps/services/drawio
 vm-pool/apps/services/echo-server
