@@ -129,6 +129,28 @@ Container logs **leave the network** to Grafana Cloud. The default `loki.source.
 
 If a service must never have its logs leave the network, exclude it temporarily by adding a `discovery.relabel` drop rule against `__meta_docker_container_name` in `config.alloy`.
 
+## Alerting Rules
+
+Loki ruler rules are committed under [`rules/`](rules/) and published to Grafana Cloud via [`scripts/publish-loki-rules.sh`](../../scripts/publish-loki-rules.sh). One YAML file per namespace; the script reads the `namespace:` key from each file and uploads the `groups:` body to `/loki/api/v1/rules/<namespace>` on the Grafana Cloud Loki ruler.
+
+Required environment for the publish script:
+
+- `GRAFANA_LOKI_URL` — e.g. `https://logs-prod-012.grafana.net`
+- `GRAFANA_LOKI_USER` — numeric tenant / Loki "username" from Grafana Cloud
+- `GRAFANA_LOKI_TOKEN` — Grafana Cloud access policy token with `logs:write`
+
+```sh
+export GRAFANA_LOKI_URL=...
+export GRAFANA_LOKI_USER=...
+export GRAFANA_LOKI_TOKEN=...
+bash scripts/publish-loki-rules.sh           # publish all rule files
+bash scripts/publish-loki-rules.sh dccd      # publish a single namespace
+```
+
+Current rules:
+
+- **`dccd`** ([rules/dccd.yaml](rules/dccd.yaml)) — fires `DccdDeployFailure` once per dccd run when one or more app deployments fail. The signal is the `dccd_deploy_failed` summary line emitted at err priority by `dccd.sh` at the end of every run with non-zero `_DEPLOY_ERRORS`. The expression aggregates `sum by (host)`, so multi-server failures stay separated, and the notification policy in Grafana Cloud should `Group by: alertname, host` to keep one IRM incident per host per failing run. Alert labels (`severity=critical`, `team=homelab`, `service=dccd`) are routed via the IRM contact point's notification policy.
+
 ## Reference
 
 - Alloy components: <https://grafana.com/docs/alloy/latest/reference/components/>

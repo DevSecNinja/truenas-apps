@@ -1228,6 +1228,20 @@ update_compose_files() {
                     log_result "FAILED: ${app}"
                 done
             fi
+
+            # Emit a single structured summary line at err priority so the
+            # Loki alert rule (services/alloy/rules/dccd.yaml) fires exactly
+            # once per dccd run, regardless of how many individual apps
+            # failed. Detected in LogQL via:
+            #     {unit="dccd"} |= "dccd_deploy_failed" | logfmt
+            # The `apps` field is a comma-separated list (no spaces) so it
+            # round-trips cleanly through logfmt parsing.
+            local _failed_csv
+            _failed_csv=$(
+                IFS=','
+                echo "${_DEPLOY_FAILED_APPS[*]}"
+            )
+            log_error "dccd_deploy_failed failed=${_DEPLOY_ERRORS} attempted=${_DEPLOY_ATTEMPTED} succeeded=${succeeded} apps=\"${_failed_csv}\""
         fi
         if [ "$((_DEPLOY_CHANGED + _DEPLOY_UNCHANGED))" -gt 0 ]; then
             log_result "${_DEPLOY_CHANGED} changed, ${_DEPLOY_UNCHANGED} unchanged"

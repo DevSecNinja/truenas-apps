@@ -1,0 +1,53 @@
+---
+# Grafana Cloud Loki ruler — dccd deploy-failure alert.
+#
+# Source signal: dccd.sh emits a single err-priority journal line at the end
+# of every run with one or more failed app deployments:
+#
+#   dccd_deploy_failed failed=2 attempted=18 succeeded=16 apps="immich,outline"
+#
+# The `unit=dccd` label is set by the Alloy journal pipeline
+# (services/alloy/config/config.alloy, transport-aware unit rule). The
+# `host` label is sourced from $HOSTNAME_OVERRIDE on each Alloy instance.
+#
+# Why this signal (and not per-app log_error lines): a single dccd run can
+# emit many err-priority lines (one per failed app, plus per-app stderr
+# from compose). Alerting on those would page once per failed app per run.
+# This dedicated summary line is emitted exactly once per dccd run, so
+# `count_over_time(...) > 0` produces exactly one alert per failing run
+# per host — and grouping by `host` in the notification policy keeps
+# multi-server failures separated.
+#
+# Publish to Grafana Cloud Loki ruler:
+#
+#   bash scripts/publish-loki-rules.sh
+#
+# (See services/alloy/README.md for required env vars and CI integration.)
+
+namespace: dccd
+groups:
+  - name: dccd
+    interval: 1m
+    rules:
+      - alert: DccdDeployFailure
+        # 6m window > 5m alloy max_age so we don't miss late-shipped entries.
+        # The summary line is emitted at most once per dccd cron run
+        # (every 5 min on svlnas), so any positive count is a real failure.
+        expr: |
+          sum by (host) (
+              count_over_time({unit="dccd"} |= "dccd_deploy_failed" [6m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: homelab
+          service: dccd
+        annotations:
+          summary: "dccd deploy failure on {{ $labels.host }}"
+          description: |
+            dccd.sh reported one or more failed app deployments on {{ $labels.host }}.
+            Inspect the run summary in Grafana Logs:
+              {unit="dccd", host="{{ $labels.host }}"} |= "dccd_deploy_failed" | logfmt
+            Or the full per-app failure detail:
+              {unit="dccd", host="{{ $labels.host }}", level="err"}
+          runbook_url: "https://github.com/DevSecNinja/truenas-apps/blob/main/docs/TROUBLESHOOTING.md"
