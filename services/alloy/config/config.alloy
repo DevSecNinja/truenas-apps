@@ -165,7 +165,31 @@ discovery.relabel "containers" {
 loki.source.docker "containers" {
 	host       = "tcp://alloy-docker-proxy:2375"
 	targets    = discovery.relabel.containers.output
+	forward_to = [loki.process.containers.receiver]
+}
+
+// Stale-entry guardrail.
+//
+// Grafana Cloud Free's Loki ingester rejects entries with a timestamp older
+// than 7 days (168h). When Alloy restarts (e.g. after a deploy), the docker
+// log tailer re-reads each container's log file from the position recorded in
+// /var/lib/alloy-data/positions.yml; for long-lived, low-volume containers
+// like immich-db-backup or matter-server that backlog can include lines from
+// weeks ago. A single too-old line poisons the entire push batch (HTTP 400,
+// "no retries left, dropping data" — taking the recent lines down with it.
+//
+// We drop anything older than 167h (1h margin under the 168h cutoff to
+// absorb clock skew + batch latency). The drop is counted in
+// `loki_process_dropped_lines_total{reason="too_old_for_cloud_free"}` so a
+// future alert rule can flag if the drop rate stays non-zero outside of
+// post-restart backfill windows.
+loki.process "containers" {
 	forward_to = [loki.write.grafana_cloud.receiver]
+
+	stage.drop {
+		older_than          = "167h"
+		drop_counter_reason = "too_old_for_cloud_free"
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
