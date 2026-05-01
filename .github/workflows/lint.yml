@@ -138,11 +138,13 @@ jobs:
   # --- Page on main-branch CI failure (Phase 3 of #15) ---
   #
   # Posts a JSON alert to a Grafana IRM webhook integration when any prior
-  # job in this workflow fails on a push to main. The step is silently
-  # skipped if the GRAFANA_IRM_WEBHOOK_URL secret is unset, so the workflow
-  # remains usable on forks and during initial repo bring-up.
-  notify-irm-on-failure:
-    name: Notify Grafana IRM on failure
+  # job in this workflow fails on a push to main, OR posts a resolve when
+  # all prior jobs succeed (so a green run automatically closes the open
+  # incident from the previous failure). The step is silently skipped if
+  # the GRAFANA_IRM_WEBHOOK_URL secret is unset, so the workflow remains
+  # usable on forks and during initial repo bring-up.
+  notify-irm:
+    name: Notify Grafana IRM
     needs:
       - lint
       - vendored-libs-in-sync
@@ -150,12 +152,15 @@ jobs:
       - dotenv-linter
       - validate-servers
       - trigger-irm-failure-test
-    if: ${{ always() && failure() && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    # Run on every completed push to main so we can fire either an
+    # `alerting` (on failure) or an `ok` (on success) payload with the
+    # same alert_uid. PR runs and pushes to other branches are skipped.
+    if: ${{ always() && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: POST failure to Grafana IRM webhook
+      - name: POST alert state to Grafana IRM webhook
         env:
           WEBHOOK_URL: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
           WORKFLOW_NAME: ${{ github.workflow }}
@@ -165,6 +170,9 @@ jobs:
           SHA: ${{ github.sha }}
           ACTOR: ${{ github.actor }}
           SERVER_URL: ${{ github.server_url }}
+          # Whether any required job ended in failure (or was cancelled).
+          # `needs.*.result` is system-controlled, safe to interpolate.
+          JOB_FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |-
           set -euo pipefail
           if [ -z "${WEBHOOK_URL}" ]; then
@@ -172,17 +180,65 @@ jobs:
             exit 0
           fi
           run_url="${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}"
+
+          # Branch the payload by outcome.
+          # alert_uid is intentionally NOT keyed on SHA: a successful run on a
+          # later commit (different SHA) must resolve the open incident from
+          # the previous failed commit. Re-runs of the same workflow on any
+          # commit on `main` collapse into the same alert group.
+          if [ "${JOB_FAILED}" = "true" ]; then
+            state="alerting"
+            severity="critical"
+            title="CI failure on main: ${WORKFLOW_NAME}"
+            msg="Workflow '${WORKFLOW_NAME}' failed on ${REF_NAME} @ ${SHA} (actor: ${ACTOR})."
+          else
+            state="ok"
+            severity="info"
+            title="CI back to green on main: ${WORKFLOW_NAME}"
+            msg="Workflow '${WORKFLOW_NAME}' succeeded on ${REF_NAME} @ ${SHA} (actor: ${ACTOR}). Auto-resolving any open incident."
+          fi
+          echo "::notice::Posting state=${state} for ${WORKFLOW_NAME} on ${REF_NAME} @ ${SHA:0:7}"
+
           # Grafana IRM "Custom" webhook payload — fields map to the standard
-          # alert grouping keys; alert_uid keeps repeated runs of the same
-          # workflow on the same commit as a single incident.
+          # alert grouping keys. The `labels` object is the homelab convention
+          # for IRM routing/filtering — IRM surfaces it in the alert-group
+          # "Assigned labels" pane. Both `service` and `service_name` are sent
+          # because IRM uses `service_name` for SLOs/alerts/synthetic checks
+          # but `service` for incident & dashboard tags; emitting both keeps
+          # every consumer happy without an integration-side rename.
           payload=$(jq -n \
-            --arg uid "gha-${REPOSITORY}-${WORKFLOW_NAME}-${SHA}" \
-            --arg title "CI failure on main: ${WORKFLOW_NAME}" \
-            --arg state "alerting" \
-            --arg severity "critical" \
+            --arg uid "gha-${REPOSITORY}-${WORKFLOW_NAME}-${REF_NAME}" \
+            --arg title "${title}" \
+            --arg state "${state}" \
+            --arg severity "${severity}" \
             --arg link "${run_url}" \
-            --arg msg "Workflow '${WORKFLOW_NAME}' failed on ${REF_NAME} @ ${SHA} (actor: ${ACTOR})." \
-            '{alert_uid: $uid, title: $title, state: $state, severity: $severity, link_to_upstream_details: $link, message: $msg}')
+            --arg msg "${msg}" \
+            --arg service "ci" \
+            --arg source "github-actions" \
+            --arg repo "${REPOSITORY}" \
+            --arg workflow "${WORKFLOW_NAME}" \
+            --arg branch "${REF_NAME}" \
+            --arg sha_short "${SHA:0:7}" \
+            --arg actor "${ACTOR}" \
+            '{
+              alert_uid: $uid,
+              title: $title,
+              state: $state,
+              severity: $severity,
+              link_to_upstream_details: $link,
+              message: $msg,
+              labels: {
+                service: $service,
+                service_name: $service,
+                source: $source,
+                repo: $repo,
+                workflow: $workflow,
+                branch: $branch,
+                sha: $sha_short,
+                actor: $actor,
+                severity: $severity
+              }
+            }')
           curl --silent --show-error --fail-with-body \
             --max-time 30 \
             --request POST \
