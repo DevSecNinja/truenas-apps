@@ -1,0 +1,187 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kashalls/kromgo/main/config.schema.json
+# Kromgo metric definitions — each entry exposes a named badge endpoint at
+# GET /<name> (shields.io endpoint) and an SVG at GET /<name>?format=badge.
+#
+# Prometheus source: PROMETHEUS_URL env var (set in secret.sops.env), pointing
+# at Grafana Cloud Mimir. Available metrics are whatever Alloy currently pushes
+# from `services/alloy/config/config.alloy` — at the time of writing that is
+# host metrics via prometheus.exporter.unix and Alloy self-metrics. See
+# Issue #15 for the observability roadmap (Phase 2 adds container metrics).
+
+badge:
+  font: Verdana.ttf
+  size: 11
+
+metrics:
+  # ---------------------------------------------------------------------------
+  # Host metrics — node_exporter equivalents emitted by Alloy's
+  # prometheus.exporter.unix. Available today.
+  # ---------------------------------------------------------------------------
+
+  # 1-minute load average on the primary NAS host
+  - name: host_load1
+    hidden: false
+    query: 'node_load1{instance="svlnas"}'
+    title: Load (1m)
+    valueTemplate: '{{ printf "%.2f" . }}'
+    colors:
+      - color: "green"
+        min: 0
+        max: 4
+      - color: "orange"
+        min: 4.01
+        max: 8
+      - color: "red"
+        min: 8.01
+        max: 9999
+
+  # Free space percentage on the apps pool root filesystem
+  - name: host_disk_free_pct
+    hidden: false
+    query: >-
+      100 * node_filesystem_avail_bytes{instance="svlnas",mountpoint="/"}
+        / node_filesystem_size_bytes{instance="svlnas",mountpoint="/"}
+    title: Disk Free
+    suffix: "%"
+    valueTemplate: '{{ printf "%.0f" . }}'
+    colors:
+      - color: "red"
+        min: 0
+        max: 9.99
+      - color: "orange"
+        min: 10
+        max: 24.99
+      - color: "green"
+        min: 25
+        max: 100
+
+  # ---------------------------------------------------------------------------
+  # CD pipeline metrics — REQUIRES a follow-up integration:
+  #   `dccd.sh` must POST gauge samples to Alloy's prometheus.receive_http
+  #   listener (planned for Issue #15 Phase 2). Until that lands these badges
+  #   will return errors. They are kept here so the queries are ready to go.
+  #
+  # Expected gauges:
+  #   dccd_last_run_timestamp_seconds      — Unix timestamp of last CD run
+  #   dccd_last_success_timestamp_seconds  — Unix timestamp of last success
+  #   dccd_last_run_success                — 1 = success, 0 = failure
+  # ---------------------------------------------------------------------------
+
+  - name: compose_last_update
+    hidden: true
+    query: "time() - dccd_last_run_timestamp_seconds"
+    title: Last Update
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 86400
+      - color: "orange"
+        min: 86401
+        max: 172800
+      - color: "red"
+        min: 172801
+        max: 99999999
+
+  - name: compose_last_success
+    hidden: true
+    query: "time() - dccd_last_success_timestamp_seconds"
+    title: Last Success
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 86400
+      - color: "orange"
+        min: 86401
+        max: 172800
+      - color: "red"
+        min: 172801
+        max: 99999999
+
+  - name: compose_update_status
+    hidden: true
+    query: "dccd_last_run_success"
+    title: CD Status
+    colors:
+      - color: "green"
+        min: 1
+        max: 1
+        valueOverride: "Success"
+      - color: "red"
+        min: 0
+        max: 0
+        valueOverride: "Failed"
+
+  # ---------------------------------------------------------------------------
+  # Container metrics — REQUIRES Issue #15 Phase 2 (cAdvisor scrape in Alloy).
+  # Disabled until container_* metrics are flowing into Grafana Cloud.
+  # ---------------------------------------------------------------------------
+
+  # - name: docker_containers_running
+  #   query: count(container_last_seen{name!=""})
+
+  # ---------------------------------------------------------------------------
+  # Backup pipeline metrics — REQUIRES the same push integration as the
+  # compose_* metrics. The backup script must POST to Alloy's
+  # prometheus.receive_http listener with:
+  #   backup_last_run_timestamp_seconds      — Unix timestamp of last run
+  #   backup_last_success_timestamp_seconds  — Unix timestamp of last success
+  #   backup_last_run_success                — 1 = success, 0 = failure
+  # ---------------------------------------------------------------------------
+
+  - name: backup_last_run
+    hidden: true
+    query: "time() - backup_last_run_timestamp_seconds"
+    title: Backup Run
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 172800
+      - color: "orange"
+        min: 172801
+        max: 345600
+      - color: "red"
+        min: 345601
+        max: 99999999
+
+  # Last time the backup succeeded (seconds ago → human-readable duration)
+  - name: backup_last_success
+    hidden: true
+    query: "time() - backup_last_success_timestamp_seconds"
+    title: Backup Success
+    valueTemplate: "{{ . | humanDuration }}"
+    suffix: " ago"
+    colors:
+      - color: "green"
+        min: 0
+        max: 172800
+      - color: "orange"
+        min: 172801
+        max: 345600
+      - color: "red"
+        min: 345601
+        max: 99999999
+
+  # Status of the last backup run
+  - name: backup_status
+    hidden: true
+    query: "backup_last_run_success"
+    title: Backup Status
+    colors:
+      - valueOverride: "Success"
+        color: "green"
+        min: 1
+        max: 1
+      - valueOverride: "Failed"
+        color: "red"
+        min: 0
+        max: 0
+
+templates:
+  uptime: "{{ . | humanDuration }}"

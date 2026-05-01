@@ -90,6 +90,7 @@ services:
       esphome-frontend:
       frigate-frontend:
       home-assistant-frontend:
+      kromgo-frontend:
       outline-frontend:
       sqlite-web-frontend:
     security_opt:
@@ -289,6 +290,9 @@ networks:
     external: true
   frigate-frontend:
     name: frigate-frontend
+    external: true
+  kromgo-frontend:
+    name: kromgo-frontend
     external: true
   sqlite-web-frontend:
     name: sqlite-web-frontend
