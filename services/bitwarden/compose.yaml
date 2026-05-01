@@ -119,20 +119,20 @@ services:
       ### their own authentication via the Bitwarden API/Identity services.
       - "traefik.http.routers.bitwarden-rtr.rule=Host(`vault.${DOMAINNAME}`)"
       - "traefik.http.routers.bitwarden-rtr.entrypoints=https"
-      - "traefik.http.routers.bitwarden-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.bitwarden-rtr.middlewares=chain-no-auth-bitwarden@file"
       - "traefik.http.routers.bitwarden-rtr.service=bitwarden"
       ### Admin panel — protected by Traefik Forward Auth in addition to
       ### the built-in admin authentication (defence in depth).
       - "traefik.http.routers.bitwarden-admin-rtr.rule=Host(`vault.${DOMAINNAME}`) && PathPrefix(`/admin`)"
       - "traefik.http.routers.bitwarden-admin-rtr.entrypoints=https"
-      - "traefik.http.routers.bitwarden-admin-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.bitwarden-admin-rtr.middlewares=chain-auth-bitwarden@file"
       - "traefik.http.routers.bitwarden-admin-rtr.service=bitwarden"
       ## HTTP Services
       - "traefik.http.services.bitwarden.loadbalancer.server.port=8080"
       ## Monitoring (Gatus — internal entrypoint only, no auth)
       - "traefik.http.routers.bitwarden-monitor.rule=Host(`vault.${DOMAINNAME}`)"
       - "traefik.http.routers.bitwarden-monitor.entrypoints=monitoring"
-      - "traefik.http.routers.bitwarden-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.bitwarden-monitor.middlewares=chain-no-auth-bitwarden@file"
       - "traefik.http.routers.bitwarden-monitor.service=bitwarden"
       ## Gatus
       - "gatus.url=http://172.30.100.6:8444"

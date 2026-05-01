@@ -33,6 +33,17 @@ http:
           - "middlewares-rate-limit"
           - "middlewares-qbittorrent-secure-headers"
           - "middlewares-forward-auth"
+    chain-no-auth-bitwarden:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-bitwarden-secure-headers"
+    chain-auth-bitwarden:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-bitwarden-secure-headers"
+          - "middlewares-forward-auth"
     chain-auth:
       chain:
         middlewares:
