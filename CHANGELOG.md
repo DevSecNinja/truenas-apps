@@ -2,6 +2,77 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.0](https://github.com/DevSecNinja/truenas-apps/compare/v0.18.0...v0.19.0) (2026-05-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scripts:** log_message() has been removed from dccd.sh. All callers must use the log.sh severity helpers directly. The companion BATS test tests/dccd/unit/log_message.bats has been removed; quiet_mode.bats and edge_cases.bats updated accordingly.
+
+### Features
+
+* **alloy:** add prometheus.exporter.github for repo stats ([#288](https://github.com/DevSecNinja/truenas-apps/issues/288)) ([e05179b](https://github.com/DevSecNinja/truenas-apps/commit/e05179bf5513baf3a4396ba701ae7e4aa8841f15))
+* **alloy:** align labels with Grafana Cloud Linux Server integration ([#296](https://github.com/DevSecNinja/truenas-apps/issues/296)) ([4d80c1e](https://github.com/DevSecNinja/truenas-apps/commit/4d80c1ed16fb1e9b75ddd0100439e78875d89cac))
+* **alloy:** deploy Grafana Alloy as unified telemetry agent ([1f549b7](https://github.com/DevSecNinja/truenas-apps/commit/1f549b74cf48a29784970732c4501b64b59a2938))
+* **alloy:** fall back to syslog_identifier when populating journal unit label ([#298](https://github.com/DevSecNinja/truenas-apps/issues/298)) ([6076941](https://github.com/DevSecNinja/truenas-apps/commit/60769417df2683e5139f21af633a61f9c323dbf0))
+* **alloy:** scrape host systemd journal into Loki ([#294](https://github.com/DevSecNinja/truenas-apps/issues/294)) ([8fe2443](https://github.com/DevSecNinja/truenas-apps/commit/8fe24437a0053b53d5ab4b93f2dc2fa79e1052ad))
+* **alloy:** scrape Postgres metrics for Immich & Outline ([#284](https://github.com/DevSecNinja/truenas-apps/issues/284)) ([5e63ee5](https://github.com/DevSecNinja/truenas-apps/commit/5e63ee567c9b62be6e23eea3e0da2b2f03b4627b))
+* **alloy:** scrape Traefik /metrics endpoint ([8c9119d](https://github.com/DevSecNinja/truenas-apps/commit/8c9119df3f6b264973fe47808a23c697c79367e2))
+* **alloy:** scrape Traefik /metrics endpoint (refs [#15](https://github.com/DevSecNinja/truenas-apps/issues/15)) ([e4d88b2](https://github.com/DevSecNinja/truenas-apps/commit/e4d88b2b21e838dd2e31db4282614d4dd1298522))
+* **alloy:** switch to Docker Hardened Image (DHI) variant ([6f6ddf7](https://github.com/DevSecNinja/truenas-apps/commit/6f6ddf7b14f8bf723f6b7cff3f202bbe694ffffa))
+* **ci:** add labels object to IRM payload for service-based routing ([#304](https://github.com/DevSecNinja/truenas-apps/issues/304)) ([ec1e4b7](https://github.com/DevSecNinja/truenas-apps/commit/ec1e4b7d82c63ceb8a8db12605860a66d8420e18))
+* **ci:** consume DevSecNinja/.github notify-irm action across workflows ([#306](https://github.com/DevSecNinja/truenas-apps/issues/306)) ([e08d39b](https://github.com/DevSecNinja/truenas-apps/commit/e08d39bb19fef9f447f6c6ec9b58a28b6de5c838))
+* **ci:** page Grafana IRM on lint.yml failure on main ([#300](https://github.com/DevSecNinja/truenas-apps/issues/300)) ([91fe40a](https://github.com/DevSecNinja/truenas-apps/commit/91fe40ab8429c39fe9623a1956bba77482d2ce81))
+* **container:** update image docker.io/amir20/dozzle ( v10.3.1 ➔ v10.4.0 ) ([4817a89](https://github.com/DevSecNinja/truenas-apps/commit/4817a895b8cc629b30dc25b6883607a9bfc7c7ba))
+* **container:** update image docker.io/amir20/dozzle ( v10.3.1 ➔ v10.4.0 ) ([#279](https://github.com/DevSecNinja/truenas-apps/issues/279)) ([be03663](https://github.com/DevSecNinja/truenas-apps/commit/be03663bf5911aded33272f26c17df49db110695))
+* **dccd:** show human-readable duration in deployment summary ([a228401](https://github.com/DevSecNinja/truenas-apps/commit/a228401a27b8b517f6b1992d921d5a0eddd01e10))
+* **dccd:** show human-readable duration in deployment summary ([c86a07b](https://github.com/DevSecNinja/truenas-apps/commit/c86a07b4d284c1264f1dc118a207566a2285f4a2))
+* **dccd:** tolerate services with no healthcheck during --wait ([d7a8409](https://github.com/DevSecNinja/truenas-apps/commit/d7a84099077a081df4bfa6425cf75ef00aadfa10))
+* improve usage of log module and exclude changelog from dprint ([#283](https://github.com/DevSecNinja/truenas-apps/issues/283)) ([0e9b1cf](https://github.com/DevSecNinja/truenas-apps/commit/0e9b1cfa5da2b376604e0e837502e0e2ec6e8869))
+* **mise:** update tool age ( 1.2.1 ➔ 1.3.1 ) ([#281](https://github.com/DevSecNinja/truenas-apps/issues/281)) ([ea32586](https://github.com/DevSecNinja/truenas-apps/commit/ea325865c20a87cdc2fe78346d0345663880b605))
+* **mise:** update tool bats ( 1.11.1 ➔ 1.13.0 ) ([#285](https://github.com/DevSecNinja/truenas-apps/issues/285)) ([d208e1b](https://github.com/DevSecNinja/truenas-apps/commit/d208e1bcd426e3e77a650acf8bc934f05988edcb))
+* **mise:** update tool yq ( 4.52.5 ➔ 4.53.2 ) ([#292](https://github.com/DevSecNinja/truenas-apps/issues/292)) ([88da99c](https://github.com/DevSecNinja/truenas-apps/commit/88da99cc9239756de5ab521630bfb37ffa1e51d6))
+* **mise:** update tool zizmor ( 1.23.1 ➔ 1.24.1 ) ([#293](https://github.com/DevSecNinja/truenas-apps/issues/293)) ([d31b621](https://github.com/DevSecNinja/truenas-apps/commit/d31b621ef5f431a14b9db8ae9194cf5f722fecbb))
+* **post-create:** set global defaults for tools in VS Code extensions ([8e58ba4](https://github.com/DevSecNinja/truenas-apps/commit/8e58ba41931efd64b9d0c88033c6251e6f7d6fa7))
+* **release:** adopt release-please for branch-protection-respecting bumps ([cf9a615](https://github.com/DevSecNinja/truenas-apps/commit/cf9a615ccc7d2d29135630040fa658d42d6ee52a))
+* **release:** adopt release-please for branch-protection-respecting bumps ([2ed704c](https://github.com/DevSecNinja/truenas-apps/commit/2ed704c63cf156e9c41254cabefc57b47937e86d))
+* **scripts:** integrate vendored log.sh logging library ([f069f6b](https://github.com/DevSecNinja/truenas-apps/commit/f069f6b59c788ad44e3676f017cc828d61eba25f))
+
+
+### Bug Fixes
+
+* **adguard:** require password on adguard-redis (closes [#189](https://github.com/DevSecNinja/truenas-apps/issues/189)) ([c781c95](https://github.com/DevSecNinja/truenas-apps/commit/c781c9547277a1a0cd939617af8703da5425da37))
+* **adguard:** require password on adguard-redis (closes [#189](https://github.com/DevSecNinja/truenas-apps/issues/189)) ([8e70178](https://github.com/DevSecNinja/truenas-apps/commit/8e701782c12c7db0d275b5ec446cbfbe964cfbdc))
+* **alloy:** allow socket-proxy /networks for discovery.docker ([df30683](https://github.com/DevSecNinja/truenas-apps/commit/df30683b71a965a214fd080c934509d3357f30c0))
+* **alloy:** disable healthcheck on binary-only DHI image ([98ad31e](https://github.com/DevSecNinja/truenas-apps/commit/98ad31e5cf76dd866e3c2c2feec072ec104008ea))
+* **alloy:** drop bogus otelcol.receiver.docker_stats component ([d1b4b5b](https://github.com/DevSecNinja/truenas-apps/commit/d1b4b5b472b334b4ed25f403c8725712db9eb2f0))
+* **alloy:** drop log entries older than Loki Cloud Free's ingest window ([#295](https://github.com/DevSecNinja/truenas-apps/issues/295)) ([5fbe4f9](https://github.com/DevSecNinja/truenas-apps/commit/5fbe4f90a1bb56e7c9b5ffff98dee75e921f5846))
+* **alloy:** make journal unit label transport-aware (correctly map dccd to unit=dccd) ([#301](https://github.com/DevSecNinja/truenas-apps/issues/301)) ([e33242e](https://github.com/DevSecNinja/truenas-apps/commit/e33242ec98dca5bd7891ead08ccf69a59044741a))
+* **alloy:** mount ./data at /var/lib/alloy parent so remotecfg can mkdir data/ ([8f75196](https://github.com/DevSecNinja/truenas-apps/commit/8f75196326ebc37e8d9cd6543c58ed1ca8387ea5))
+* **alloy:** pull DHI image from dhi.io registry, not docker.io/dhi ([0132236](https://github.com/DevSecNinja/truenas-apps/commit/0132236bb825d342fe1ad92bd1bac1422f846b24))
+* **alloy:** re-enable healthcheck via /proc/net/tcp on DHI base ([1d660d8](https://github.com/DevSecNinja/truenas-apps/commit/1d660d8c5cdc6d71f0e02a83ee255db652e7cbed))
+* **alloy:** rekey SOPS for svlazext + correct icon + add svlazext Traefik labels ([744afcd](https://github.com/DevSecNinja/truenas-apps/commit/744afcd3410f7121c651b077c50e661192744619))
+* **alloy:** tolerate ZFS chown failures in init container ([948160e](https://github.com/DevSecNinja/truenas-apps/commit/948160e831949d94dc8e6e56374dd94a61f670bd))
+* **alloy:** update secret.sops.env with new domain and metadata ([d6944fa](https://github.com/DevSecNinja/truenas-apps/commit/d6944fa80a0e4c51da2cd5e3cd10aee83ce8ca12))
+* **alloy:** use bash /dev/tcp healthcheck (image has no wget/curl) ([e55c6b2](https://github.com/DevSecNinja/truenas-apps/commit/e55c6b25ad192f04d5baac01e8c5ae1c9468b36d))
+* **container:** update image docker.io/adguard/adguardhome ( v0.107.73 ➔ v0.107.74 ) ([#272](https://github.com/DevSecNinja/truenas-apps/issues/272)) ([0f04f7e](https://github.com/DevSecNinja/truenas-apps/commit/0f04f7e37e526b96f96135675f67363e7961ce0a))
+* **container:** update image docker.io/library/mongo ( 8.2.6 ➔ 8.2.7 ) ([#275](https://github.com/DevSecNinja/truenas-apps/issues/275)) ([40e849f](https://github.com/DevSecNinja/truenas-apps/commit/40e849f0bd9a4c4cfd898b3d89d1e4e0810d5dca))
+* **dccd:** add login success flag for dhi.io to improve credential handling ([c0dbeb0](https://github.com/DevSecNinja/truenas-apps/commit/c0dbeb0c0bceb4ca7e94133f53351277e91470c3))
+* **dccd:** print compose deploy_output on failure ([e35413f](https://github.com/DevSecNinja/truenas-apps/commit/e35413fcac31797215763dbedf3825653ae9a217))
+* **dccd:** update login success flag handling for dhi.io to prevent silent script failures ([17e493c](https://github.com/DevSecNinja/truenas-apps/commit/17e493cb7487d0da6d4bfe69204aa9da73621834))
+* **github-release:** update release jdx/mise ( v2026.4.9 ➔ v2026.4.15 ) ([#231](https://github.com/DevSecNinja/truenas-apps/issues/231)) ([7b19257](https://github.com/DevSecNinja/truenas-apps/commit/7b192576687140a28947540b7196e9d298d7de9d))
+* **images:** unpin DHI image digests on multi-arch services ([b3cfb8c](https://github.com/DevSecNinja/truenas-apps/commit/b3cfb8c10b4a540cb9d323eba2578566e99cc3bc))
+* **immich,outline:** silence postgres-exporter config warning ([#287](https://github.com/DevSecNinja/truenas-apps/issues/287)) ([9d78323](https://github.com/DevSecNinja/truenas-apps/commit/9d7832391c968c99a76773d195937983c5eb3a66))
+* **mise:** update tool docker-compose ( 5.1.1 ➔ 5.1.3 ) ([#273](https://github.com/DevSecNinja/truenas-apps/issues/273)) ([5fa91d2](https://github.com/DevSecNinja/truenas-apps/commit/5fa91d2319191839e83efc08aaa20ab0ff54824c))
+* **mise:** update tool lefthook ( 2.1.5 ➔ 2.1.6 ) ([#276](https://github.com/DevSecNinja/truenas-apps/issues/276)) ([cb90168](https://github.com/DevSecNinja/truenas-apps/commit/cb90168c735206e5d38ce783bb22bba4b38a0dfa))
+* **scripts:** send log output to stderr in decrypt_and_decompress ([057d40c](https://github.com/DevSecNinja/truenas-apps/commit/057d40c3e3fd0afac52b3131c8332e9df2aa5506))
+* **svlazext:** unpin DHI digests on arm64 host ([6b55797](https://github.com/DevSecNinja/truenas-apps/commit/6b55797c5010b7a21a4cf1e4f54602f14320893d))
+
+
+### Performance Improvements
+
+* **alloy:** trim active series for Grafana Cloud Free 10k budget ([#297](https://github.com/DevSecNinja/truenas-apps/issues/297)) ([a16de9f](https://github.com/DevSecNinja/truenas-apps/commit/a16de9ff7594d72f34182d33e5ea4cf2006bc0bd))
+
 ## [0.18.0] - 2026-04-29
 
 ### Bug Fixes
