@@ -57,7 +57,7 @@ services:
         - "CMD"
         - "curl"
         - "-f"
-        - "http://localhost:8989/ping"
+        - "http://127.0.0.1:8989/ping"
       interval: 15s
       timeout: 5s
       retries: 3

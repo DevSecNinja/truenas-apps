@@ -86,7 +86,7 @@ services:
         - "CMD"
         - "curl"
         - "-f"
-        - "http://localhost:8383"
+        - "http://127.0.0.1:8383"
       interval: 15s
       timeout: 5s
       retries: 3
