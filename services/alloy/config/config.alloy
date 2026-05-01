@@ -478,23 +478,35 @@ loki.relabel "journal" {
 	// an empty list (the argument is required syntax).
 	forward_to = []
 
-	// `unit` is set from `__journal__systemd_unit` when present (the normal case
-	// for entries written through systemd-managed services like sshd.service or
-	// smartd.service). For entries written through the syslog transport with no
-	// owning systemd unit — `dccd.sh` is the canonical example, since it
-	// `logger -t dccd`s from a cron-spawned shell — `__journal__systemd_unit`
-	// is empty, so we fall back to `__journal_syslog_identifier`. This makes
-	// the Grafana Cloud "Linux Server" Logs dashboard's `unit` variable list
-	// `dccd` (and any other syslog identifier) directly, which is the only
-	// reason this fallback exists.
+	// `unit` is populated transport-aware so that syslog-transport entries
+	// (notably `dccd.sh` via `logger -t dccd` from a cron-spawned shell) end
+	// up under their syslog identifier in the Grafana Cloud "Linux Server /
+	// Logs" dashboard's `unit` variable. Naive priority of
+	// `__journal__systemd_unit` does not work because TrueNAS' cron spawns
+	// the user shell inside a transient `session-<N>.scope` unit, so
+	// `__journal__systemd_unit` is set to that useless scope name rather than
+	// being empty. Prefer the syslog identifier when transport == syslog;
+	// otherwise fall back to the actual systemd unit (sshd.service,
+	// smartd.service, etc.).
+	//
+	// Truth table:
+	//   transport=syslog,  identifier=dccd,         systemd_unit=session-*.scope -> unit=dccd
+	//   transport=syslog,  identifier=sudo,         systemd_unit=""              -> unit=sudo
+	//   transport=stdout,  identifier=sshd,         systemd_unit=sshd.service    -> unit=sshd.service
+	//   transport=journal, identifier=systemd,      systemd_unit=systemd-logind  -> unit=systemd-logind.service
+	//   transport=kernel,  identifier=kernel,       systemd_unit=""              -> unit=""
 	rule {
-		source_labels = ["__journal__systemd_unit"]
-		regex         = "(.+)"
+		source_labels = ["__journal__transport", "__journal_syslog_identifier"]
+		separator     = ";"
+		regex         = "syslog;(.+)"
 		target_label  = "unit"
 		replacement   = "$1"
 	}
+	// Only fires when the rule above did not (so `unit` is still empty) AND
+	// `__journal__systemd_unit` is non-empty. Compares against the joined
+	// "<unit>;<systemd_unit>" string and matches only when it starts with `;`.
 	rule {
-		source_labels = ["unit", "__journal_syslog_identifier"]
+		source_labels = ["unit", "__journal__systemd_unit"]
 		separator     = ";"
 		regex         = ";(.+)"
 		target_label  = "unit"
