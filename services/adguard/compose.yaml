@@ -283,7 +283,7 @@ services:
         - "wget"
         - "--spider"
         - "-q"
-        - "http://localhost:80"
+        - "http://127.0.0.1:80"
       interval: 15s
       timeout: 5s
       retries: 3

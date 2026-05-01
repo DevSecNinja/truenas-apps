@@ -99,7 +99,7 @@ services:
         - "CMD"
         - "curl"
         - "-f"
-        - "http://localhost:2283/api/server/ping"
+        - "http://127.0.0.1:2283/api/server/ping"
       interval: 15s
       timeout: 5s
       retries: 3
@@ -188,7 +188,7 @@ services:
         - "CMD"
         - "python3"
         - "-c"
-        - "import urllib.request; urllib.request.urlopen('http://localhost:3003/ping')"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3003/ping')"
       interval: 15s
       timeout: 5s
       retries: 3

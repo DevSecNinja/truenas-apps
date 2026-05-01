@@ -81,7 +81,7 @@ services:
         - "CMD"
         - "curl"
         - "-f"
-        - "http://localhost:32400/identity"
+        - "http://127.0.0.1:32400/identity"
       interval: 15s
       timeout: 5s
       retries: 3

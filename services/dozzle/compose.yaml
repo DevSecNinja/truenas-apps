@@ -147,7 +147,7 @@ services:
         - "wget"
         - "--spider"
         - "-q"
-        - "http://localhost:2375/_ping"
+        - "http://127.0.0.1:2375/_ping"
       interval: 5s
       timeout: 5s
       retries: 3
