@@ -52,6 +52,20 @@ services:
       - globalSettings__mail__smtp__startTls=true
       - globalSettings__mail__smtp__username=${NOTIFICATIONS_EMAIL_USERNAME}
       - globalSettings__mail__smtp__password=${NOTIFICATIONS_EMAIL_PASSWORD}
+      # Stable cryptographic keys — if unset, the entrypoint generates a fresh
+      # random value on every container start, invalidating all device sessions
+      # and the IdentityServer signing certificate. Pin them once via SOPS so
+      # restarts (Renovate digest bumps, host reboots) don't log everyone out.
+      - globalSettings__internalIdentityKey=${BW_INTERNAL_IDENTITY_KEY}
+      - globalSettings__oidcIdentityClientKey=${BW_OIDC_IDENTITY_CLIENT_KEY}
+      - globalSettings__duo__aKey=${BW_DUO_AKEY}
+      - globalSettings__identityServer__certificatePassword=${BW_IDENTITY_CERT_PASSWORD}
+      # Refresh-token policy: absolute 30-day expiry (no sliding renewal) so
+      # MFA is re-prompted at least monthly even on long-lived clients.
+      - globalSettings__IdentityServer__ApplyAbsoluteExpirationOnRefreshToken=true
+      - globalSettings__IdentityServer__AbsoluteRefreshTokenLifetimeSeconds=2592000
+      # bitwarden-frontend network is IPv4-only — disable the IPv6 nginx listener.
+      - BW_ENABLE_IPV6=false
     deploy:
       update_config:
         order: start-first
@@ -80,6 +94,15 @@ services:
     volumes:
       - ./data:/etc/bitwarden
       - ./data/logs:/var/log/bitwarden
+    # Runtime-only writable paths backed by tmpfs. The image rootfs cannot be
+    # set read_only: true because the entrypoint addgroup/adduser writes to
+    # /etc/passwd and /etc/group, but isolating these working dirs to tmpfs
+    # still narrows the writable surface and clears them on every restart.
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/run/nginx
+      - /var/lib/nginx/tmp
     labels:
       # Homepage
       - homepage.group=Infrastructure
