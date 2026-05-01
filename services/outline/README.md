@@ -29,14 +29,15 @@ The `outlinewiki/outline` image does not support custom PUID/PGID — it runs as
 
 ### Services
 
-| Container            | Role                                                                      |
-| -------------------- | ------------------------------------------------------------------------- |
-| `outline-init`       | One-shot init: chowns `./data/data` to `1000:1000` (node user)            |
-| `outline`            | Wiki application (Node.js)                                                |
-| `outline-db-upgrade` | One-shot: pgautoupgrade for automatic Postgres major version upgrades     |
-| `outline-db`         | PostgreSQL database                                                       |
-| `outline-db-backup`  | One-shot nightly backup sidecar (restarted by `dccd.sh`)                  |
-| `outline-redis`      | Redis — session/cache store (ephemeral, `--save ""` disables persistence) |
+| Container             | Role                                                                                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outline-init`        | One-shot init: chowns `./data/data` to `1000:1000` (node user)                                                                                              |
+| `outline`             | Wiki application (Node.js)                                                                                                                                  |
+| `outline-db-upgrade`  | One-shot: pgautoupgrade for automatic Postgres major version upgrades                                                                                       |
+| `outline-db`          | PostgreSQL database                                                                                                                                         |
+| `outline-db-backup`   | One-shot nightly backup sidecar (restarted by `dccd.sh`)                                                                                                    |
+| `outline-db-exporter` | `postgres_exporter` sidecar — exposes Postgres metrics on `outline-backend:9187` for Alloy to scrape (reuses `OUTLINE_DB_PASSWORD`; no host port published) |
+| `outline-redis`       | Redis — session/cache store (ephemeral, `--save ""` disables persistence)                                                                                   |
 
 ### Database Backup
 

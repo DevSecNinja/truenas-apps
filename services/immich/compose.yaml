@@ -287,6 +287,45 @@ services:
       retries: 3
       start_period: 30s
 
+  # postgres_exporter — exposes immich-db metrics on :9187 for Alloy to scrape.
+  # Joins immich-backend only; metrics are reachable only by services already
+  # on immich-backend (the app, the DB, and Alloy once it joins this network).
+  # The official quay.io/prometheuscommunity/postgres-exporter image is built
+  # FROM scratch and ships only the static binary — no shell, no wget/curl, so
+  # `disable: true` is the only viable healthcheck (mirrors the Alloy pattern).
+  immich-db-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.19.1@sha256:e96064f876226d94bb6ce48a4c4b3dd76edba91168ec1ab024e5c4b959310b0f
+    container_name: immich-db-exporter
+    depends_on:
+      immich-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - DATA_SOURCE_NAME=postgresql://immich:${IMMICH_DB_PASSWORD}@immich-db:5432/immich?sslmode=disable
+    user: "65534:65534" # nobody:nogroup
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - immich-backend
+    mem_limit: ${DB_EXPORTER_MEM_LIMIT:-128m}
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    healthcheck:
+      # postgres-exporter image is built FROM scratch — no shell, no probe
+      # utilities. Liveness is monitored externally via Alloy's scrape error
+      # rate; a stuck exporter shows up as `up{job="postgres_immich"}=0`.
+      disable: true
+
   # tiredofit/db-backup uses s6-overlay which must start as root.
   # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
   # read_only is not set because s6-overlay needs extensive writable paths.
