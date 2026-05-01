@@ -667,6 +667,7 @@ All stateful databases in this repository have `tiredofit/db-backup` sidecars in
 
 | Service        | Database   | Backup sidecar             | Output path                                  |
 | -------------- | ---------- | -------------------------- | -------------------------------------------- |
+| Bitwarden      | SQLite     | `bitwarden-db-backup`      | `services/bitwarden/backups/db-backup/`      |
 | Gatus          | PostgreSQL | `gatus-db-backup`          | `services/gatus/backups/db-backup/`          |
 | Home Assistant | SQLite     | `home-assistant-db-backup` | `services/home-assistant/backups/db-backup/` |
 | Immich         | PostgreSQL | `immich-db-backup`         | `services/immich/backups/db-backup/`         |
