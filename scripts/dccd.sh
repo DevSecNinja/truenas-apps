@@ -1231,12 +1231,33 @@ update_compose_files() {
         fi
     fi
 
-    local end_time elapsed_time
+    local end_time elapsed_time human_duration
     end_time=$(date +%s)
     elapsed_time=$((end_time - _CD_START_TIME))
-    log_kv duration_seconds="${elapsed_time}"
+    human_duration=$(format_duration "${elapsed_time}")
+    if [ "${SHOULD_DEPLOY}" -eq 1 ]; then
+        log_result "Duration: ${human_duration}"
+    else
+        log_kv duration_seconds="${elapsed_time}" duration="${human_duration}"
+    fi
 
     log_result "Done"
+}
+
+# Format a duration in seconds as a human-readable string, e.g. "45s", "1m 33s",
+# "2h 5m 10s", "1d 2h 3m 4s". Always includes seconds for sub-minute precision.
+format_duration() {
+    local total="${1:-0}"
+    local days hours minutes seconds out=""
+    days=$((total / 86400))
+    hours=$(((total % 86400) / 3600))
+    minutes=$(((total % 3600) / 60))
+    seconds=$((total % 60))
+    [ "${days}" -gt 0 ] && out="${out}${days}d "
+    [ "${hours}" -gt 0 ] && out="${out}${hours}h "
+    [ "${minutes}" -gt 0 ] && out="${out}${minutes}m "
+    out="${out}${seconds}s"
+    printf '%s' "${out}"
 }
 
 # Simple URL encoding for query string values (handles spaces and common special chars)
