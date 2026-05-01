@@ -67,6 +67,10 @@ services:
     networks:
       - alloy-frontend
       - alloy-backend
+      # Joins the home-assistant frontend network so Alloy can scrape HA's
+      # /api/prometheus endpoint. HA is only deployed on svlnas; on svlazext
+      # this network is removed via compose.svlazext.yaml's `networks: !override`.
+      - home-assistant-frontend
       # Postgres exporter sidecars sit on each app's *-backend network. Alloy
       # joins those networks to scrape the exporters' :9187 endpoint. These
       # apps run on svlnas only — compose.svlazext.yaml drops both networks
@@ -193,6 +197,9 @@ networks:
     name: alloy-backend
     driver: bridge
     internal: true
+  home-assistant-frontend:
+    name: home-assistant-frontend
+    external: true
   immich-backend:
     name: immich-backend
     external: true

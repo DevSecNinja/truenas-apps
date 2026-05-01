@@ -11,11 +11,12 @@ services:
   alloy:
     environment:
       - HOSTNAME_OVERRIDE=svlazext
-    # immich and outline are not deployed on svlazext, so their *-backend
-    # networks (declared external in compose.yaml) do not exist on this host.
-    # Override the list to drop them; the unused external declarations in the
-    # top-level `networks:` map are silently ignored as long as no service
-    # references them.
+    # home-assistant, immich, and outline are not deployed on svlazext, so
+    # their respective external networks (home-assistant-frontend,
+    # immich-backend, outline-backend) declared in compose.yaml do not exist
+    # on this host. Override the network list to drop them; the unused
+    # external declarations in the top-level `networks:` map are silently
+    # ignored as long as no service references them.
     networks: !override
       - alloy-frontend
       - alloy-backend

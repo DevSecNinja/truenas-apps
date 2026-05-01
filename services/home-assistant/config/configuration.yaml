@@ -23,3 +23,14 @@ http:
   trusted_proxies:
     - 127.0.0.1
     - 172.16.0.0/12
+
+# Prometheus integration — exposes /api/prometheus for Alloy to scrape.
+# Auth: requires a Long-Lived Access Token sent as `Authorization: Bearer …`.
+# Create the token in HA Profile → Security → Long-lived access tokens, then
+# store it in services/alloy/secret.sops.env as HOME_ASSISTANT_PROM_TOKEN.
+#
+# NOTE: This file is only seeded into ./data/config/configuration.yaml on first
+# deploy (cp -n). On already-deployed hosts, add this block manually to
+# data/config/configuration.yaml on the TrueNAS host and restart HA.
+prometheus:
+  namespace: hass
