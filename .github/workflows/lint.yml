@@ -1,11 +1,15 @@
 ---
 name: Lint
 
+# PR-only: branch protection makes the merge commit identical to the
+# last PR head, so re-running on push to main is duplicate work. See
+# DevSecNinja/.github docs/workflow-trigger-conventions.md.
 on:
   pull_request:
-  push:
-    branches:
-      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -117,34 +121,3 @@ jobs:
               exit 1
             fi
           done
-
-  # --- Page on main-branch CI failure (Phase 3 of #15) ---
-  #
-  # Posts a JSON alert to a Grafana IRM webhook integration when any prior
-  # job in this workflow fails on a push to main, OR posts a resolve when
-  # all prior jobs succeed (so a green run automatically closes the open
-  # incident from the previous failure). The step is silently skipped if
-  # the GRAFANA_IRM_WEBHOOK_URL secret is unset, so the workflow remains
-  # usable on forks and during initial repo bring-up.
-  notify-irm:
-    name: Notify Grafana IRM
-    needs:
-      - lint
-      - vendored-libs-in-sync
-      - docker-compose-config
-      - dotenv-linter
-      - validate-servers
-    # Run on every completed push to main so we can fire either an
-    # `alerting` (on failure) or an `ok` (on success) payload with the
-    # same alert_uid. PR runs and pushes to other branches are skipped.
-    if: ${{ always() && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Notify Grafana IRM
-        uses: DevSecNinja/.github/.github/actions/notify-irm@b2509636243e456253c938184dfe1855d6401e6d # main
-        with:
-          webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
-          # `needs.*.result` is system-controlled, safe to interpolate.
-          job-failed: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
