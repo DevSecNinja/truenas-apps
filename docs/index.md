@@ -32,6 +32,7 @@ The setup follows
 | App                                                                                           | Purpose                                                        |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
+| [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
@@ -50,6 +51,7 @@ The setup follows
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
+| [Pangolin](https://github.com/fosrl/pangolin)                                                 | Identity-aware VPN and tunneled reverse proxy based on WireGuard |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
 | [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
 | [qBittorrent](https://www.qbittorrent.org/)                                                   | BitTorrent client with web interface                           |

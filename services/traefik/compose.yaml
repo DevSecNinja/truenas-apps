@@ -91,6 +91,7 @@ services:
       frigate-frontend:
       home-assistant-frontend:
       outline-frontend:
+      pangolin-frontend:
       sqlite-web-frontend:
       bitwarden-frontend:
     security_opt:
@@ -284,6 +285,9 @@ networks:
     external: true
   outline-frontend:
     name: outline-frontend
+    external: true
+  pangolin-frontend:
+    name: pangolin-frontend
     external: true
   esphome-frontend:
     name: esphome-frontend

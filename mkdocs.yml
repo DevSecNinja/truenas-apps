@@ -90,6 +90,7 @@ nav:
       - MeTube: services/metube.md
       - Mosquitto: services/mosquitto.md
       - Outline: services/outline.md
+      - Pangolin: services/pangolin.md
       - Plex: services/plex.md
       - Prowlarr: services/prowlarr.md
       - qBittorrent: services/qbittorrent.md

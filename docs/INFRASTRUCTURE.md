@@ -89,6 +89,7 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
 | 3125    | `svc-app-alloy`       | alloy, alloy-init                           | Yes (`./config`)    |
 | 3126    | `svc-app-bitwarden`   | bitwarden                                   | No                  |
+| 3127    | `svc-app-pangolin`    | pangolin, pangolin-init, pangolin-traefik   | Yes (`./config`, read-only templates) |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -120,6 +121,12 @@ Creation order for each app service account:
 1. Create group `svc-app-<name>` with GID matching the UID (e.g., GID 3100) — this is a GID reservation to prevent conflicts
 2. Create user `svc-app-<name>` with UID matching the GID (e.g., UID 3100), primary group set to the app's functional group (e.g., `media` for media apps, or the `svc-app-*` placeholder for apps that don't need shared access)
 3. For apps with git-tracked config (`./config`): add `truenas_admin` to the app's functional primary group — this grants group-write access to chown'd config files, allowing `git pull` without permission conflicts
+
+Pangolin requires additional host preparation beyond the standard dataset and service account:
+
+- Create the `vm-pool/apps/services/pangolin` dataset before first deploy
+- Ensure WireGuard/TUN kernel support is available and `/dev/net/tun` exists on the TrueNAS host
+- Expose or forward the Gerbil WireGuard/client UDP ports and the configured Pangolin HTTP/HTTPS host ports if Pangolin will publish public resources
 
 For shared purpose groups (`media`, `private-photos`, `private-documents`):
 
