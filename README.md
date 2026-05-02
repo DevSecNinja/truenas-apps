@@ -180,7 +180,7 @@ Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings 
 
 | Server   | Platform        | Apps                                                            | Purpose                                                             |
 | -------- | --------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| svlnas   | TrueNAS         | TrueNAS-hosted apps                                             | Primary home lab (TrueNAS mode)                                     |
+| svlnas   | TrueNAS         | All 27 apps                                                     | Primary home lab (TrueNAS mode)                                     |
 | svlazext | Azure VM Debian | AdGuard, Cloudflared, hadiscover, Traefik, Traefik Forward Auth | DNS filtering + Unbound, Cloudflare Tunnel, and public app backends |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:

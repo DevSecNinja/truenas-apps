@@ -22,8 +22,6 @@ The setup follows
 - **TrueNAS-native storage** — Containers bind-mount ZFS datasets directly — no NFS in the data
   path, avoiding latency and corruption risks for stateful apps like databases. Each app gets its
   own dataset for independent snapshots and rollback.
-- **3-2-1 backups** — ZFS snapshots, cross-pool replication, and encrypted off-site sync to Azure
-  Blob Storage. See [Backup Strategy](BACKUP.md) for the full strategy.
 - **Managed platform** — TrueNAS maintains the host OS and provides built-in container views,
   removing the need to manage the underlying system or add extra monitoring tooling.
 - **Flexibility** — Standard Docker Compose means the setup works with tools like Portainer or
@@ -34,7 +32,6 @@ The setup follows
 | App                                                                                           | Purpose                                                        |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
-| [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
