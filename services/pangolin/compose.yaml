@@ -61,7 +61,7 @@ services:
     networks:
       - pangolin-frontend
       - pangolin-backend
-    mem_limit: ${MEM_LIMIT:-1024m}
+    mem_limit: ${PANGOLIN_MEM_LIMIT:-1024m}
     pids_limit: 100
     security_opt:
       - no-new-privileges=true

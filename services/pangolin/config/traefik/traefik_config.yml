@@ -44,6 +44,9 @@ entryPoints:
         allowEncodedSlash: true
         allowEncodedQuestionMark: true
 
+# Pangolin resources may target private services with internal or self-signed TLS.
+# This matches upstream Pangolin Traefik defaults for backend hops; public
+# client TLS is still terminated and validated at the websecure entrypoint.
 serversTransport:
   insecureSkipVerify: true
 

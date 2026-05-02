@@ -10,6 +10,8 @@ http:
         scheme: https
 
   routers:
+    # Keep Badger on the redirect router to match upstream Pangolin behavior
+    # and preserve resource auth handling before the HTTPS redirect.
     main-app-router-redirect:
       rule: "Host(`pangolin.${DOMAINNAME}`)"
       service: next-service

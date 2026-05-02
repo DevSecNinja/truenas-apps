@@ -16,7 +16,7 @@ Pangolin provides a controlled way to expose private resources without publishin
 | -------------------------------- | ----------------------------- | ---------------------------- |
 | `https://pangolin.${DOMAINNAME}` | Traefik `chain-auth@file`     | Pangolin dashboard and API   |
 
-Gerbil also publishes the ports Pangolin uses for tunnels and public resources:
+Gerbil also publishes the ports Pangolin uses for tunnels and public resources. These optional overrides can be added to the decrypted `.env` when the defaults need to change:
 
 | Variable                  | Default | Protocol | Purpose                           |
 | ------------------------- | ------- | -------- | --------------------------------- |
@@ -24,6 +24,7 @@ Gerbil also publishes the ports Pangolin uses for tunnels and public resources:
 | `GERBIL_CLIENTS_PORT`     | `21820` | UDP      | Gerbil client tunnel endpoint     |
 | `PANGOLIN_HTTP_PORT`      | `8088`  | TCP      | Pangolin-managed HTTP entrypoint  |
 | `PANGOLIN_HTTPS_PORT`     | `8448`  | TCP      | Pangolin-managed HTTPS entrypoint |
+| `PANGOLIN_MEM_LIMIT`      | `1024m` | n/a      | Pangolin dashboard/API memory cap |
 
 ## Architecture
 
