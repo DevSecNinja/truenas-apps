@@ -79,6 +79,7 @@ nav:
       - Echo Server: services/echo-server.md
       - ESPHome: services/esphome.md
       - Excalidraw: services/excalidraw.md
+      - Folding@home: services/foldingathome.md
       - Frigate: services/frigate.md
       - Gatus: services/gatus.md
       - hadiscover API: services/hadiscover.md

@@ -72,7 +72,7 @@ DHI images at `dhi.io/<image>:<tag>` are preferred whenever the [catalog](https:
 
 Two caveats apply when adopting a DHI (or any new) image — the full procedure lives in the `new-docker-app` skill at `.github/skills/new-docker-app/SKILL.md`:
 
-1. **Verify multi-arch before adoption.** This homelab runs both `svlnas` (x86_64) and `svlazext` (arm64). Confirm the catalog page lists `LINUX/AMD64` **and** `LINUX/ARM64`. DHI has previously republished tags as amd64-only manifest digests for short windows, breaking arm64 hosts (see commits `b3cfb8c`, `dbd9f59`, `d3660cb`).
+1. **Verify multi-arch before adoption.** This homelab runs both `svlnas` (x86_64) and `svlazext` (arm64 — Azure Standard D2ps v6, 2 vCPUs / 8 GiB). Confirm the catalog page lists `LINUX/AMD64` **and** `LINUX/ARM64`. DHI has previously republished tags as amd64-only manifest digests for short windows, breaking arm64 hosts (see commits `b3cfb8c`, `dbd9f59`, `d3660cb`).
 2. **Initial commit must be tag-only — no `@sha256` digest.** Renovate runs on an amd64 GitHub runner and pins the digest on its next pass. Pinning manually from a stale snapshot can lock the deployment to an amd64-only digest if the registry has not yet republished as multi-arch. The tag itself stays pinned (e.g. `8.6.2-debian13`) for reproducibility.
 
 ## Healthchecks on Distroless Bases

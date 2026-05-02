@@ -1,0 +1,79 @@
+---
+# See README.md for first-run setup, deployment notes, and configuration details.
+#
+# Folding@home runs on svlazext only — an Azure Standard D2ps v6 ARM64 VM
+# (2 vCPUs, 8 GiB RAM). The LinuxServer image is multi-arch and ships an
+# arm64 build, so no platform override is required.
+
+services:
+  # s6-overlay exception — see ARCHITECTURE.md for the full rationale.
+  # LinuxServer foldingathome starts as root and uses s6-overlay to drop to PUID:PGID.
+  # read_only: true is omitted (s6-overlay writes to the root fs at startup).
+  # user: is omitted (s6-overlay requires root to chown /config to PUID:PGID).
+  # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for s6-overlay.
+  foldingathome:
+    image: lscr.io/linuxserver/foldingathome:version-7.6.21
+    container_name: foldingathome
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - PUID=3127 # svc-app-foldingathome
+      - PGID=3127
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - foldingathome-frontend
+    mem_limit: ${MEM_LIMIT:-6144m}
+    pids_limit: 500
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # s6-overlay chowns /config to PUID:PGID at startup
+      - SETUID # s6-overlay drops from root to PUID
+      - SETGID # s6-overlay drops from root to PGID
+      - SETPCAP # s6-overlay clears bounding capabilities before exec-ing the FAH client
+    tmpfs:
+      - /run:exec # s6-overlay places executables in /run during init
+      - /tmp
+    volumes:
+      - ./data/config:/config
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://127.0.0.1:7396/"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Folding@home
+      - homepage.icon=mdi-dna-#ffffff
+      - homepage.href=https://foldingathome.$DOMAINNAME
+      - homepage.description=Distributed Computing Client (svlazext)
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=foldingathome-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.foldingathome-rtr.rule=Host(`foldingathome.${DOMAINNAME}`)"
+      - "traefik.http.routers.foldingathome-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.foldingathome-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.foldingathome-rtr.service=foldingathome-svc"
+      - "traefik.http.services.foldingathome-svc.loadbalancer.server.port=7396"
+
+networks:
+  foldingathome-frontend:
+    name: foldingathome-frontend
+    driver: bridge

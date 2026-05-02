@@ -39,6 +39,7 @@ The setup follows
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |
 | [ESPHome](https://esphome.io/)                                                                | ESP device management and firmware builder                     |
+| [Folding@home](https://foldingathome.org/)                                                    | Distributed computing client (svlazext only — ARM64 VM)        |
 | [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
 | [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
 | [hadiscover API](https://github.com/DevSecNinja/hadiscover)                                   | Home Assistant device discovery API backend                    |
