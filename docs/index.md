@@ -32,9 +32,11 @@ The setup follows
 | App                                                                                           | Purpose                                                        |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
+| [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
+| [Corso](https://github.com/alcionai/corso)                                                    | Microsoft 365 backup runner                                    |
 | [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |

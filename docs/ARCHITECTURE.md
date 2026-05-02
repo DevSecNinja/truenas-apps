@@ -161,6 +161,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
 | alloy                | `alloy-init`                | `./data` (WAL + queue)                                                             |
+| corso                | `corso-init`                | `./data` via `busybox:1.37.0` (chown `3127:3127`)                                  |
 | dozzle               | `dozzle-init`               | `./data`                                                                           |
 | homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                         |
 | metube               | `metube-init`               | `./data/state`                                                                     |

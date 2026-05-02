@@ -1,0 +1,122 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount directory so Corso (UID 3127) can
+  # persist its repository configuration and logs under /app/corso.
+  corso-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: corso-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3127:3127
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - mkdir -p /data/logs && chown -Rv 3127:3127 /data
+    volumes:
+      - ./data:/data
+
+  corso:
+    # Corso is an archived but still-available open-source Microsoft 365 backup CLI.
+    image: ghcr.io/alcionai/corso:v0.19.0@sha256:41d7fb46bb9339b8331455bf2a652d5f96d7ea74e4b146d762bd5cb2046c1219
+    container_name: corso
+    depends_on:
+      corso-init:
+        condition: service_completed_successfully
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+    command:
+      - |-
+        set -eu
+
+        set -- --bucket "$${CORSO_S3_BUCKET}"
+        if [ -n "$${CORSO_S3_PREFIX:-}" ]; then
+          set -- "$$@" --prefix "$${CORSO_S3_PREFIX}"
+        fi
+        if [ -n "$${CORSO_S3_ENDPOINT:-}" ]; then
+          set -- "$$@" --endpoint "$${CORSO_S3_ENDPOINT}"
+        fi
+
+        while true; do
+          echo "Starting Microsoft 365 backup run at $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          /corso --hide-progress --log-file /app/corso/logs/corso.log repo init s3 "$$@"
+
+          exchange_mailboxes="$${CORSO_EXCHANGE_MAILBOXES-*}"
+          onedrive_users="$${CORSO_ONEDRIVE_USERS-*}"
+          sharepoint_sites="$${CORSO_SHAREPOINT_SITES-*}"
+
+          if [ -n "$${exchange_mailboxes}" ]; then
+            /corso --hide-progress --log-file /app/corso/logs/corso.log backup create exchange --mailbox "$${exchange_mailboxes}"
+          fi
+
+          if [ -n "$${onedrive_users}" ]; then
+            /corso --hide-progress --log-file /app/corso/logs/corso.log backup create onedrive --user "$${onedrive_users}"
+          fi
+
+          if [ -n "$${sharepoint_sites}" ]; then
+            /corso --hide-progress --log-file /app/corso/logs/corso.log backup create sharepoint --site "$${sharepoint_sites}"
+          fi
+
+          echo "Microsoft 365 backup run completed; sleeping for $${CORSO_BACKUP_INTERVAL_SECONDS:-86400}s"
+          sleep "$${CORSO_BACKUP_INTERVAL_SECONDS:-86400}"
+        done
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3127:3127" # svc-app-corso
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - corso-backend
+    mem_limit: ${MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/app/corso
+    healthcheck:
+      test:
+        - "CMD"
+        - "/corso"
+        - "--log-file"
+        - "-"
+        - "--hide-progress"
+        - "--version"
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Homepage
+      - homepage.group=Backup
+      - homepage.name=Corso
+      - homepage.icon=mdi-cloud-sync-#ffffff
+      - homepage.description=Microsoft 365 backup runner
+
+networks:
+  corso-backend:
+    name: corso-backend
+    driver: bridge

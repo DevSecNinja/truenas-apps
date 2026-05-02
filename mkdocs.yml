@@ -74,6 +74,7 @@ nav:
       - Bazarr: services/bazarr.md
       - Bitwarden Lite: services/bitwarden.md
       - Cloudflared: services/cloudflared.md
+      - Corso: services/corso.md
       - Dozzle: services/dozzle.md
       - Draw.io: services/drawio.md
       - Echo Server: services/echo-server.md
