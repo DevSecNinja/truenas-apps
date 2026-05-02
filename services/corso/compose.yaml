@@ -50,8 +50,14 @@ services:
 
         while true; do
           echo "Starting Microsoft 365 backup run at $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          /corso --hide-progress --log-file /app/corso/logs/corso.log repo init s3 "$$@"
+          if [ -f /app/corso/.corso.toml ]; then
+            /corso --hide-progress --log-file /app/corso/logs/corso.log repo connect s3 "$$@"
+          else
+            /corso --hide-progress --log-file /app/corso/logs/corso.log repo init s3 "$$@"
+          fi
 
+          # Unset selectors default to all resources; set a selector to an
+          # empty value in .env to disable that workload.
           exchange_mailboxes="$${CORSO_EXCHANGE_MAILBOXES-*}"
           onedrive_users="$${CORSO_ONEDRIVE_USERS-*}"
           sharepoint_sites="$${CORSO_SHAREPOINT_SITES-*}"
