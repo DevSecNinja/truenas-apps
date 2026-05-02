@@ -25,6 +25,8 @@ Gerbil also publishes the ports Pangolin uses for tunnels and public resources. 
 | `PANGOLIN_HTTP_PORT`      | `8088`  | TCP      | Pangolin-managed HTTP entrypoint  |
 | `PANGOLIN_HTTPS_PORT`     | `8448`  | TCP      | Pangolin-managed HTTPS entrypoint |
 | `PANGOLIN_MEM_LIMIT`      | `1024m` | n/a      | Pangolin dashboard/API memory cap |
+| `GERBIL_MEM_LIMIT`        | `256m`  | n/a      | Gerbil tunnel service memory cap  |
+| `TRAEFIK_MEM_LIMIT`       | `512m`  | n/a      | Internal Traefik memory cap       |
 
 ## Architecture
 
