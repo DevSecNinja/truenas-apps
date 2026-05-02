@@ -40,42 +40,43 @@ services:
       - |-
         set -eu
 
-        set -- --bucket "$${CORSO_S3_BUCKET}"
-        if [ -n "$${CORSO_S3_PREFIX:-}" ]; then
-          set -- "$$@" --prefix "$${CORSO_S3_PREFIX}"
-        fi
-        if [ -n "$${CORSO_S3_ENDPOINT:-}" ]; then
-          set -- "$$@" --endpoint "$${CORSO_S3_ENDPOINT}"
-        fi
         # Wrap the Corso CLI with common non-interactive logging flags.
         corso() {
           /corso --hide-progress --log-file /app/corso/logs/corso.log "$$@"
+        }
+        repo() {
+          action="$$1"
+          if [ -n "$${CORSO_S3_PREFIX:-}" ] && [ -n "$${CORSO_S3_ENDPOINT:-}" ]; then
+            corso repo "$${action}" s3 --bucket "$${CORSO_S3_BUCKET}" --prefix "$${CORSO_S3_PREFIX}" --endpoint "$${CORSO_S3_ENDPOINT}"
+          elif [ -n "$${CORSO_S3_PREFIX:-}" ]; then
+            corso repo "$${action}" s3 --bucket "$${CORSO_S3_BUCKET}" --prefix "$${CORSO_S3_PREFIX}"
+          elif [ -n "$${CORSO_S3_ENDPOINT:-}" ]; then
+            corso repo "$${action}" s3 --bucket "$${CORSO_S3_BUCKET}" --endpoint "$${CORSO_S3_ENDPOINT}"
+          else
+            corso repo "$${action}" s3 --bucket "$${CORSO_S3_BUCKET}"
+          fi
+        }
+        selector_or_all() {
+          if [ "$$1" = "x" ]; then
+            printf "%s" "$$2"
+          else
+            printf "*"
+          fi
         }
 
         while true; do
           backup_interval="$${CORSO_BACKUP_INTERVAL_SECONDS:-86400}"
           echo "Starting Microsoft 365 backup run at $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          if ! corso repo connect s3 "$$@"; then
-            corso repo init s3 "$$@"
+          if ! repo connect; then
+            echo "Corso repository connect failed; attempting repository initialization"
+            repo init
           fi
 
           # Unset selectors default to all resources; set a selector to an
           # empty value in .env to disable that workload.
-          if [ "$${CORSO_EXCHANGE_MAILBOXES+x}" = "x" ]; then
-            exchange_mailboxes="$${CORSO_EXCHANGE_MAILBOXES}"
-          else
-            exchange_mailboxes="*"
-          fi
-          if [ "$${CORSO_ONEDRIVE_USERS+x}" = "x" ]; then
-            onedrive_users="$${CORSO_ONEDRIVE_USERS}"
-          else
-            onedrive_users="*"
-          fi
-          if [ "$${CORSO_SHAREPOINT_SITES+x}" = "x" ]; then
-            sharepoint_sites="$${CORSO_SHAREPOINT_SITES}"
-          else
-            sharepoint_sites="*"
-          fi
+          exchange_mailboxes=$$(selector_or_all "$${CORSO_EXCHANGE_MAILBOXES+x}" "$${CORSO_EXCHANGE_MAILBOXES:-}")
+          onedrive_users=$$(selector_or_all "$${CORSO_ONEDRIVE_USERS+x}" "$${CORSO_ONEDRIVE_USERS:-}")
+          sharepoint_sites=$$(selector_or_all "$${CORSO_SHAREPOINT_SITES+x}" "$${CORSO_SHAREPOINT_SITES:-}")
 
           if [ -n "$${exchange_mailboxes}" ]; then
             corso backup create exchange --mailbox "$${exchange_mailboxes}"
