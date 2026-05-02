@@ -47,6 +47,7 @@ services:
         if [ -n "$${CORSO_S3_ENDPOINT:-}" ]; then
           set -- "$$@" --endpoint "$${CORSO_S3_ENDPOINT}"
         fi
+        # Wrap the Corso CLI with common non-interactive logging flags.
         corso() {
           /corso --hide-progress --log-file /app/corso/logs/corso.log "$$@"
         }
@@ -60,9 +61,21 @@ services:
 
           # Unset selectors default to all resources; set a selector to an
           # empty value in .env to disable that workload.
-          exchange_mailboxes="$${CORSO_EXCHANGE_MAILBOXES-*}"
-          onedrive_users="$${CORSO_ONEDRIVE_USERS-*}"
-          sharepoint_sites="$${CORSO_SHAREPOINT_SITES-*}"
+          if [ "$${CORSO_EXCHANGE_MAILBOXES+x}" = "x" ]; then
+            exchange_mailboxes="$${CORSO_EXCHANGE_MAILBOXES}"
+          else
+            exchange_mailboxes="*"
+          fi
+          if [ "$${CORSO_ONEDRIVE_USERS+x}" = "x" ]; then
+            onedrive_users="$${CORSO_ONEDRIVE_USERS}"
+          else
+            onedrive_users="*"
+          fi
+          if [ "$${CORSO_SHAREPOINT_SITES+x}" = "x" ]; then
+            sharepoint_sites="$${CORSO_SHAREPOINT_SITES}"
+          else
+            sharepoint_sites="*"
+          fi
 
           if [ -n "$${exchange_mailboxes}" ]; then
             corso backup create exchange --mailbox "$${exchange_mailboxes}"
