@@ -23,7 +23,7 @@ jobs:
       security-events: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.4.16"
+      mise-version: "2026.4.17"
       lint-config-drift: false
       # Vendored upstream libraries (e.g. scripts/lib/log.sh from
       # DevSecNinja/dotfiles) are excluded from shell linting/formatting.
@@ -83,7 +83,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.4.16
+          version: 2026.4.17
 
       - name: Run dotenv-linter
         # renovate: datasource=github-releases depName=dotenv-linter/dotenv-linter
@@ -104,7 +104,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.4.16
+          version: 2026.4.17
 
       - name: Validate servers.yaml schema
         run: mise exec -- check-jsonschema --schemafile servers.schema.json servers.yaml
