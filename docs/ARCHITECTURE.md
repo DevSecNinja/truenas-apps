@@ -171,7 +171,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | matter-server        | `matter-server-init`        | `./data`                                                                           |
 | metube               | `metube-init`               | `./data/state`                                                                     |
 | mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
-| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127` with `docker.io/library/busybox:1.37.0`)            |
+| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                    |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
 | spottarr             | `spottarr-chown`            | `./data`                                                                           |
 | traefik              | `traefik-init`              | `./data/acme`                                                                      |
