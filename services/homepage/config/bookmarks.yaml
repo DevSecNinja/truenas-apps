@@ -20,6 +20,9 @@
     - Renovate Jobs:
         - icon: si-renovatebot
           href: https://developer.mend.io/github/DevSecNinja/truenas-apps
+    - Grafana Cloud Dashboard:
+        - icon: si-grafana
+          href: https://grafana.com/
 
 - Tools:
     - Speedtest:
@@ -41,3 +44,12 @@
         - abbr: temp-mail
           icon: adguard-home.svg
           href: https://adguard.com/en/adguard-temp-mail/overview.html
+    - Typing Club:
+        - icon: mdi-keyboard-outline-#e5e7eb
+          href: https://www.typingclub.com/
+    - Typing Test:
+        - icon: mdi-keyboard-outline-#e5e7eb
+          href: https://typingtest.now/
+    - Monkey Type:
+        - icon: mdi-keyboard-outline-#e5e7eb
+          href: https://monkeytype.com/
