@@ -47,12 +47,15 @@ services:
         if [ -n "$${CORSO_S3_ENDPOINT:-}" ]; then
           set -- "$$@" --endpoint "$${CORSO_S3_ENDPOINT}"
         fi
+        corso() {
+          /corso --hide-progress --log-file /app/corso/logs/corso.log "$$@"
+        }
 
         while true; do
           backup_interval="$${CORSO_BACKUP_INTERVAL_SECONDS:-86400}"
           echo "Starting Microsoft 365 backup run at $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          if ! /corso --hide-progress --log-file /app/corso/logs/corso.log repo connect s3 "$$@"; then
-            /corso --hide-progress --log-file /app/corso/logs/corso.log repo init s3 "$$@"
+          if ! corso repo connect s3 "$$@"; then
+            corso repo init s3 "$$@"
           fi
 
           # Unset selectors default to all resources; set a selector to an
@@ -62,15 +65,15 @@ services:
           sharepoint_sites="$${CORSO_SHAREPOINT_SITES-*}"
 
           if [ -n "$${exchange_mailboxes}" ]; then
-            /corso --hide-progress --log-file /app/corso/logs/corso.log backup create exchange --mailbox "$${exchange_mailboxes}"
+            corso backup create exchange --mailbox "$${exchange_mailboxes}"
           fi
 
           if [ -n "$${onedrive_users}" ]; then
-            /corso --hide-progress --log-file /app/corso/logs/corso.log backup create onedrive --user "$${onedrive_users}"
+            corso backup create onedrive --user "$${onedrive_users}"
           fi
 
           if [ -n "$${sharepoint_sites}" ]; then
-            /corso --hide-progress --log-file /app/corso/logs/corso.log backup create sharepoint --site "$${sharepoint_sites}"
+            corso backup create sharepoint --site "$${sharepoint_sites}"
           fi
 
           echo "Microsoft 365 backup run completed; sleeping for $${backup_interval}s"

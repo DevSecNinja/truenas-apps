@@ -66,7 +66,7 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 ## First-Run Setup
 
 1. Create the dataset `vm-pool/apps/services/corso` in TrueNAS.
-2. Create the `svc-app-corso` group (GID 3127), then user (UID 3127) on the TrueNAS host. See [Infrastructure § TrueNAS Host Setup](../INFRASTRUCTURE.md#truenas-host-setup) for the standard creation order.
+2. Create the `svc-app-corso` group (GID 3127), then user (UID 3127) on the TrueNAS host. See [Infrastructure § TrueNAS Host Setup](../../docs/INFRASTRUCTURE.md#truenas-host-setup) for the standard creation order.
 3. Configure a Microsoft Entra application for Corso and store the tenant ID, client ID, and client secret in `secret.sops.env`.
 4. Configure the S3 repository variables and Corso passphrase in `secret.sops.env`.
 5. Encrypt the secrets file:
