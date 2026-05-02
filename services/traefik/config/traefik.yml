@@ -28,6 +28,8 @@ entryPoints:
   # no other container can use this entrypoint to bypass forward-auth.
   monitoring:
     address: ":8444"
+    observability:
+      accessLogs: false
     http:
       middlewares:
         - monitoring-ipallowlist@file
@@ -39,6 +41,8 @@ entryPoints:
   # service, and entrypoint topology).
   metrics:
     address: ":8082"
+    observability:
+      accessLogs: false
     http:
       middlewares:
         - metrics-ipallowlist@file
