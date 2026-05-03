@@ -441,6 +441,10 @@ When a profile is inactive, its containers do not exist, so their Traefik labels
 - When config changes, Docker Compose recreates/restarts all services that reference `${CONFIG_HASH}`
 - If the watched path does not exist or is set to `none`, `CONFIG_HASH` is empty, and service labels referencing it keep an empty value — no container recreation is triggered
 
+<!-- dprint-ignore -->
+!!! note "Generated Config and Git-Tracked Paths"
+    CONFIG_HASH computation itself does not write files. Services that are recreated by this mechanism must write any generated or substituted config only under ignored runtime paths such as `./data/` or `./backups/`, never under `./config/` or other git-tracked paths. Since `services/**/data/` and `services/**/backups/` are gitignored, generated outputs (e.g., Unbound's `./data/unbound/`) will not block `git pull` when containers are restarted.
+
 ## Directory Conventions
 
 Each service follows a consistent layout:
