@@ -749,8 +749,8 @@ redeploy_truenas_apps() {
             # --abort-on-container-exit is incompatible with -d, which is fine — we
             # want to block until the init work is done before deploying later apps.
             log_info "${app_name} output suppressed — check 'sudo docker compose --project-name ${project_name} logs' if needed"
-            if ! ${SUDO} docker compose \
-                "${COMPOSE_PROFILE_ARGS[@]}" \
+            # shellcheck disable=SC2310  # set -e disable in `if !` is acceptable here; we handle the failure explicitly
+            if ! run_compose_command \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 up \
@@ -863,6 +863,11 @@ run_compose_command() {
     local -a cmd=()
     if [ -n "${SUDO}" ]; then
         cmd+=("${SUDO}")
+        # sudo's default env_reset policy strips environment variables, including
+        # CONFIG_HASH which the caller exports for ${CONFIG_HASH:-} interpolation
+        # in compose label values (config.sha256 recreate triggers). Pass it as
+        # a per-command env assignment so it reaches the docker compose process.
+        cmd+=("CONFIG_HASH=${CONFIG_HASH:-}")
     fi
     cmd+=(docker compose)
     cmd+=("${COMPOSE_PROFILE_ARGS[@]}")
