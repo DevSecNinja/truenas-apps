@@ -43,6 +43,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |
 | [ESPHome](https://esphome.io/)                                                                | ESP device management and firmware builder                     |
+| [Folding@home](https://foldingathome.org/)                                                    | Distributed computing client (svlazext only — ARM64 VM)        |
 | [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
 | [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
 | [hadiscover API](https://github.com/DevSecNinja/hadiscover)                                   | Home Assistant device discovery API backend                    |
@@ -176,10 +177,10 @@ bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /
 
 Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings are defined in `servers.yaml`:
 
-| Server   | Platform        | Apps                                                            | Purpose                                                             |
-| -------- | --------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| svlnas   | TrueNAS         | All 26 apps                                                     | Primary home lab (TrueNAS mode)                                     |
-| svlazext | Azure VM Debian | AdGuard, Cloudflared, hadiscover, Traefik, Traefik Forward Auth | DNS filtering + Unbound, Cloudflare Tunnel, and public app backends |
+| Server   | Platform        | Apps                                                                                 | Purpose                                                                           |
+| -------- | --------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| svlnas   | TrueNAS         | All 26 apps                                                                          | Primary home lab (TrueNAS mode)                                                   |
+| svlazext | Azure VM Debian | AdGuard, Alloy, Cloudflared, Folding@home, hadiscover, Traefik, Traefik Forward Auth | DNS filtering + Unbound, Cloudflare Tunnel, public app backends, and Folding@home |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:
 

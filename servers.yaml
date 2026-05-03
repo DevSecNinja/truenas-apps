@@ -23,6 +23,7 @@ servers:
       - adguard
       - alloy
       - cloudflared
+      - foldingathome
       - hadiscover
       - traefik
       - traefik-forward-auth

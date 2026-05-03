@@ -14,6 +14,7 @@ services:
       - alloy-frontend
       - traefik-forward-auth-frontend
       - hadiscover-frontend
+      - foldingathome-frontend
     labels: !override
       - homepage.group=Infrastructure # Homepage
       - homepage.name=Traefik (svlazext)
@@ -49,4 +50,7 @@ networks:
     external: true
   hadiscover-frontend:
     name: hadiscover-frontend
+    external: true
+  foldingathome-frontend:
+    name: foldingathome-frontend
     external: true
