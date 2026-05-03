@@ -70,6 +70,20 @@ YAML
     rm -f "${TMPRESTART}"
 }
 
+@test "deploy standard: logs containers recreated by compose up" {
+    mkdir -p "${BASE_DIR}/services/testapp"
+    touch "${BASE_DIR}/services/testapp/compose.yaml"
+
+    # config ok, services return, pull succeeds, up reports a recreated container
+    create_sequential_mock "docker" "0:" "0:web" "0:" "0:Container testapp-web-1 Recreated"
+    TMPRESTART="$(mktemp)"
+    run redeploy_compose_file "${BASE_DIR}/services/testapp/compose.yaml"
+    assert_success
+    assert_output --partial "1 container(s) restarted:"
+    assert_output --partial "testapp-web-1"
+    rm -f "${TMPRESTART}"
+}
+
 @test "deploy standard: no-pull mode skips image pull" {
     mkdir -p "${BASE_DIR}/services/testapp"
     touch "${BASE_DIR}/services/testapp/compose.yaml"
