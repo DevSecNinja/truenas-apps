@@ -1,0 +1,123 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount so OpenClaw can persist gateway
+  # config, conversation history, and workspace data as the non-root svc user.
+  openclaw-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: openclaw-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3127:3127 (svc-app-openclaw)
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        chown -Rv 3127:3127 /data
+    volumes:
+      - ./data:/data
+
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:2026.4.29@sha256:2c56a23cb2fe826a0d521bf6d61c8e4bb4e4201274f358eccddf5876393155ae
+    container_name: openclaw
+    depends_on:
+      openclaw-init:
+        condition: service_completed_successfully
+    command:
+      - "node"
+      - "dist/index.js"
+      - "gateway"
+      - "--bind"
+      - "lan"
+      - "--port"
+      - "18789"
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3127:3127" # svc-app-openclaw
+    environment:
+      - HOME=/home/node
+      - TERM=xterm-256color
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - OPENCLAW_DISABLE_BONJOUR=${OPENCLAW_DISABLE_BONJOUR:-1}
+      # Azure OpenAI / Foundry — consumed by ${VAR} substitution in
+      # ./data/openclaw.json under models.providers.azure-openai
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - openclaw-frontend
+    mem_limit: ${MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/home/node/.openclaw
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=OpenClaw
+      - homepage.icon=mdi-robot-outline
+      - homepage.href=https://openclaw.${DOMAINNAME}
+      - homepage.description=Personal AI Assistant
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=openclaw-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.openclaw-rtr.rule=Host(`openclaw.${DOMAINNAME}`)"
+      - "traefik.http.routers.openclaw-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.openclaw-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.openclaw-rtr.service=openclaw-svc"
+      - "traefik.http.services.openclaw-svc.loadbalancer.server.port=18789"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.openclaw-monitor.rule=Host(`openclaw.${DOMAINNAME}`)"
+      - "traefik.http.routers.openclaw-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.openclaw-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.openclaw-monitor.service=openclaw-svc"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/healthz"
+      - "gatus.headers.Host=openclaw.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  openclaw-frontend:
+    name: openclaw-frontend
+    driver: bridge
