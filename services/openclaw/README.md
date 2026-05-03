@@ -4,7 +4,7 @@ OpenClaw is a self-hosted personal AI assistant and gateway for local and cloud 
 
 ## Why
 
-OpenClaw provides a private gateway for AI assistant workflows while keeping state in a TrueNAS-hosted dataset. It can connect to local model providers such as Ollama or LM Studio via `host.docker.internal`, and cloud providers are configured during onboarding. No GPU passthrough is configured for this stack.
+OpenClaw provides a private gateway for AI assistant workflows while keeping state in a TrueNAS-hosted dataset. The intended cloud provider for this deployment is **Azure OpenAI / Azure AI Foundry**, configured as a custom provider in `openclaw.json` (`models.providers.azure-openai`) with `${AZURE_OPENAI_API_KEY}` / `${AZURE_OPENAI_ENDPOINT}` substitution. Local model providers such as Ollama or LM Studio remain reachable via `host.docker.internal`. No GPU passthrough is configured for this stack.
 
 ## Compose Files
 
@@ -28,37 +28,35 @@ OpenClaw provides a private gateway for AI assistant workflows while keeping sta
 
 ### Services
 
-| Container        | Role                                                                        |
-| ---------------- | --------------------------------------------------------------------------- |
-| `openclaw-init`  | One-shot init: chowns `./data` to `3127:3127` before startup                |
-| `openclaw`       | OpenClaw gateway process with persistent state under `/home/node/.openclaw` |
+| Container       | Role                                                                        |
+| --------------- | --------------------------------------------------------------------------- |
+| `openclaw-init` | One-shot init: chowns `./data` to `3127:3127` before startup                |
+| `openclaw`      | OpenClaw gateway process with persistent state under `/home/node/.openclaw` |
 
 ### Volumes
 
-| Host path | Container path        | Purpose                                             |
-| --------- | --------------------- | --------------------------------------------------- |
+| Host path | Container path         | Purpose                                                           |
+| --------- | ---------------------- | ----------------------------------------------------------------- |
 | `./data`  | `/home/node/.openclaw` | OpenClaw gateway config, conversation history, and workspace data |
 
 ## Secrets
 
 Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy time):
 
-| Variable                            | Purpose                                             |
-| ----------------------------------- | --------------------------------------------------- |
-| `DOMAINNAME`                        | Base domain for Traefik routing                     |
-| `OPENCLAW_GATEWAY_TOKEN`            | OpenClaw gateway access token                       |
-| `OPENCLAW_ALLOW_INSECURE_PRIVATE_WS` | Allows private WebSocket connections when required |
-| `CLAUDE_AI_SESSION_KEY`             | Claude AI session key used by OpenClaw              |
-| `CLAUDE_WEB_SESSION_KEY`            | Claude web session key used by OpenClaw             |
-| `CLAUDE_WEB_COOKIE`                 | Claude web cookie used by OpenClaw                  |
+| Variable                 | Purpose                                                              |
+| ------------------------ | -------------------------------------------------------------------- |
+| `DOMAINNAME`             | Base domain for Traefik routing                                      |
+| `OPENCLAW_GATEWAY_TOKEN` | OpenClaw gateway shared secret (`openssl rand -base64 32`)           |
+| `AZURE_OPENAI_API_KEY`   | Azure OpenAI / Foundry API key, referenced from `openclaw.json`      |
+| `AZURE_OPENAI_ENDPOINT`  | Azure OpenAI / Foundry endpoint URL, referenced from `openclaw.json` |
 
 ## First-Run Setup
 
 1. Create the dataset `vm-pool/apps/services/openclaw` in TrueNAS
 2. Create the `svc-app-openclaw` group and user with UID/GID `3127`
-3. Populate `OPENCLAW_GATEWAY_TOKEN` and any provider session secrets in `secret.sops.env`
+3. Generate `OPENCLAW_GATEWAY_TOKEN` (`openssl rand -base64 32`) and populate the Azure OpenAI / Foundry credentials in `secret.sops.env`
 4. Deploy the stack and confirm the `openclaw-init` container completes successfully
-5. Open `https://openclaw.${DOMAINNAME}` and complete OpenClaw onboarding for local or cloud providers
+5. Open `https://openclaw.${DOMAINNAME}` and complete OpenClaw onboarding; for Azure OpenAI / Foundry, add a `models.providers.azure-openai` entry referencing `${AZURE_OPENAI_API_KEY}` and `${AZURE_OPENAI_ENDPOINT}` in `./data/openclaw.json`
 
 ## Upgrade Notes
 

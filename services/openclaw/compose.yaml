@@ -50,11 +50,11 @@ services:
       - HOME=/home/node
       - TERM=xterm-256color
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
-      - OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
       - OPENCLAW_DISABLE_BONJOUR=${OPENCLAW_DISABLE_BONJOUR:-1}
-      - CLAUDE_AI_SESSION_KEY=${CLAUDE_AI_SESSION_KEY:-}
-      - CLAUDE_WEB_SESSION_KEY=${CLAUDE_WEB_SESSION_KEY:-}
-      - CLAUDE_WEB_COOKIE=${CLAUDE_WEB_COOKIE:-}
+      # Azure OpenAI / Foundry — consumed by ${VAR} substitution in
+      # ./data/openclaw.json under models.providers.azure-openai
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
     deploy:
       update_config:
         order: start-first

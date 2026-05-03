@@ -49,7 +49,7 @@ The setup follows
 | [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                         |
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
-| [OpenClaw](https://github.com/openclaw/openclaw)                                               | Self-hosted personal AI assistant and gateway                  |
+| [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                  |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
 | [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
