@@ -37,6 +37,7 @@ _DEPLOY_ERRORS=0       # Count of deployment failures (non-fatal errors logged d
 _DEPLOY_ATTEMPTED=0    # Count of deployment attempts
 _DEPLOY_CHANGED=0      # Count of apps where containers were recreated/updated
 _DEPLOY_UNCHANGED=0    # Count of apps where no changes were detected
+_DEPLOY_RESTARTED=0    # Count of containers restarted/recreated during deployment
 _DEPLOY_FAILED_APPS=() # Names of failed apps
 _DHI_LOGIN_OK=0        # Set to 1 by auto_login_dhi when dhi.io login succeeded (skips file-based check)
 # renovate: datasource=github-releases depName=getsops/sops
@@ -557,6 +558,52 @@ log_image_changes() {
     done <<<"${after}"
 }
 
+# Extract container names that Docker Compose reports as restarted/recreated.
+extract_restarted_containers() {
+    local output="$1"
+
+    printf '%s\n' "${output}" | awk '
+        {
+            restarted = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "Recreate" || $i == "Recreated" || $i == "Restarting" || $i == "Restarted") {
+                    restarted = 1
+                }
+            }
+            if (!restarted) {
+                next
+            }
+            for (i = 1; i <= NF; i++) {
+                if ($i == "Container" && (i + 1) <= NF) {
+                    print $(i + 1)
+                }
+            }
+        }
+    ' | sort -u
+}
+
+# Log and count containers restarted/recreated by Docker Compose.
+record_container_restarts() {
+    local app_name="$1"
+    local output="$2"
+    local containers
+    containers=$(extract_restarted_containers "${output}")
+
+    if [ -z "${containers}" ]; then
+        return
+    fi
+
+    local count
+    count=$(printf '%s\n' "${containers}" | grep -c .)
+    _DEPLOY_RESTARTED=$((_DEPLOY_RESTARTED + count))
+
+    log_rule RESULT "${app_name}"
+    log_result "${count} container(s) restarted:"
+    while IFS= read -r container; do
+        log_result "${container}"
+    done <<<"${containers}"
+}
+
 redeploy_truenas_apps() {
     local src_dir="${BASE_DIR}/services"
 
@@ -822,6 +869,7 @@ compose_up_wait_tolerant() {
     out=$(run_compose_command "$@" up -d --build --quiet-pull --wait --wait-timeout "${WAIT_TIMEOUT}" 2>&1)
     rc=$?
     if [ "${rc}" -eq 0 ]; then
+        record_container_restarts "${app_name}" "${out}"
         return 0
     fi
 
@@ -836,6 +884,7 @@ compose_up_wait_tolerant() {
                 awk '{print $2}' |
                 paste -sd, -)
             log_warn "${app_name}: container(s) without healthcheck (${missing}) — using \"running\" state as readiness"
+            record_container_restarts "${app_name}" "${out}"
             return 0
         fi
     fi
@@ -1231,6 +1280,9 @@ update_compose_files() {
         fi
         if [ "$((_DEPLOY_CHANGED + _DEPLOY_UNCHANGED))" -gt 0 ]; then
             log_result "${_DEPLOY_CHANGED} changed, ${_DEPLOY_UNCHANGED} unchanged"
+        fi
+        if [ "${_DEPLOY_RESTARTED}" -gt 0 ]; then
+            log_result "${_DEPLOY_RESTARTED} container(s) restarted"
         fi
     fi
 
