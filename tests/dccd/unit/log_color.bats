@@ -33,8 +33,8 @@ export TERM=xterm
 # shellcheck source=../../../scripts/lib/log.sh disable=SC1091
 . "${repo_root}/scripts/lib/log.sh"
 
-captured=$(log_warn "alloy: container(s) without healthcheck (alloy) — using \"running\" state as readiness")
-printf 'captured=<%s>\n' "${captured}"
+captured_stdout=$(log_warn "alloy: container(s) without healthcheck (alloy) — using \"running\" state as readiness")
+printf 'captured_stdout=<%s>\n' "${captured_stdout}"
 HELPER
     chmod +x "${helper}"
 
@@ -44,8 +44,6 @@ HELPER
 
     run cat "${transcript}"
     assert_success
-    assert_output --partial $'\033[1;33m'
-    assert_output --partial "WARN"
-    assert_output --partial "alloy: container(s) without healthcheck"
-    assert_output --partial "captured=<>"
+    assert_output --partial $'\033[1;33m2026-05-04 00:00:32 WARN   [dccd] alloy: container(s) without healthcheck (alloy) — using "running" state as readiness\033[0m'
+    assert_output --partial "captured_stdout=<>"
 }
