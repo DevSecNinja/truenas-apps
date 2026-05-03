@@ -32,6 +32,9 @@ services:
       - ./data/unbound:/output
     tmpfs:
       - /tmp
+    labels:
+      # Config hash — recreates init when ./config changes so generated files refresh
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # Redis is used as a persistent DNS cache backend for Unbound (cachedb module).
   # Internal network only — no external exposure. Ephemeral: --save "" disables
@@ -169,6 +172,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    labels:
+      # Config hash — triggers container recreation when ./config changes
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # Selectively flushes Unbound's cache for the internal domain on every deploy.
   # Clears stale entries (e.g. cached NXDOMAIN for newly added local-data records)
@@ -202,6 +208,9 @@ services:
       - ./config/unbound/conf.d/remote-control.conf:/usr/local/unbound/conf.d/remote-control.conf:ro
     tmpfs:
       - /tmp
+    labels:
+      # Config hash — reruns flush after Unbound config-triggered recreation
+      - "config.sha256=${CONFIG_HASH:-}"
 
   # Sets ownership on the adguard-data volume and data/conf directory so the
   # non-root adguard container can write to them. Always overwrites
