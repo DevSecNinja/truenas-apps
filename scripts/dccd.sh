@@ -563,7 +563,16 @@ extract_restarted_containers() {
     local output="$1"
 
     printf '%s\n' "${output}" | awk '
-        /(^|[[:space:]])(Recreate|Recreated|Restarting|Restarted)($|[[:space:]])/ {
+        {
+            restarted = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "Recreate" || $i == "Recreated" || $i == "Restarting" || $i == "Restarted") {
+                    restarted = 1
+                }
+            }
+            if (!restarted) {
+                next
+            }
             for (i = 1; i <= NF; i++) {
                 if ($i == "Container" && (i + 1) <= NF) {
                     print $(i + 1)
