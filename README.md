@@ -46,6 +46,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
 | [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
 | [hadiscover API](https://github.com/DevSecNinja/hadiscover)                                   | Home Assistant device discovery API backend                    |
+| [Headscale](https://headscale.dev/)                                                           | Self-hosted Tailscale coordination server                      |
 | [Home Assistant](https://www.home-assistant.io/)                                              | Open source home automation platform                           |
 | [Homepage](https://gethomepage.dev/)                                                          | Customizable dashboard for home lab services                   |
 | [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                         |
@@ -89,6 +90,7 @@ vm-pool/apps/services/echo-server
 vm-pool/apps/services/esphome
 vm-pool/apps/services/frigate
 vm-pool/apps/services/gatus
+vm-pool/apps/services/headscale
 vm-pool/apps/services/home-assistant
 vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
@@ -176,10 +178,10 @@ bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /
 
 Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings are defined in `servers.yaml`:
 
-| Server   | Platform        | Apps                                                            | Purpose                                                             |
-| -------- | --------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| svlnas   | TrueNAS         | All 26 apps                                                     | Primary home lab (TrueNAS mode)                                     |
-| svlazext | Azure VM Debian | AdGuard, Cloudflared, hadiscover, Traefik, Traefik Forward Auth | DNS filtering + Unbound, Cloudflare Tunnel, and public app backends |
+| Server   | Platform        | Apps                                                                   | Purpose                                                             |
+| -------- | --------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| svlnas   | TrueNAS         | All 27 apps                                                            | Primary home lab (TrueNAS mode)                                     |
+| svlazext | Azure VM Debian | AdGuard, Alloy, Cloudflared, Headscale, hadiscover, Traefik, Traefik Forward Auth | DNS filtering + Unbound, Cloudflare Tunnel, and public app backends |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:
 

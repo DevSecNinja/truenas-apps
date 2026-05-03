@@ -42,6 +42,7 @@ The setup follows
 | [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
 | [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
 | [hadiscover API](https://github.com/DevSecNinja/hadiscover)                                   | Home Assistant device discovery API backend                    |
+| [Headscale](https://headscale.dev/)                                                           | Self-hosted Tailscale coordination server                      |
 | [Home Assistant](https://www.home-assistant.io/)                                              | Open source home automation platform                           |
 | [Homepage](https://gethomepage.dev/)                                                          | Customizable dashboard for home lab services                   |
 | [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                         |

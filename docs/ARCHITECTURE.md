@@ -169,6 +169,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
 | spottarr             | `spottarr-chown`            | `./data`                                                                           |
 | gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
+| headscale            | `headscale-init`            | `./data` (config, SQLite database, Noise keys)                                     |
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
 | hadiscover           | `hadiscover-init`           | `./data`                                                                           |

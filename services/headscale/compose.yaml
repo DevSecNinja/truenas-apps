@@ -1,0 +1,100 @@
+---
+services:
+  # Generates /data/config/config.yaml from the git-tracked template and fixes
+  # ownership on runtime data so headscale (UID/GID 3127:3127) can persist its
+  # SQLite database, Noise key, and Unix socket state.
+  # NOTE: ./config is git-tracked and mounted read-only; only ./data is chown'd.
+  headscale-init:
+    image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    container_name: headscale-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3127:3127 (svc-app-headscale)
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        sh /templates/envsubst.sh &&
+        chown -Rv 3127:3127 /data
+    volumes:
+      - ./config:/templates:ro
+      - ./data:/data
+
+  headscale:
+    image: docker.io/headscale/headscale:0.28.0@sha256:51b1b9182bb6219e97374fa89af6b9320d6f87ecc739e328d5357ea4fa7a5ce3
+    container_name: headscale
+    command:
+      - "serve"
+    depends_on:
+      headscale-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3127:3127" # svc-app-headscale
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - headscale-frontend
+    mem_limit: ${MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /var/run/headscale
+    volumes:
+      - ./data/config:/etc/headscale:ro
+      - ./data/lib:/var/lib/headscale
+    labels:
+      # Homepage
+      - homepage.group=Infrastructure
+      - homepage.name=Headscale
+      - homepage.icon=mdi-vpn-#ffffff
+      - homepage.href=https://headscale.$DOMAINNAME
+      - homepage.description=Tailscale coordination server
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=headscale-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.headscale-rtr.rule=Host(`headscale.${DOMAINNAME}`)"
+      - "traefik.http.routers.headscale-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.headscale-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.headscale-rtr.service=headscale"
+      - "traefik.http.services.headscale.loadbalancer.server.port=8080"
+    healthcheck:
+      test:
+        - "CMD"
+        - "headscale"
+        - "health"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  headscale-frontend:
+    name: headscale-frontend
+    driver: bridge
