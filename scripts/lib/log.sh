@@ -216,7 +216,6 @@ _log_use_color_for_fd() {
 		esac
 	fi
 
-	test -t 1 || return 1
 	test -t "$1" || return 1
 	case "${TERM:-}" in
 	"" | dumb) return 1 ;;
