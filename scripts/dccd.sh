@@ -567,7 +567,6 @@ extract_restarted_containers() {
             for (i = 1; i <= NF; i++) {
                 if ($i == "Container" && (i + 1) <= NF) {
                     print $(i + 1)
-                    next
                 }
             }
         }

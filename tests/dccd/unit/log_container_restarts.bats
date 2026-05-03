@@ -23,6 +23,7 @@ teardown() {
 @test "record_container_restarts: logs restarted containers and increments counter" {
     local compose_output=$'Container testapp-web-1 Recreated\nContainer testapp-worker-1 Restarted'
     local output_file="${BATS_TMPDIR}/container-restarts.log"
+    _DEPLOY_RESTARTED=0
 
     record_container_restarts "testapp" "${compose_output}" >"${output_file}"
 
@@ -38,6 +39,7 @@ teardown() {
 
 @test "record_container_restarts: ignores compose output without restarts" {
     local output_file="${BATS_TMPDIR}/container-restarts-empty.log"
+    _DEPLOY_RESTARTED=0
 
     record_container_restarts "testapp" "Container testapp-web-1 Started" >"${output_file}"
 
