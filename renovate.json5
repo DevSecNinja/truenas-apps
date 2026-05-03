@@ -18,6 +18,7 @@
       description: "Treat Renovate major updates as release-please minor bumps",
       matchUpdateTypes: ["major"],
       semanticCommitType: "feat",
+      // Override the inherited major-update prefix that adds a breaking-change marker.
       commitMessagePrefix: "{{semanticCommitType}}({{semanticCommitScope}}):",
     },
   ],
