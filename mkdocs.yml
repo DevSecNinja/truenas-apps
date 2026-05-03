@@ -82,6 +82,7 @@ nav:
       - Frigate: services/frigate.md
       - Gatus: services/gatus.md
       - hadiscover API: services/hadiscover.md
+      - Headscale: services/headscale.md
       - Home Assistant: services/home-assistant.md
       - Homepage: services/homepage.md
       - Immich: services/immich.md

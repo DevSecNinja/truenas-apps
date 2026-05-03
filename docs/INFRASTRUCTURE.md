@@ -89,6 +89,7 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
 | 3125    | `svc-app-alloy`       | alloy, alloy-init                           | Yes (`./config`)    |
 | 3126    | `svc-app-bitwarden`   | bitwarden                                   | No                  |
+| 3127    | `svc-app-headscale`   | headscale, headscale-init                   | Yes (`./config`)    |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -360,8 +361,10 @@ servers:
     age_public_key: "age1..."
     apps:
       - adguard
+      - alloy
       - cloudflared
       - hadiscover
+      - headscale
       - traefik
       - traefik-forward-auth
 ```
