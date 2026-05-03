@@ -58,6 +58,10 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden runner
+        # renovate: datasource=github-tags depName=DevSecNinja/.github
+        uses: DevSecNinja/.github/actions/harden-runner@bf22fcfcb4ef94a359eed55cea4b5ce7f5b98167 # main
+
       - name: Notify Grafana IRM
         uses: DevSecNinja/.github/.github/actions/notify-irm@b2509636243e456253c938184dfe1855d6401e6d # main
         with:
