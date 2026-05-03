@@ -1,0 +1,40 @@
+---
+gerbil:
+  start_port: 51820
+  clients_start_port: 21820
+  base_endpoint: "pangolin.${DOMAINNAME}"
+
+app:
+  dashboard_url: "https://pangolin.${DOMAINNAME}"
+  log_level: "info"
+  telemetry:
+    anonymous_usage: false
+
+domains:
+  primary:
+    base_domain: "${DOMAINNAME}"
+
+server:
+  external_port: 3000
+  internal_port: 3001
+  next_port: 3002
+  cors:
+    origins:
+      - "https://pangolin.${DOMAINNAME}"
+    methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "PATCH"
+    allowed_headers:
+      - "X-CSRF-Token"
+      - "Content-Type"
+    credentials: false
+
+flags:
+  require_email_verification: false
+  disable_signup_without_invite: true
+  disable_user_create_org: false
+  allow_raw_resources: true
+  disable_enterprise_features: true

@@ -50,6 +50,7 @@ The setup follows
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication           |
+| [Pangolin](https://github.com/fosrl/pangolin)                                                 | Identity-aware VPN and tunneled reverse proxy based on WireGuard |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                         |
 | [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                              |
 | [qBittorrent](https://www.qbittorrent.org/)                                                   | BitTorrent client with web interface                           |

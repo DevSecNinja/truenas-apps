@@ -174,6 +174,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | hadiscover           | `hadiscover-init`           | `./data`                                                                           |
 | matter-server        | `matter-server-init`        | `./data`                                                                           |
 | mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
+| pangolin             | `pangolin-init`             | `docker.io/library/busybox:1.37.0`; renders `./config` templates into `./data/config`; chowns `./data` to `3127:3127` |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                      |
 | frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
 
@@ -181,7 +182,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Exceptions — s6-overlay and root-start containers:**
 
-Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. `cap_drop: ALL` is **still required** for these images — only the specific capabilities that s6-overlay needs are re-added via `cap_add`. Each such container must include a comment block in the compose file explaining the deviation. This applies to:
+Some images cannot use `read_only: true` or `user:` because their init system (s6-overlay) requires a writable root filesystem and starts as root before dropping privileges internally. Others must start as root for device or network namespace operations. `cap_drop: ALL` is **still required** for these images — only the specific capabilities that are needed are re-added via `cap_add`. Each such container must include a comment block in the compose file explaining the deviation. This applies to:
 
 - **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit `user:` and `read_only`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **LinuxServer socket-proxy** — runs as root by design to proxy the Docker socket. Does not support custom users, mods, or scripts. Omit `cap_drop: ALL`; `no-new-privileges` and `read_only` are still applied.
@@ -192,6 +193,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **ghcr.io/esphome/esphome** — compiles C++ firmware at runtime using platformio, downloading platform packages and managing build artifacts across `/config/.esphome/`. Requires extensive filesystem writes; omit `user:` and `read_only:`. `cap_drop: ALL` is applied; no additional capabilities are needed.
 - **ghcr.io/blakeblackshear/frigate** — runs as root; manages its own internal processes (nginx, go2rtc, detector workers) and requires access to hardware devices (GPU, optional Coral TPU). Omit `user:` and `read_only:`. `cap_drop: ALL` is applied; no additional capabilities are needed.
 - **ghcr.io/bitwarden/lite** — bundles nginx + multiple .NET services (admin, api, identity, icons, notifications, sso, scim, events) under `supervisord`. The entrypoint runs as root to generate the IdentityServer PFX certificate, create the in-container `bitwarden` user from `PUID`/`PGID`, chown `/etc/bitwarden` and the nginx/supervisor paths, then `exec su-exec` into supervisord as the runtime user. Omit `user:` and `read_only:`. Add `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`, and `SETPCAP` via `cap_add` (chown chain + privilege drop).
+- **docker.io/fosrl/gerbil** — manages WireGuard tunnels, so it runs as root with `NET_ADMIN` and `/dev/net/tun`. `SYS_MODULE` is intentionally omitted; WireGuard/TUN support must already exist on the host. `cap_drop: ALL`, `no-new-privileges`, and `read_only: true` still apply.
 
 Each exception is documented with a comment block in the compose file explaining why the deviation is necessary.
 
