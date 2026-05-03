@@ -4,7 +4,7 @@ set -eu
 mkdir -p /data/config /data/lib
 cp /templates/config.yaml /data/config/config.yaml
 
-# shellcheck disable=SC2312  # grep/sort exit codes are intentionally unmasked; unresolved placeholders are checked below
+# shellcheck disable=SC2312  # grep/sort pipeline exit codes are intentionally unmasked here
 grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' /templates/config.yaml | sort -u | while read -r pattern; do
     name="${pattern#\$\{}"
     name="${name%\}}"
