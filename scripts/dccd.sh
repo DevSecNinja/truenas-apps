@@ -869,6 +869,13 @@ run_compose_command() {
         # a per-command env assignment so it reaches the docker compose process.
         cmd+=("CONFIG_HASH=${CONFIG_HASH:-}")
     fi
+    # Wrap the compose invocation in `env CONFIG_HASH=...` so the variable
+    # reaches docker compose for ${CONFIG_HASH:-} interpolation in compose
+    # labels (config.sha256 recreate triggers). Direct sudo VAR=value passing
+    # requires the SETENV sudoers tag, which TrueNAS-style sudoers does not
+    # grant; `sudo env VAR=value cmd` bypasses that check because the assignment
+    # is argv to `env`, not a sudo-level env override.
+    cmd+=(env "CONFIG_HASH=${CONFIG_HASH:-}")
     cmd+=(docker compose)
     cmd+=("${COMPOSE_PROFILE_ARGS[@]}")
     if [ -n "${COMPOSE_OPTS}" ]; then
