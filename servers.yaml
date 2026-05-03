@@ -24,5 +24,6 @@ servers:
       - alloy
       - cloudflared
       - hadiscover
+      - headscale
       - traefik
       - traefik-forward-auth
