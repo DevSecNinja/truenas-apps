@@ -3,15 +3,11 @@ name: Label Sync
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - .github/labels.yaml
-      - .github/workflows/label-sync.yml
   push:
     branches:
       - main
     paths:
-      - .github/labels.yaml
+      - .github/labels-base.yaml
   schedule:
     - cron: "0 0 * * *"
 
@@ -20,7 +16,9 @@ permissions:
 
 jobs:
   label-sync:
-    uses: DevSecNinja/.github/.github/workflows/label-sync.yml@e744bc05bb096d6356cc913900ff62482e656046 # main
+    uses: DevSecNinja/.github/.github/workflows/label-sync.yml@195660c2cde322b4f9402a20be4b2dac2fef77e0 # main
     permissions:
       contents: read
       issues: write
+    with:
+      labels-file: .github/labels-base.yaml

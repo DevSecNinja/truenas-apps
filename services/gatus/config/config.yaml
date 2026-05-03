@@ -165,6 +165,15 @@ endpoints:
       - "[CERTIFICATE_EXPIRATION] > 48h"
       - "[RESPONSE_TIME] < 1000"
 
+  - name: travel - HTTP
+    <<: *defaults
+    url: "https://travel.${DOMAINNAME}"
+    group: External
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 48h"
+      - "[RESPONSE_TIME] < 1000"
+
   - name: traefik-ext - HTTP
     <<: *defaults
     url: "https://traefik-ext.${DOMAINNAME}"

@@ -49,6 +49,18 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 | `BW_ADMIN_EMAILS`              | Comma-separated admin emails for `/admin` panel access                                 |
 | `BW_DISABLE_USER_REGISTRATION` | `false` until your account is created, then flip to `true` to lock down the deployment |
 | `NOTIFICATIONS_EMAIL_*`        | SMTP settings (host/port/username/password/from) — required for verification emails    |
+| `DB_ENC_PASSPHRASE`            | Encryption passphrase for `bitwarden-db-backup` dump files                             |
+
+## Database Backup
+
+The `bitwarden-db-backup` sidecar (tiredofit/db-backup with s6-overlay) runs a one-shot `sqlite3 .dump` of the Bitwarden vault database (`vault.db`), producing a consistent SQL snapshot even while Bitwarden is running in WAL mode. The backup is compressed with ZSTD and encrypted with `${DB_ENC_PASSPHRASE}`.
+
+- **Mode**: `MANUAL` with `MANUAL_RUN_FOREVER=FALSE` — runs one backup and exits. The nightly CD script (`dccd.sh`) restarts the container fresh each run.
+- **Notifications**: Sends email notifications on backup success/failure via SMTP.
+- **Storage**: Backups are written to `./backups/db-backup/` (gitignored). Old backups are cleaned up after 48 hours (`DEFAULT_CLEANUP_TIME=2880`).
+- **Network**: `network_mode: none` — the backup container has no network access.
+
+See [Backup](../BACKUP.md#application-level-database-backups) for restore instructions.
 
 ## First-Run Setup
 
@@ -67,6 +79,6 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 ## Upgrade Notes
 
 - **Image updates** are managed by Renovate. The initial commit pins the tag only; Renovate will add the `@sha256:...` digest pin in its next run (see the Docker Hardened Image guidance in [Architecture](../ARCHITECTURE.md)).
-- **Database backups**: SQLite stores everything in `./data/vault.db`. Snapshot the `vm-pool/apps/services/bitwarden` dataset on a regular cadence, or export an encrypted backup from the Bitwarden web vault (`Settings → Export vault`).
+- **Database backups**: The `bitwarden-db-backup` sidecar produces encrypted ZSTD-compressed `sqlite3 .dump` snapshots of `vault.db` to `./backups/db-backup/` on every deploy cycle (see [Database Backup](#database-backup) above). For belt-and-braces, also snapshot the `vm-pool/apps/services/bitwarden` dataset on a regular cadence, or export an encrypted backup from the Bitwarden web vault (`Settings → Export vault`).
 - **Schema migrations** run automatically at container start. The entrypoint applies pending migrations against the SQLite file before launching `supervisord`.
 - **Memory tuning**: the default `mem_limit: 1024m` is comfortable. Reduce via `MEM_LIMIT` if needed — Bitwarden Lite requires at least 200 MB.
