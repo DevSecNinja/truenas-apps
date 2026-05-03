@@ -33,6 +33,10 @@ services:
     depends_on:
       openclaw-init:
         condition: service_completed_successfully
+    # --allow-unconfigured lets the gateway start with an empty
+    # ./data/openclaw.json so first-run onboarding happens via the Control UI
+    # instead of a one-shot CLI step. After onboarding writes openclaw.json,
+    # the flag is harmless on subsequent restarts.
     command:
       - "node"
       - "dist/index.js"
@@ -41,6 +45,7 @@ services:
       - "lan"
       - "--port"
       - "18789"
+      - "--allow-unconfigured"
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
