@@ -604,6 +604,34 @@ record_container_restarts() {
     done <<<"${containers}"
 }
 
+# Dump the last N log lines (default 10) from every container in a compose
+# project. Used when a deploy fails to give a quick on-screen hint without
+# requiring the operator to ssh in and run `docker compose logs`.
+# Arguments: $1 = project name, $2 = (optional) line count
+dump_project_logs_tail() {
+    local project="$1"
+    local lines="${2:-10}"
+    local containers
+    containers=$(${SUDO} docker ps -a \
+        --filter "label=com.docker.compose.project=${project}" \
+        --format '{{.Names}}' 2>/dev/null) || true
+
+    if [ -z "${containers}" ]; then
+        return 0
+    fi
+
+    while IFS= read -r container; do
+        [ -z "${container}" ] && continue
+        local logs
+        logs=$(${SUDO} docker logs --tail "${lines}" "${container}" 2>&1) || true
+        if [ -z "${logs}" ]; then
+            printf '(no log output)\n' | log_data WARN "${container}: last ${lines} log lines"
+        else
+            printf '%s\n' "${logs}" | log_data WARN "${container}: last ${lines} log lines"
+        fi
+    done <<<"${containers}"
+}
+
 redeploy_truenas_apps() {
     local src_dir="${BASE_DIR}/services"
 
@@ -730,6 +758,7 @@ redeploy_truenas_apps() {
                 --abort-on-container-exit \
                 >/dev/null 2>&1; then
                 log_error "${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                dump_project_logs_tail "${project_name}"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
@@ -742,6 +771,7 @@ redeploy_truenas_apps() {
                     # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
                     echo "${deploy_output}" | sed 's/^/  /'
                 fi
+                dump_project_logs_tail "${project_name}"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
