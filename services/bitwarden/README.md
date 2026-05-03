@@ -60,7 +60,7 @@ The `bitwarden-db-backup` sidecar (tiredofit/db-backup with s6-overlay) runs a o
 - **Storage**: Backups are written to `./backups/db-backup/` (gitignored). Old backups are cleaned up after 48 hours (`DEFAULT_CLEANUP_TIME=2880`).
 - **Network**: `network_mode: none` — the backup container has no network access.
 
-See [docs/BACKUP.md](../../docs/BACKUP.md#application-level-database-backups) for restore instructions.
+See [Backup](../BACKUP.md#application-level-database-backups) for restore instructions.
 
 ## First-Run Setup
 
