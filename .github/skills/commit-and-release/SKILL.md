@@ -169,41 +169,35 @@ git push
 
 ## Creating a release
 
-**Prerequisites:** working tree must be clean (all changes committed) and in sync with `origin`.
+Releases are owned by Release Please through `.github/workflows/release-please.yml`. Do not run `cog bump` to cut releases, push tags, or regenerate `CHANGELOG.md` for normal releases.
 
-### Pull latest changes first
+### Release tooling ownership
 
-Always sync before releasing to avoid push rejections:
+| Tool/file                              | Owns                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/release-please.yml` | Opens or updates draft release PRs on pushes to `main`, then creates the release tag and publishes the GitHub Release after the release PR is merged. Uses the reusable `DevSecNinja/.github` Release Please workflow and the DevSecNinja Release Please GitHub App. |
+| `release-please-config.json`           | Release Please configuration: `release-type` `simple`, package `truenas-apps`, `CHANGELOG.md` changelog path, `include-v-in-tag: true`, `skip-github-release: false`, and `draft-pull-request: true`.                                                                |
+| `.release-please-manifest.json`        | Release Please version manifest; tracks the current released version.                                                                                                                                                                                                |
+| `cog` / `cog.toml`                     | Commit-message validation only via `cog verify`. Version bumping and CHANGELOG generation are owned by Release Please.                                                                                                                                               |
 
-```sh
-git pull origin main
-```
+### Normal release flow
 
-### Dry-run first
+1. Land changes on `main` using Conventional Commits. Release Please derives the next SemVer version from commits on `main`:
 
-Always preview before releasing:
+    | Commit signal                          | Version bump |
+    | -------------------------------------- | ------------ |
+    | `fix`                                  | PATCH        |
+    | `feat`                                 | MINOR        |
+    | `BREAKING CHANGE` footer or `!` marker | MAJOR        |
 
-```sh
-mise exec -- cog bump --minor --dry-run   # shows next version, e.g. v0.12.0
-mise exec -- cog bump --patch --dry-run
-```
+2. On each push to `main`, Release Please opens or updates a draft `chore(main): release vX.Y.Z` PR.
+3. Review the Release Please PR like any normal PR. It contains the generated `CHANGELOG.md` updates and `.release-please-manifest.json` version update.
+4. Wait for required CI checks to pass.
+5. Merge the Release Please PR when ready. The merge creates the `vX.Y.Z` tag and publishes the GitHub Release automatically because `skip-github-release` is `false`.
 
-### Cut the release
+### Troubleshooting
 
-```sh
-mise exec -- cog bump --minor   # or --patch for bug-fix releases
-```
-
-`cog bump` executes this pipeline automatically:
-
-1. Calculates the next semver version from conventional commits since the previous tag
-2. Runs `git-cliff` to regenerate `CHANGELOG.md` (range configured in `cog.toml`)
-3. Runs `dprint fmt CHANGELOG.md` to ensure it passes CI
-4. Stages `CHANGELOG.md` and creates a `chore(version): <version>` commit
-5. Creates the `v<version>` git tag
-6. Pushes the commit and tag to `origin`
-
-The tag push triggers `.github/workflows/release.yml`, which generates release-scoped notes with `git-cliff --latest --strip all` and auto-creates the GitHub Release — no manual steps on GitHub.com needed.
+Rerun the Release Please workflow manually only when troubleshooting a stalled or failed Release Please PR. Do not hand-edit `CHANGELOG.md` for normal releases.
 
 ---
 
