@@ -156,27 +156,27 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd                                                                    |
-| -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
-| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
-| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
-| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                             |
-| dozzle               | `dozzle-init`               | `./data`                                                                           |
-| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
-| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
-| hadiscover           | `hadiscover-init`           | `./data`                                                                           |
-| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
-| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                         |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
-| matter-server        | `matter-server-init`        | `./data`                                                                           |
-| metube               | `metube-init`               | `./data/state`                                                                     |
-| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
-| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                    |
-| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
-| spottarr             | `spottarr-chown`            | `./data`                                                                           |
-| traefik              | `traefik-init`              | `./data/acme`                                                                      |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
-| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                      |
+| Service              | Init container              | Volumes chown'd                                                                                          |
+| -------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                           |
+| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                             |
+| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                   |
+| dozzle               | `dozzle-init`               | `./data`                                                                                                 |
+| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                 |
+| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                          |
+| hadiscover           | `hadiscover-init`           | `./data`                                                                                                 |
+| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                         |
+| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                               |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                       |
+| matter-server        | `matter-server-init`        | `./data`                                                                                                 |
+| metube               | `metube-init`               | `./data/state`                                                                                           |
+| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                              |
+| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`), seeds `./config/openclaw.json` → `./data/openclaw.json` on first deploy |
+| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                           |
+| spottarr             | `spottarr-chown`            | `./data`                                                                                                 |
+| traefik              | `traefik-init`              | `./data/acme`                                                                                            |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                 |
+| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                            |
 
 ---
 
