@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -16,3 +17,53 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+
+  dispatch-pr-ci:
+    name: Dispatch PR CI
+    needs: sync
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Dispatch Lint and Tests for config-sync PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CI_WORKFLOWS: |-
+            lint.yml
+            test.yml
+        run: |-
+          set -euo pipefail
+
+          if ! pr_heads=$(gh pr list \
+            --state open \
+            --label config-sync \
+            --json headRefName \
+            --jq '.[].headRefName'); then
+            echo "::error::Failed to list open config-sync PRs."
+            exit 1
+          fi
+
+          head_refs=()
+          while IFS= read -r head_ref; do
+            [ -n "${head_ref}" ] && head_refs+=("${head_ref}")
+          done <<< "${pr_heads}"
+
+          if [ "${#head_refs[@]}" -eq 0 ]; then
+            echo "No open config-sync PR found; skipping CI dispatch."
+            exit 0
+          fi
+
+          ci_workflows=()
+          while IFS= read -r workflow; do
+            [ -n "${workflow}" ] && ci_workflows+=("${workflow}")
+          done <<< "${CI_WORKFLOWS}"
+
+          for head_ref in "${head_refs[@]}"; do
+            for workflow in "${ci_workflows[@]}"; do
+              echo "Dispatching ${workflow} for ${head_ref}..."
+              gh workflow run "${workflow}" --ref "${head_ref}"
+            done
+          done
