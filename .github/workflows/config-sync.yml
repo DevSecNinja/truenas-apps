@@ -31,6 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          CI_WORKFLOWS: lint.yml test.yml
         run: |-
           set -euo pipefail
 
@@ -46,8 +47,8 @@ jobs:
           fi
 
           for head_ref in "${head_refs[@]}"; do
-            for workflow in lint.yml test.yml; do
-              gh workflow view "${workflow}" > /dev/null
+            for workflow in ${CI_WORKFLOWS}; do
+              gh workflow view "${workflow}"
               echo "Dispatching ${workflow} for ${head_ref}..."
               gh workflow run "${workflow}" --ref "${head_ref}"
             done
