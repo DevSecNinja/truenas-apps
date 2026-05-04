@@ -47,6 +47,7 @@ jobs:
 
           for head_ref in "${head_refs[@]}"; do
             for workflow in lint.yml test.yml; do
+              gh workflow view "${workflow}" > /dev/null
               echo "Dispatching ${workflow} for ${head_ref}..."
               gh workflow run "${workflow}" --ref "${head_ref}"
             done
