@@ -35,6 +35,7 @@ jobs:
           head_ref=$(gh pr list \
             --state open \
             --label config-sync \
+            --limit 1 \
             --json headRefName \
             --jq '.[0].headRefName // ""')
 
@@ -43,5 +44,7 @@ jobs:
             exit 0
           fi
 
-          gh workflow run lint.yml --ref "${head_ref}"
-          gh workflow run test.yml --ref "${head_ref}"
+          for workflow in lint.yml test.yml; do
+            echo "Dispatching ${workflow} for ${head_ref}..."
+            gh workflow run "${workflow}" --ref "${head_ref}"
+          done
