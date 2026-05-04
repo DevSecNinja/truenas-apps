@@ -1121,8 +1121,13 @@ update_compose_files() {
         # Check for uncommitted local changes
         uncommitted_changes=$(git "${GIT_OPTS[@]}" status --porcelain)
         if [ -n "${uncommitted_changes}" ]; then
-            log_error "Uncommitted changes detected in ${dir}, exiting..."
-            exit 1
+            if [ "${FORCE}" -eq 1 ]; then
+                log_warn "Uncommitted changes detected in ${dir}, continuing anyway (force mode)"
+                log_warn "Note: a subsequent 'git pull' may still fail if the working tree conflicts with incoming commits"
+            else
+                log_error "Uncommitted changes detected in ${dir}, exiting..."
+                exit 1
+            fi
         fi
 
         # Ensure we are on the expected branch before comparing hashes or pulling
