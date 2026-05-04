@@ -34,19 +34,20 @@ jobs:
         run: |-
           set -euo pipefail
 
-          head_ref=$(gh pr list \
+          mapfile -t head_refs < <(gh pr list \
             --state open \
             --label config-sync \
-            --limit 1 \
             --json headRefName \
-            --jq '.[0].headRefName // ""')
+            --jq '.[].headRefName')
 
-          if [ -z "${head_ref}" ]; then
+          if [ "${#head_refs[@]}" -eq 0 ]; then
             echo "No open config-sync PR found; skipping CI dispatch."
             exit 0
           fi
 
-          for workflow in lint.yml test.yml; do
-            echo "Dispatching ${workflow} for ${head_ref}..."
-            gh workflow run "${workflow}" --ref "${head_ref}"
+          for head_ref in "${head_refs[@]}"; do
+            for workflow in lint.yml test.yml; do
+              echo "Dispatching ${workflow} for ${head_ref}..."
+              gh workflow run "${workflow}" --ref "${head_ref}"
+            done
           done
