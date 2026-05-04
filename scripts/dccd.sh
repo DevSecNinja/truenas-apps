@@ -3,7 +3,9 @@
 # Usage in TrueNAS Scale:
 #   Command: bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f
 #   Cron:    bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -q
-#   Run As User: truenas_admin (requires passwordless sudo for /usr/bin/docker)
+#   Run As User: truenas_admin (requires passwordless sudo for two commands:
+#                  /usr/bin/docker
+#                  /usr/bin/cat /root/.docker/config.json)
 #   Unselect 'Hide Standard Output' and 'Hide Standard Error'
 
 set -euo pipefail
@@ -496,6 +498,36 @@ get_config_watch_path() {
         sed 's/.*config\.watch=//' | tr -d '"'"'" | sed 's/[[:space:]]*$//' || true
 }
 
+# Write CONFIG_HASH into a dedicated per-app env file (.config-hash.env) for
+# docker compose ${CONFIG_HASH:-} variable interpolation. We can't pass the
+# variable through `sudo`, which strips env vars (env_reset) and would prompt
+# for a password under TrueNAS-style NOPASSWD rules that grant neither SETENV
+# nor a NOPASSWD entry for /usr/bin/env. We also can't append to the regular
+# .env file, since that's owned by the sops-decryption step and would mix
+# concerns.
+#
+# Compose's --env-file flag is used by run_compose_command() to load this file
+# for variable interpolation. Note: --env-file disables compose's automatic
+# loading of .env, so when both files exist run_compose_command() passes both
+# --env-file flags explicitly (compose merges them, later wins).
+#
+# Side effect: sets the global _CONFIG_HASH_ENV_FILE to the file path so
+# run_compose_command() can read it without an extra argument. Cleared by the
+# caller after the deploy completes.
+#
+# Arguments:
+#   $1  app_dir  — absolute path to the app's service directory
+#   $2  hash     — the hash value to write (may be empty)
+write_config_hash_env() {
+    local app_dir="$1"
+    local hash="${2:-}"
+    local hash_file="${app_dir}/.config-hash.env"
+
+    printf 'CONFIG_HASH=%s\n' "${hash}" >"${hash_file}"
+    chmod 600 "${hash_file}"
+    _CONFIG_HASH_ENV_FILE="${hash_file}"
+}
+
 # Returns sorted lines of "<service>=<image-reference>" for all containers in a compose project.
 # Uses docker inspect on container IDs for reliable image info (including digest).
 # Includes stopped/exited containers (-a) so one-shot services (e.g. backup sidecars) are
@@ -720,6 +752,8 @@ redeploy_truenas_apps() {
         config_watch=$(get_config_watch_path "${git_compose}")
         CONFIG_HASH=$(compute_config_hash "${BASE_DIR}/services/${app_name}" "${config_watch}")
         export CONFIG_HASH
+        # Persist CONFIG_HASH to .env for compose interpolation; see write_config_hash_env.
+        write_config_hash_env "${BASE_DIR}/services/${app_name}" "${CONFIG_HASH}"
 
         # Capture image state before pulling so we can report what changed
         local img_before
@@ -863,20 +897,31 @@ run_compose_command() {
     local -a cmd=()
     if [ -n "${SUDO}" ]; then
         cmd+=("${SUDO}")
-        # sudo's default env_reset policy strips environment variables, including
-        # CONFIG_HASH which the caller exports for ${CONFIG_HASH:-} interpolation
-        # in compose label values (config.sha256 recreate triggers). Pass it as
-        # a per-command env assignment so it reaches the docker compose process.
-        cmd+=("CONFIG_HASH=${CONFIG_HASH:-}")
     fi
-    # Wrap the compose invocation in `env CONFIG_HASH=...` so the variable
-    # reaches docker compose for ${CONFIG_HASH:-} interpolation in compose
-    # labels (config.sha256 recreate triggers). Direct sudo VAR=value passing
-    # requires the SETENV sudoers tag, which TrueNAS-style sudoers does not
-    # grant; `sudo env VAR=value cmd` bypasses that check because the assignment
-    # is argv to `env`, not a sudo-level env override.
-    cmd+=(env "CONFIG_HASH=${CONFIG_HASH:-}")
+    # CONFIG_HASH is NOT passed via the environment here. sudo strips env vars
+    # by default (env_reset), and TrueNAS-style NOPASSWD rules grant neither
+    # SETENV (needed for `sudo VAR=val cmd`) nor a NOPASSWD entry for
+    # /usr/bin/env (needed for `sudo env VAR=val cmd`). Either workaround would
+    # cause sudo to prompt for a password, breaking unattended cron deploys.
+    # Instead, the caller writes CONFIG_HASH into a dedicated .config-hash.env
+    # file via write_config_hash_env() and exposes its path through the
+    # _CONFIG_HASH_ENV_FILE global. We pass it to compose with --env-file so
+    # ${CONFIG_HASH:-} interpolation in labels resolves correctly.
+    #
+    # --env-file replaces compose's automatic loading of .env in the project
+    # directory, so when both files exist we pass both: --env-file <project>/.env
+    # is mentioned first, then --env-file <project>/.config-hash.env, and
+    # compose merges them (later wins, which lets CONFIG_HASH override anything
+    # accidentally set in .env).
     cmd+=(docker compose)
+    if [ -n "${_CONFIG_HASH_ENV_FILE:-}" ]; then
+        local hash_dir
+        hash_dir=$(dirname "${_CONFIG_HASH_ENV_FILE}")
+        if [ -f "${hash_dir}/.env" ]; then
+            cmd+=(--env-file "${hash_dir}/.env")
+        fi
+        cmd+=(--env-file "${_CONFIG_HASH_ENV_FILE}")
+    fi
     cmd+=("${COMPOSE_PROFILE_ARGS[@]}")
     if [ -n "${COMPOSE_OPTS}" ]; then
         # Word-split is intentional: COMPOSE_OPTS is a controlled CLI flag (-o)
@@ -978,6 +1023,8 @@ redeploy_compose_file() {
     config_watch=$(get_config_watch_path "${file}" "${extra_files[@]+"${extra_files[@]}"}")
     CONFIG_HASH=$(compute_config_hash "${app_dir}" "${config_watch}")
     export CONFIG_HASH
+    # Persist CONFIG_HASH to .env for compose interpolation; see write_config_hash_env.
+    write_config_hash_env "${app_dir}" "${CONFIG_HASH}"
 
     # Pull images unless NO_PULL is set
     if [ "${NO_PULL}" -eq 0 ]; then

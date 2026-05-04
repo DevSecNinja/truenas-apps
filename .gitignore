@@ -6,6 +6,7 @@ site/
 *.key
 secret.env
 .env
+.config-hash.env
 .decrypted~*
 
 # Exclude directories that Git might not have permissions to
