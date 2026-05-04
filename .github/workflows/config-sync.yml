@@ -32,6 +32,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |-
+          set -euo pipefail
+
           head_ref=$(gh pr list \
             --state open \
             --label config-sync \
