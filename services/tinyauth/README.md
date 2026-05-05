@@ -14,6 +14,16 @@ login page backed by a local SQLite database with optional OAuth (Google, GitHub
 TOTP (2FA) support. This makes it useful for isolated environments or services that cannot
 integrate with the primary OIDC provider.
 
+### Tinyauth vs Pocket ID
+
+[Pocket ID](https://pocket-id.org/) is a self-hosted OIDC provider focused on
+passwordless/passkey login. It is a stronger fit when downstream apps can integrate with OIDC and
+passkeys are desired.
+
+Tinyauth is primarily a reverse-proxy / Traefik ForwardAuth guard. It is useful for protecting apps
+that do not speak OIDC, and is a stronger fit for this experiment because it can protect arbitrary
+Traefik-routed apps with forward-auth and minimal per-app integration.
+
 ## Compose File
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/tinyauth/compose.yaml)
