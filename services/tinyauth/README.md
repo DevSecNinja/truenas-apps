@@ -21,7 +21,7 @@ passwordless/passkey login. It is a stronger fit when downstream apps can integr
 passkeys are desired.
 
 Tinyauth is primarily a reverse-proxy / Traefik ForwardAuth guard. It is useful for protecting apps
-that do not speak OIDC, and is a stronger fit for this experiment because it can protect arbitrary
+that do not speak OIDC, and is a stronger fit for this stack because it can protect arbitrary
 Traefik-routed apps with forward-auth and minimal per-app integration.
 
 ## Compose File
