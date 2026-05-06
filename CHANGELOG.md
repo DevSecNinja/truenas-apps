@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.0](https://github.com/DevSecNinja/truenas-apps/compare/v0.21.0...v0.22.0) (2026-05-06)
+
+
+### Features
+
+* **adguard-unbound:** add dotfiles zone ([#379](https://github.com/DevSecNinja/truenas-apps/issues/379)) ([1350ba6](https://github.com/DevSecNinja/truenas-apps/commit/1350ba60d5534edd7cf42fd02fc51aabec9aff84))
+* **bitwarden:** add tiredofit db-backup sidecar ([#328](https://github.com/DevSecNinja/truenas-apps/issues/328)) ([6043396](https://github.com/DevSecNinja/truenas-apps/commit/60433962ae6f04eb35474a7088198b144dcaa6a7))
+* **dccd:** show last 10 log lines from each container on deploy failure ([#365](https://github.com/DevSecNinja/truenas-apps/issues/365)) ([38ef268](https://github.com/DevSecNinja/truenas-apps/commit/38ef268a153538bce85eb2e20ea15c8a0bc1323f))
+* **dccd:** warn instead of error on uncommitted changes when --force is set ([#373](https://github.com/DevSecNinja/truenas-apps/issues/373)) ([9ebd13b](https://github.com/DevSecNinja/truenas-apps/commit/9ebd13ba0aec68e68d9181c621c4b0db26422afe))
+* **openclaw:** add containerized service ([#335](https://github.com/DevSecNinja/truenas-apps/issues/335)) ([0409d02](https://github.com/DevSecNinja/truenas-apps/commit/0409d02289a26c4c8370954362767c43859a70bb))
+
+
+### Bug Fixes
+
+* **bitwarden:** correct BACKUP.md link path for mkdocs strict build ([#362](https://github.com/DevSecNinja/truenas-apps/issues/362)) ([987c4f1](https://github.com/DevSecNinja/truenas-apps/commit/987c4f1b64174015c569aa7897e7418985baa6f5))
+* **dccd:** propagate CONFIG_HASH through sudo so config.sha256 recreate trigger works ([#369](https://github.com/DevSecNinja/truenas-apps/issues/369)) ([d461caa](https://github.com/DevSecNinja/truenas-apps/commit/d461caa9c6a3d169b6caf3f40733da8b2cd80781))
+* **dccd:** use --env-file for CONFIG_HASH instead of sudo env wrapper ([#374](https://github.com/DevSecNinja/truenas-apps/issues/374)) ([cf6e469](https://github.com/DevSecNinja/truenas-apps/commit/cf6e4693ff351dc018629a860ea2f1114ed706bf))
+* **dccd:** use env(1) wrapper for CONFIG_HASH (sudoers SETENV not granted on TrueNAS) ([#371](https://github.com/DevSecNinja/truenas-apps/issues/371)) ([b63fab7](https://github.com/DevSecNinja/truenas-apps/commit/b63fab7ae200b57556a174065629ebe2cd770316))
+* **github-release:** update release jdx/mise ( v2026.4.17 ➔ v2026.4.18 ) ([#364](https://github.com/DevSecNinja/truenas-apps/issues/364)) ([d4a8d80](https://github.com/DevSecNinja/truenas-apps/commit/d4a8d803ed60d4e45ccd4f23375696ed4bb47d84))
+* **openclaw:** pass --allow-unconfigured so gateway boots before onboarding ([#366](https://github.com/DevSecNinja/truenas-apps/issues/366)) ([2eb527e](https://github.com/DevSecNinja/truenas-apps/commit/2eb527e8de736c01ebe69402ee4e111ad62f3d83))
+* **openclaw:** tolerate chown failures in init container ([#370](https://github.com/DevSecNinja/truenas-apps/issues/370)) ([f1e1942](https://github.com/DevSecNinja/truenas-apps/commit/f1e19421c4322bbb4dcb6719b21477d95012d9d2))
+
 ## [0.21.0](https://github.com/DevSecNinja/truenas-apps/compare/v0.20.0...v0.21.0) (2026-05-03)
 
 
