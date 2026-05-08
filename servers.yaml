@@ -23,6 +23,5 @@ servers:
       - adguard
       - alloy
       - cloudflared
-      - hadiscover
       - traefik
       - traefik-forward-auth

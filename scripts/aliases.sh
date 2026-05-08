@@ -60,9 +60,9 @@ ddown() {
 # Bring down one or more apps via dccd (server-aware with compose overrides).
 # Accepts space-separated and/or comma-separated app names, or --all for every service.
 # Examples:
-#   dccd-down openspeedtest
-#   dccd-down traefik hadiscover
-#   dccd-down traefik,hadiscover
+#   dccd-down gatus
+#   dccd-down traefik gatus
+#   dccd-down traefik,gatus
 #   dccd-down --all
 dccd_down() {
     if [ -z "${APPS_DIR:-}" ]; then

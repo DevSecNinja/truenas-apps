@@ -3,8 +3,7 @@
 # Applied automatically by dccd.sh -S svlazext on top of compose.yaml.
 #
 # Overrides:
-# - Traefik network list: only traefik-backend + adguard-frontend + hadiscover-frontend
-#   (hadiscover is exposed via cloudflared through Traefik)
+# - Traefik network list: only networks needed by svlazext-hosted apps and cloudflared
 # - Labels: removes svlnas-specific redirect, adjusts dashboard hostname
 services:
   traefik:
@@ -12,8 +11,8 @@ services:
       - traefik-backend
       - adguard-frontend
       - alloy-frontend
+      - cloudflared-frontend
       - traefik-forward-auth-frontend
-      - hadiscover-frontend
     labels: !override
       - homepage.group=Infrastructure # Homepage
       - homepage.name=Traefik (svlazext)
@@ -44,9 +43,9 @@ networks:
   alloy-frontend:
     name: alloy-frontend
     external: true
+  cloudflared-frontend:
+    name: cloudflared-frontend
+    external: true
   traefik-forward-auth-frontend:
     name: traefik-forward-auth-frontend
-    external: true
-  hadiscover-frontend:
-    name: hadiscover-frontend
     external: true

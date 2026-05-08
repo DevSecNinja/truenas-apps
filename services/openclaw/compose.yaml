@@ -1,7 +1,13 @@
 ---
 services:
-  # Sets ownership on the ./data bind-mount so OpenClaw can persist gateway
-  # config, conversation history, and workspace data as the non-root svc user.
+  # 1. Chowns the ./data bind-mount so OpenClaw can persist gateway config,
+  #    conversation history, and workspace data as the non-root svc user.
+  # 2. On first deploy only, seeds ./data/openclaw.json from the git-tracked
+  #    ./config/openclaw.json template (with ${DOMAINNAME} substitution) so
+  #    the gateway boots fully configured without browser-based onboarding.
+  #    Subsequent deploys leave the live file alone — OpenClaw manages its
+  #    own writes (auto-updated meta.lastTouchedAt, hot reload, Control UI
+  #    edits, etc.). To re-seed, delete ./data/openclaw.json on the host.
   openclaw-init:
     image: docker.io/library/busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
     container_name: openclaw-init
@@ -21,10 +27,9 @@ services:
     read_only: true
     command:
       - "sh"
-      - "-c"
-      - |-
-        chown -Rv 3127:3127 /data || true
+      - "/templates/init.sh"
     volumes:
+      - ./config:/templates:ro
       - ./data:/data
 
   openclaw:
@@ -33,10 +38,10 @@ services:
     depends_on:
       openclaw-init:
         condition: service_completed_successfully
-    # --allow-unconfigured lets the gateway start with an empty
-    # ./data/openclaw.json so first-run onboarding happens via the Control UI
-    # instead of a one-shot CLI step. After onboarding writes openclaw.json,
-    # the flag is harmless on subsequent restarts.
+    # openclaw-init seeds ./data/openclaw.json on first deploy, so the
+    # gateway always starts with a valid config and no --allow-unconfigured
+    # escape hatch is needed. --bind/--port are passed explicitly so the
+    # container's listener matches the Traefik service port (18789).
     command:
       - "node"
       - "dist/index.js"
@@ -45,7 +50,6 @@ services:
       - "lan"
       - "--port"
       - "18789"
-      - "--allow-unconfigured"
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
@@ -119,9 +123,18 @@ services:
       ## Gatus
       - "gatus.url=http://172.30.100.6:8444/healthz"
       - "gatus.headers.Host=openclaw.${DOMAINNAME}"
-      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
-      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
 
+# CLI commands run inside the main `openclaw` container — the image bundles
+# the full CLI at `node dist/index.js`. No companion service is needed:
+#
+#   docker compose exec openclaw node dist/index.js health \
+#     --token "$OPENCLAW_GATEWAY_TOKEN"
+#   docker compose exec openclaw node dist/index.js dashboard --no-open
+#   docker compose exec openclaw node dist/index.js config get
+#
+# See https://docs.openclaw.ai/install/docker for the full command set.
 networks:
   openclaw-frontend:
     name: openclaw-frontend

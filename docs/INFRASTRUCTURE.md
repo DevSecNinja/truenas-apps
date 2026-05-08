@@ -83,7 +83,6 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3118    | `svc-app-tubesync`    | tubesync                                    | No                  |
 | 3119    | `svc-app-drawio`      | drawio                                      | No                  |
 | 3120    | `svc-app-outline`     | outline-db-backup†                          | No                  |
-| 3121    | `svc-app-hadiscover`  | hadiscover-api, hadiscover-init             | No                  |
 | 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                   | Yes (`./config`)    |
 | 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init               | Yes (`./config`)    |
 | 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
@@ -357,12 +356,12 @@ The `servers.yaml` file maps servers to the apps they should deploy. Schema is v
 ```yaml
 servers:
   svlazext:
-    description: "Azure VM — DNS (AdGuard + Unbound), Cloudflare Tunnel, and public app backends"
+    description: "Azure VM — DNS (AdGuard + Unbound), telemetry, Cloudflare Tunnel, and edge proxying"
     age_public_key: "age1..."
     apps:
       - adguard
+      - alloy
       - cloudflared
-      - hadiscover
       - traefik
       - traefik-forward-auth
 ```
@@ -400,7 +399,7 @@ services/<app>/compose.<server>.yaml
 
 When `dccd.sh -S <server>` detects a matching override file, it automatically applies it using Docker Compose's multi-file syntax (`-f compose.yaml -f compose.<server>.yaml`). Docker Compose's list-replacement semantics mean the override cleanly replaces sections like the network list.
 
-**Example**: Traefik on svlnas joins 25+ app frontend networks, but Traefik on svlazext only needs `adguard-frontend`. The override at `services/traefik/compose.svlazext.yaml` replaces the network list and adjusts labels.
+**Example**: Traefik on svlnas joins each app frontend network, but Traefik on svlazext only needs the frontend networks for apps deployed on that server plus `cloudflared-frontend`. The override at `services/traefik/compose.svlazext.yaml` replaces the network list and adjusts labels.
 
 Shared config (traefik.yml, rules/, TLS options) is reused via the same volume mounts — no config duplication.
 
