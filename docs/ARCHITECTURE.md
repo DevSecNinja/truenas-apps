@@ -164,7 +164,6 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | dozzle               | `dozzle-init`               | `./data`                                                                                                 |
 | frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                 |
 | gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                          |
-| hadiscover           | `hadiscover-init`           | `./data`                                                                                                 |
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                         |
 | homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                               |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                       |
@@ -256,7 +255,7 @@ Services that need internet exposure without opening inbound ports use **Cloudfl
 Internet → Cloudflare edge → cloudflared container → Traefik → backend service
 ```
 
-All three containers (cloudflared, Traefik, and the backend) share the same frontend network (e.g., `hadiscover-frontend`). In the Cloudflare Zero Trust dashboard, the tunnel target is set to `https://traefik` with `noTLSVerify` enabled (Traefik presents a self-signed certificate on this hop; TLS is terminated at Cloudflare's edge for the external client). The backend service carries standard Traefik labels (e.g., `chain-no-auth@file` for a public API) so Traefik routes by `Host` header as usual.
+On `svlazext`, cloudflared and Traefik share the `cloudflared-frontend` network. In the Cloudflare Zero Trust dashboard, tunnel routes target `https://traefik` with `noTLSVerify` enabled (Traefik presents a self-signed certificate on this hop; TLS is terminated at Cloudflare's edge for the external client). Traefik then applies its normal label-based routing and middleware chains for any service exposed on that server.
 
 **Why route through Traefik instead of directly to the backend?**
 

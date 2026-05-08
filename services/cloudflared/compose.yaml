@@ -30,7 +30,7 @@ services:
         max_attempts: 3
         window: 120s
     networks:
-      - hadiscover-frontend
+      - cloudflared-frontend
     mem_limit: ${MEM_LIMIT:-256m}
     pids_limit: 100
     security_opt:
@@ -58,10 +58,6 @@ services:
       - homepage.description=Cloudflare Tunnel Agent
 
 networks:
-  # Created by hadiscover's compose.yaml. Because dccd.sh deploys apps
-  # alphabetically, cloudflared (c) starts before hadiscover (h). On a
-  # first deploy the network may not exist yet — re-run the deployment
-  # to resolve.
-  hadiscover-frontend:
-    name: hadiscover-frontend
-    external: true
+  cloudflared-frontend:
+    name: cloudflared-frontend
+    driver: bridge

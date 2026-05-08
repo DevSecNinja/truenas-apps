@@ -81,7 +81,6 @@ nav:
       - Excalidraw: services/excalidraw.md
       - Frigate: services/frigate.md
       - Gatus: services/gatus.md
-      - hadiscover API: services/hadiscover.md
       - Home Assistant: services/home-assistant.md
       - Homepage: services/homepage.md
       - Immich: services/immich.md
