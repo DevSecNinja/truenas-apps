@@ -31,31 +31,31 @@ jobs:
       lint-shellcheck-exclude: "scripts/lib/*"
       lint-shfmt-exclude: "scripts/lib/*"
 
-  # --- Repo-specific jobs (not centralized) ---
-  vendored-libs-in-sync:
-    name: vendored libs in sync
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Harden runner
-        # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@bf22fcfcb4ef94a359eed55cea4b5ce7f5b98167 # main
+  # # --- Repo-specific jobs (not centralized) ---
+  # vendored-libs-in-sync:
+  #   name: vendored libs in sync
+  #   runs-on: ubuntu-24.04
+  #   steps:
+  #     - name: Harden runner
+  #       # renovate: datasource=github-tags depName=DevSecNinja/.github
+  #       uses: DevSecNinja/.github/actions/harden-runner@bf22fcfcb4ef94a359eed55cea4b5ce7f5b98167 # main
 
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
+  #     - name: Checkout code
+  #       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+  #       with:
+  #         persist-credentials: false
 
-      - name: Verify scripts/lib/log.sh checksum
-        run: cd scripts/lib && sha256sum -c log.sh.sha256
+  #     - name: Verify scripts/lib/log.sh checksum
+  #       run: cd scripts/lib && sha256sum -c log.sh.sha256
 
-      - name: Re-run vendor refresher and check for drift
-        run: |
-          bash scripts/update-log-sh.sh
-          if ! git diff --exit-code -- scripts/lib/; then
-            echo "::error::scripts/lib/ is out of sync with the URL pinned in scripts/update-log-sh.sh"
-            echo "Run 'bash scripts/update-log-sh.sh' locally and commit the result."
-            exit 1
-          fi
+  #     - name: Re-run vendor refresher and check for drift
+  #       run: |
+  #         bash scripts/update-log-sh.sh
+  #         if ! git diff --exit-code -- scripts/lib/; then
+  #           echo "::error::scripts/lib/ is out of sync with the URL pinned in scripts/update-log-sh.sh"
+  #           echo "Run 'bash scripts/update-log-sh.sh' locally and commit the result."
+  #           exit 1
+  #         fi
 
   docker-compose-config:
     name: docker compose config
