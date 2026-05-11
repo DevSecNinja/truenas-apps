@@ -184,11 +184,11 @@ Releases are owned by Release Please through `.github/workflows/release-please.y
 
 1. Land changes on `main` using Conventional Commits. Release Please derives the next SemVer version from commits on `main`:
 
-    | Commit signal                          | Version bump |
-    | -------------------------------------- | ------------ |
-    | `fix`                                  | PATCH        |
-    | `feat`                                 | MINOR        |
-    | `BREAKING CHANGE` footer or `!` marker | MAJOR        |
+| Commit signal                          | Version bump |
+| -------------------------------------- | ------------ |
+| `fix`                                  | PATCH        |
+| `feat`                                 | MINOR        |
+| `BREAKING CHANGE` footer or `!` marker | MAJOR        |
 
 2. On each push to `main`, Release Please opens or updates a draft `chore(main): release vX.Y.Z` PR.
 3. Review the Release Please PR like any normal PR. It contains the generated `CHANGELOG.md` updates and `.release-please-manifest.json` version update.
