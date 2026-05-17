@@ -6,6 +6,10 @@ Cloudflared is a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflar
 
 Traditional reverse proxy setups (Traefik with published ports) require inbound firewall rules and expose the host directly to the internet. Cloudflare Tunnel eliminates this by establishing an outbound-only connection from the cloudflared agent to Cloudflare's edge. External requests are routed through Cloudflare's network to the local service, keeping the host completely off the public internet. This is the preferred method for exposing services that need to be publicly reachable without authentication (e.g., public APIs).
 
+<!-- dprint-ignore -->
+!!! note "Currently inactive"
+    Cloudflared has no services to tunnel after the retirement of the hadiscover API on 2026-05-17 and is therefore paused (commented out in `servers.yaml` under `svlazext`). The compose file is retained so the tunnel can be re-enabled when a new public-facing service is added.
+
 ## Compose File
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/cloudflared/compose.yaml)
@@ -16,14 +20,12 @@ Cloudflared itself has no web UI. Tunnel routing rules are managed in the [Cloud
 
 ### Currently Tunnelled Services
 
-| Public URL                   | Backend target                         | Service        |
-| ---------------------------- | -------------------------------------- | -------------- |
-| `https://api.hadiscover.com` | `https://traefik` (with `noTLSVerify`) | hadiscover API |
+_No services currently tunneled. The `hadiscover` API was retired on 2026-05-17._
 
 ## Architecture
 
 - **Image**: [cloudflare/cloudflared](https://github.com/cloudflare/cloudflared) (official)
-- **Networks**: `hadiscover-frontend` (shared with hadiscover-api and Traefik — created by the hadiscover compose stack). Traffic is routed through Traefik, which applies its middleware chain before forwarding to the backend.
+- **Networks**: None declared in the compose file — the container currently attaches only to the project's default bridge network. When re-enabling the tunnel, attach cloudflared to the shared frontend network of the app being tunneled (so traffic can reach Traefik, which then applies its middleware chain before forwarding to the backend).
 - **No dedicated UID/GID**: The official image runs as the built-in `nonroot` user (UID 65532). No writable volumes are mounted, so there is no file ownership to manage.
 - **No init container**: No writable volumes means no chown is needed.
 - **Tunnel mode**: Token-based (`TUNNEL_TOKEN`). Routing rules (which hostname maps to which backend) are configured in the Cloudflare Zero Trust dashboard, not in local config files.
@@ -47,7 +49,7 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
    1. Make sure to select Cloudflared as the tunnel type
    2. Provide a name for the tunnel, e.g. the hostname of the machine
    3. On the 'Install and run connectors' step, copy the token hidden in the install command and click next.
-   4. You will now get to the 'Route tunnel' step. Configure tunnel routing rules (e.g., `api.hadiscover.com` → `https://traefik` with `noTLSVerify` enabled) and hit the Setup button.
+   4. You will now get to the 'Route tunnel' step. Configure tunnel routing rules (e.g., `api.example.com` → `https://traefik` with `noTLSVerify` enabled) and hit the Setup button.
    5. Now the tunnel should be created. Set `TUNNEL_TOKEN` in `secret.sops.env` based on the tunnel token gathered at step 1.3
 2. Deploy — cloudflared establishes the tunnel and begins proxying traffic
 

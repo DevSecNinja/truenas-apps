@@ -83,7 +83,6 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3118    | `svc-app-tubesync`    | tubesync                                    | No                  |
 | 3119    | `svc-app-drawio`      | drawio                                      | No                  |
 | 3120    | `svc-app-outline`     | outline-db-backup†                          | No                  |
-| 3121    | `svc-app-hadiscover`  | hadiscover-api, hadiscover-init             | No                  |
 | 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                   | Yes (`./config`)    |
 | 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init               | Yes (`./config`)    |
 | 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
@@ -357,15 +356,17 @@ The `servers.yaml` file maps servers to the apps they should deploy. Schema is v
 ```yaml
 servers:
   svlazext:
-    description: "Azure VM — DNS (AdGuard + Unbound), Cloudflare Tunnel, and public app backends"
+    description: "Azure VM — DNS (AdGuard + Unbound), edge routing, and telemetry collection"
     age_public_key: "age1..."
     apps:
       - adguard
-      - cloudflared
-      - hadiscover
+      - alloy
+      # - cloudflared  # Temporarily disabled — no services to tunnel after hadiscover retirement
       - traefik
       - traefik-forward-auth
 ```
+
+The `svlazext` server runs DNS filtering (AdGuard + Unbound), telemetry collection (Alloy), and Traefik with forward-auth for any externally-routed services. The Cloudflare Tunnel agent (`cloudflared`) is kept in the repo but commented out until a new public-facing service is added.
 
 **TrueNAS (svlnas)** uses TrueNAS mode (`-t`) which has its own app discovery, but is listed in `servers.yaml` for SOPS key scoping.
 

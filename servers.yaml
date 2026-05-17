@@ -22,7 +22,6 @@ servers:
     apps:
       - adguard
       - alloy
-      - cloudflared
-      - hadiscover
+      # - cloudflared  # Temporarily disabled — no services to tunnel after hadiscover retirement
       - traefik
       - traefik-forward-auth
