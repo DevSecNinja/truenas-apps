@@ -96,6 +96,31 @@ YAML
     rm -f "${TMPRESTART}"
 }
 
+@test "deploy standard: continues to up when image pull fails" {
+    mkdir -p "${BASE_DIR}/services/testapp"
+    touch "${BASE_DIR}/services/testapp/compose.yaml"
+
+    # config ok, services return, pull fails, up succeeds using local images
+    create_sequential_mock "docker" \
+        "0:" \
+        "0:web" \
+        "1:pull access denied for ghcr.io/example/private:latest" \
+        "0:Container testapp-web-1 Running"
+    TMPRESTART="$(mktemp)"
+
+    run redeploy_compose_file "${BASE_DIR}/services/testapp/compose.yaml"
+    assert_success
+    assert_output --partial "testapp: Image pull failed; continuing deployment with locally available images"
+    assert_output --partial "Redeploying compose file"
+
+    run get_mock_call_count "docker"
+    assert_success
+    assert_output "4"
+    assert_mock_called_with "docker" "pull"
+    assert_mock_called_with "docker" "up -d --build --quiet-pull --wait --wait-timeout"
+    rm -f "${TMPRESTART}"
+}
+
 @test "deploy standard: handles compose override files" {
     mkdir -p "${BASE_DIR}/services/testapp"
     touch "${BASE_DIR}/services/testapp/compose.yaml"

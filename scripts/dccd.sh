@@ -762,16 +762,7 @@ redeploy_truenas_apps() {
 
         # Pull images (unless NO_PULL is set)
         if [ "${NO_PULL}" -eq 0 ]; then
-            # Pipe pull output through log_data so the per-image progress lines
-            # render as continuation entries (│ prefix) under a single header,
-            # using the standard log.sh timestamp/INFO/[dccd] formatting.
-            # pipefail (set at the top of the script) propagates a non-zero exit
-            # from docker compose through the pipe.
-            ${SUDO} docker compose --progress=plain \
-                "${COMPOSE_PROFILE_ARGS[@]}" \
-                --project-name "${project_name}" \
-                --file "${compose_file}" \
-                pull 2>&1 | log_data INFO "Pulling images for ${app_name}"
+            pull_compose_images_tolerant "${app_name}" --project-name "${project_name}" --file "${compose_file}"
         else
             log_state "Skipping image pull for ${app_name} (no-pull mode)"
         fi
@@ -932,6 +923,23 @@ run_compose_command() {
     "${cmd[@]}"
 }
 
+# Pull compose images, but do not fail the deployment when a remote image is
+# unavailable. `docker compose up` can still succeed with a locally cached image.
+pull_compose_images_tolerant() {
+    local app_name=$1
+    shift
+    local pull_output
+
+    # shellcheck disable=SC2310  # pull failures are handled as warnings so deployment can continue
+    if ! pull_output=$(run_compose_command --progress=plain "$@" pull 2>&1); then
+        log_data INFO "Pulling images for ${app_name}" <<<"${pull_output}"
+        log_warn "${app_name}: Image pull failed; continuing deployment with locally available images"
+        return 0
+    fi
+
+    log_data INFO "Pulling images for ${app_name}" <<<"${pull_output}"
+}
+
 # Run `docker compose ... up -d --build --quiet-pull --wait --wait-timeout`,
 # tolerating the case where one or more services have no healthcheck.
 #
@@ -1028,8 +1036,7 @@ redeploy_compose_file() {
 
     # Pull images unless NO_PULL is set
     if [ "${NO_PULL}" -eq 0 ]; then
-        run_compose_command --progress=plain "${compose_file_args[@]}" pull 2>&1 |
-            log_data INFO "Pulling images for ${app_name}"
+        pull_compose_images_tolerant "${app_name}" "${compose_file_args[@]}"
     else
         log_state "Skipping image pull for ${file} (no-pull mode)"
     fi
