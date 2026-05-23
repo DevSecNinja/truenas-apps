@@ -27,6 +27,12 @@ common_setup() {
     # Save original PATH for E2E tests that need real commands
     export ORIGINAL_PATH="${PATH}"
 
+    # Export MOCK_LOG so <<'MOCK' style stubs that use ${MOCK_LOG:-/tmp} at
+    # runtime (exec'd child processes) still write to the per-test log dir.
+    export MOCK_LOG
+    # Export MOCK_BIN so any child script can reference it directly.
+    export MOCK_BIN
+
     # Prepend mock bin to PATH
     export PATH="${MOCK_BIN}:${PATH}"
 

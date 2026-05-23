@@ -154,11 +154,11 @@ ensure_sops() {
 
     log_info "SOPS ${SOPS_VERSION} checksum verified"
 
-    if ! ${SUDO} mv "${tmp_bin}" "${sops_bin}"; then
+    if ! mv "${tmp_bin}" "${sops_bin}"; then
         log_error "Failed to move SOPS binary to ${sops_bin} (permission denied?)"
         exit 1
     fi
-    if ! ${SUDO} chmod +x "${sops_bin}"; then
+    if ! chmod +x "${sops_bin}"; then
         log_error "Failed to make ${sops_bin} executable"
         exit 1
     fi
