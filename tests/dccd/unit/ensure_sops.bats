@@ -44,7 +44,7 @@ if [ -n "${output_file}" ]; then
     if echo "${output_file}" | grep -q "checksums"; then
         # Write a checksums file with matching hash
         local_hash=$(sha256sum /dev/null | awk '{print $1}')
-        echo "${local_hash}  sops-v3.9.0.linux.amd64" > "${output_file}"
+        echo "${local_hash}  sops-v3.13.0.linux.amd64" > "${output_file}"
     else
         # Write an empty binary
         echo "" > "${output_file}"
@@ -60,19 +60,6 @@ MOCK
 echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  $1"
 MOCK
     chmod +x "${MOCK_BIN}/sha256sum"
-
-    # Need grep and awk on path
-    cat >"${MOCK_BIN}/mv" <<'MOCK'
-#!/bin/bash
-command mv "$@"
-MOCK
-    chmod +x "${MOCK_BIN}/mv"
-
-    cat >"${MOCK_BIN}/chmod" <<'MOCK'
-#!/bin/bash
-command chmod "$@"
-MOCK
-    chmod +x "${MOCK_BIN}/chmod"
 
     run ensure_sops
     assert_success
@@ -144,7 +131,7 @@ for i in "${@}"; do
 done
 if [ -n "${output_file}" ]; then
     if echo "${output_file}" | grep -q "checksums"; then
-        echo "0000000000000000000000000000000000000000000000000000000000000000  sops-v3.9.0.linux.amd64" > "${output_file}"
+        echo "0000000000000000000000000000000000000000000000000000000000000000  sops-v3.13.0.linux.amd64" > "${output_file}"
     else
         echo "binary-content" > "${output_file}"
     fi
