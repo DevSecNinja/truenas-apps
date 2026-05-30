@@ -162,7 +162,7 @@ services:
   # Postgres starts as root and uses gosu to switch to the postgres user during
   # startup. cap_drop: ALL would break that privilege transition.
   outline-db:
-    image: docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911
+    image: docker.io/library/postgres:18.4-alpine@sha256:96d56f7f57c6aacd1fcb908bc83b345ec5f83231ee486dd66a1baadce274db88
     container_name: outline-db
     depends_on:
       outline-db-upgrade:
