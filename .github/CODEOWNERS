@@ -1,5 +1,81 @@
-# These owners will be the default owners for everything in
-# the repo. Unless a later match takes precedence, users
-# below will be requested for review when someone opens
-# a pull request.
+# Canonical CODEOWNERS — managed by DevSecNinja/.github config-sync.
+# To override per-repo, list ".github/CODEOWNERS" in
+# .github/.config-sync-ignore at the repo root.
+#
+# These owners will be the default owners for everything in the repo.
+# Unless a later match takes precedence, users below will be requested
+# for review when someone opens a pull request.
+
 *       @DevSecNinja
+
+# Self-protect ownership rules — only @DevSecNinja can change them.
+/.github/CODEOWNERS         @DevSecNinja
+/.github/.config-sync-ignore @DevSecNinja
+
+# Leave the following paths un-owned so that automated bots
+# (Renovate, Dependabot, release-please, etc.) do not request reviews
+# from @DevSecNinja for routine bumps.
+#
+# A line with a path pattern and no owner clears the default ownership
+# for matching files (see GitHub CODEOWNERS docs).
+
+# CI / tool versions
+/.github/workflows/*.yaml
+/.github/workflows/*.yml
+/.mise.toml
+/.mise.lock
+/.tool-versions
+/.nvmrc
+/.python-version
+/.ruby-version
+
+# Node / JS
+/package-lock.json
+/yarn.lock
+/pnpm-lock.yaml
+/npm-shrinkwrap.json
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# Python
+/poetry.lock
+/uv.lock
+/Pipfile.lock
+/requirements*.txt
+**/poetry.lock
+**/uv.lock
+**/Pipfile.lock
+**/requirements*.txt
+
+# Go
+/go.sum
+**/go.sum
+
+# Rust
+/Cargo.lock
+**/Cargo.lock
+
+# Ruby
+/Gemfile.lock
+**/Gemfile.lock
+
+# PHP
+/composer.lock
+**/composer.lock
+
+# Elixir
+/mix.lock
+**/mix.lock
+
+# Nix
+/flake.lock
+**/flake.lock
+
+# Terraform / OpenTofu
+/.terraform.lock.hcl
+**/.terraform.lock.hcl
+
+# Dev containers
+/.devcontainer/devcontainer-lock.json
+**/devcontainer-lock.json
