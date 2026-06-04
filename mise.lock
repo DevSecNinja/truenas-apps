@@ -111,24 +111,8 @@ version = "5.1.3"
 backend = "aqua:docker/compose"
 
 [[tools.dotenv-linter]]
-version = "3.3.0"
+version = "4.0.0"
 backend = "aqua:dotenv-linter/dotenv-linter"
-
-[tools.dotenv-linter."platforms.linux-x64"]
-checksum = "blake3:77add11a73b36dcd53cfceaa71ef4f609823d510037df37abcf148184133406d"
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-linux-x86_64.tar.gz"
-
-[tools.dotenv-linter."platforms.linux-x64-musl"]
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-linux-x86_64.tar.gz"
-
-[tools.dotenv-linter."platforms.macos-arm64"]
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-darwin-x86_64.tar.gz"
-
-[tools.dotenv-linter."platforms.macos-x64"]
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-darwin-x86_64.tar.gz"
-
-[tools.dotenv-linter."platforms.windows-x64"]
-url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v3.3.0/dotenv-linter-win-x64.zip"
 
 [[tools.dprint]]
 version = "0.54.0"
@@ -163,36 +147,8 @@ checksum = "sha256:3fd881acaf7fd4fbc5d07c3030ce79b965a4cb7128fe0eb1ebe725188ccd2
 url = "https://github.com/dprint/dprint/releases/download/0.54.0/dprint-x86_64-pc-windows-msvc.zip"
 
 [[tools.git-cliff]]
-version = "2.12.0"
+version = "2.13.1"
 backend = "aqua:orhun/git-cliff"
-
-[tools.git-cliff."platforms.linux-arm64"]
-checksum = "sha256:a2d262b389aed349e0564aaaa38a44015c98a951048923b086d6cf732f6dbbaf"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-aarch64-unknown-linux-musl.tar.gz"
-
-[tools.git-cliff."platforms.linux-arm64-musl"]
-checksum = "sha256:a2d262b389aed349e0564aaaa38a44015c98a951048923b086d6cf732f6dbbaf"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-aarch64-unknown-linux-musl.tar.gz"
-
-[tools.git-cliff."platforms.linux-x64"]
-checksum = "sha256:c89a7bc55f3c51f391938aa3fa560125109695c1930d927879daea68dd786420"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-unknown-linux-musl.tar.gz"
-
-[tools.git-cliff."platforms.linux-x64-musl"]
-checksum = "sha256:c89a7bc55f3c51f391938aa3fa560125109695c1930d927879daea68dd786420"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-unknown-linux-musl.tar.gz"
-
-[tools.git-cliff."platforms.macos-arm64"]
-checksum = "sha256:2ae72a0061bee98d0e375f2ea8e0f4b23b4915ac2e37fa45a705066de49b43a0"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-aarch64-apple-darwin.tar.gz"
-
-[tools.git-cliff."platforms.macos-x64"]
-checksum = "sha256:fd4bce35ea8a6f3af6ac4891073781ca24c654c36c83c865bc30bab332c05a14"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-apple-darwin.tar.gz"
-
-[tools.git-cliff."platforms.windows-x64"]
-checksum = "sha256:f2b8c692d9488c3313d7786e2099976151c10fd8f76580b12d045bb9683a8379"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-pc-windows-msvc.zip"
 
 [[tools.gitleaks]]
 version = "8.30.1"
@@ -231,39 +187,39 @@ version = "2.1.6"
 backend = "aqua:evilmartians/lefthook"
 
 [[tools.pipx]]
-version = "1.11.1"
+version = "1.12.0"
 backend = "aqua:pypa/pipx"
 
 [tools.pipx."platforms.linux-arm64"]
-checksum = "sha256:60c947d2449af642c17079a2119ef87e426ad83967b8bb223bb27c802fc29ccd"
-url = "https://github.com/pypa/pipx/releases/download/1.11.1/pipx.pyz"
+checksum = "sha256:f7492089d576f1ed04a56ab60d3f8918da4a3c951fa5c6631ce3f5a804deac51"
+url = "https://github.com/pypa/pipx/releases/download/1.12.0/pipx.pyz"
 
 [tools.pipx."platforms.linux-arm64-musl"]
-checksum = "sha256:60c947d2449af642c17079a2119ef87e426ad83967b8bb223bb27c802fc29ccd"
-url = "https://github.com/pypa/pipx/releases/download/1.11.1/pipx.pyz"
+checksum = "sha256:f7492089d576f1ed04a56ab60d3f8918da4a3c951fa5c6631ce3f5a804deac51"
+url = "https://github.com/pypa/pipx/releases/download/1.12.0/pipx.pyz"
 
 [tools.pipx."platforms.linux-x64"]
-checksum = "sha256:60c947d2449af642c17079a2119ef87e426ad83967b8bb223bb27c802fc29ccd"
-url = "https://github.com/pypa/pipx/releases/download/1.11.1/pipx.pyz"
+checksum = "sha256:f7492089d576f1ed04a56ab60d3f8918da4a3c951fa5c6631ce3f5a804deac51"
+url = "https://github.com/pypa/pipx/releases/download/1.12.0/pipx.pyz"
 
 [tools.pipx."platforms.linux-x64-musl"]
-checksum = "sha256:60c947d2449af642c17079a2119ef87e426ad83967b8bb223bb27c802fc29ccd"
-url = "https://github.com/pypa/pipx/releases/download/1.11.1/pipx.pyz"
+checksum = "sha256:f7492089d576f1ed04a56ab60d3f8918da4a3c951fa5c6631ce3f5a804deac51"
+url = "https://github.com/pypa/pipx/releases/download/1.12.0/pipx.pyz"
 
 [tools.pipx."platforms.macos-arm64"]
-checksum = "sha256:60c947d2449af642c17079a2119ef87e426ad83967b8bb223bb27c802fc29ccd"
-url = "https://github.com/pypa/pipx/releases/download/1.11.1/pipx.pyz"
+checksum = "sha256:f7492089d576f1ed04a56ab60d3f8918da4a3c951fa5c6631ce3f5a804deac51"
+url = "https://github.com/pypa/pipx/releases/download/1.12.0/pipx.pyz"
 
 [tools.pipx."platforms.macos-x64"]
-checksum = "sha256:60c947d2449af642c17079a2119ef87e426ad83967b8bb223bb27c802fc29ccd"
-url = "https://github.com/pypa/pipx/releases/download/1.11.1/pipx.pyz"
+checksum = "sha256:f7492089d576f1ed04a56ab60d3f8918da4a3c951fa5c6631ce3f5a804deac51"
+url = "https://github.com/pypa/pipx/releases/download/1.12.0/pipx.pyz"
 
 [[tools."pipx:check-jsonschema"]]
-version = "0.37.1"
+version = "0.37.2"
 backend = "pipx:check-jsonschema"
 
 [[tools."pipx:checkov"]]
-version = "3.2.521"
+version = "3.2.529"
 backend = "pipx:checkov"
 
 [[tools."pipx:mkdocs-material"]]
@@ -343,114 +299,93 @@ checksum = "sha256:60cd368533d0ad73fa86d93d5bbf95ef40587245ce684ed138c1b31557b5f
 url = "https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_windows_amd64.exe"
 
 [[tools.sops]]
-version = "3.12.2"
+version = "3.13.1"
 backend = "aqua:getsops/sops"
 
 [tools.sops."platforms.linux-arm64"]
-checksum = "sha256:f66de6f528dca946e910d74fa36a62a7714c11d0db16bd3c9bd8acf73b66704b"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.arm64"
-provenance = "slsa"
+checksum = "sha256:19576fb1734dbf8fb77eda0cf0f3a2218f99bf4d33b814318e5e10d6babb9820"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.linux.arm64"
+
+[tools.sops."platforms.linux-arm64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [tools.sops."platforms.linux-arm64-musl"]
-checksum = "sha256:f66de6f528dca946e910d74fa36a62a7714c11d0db16bd3c9bd8acf73b66704b"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.arm64"
-provenance = "slsa"
+checksum = "sha256:19576fb1734dbf8fb77eda0cf0f3a2218f99bf4d33b814318e5e10d6babb9820"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.linux.arm64"
+
+[tools.sops."platforms.linux-arm64-musl".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [tools.sops."platforms.linux-x64"]
-checksum = "sha256:14e2e1ba3bef31e74b70cf0b674f6443c80f6c5f3df15d05ffc57c34851b4998"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.amd64"
-provenance = "slsa"
+checksum = "sha256:620a9d7e3352ababeca6908cea24a6e8b14ce89a448ddbd3f94f1ef3398f470a"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.linux.amd64"
+
+[tools.sops."platforms.linux-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [tools.sops."platforms.linux-x64-musl"]
-checksum = "sha256:14e2e1ba3bef31e74b70cf0b674f6443c80f6c5f3df15d05ffc57c34851b4998"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.linux.amd64"
-provenance = "slsa"
+checksum = "sha256:620a9d7e3352ababeca6908cea24a6e8b14ce89a448ddbd3f94f1ef3398f470a"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.linux.amd64"
+
+[tools.sops."platforms.linux-x64-musl".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [tools.sops."platforms.macos-arm64"]
-checksum = "sha256:284edc64acf91ca249f227ffa2b444632656e4e1ac02baa26bed7051a7d51ce5"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.darwin.arm64"
-provenance = "slsa"
+checksum = "sha256:a2c0dd37eb031068af6ef213b78cfa67b7f1afd76c2e5cc404257f42bbc8367d"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.darwin.arm64"
+
+[tools.sops."platforms.macos-arm64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [tools.sops."platforms.macos-x64"]
-checksum = "sha256:767c0dcb42e052fd6f2ac17d4473eca6f5fc4910e2b70127f1308d86c606c022"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.darwin.amd64"
-provenance = "slsa"
+checksum = "sha256:dad79d1b1dea767ca38ffaa50e10330a3e807dd13c853ef9c880567acef4f1ef"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.darwin.amd64"
+
+[tools.sops."platforms.macos-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [tools.sops."platforms.windows-x64"]
-checksum = "sha256:5e777b1854ab2a6271d8f66375970e1fe3eea838251c309de151d16a2bdf13a2"
-url = "https://github.com/getsops/sops/releases/download/v3.12.2/sops-v3.12.2.amd64.exe"
-provenance = "slsa"
+checksum = "sha256:4654e53fff6d0a1842facd3a0ed5a66a8ab6164004b0ad4ca2d5e2b1c5473b65"
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.amd64.exe"
+
+[tools.sops."platforms.windows-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.13.1/sops-v3.13.1.intoto.jsonl"
 
 [[tools.task]]
-version = "3.50.0"
+version = "3.51.1"
 backend = "aqua:go-task/task"
 
 [tools.task."platforms.linux-arm64"]
-checksum = "sha256:ee67e7d999a4a70711bff1946c70bf76628012c91d9be55626ee90ba976897da"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_linux_arm64.tar.gz"
+checksum = "sha256:49c58bb00eff2449a5553f3b3e694fc424e0dc04d5c669d8831126daee1000f8"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_linux_arm64.tar.gz"
 
 [tools.task."platforms.linux-arm64-musl"]
-checksum = "sha256:ee67e7d999a4a70711bff1946c70bf76628012c91d9be55626ee90ba976897da"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_linux_arm64.tar.gz"
+checksum = "sha256:49c58bb00eff2449a5553f3b3e694fc424e0dc04d5c669d8831126daee1000f8"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_linux_arm64.tar.gz"
 
 [tools.task."platforms.linux-x64"]
-checksum = "sha256:d449ba85ab85a0769989d78f8b9872938e4ba9347f7f4f925f73d98272a0a655"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_linux_amd64.tar.gz"
+checksum = "sha256:da7e92f0ff961ef2aae7cfecbad8d1fd2a08d7b09ba968673adf7ff389b243b5"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_linux_amd64.tar.gz"
 
 [tools.task."platforms.linux-x64-musl"]
-checksum = "sha256:d449ba85ab85a0769989d78f8b9872938e4ba9347f7f4f925f73d98272a0a655"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_linux_amd64.tar.gz"
+checksum = "sha256:da7e92f0ff961ef2aae7cfecbad8d1fd2a08d7b09ba968673adf7ff389b243b5"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_linux_amd64.tar.gz"
 
 [tools.task."platforms.macos-arm64"]
-checksum = "sha256:838b7954f227b5e8f798ad83111195aed810cf4f98dfabef4aa77ea065dd74b0"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_darwin_arm64.tar.gz"
+checksum = "sha256:a0330f0df20dd1187e323f284a7f365c0ea1f2f271c1e154811e9fc4724bed13"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_darwin_arm64.tar.gz"
 
 [tools.task."platforms.macos-x64"]
-checksum = "sha256:da3ba003ec049fb8be1ff798132c951dcd08a60efbdc2d1e918bf2095cd4a39c"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_darwin_amd64.tar.gz"
+checksum = "sha256:08b0a2107c56940e1fc7be15ebd5999f28a867925cfcd619393f8075fef67409"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_darwin_amd64.tar.gz"
 
 [tools.task."platforms.windows-x64"]
-checksum = "sha256:82c20fbd19ac62073b8ecf89e026fbd209f702a2922106e4ff2ed6934d193038"
-url = "https://github.com/go-task/task/releases/download/v3.50.0/task_windows_amd64.zip"
+checksum = "sha256:422d79dff5afd5a55fb46ae1cfacc7350ec96d4ef27a63a3ec77a5c30a7b0f03"
+url = "https://github.com/go-task/task/releases/download/v3.51.1/task_windows_amd64.zip"
 
 [[tools.trivy]]
-version = "0.69.3"
+version = "0.70.0"
 backend = "aqua:aquasecurity/trivy"
-
-[tools.trivy."platforms.linux-arm64"]
-checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087bdfd"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.linux-arm64-musl"]
-checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087bdfd"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.linux-x64"]
-checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.linux-x64-musl"]
-checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.macos-arm64"]
-checksum = "sha256:a2f2179afd4f8bb265ca3c7aefb56a666bc4a9a411663bc0f22c3549fbc643a5"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-ARM64.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.macos-x64"]
-checksum = "sha256:fec4a9f7569b624dd9d044fca019e5da69e032700edbb1d7318972c448ec2f4e"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-64bit.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.windows-x64"]
-checksum = "sha256:74362dc711383255308230ecbeb587eb1e4e83a8d332be5b0259afac6e0c2224"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_windows-64bit.zip"
-provenance = "cosign"
 
 [[tools.yamlfmt]]
 version = "0.21.0"
@@ -517,36 +452,36 @@ checksum = "sha256:2aee32f1de46a20672f48c25df3018839798bd509143f2ce05fdab1550ff5
 url = "https://github.com/mikefarah/yq/releases/download/v4.53.2/yq_windows_amd64.exe"
 
 [[tools.zizmor]]
-version = "1.24.1"
+version = "1.25.2"
 backend = "aqua:zizmorcore/zizmor"
 
 [tools.zizmor."platforms.linux-arm64"]
-checksum = "sha256:d66e37ef8a375fb07939c630ebf9709a6e0f20242bdc3faf672a7ed97e0b768d"
-url = "https://github.com/zizmorcore/zizmor/releases/download/v1.24.1/zizmor-aarch64-unknown-linux-gnu.tar.gz"
+checksum = "sha256:4b4b9491112c2a09b318101c0d3349b73af1c4f532e097dd6d0164f2abda760d"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.25.2/zizmor-aarch64-unknown-linux-gnu.tar.gz"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-arm64-musl"]
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-x64"]
-checksum = "sha256:a8000f3c683319a523d3b20df0e75457ba591f049cfcbfa98966631b56733c03"
-url = "https://github.com/zizmorcore/zizmor/releases/download/v1.24.1/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+checksum = "sha256:aa1facd105f0d83fe5c55b1adcd9d7417de5d83aa27471f91dc0b66cf3803577"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.25.2/zizmor-x86_64-unknown-linux-gnu.tar.gz"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.linux-x64-musl"]
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.macos-arm64"]
-checksum = "sha256:fc4ea59e18bc028dddb5f710b16dbc361b01ff1e7a20c03b8e5778366ca9f4e1"
-url = "https://github.com/zizmorcore/zizmor/releases/download/v1.24.1/zizmor-aarch64-apple-darwin.tar.gz"
+checksum = "sha256:624ef0e09521aecd862126be0f6d7754669af2646750d68ac48a114be33c3146"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.25.2/zizmor-aarch64-apple-darwin.tar.gz"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.macos-x64"]
-checksum = "sha256:721ba70d7fca753aeef1a4ee959a9bc20c55784d4faa6c56e66129a2611fd52f"
-url = "https://github.com/zizmorcore/zizmor/releases/download/v1.24.1/zizmor-x86_64-apple-darwin.tar.gz"
+checksum = "sha256:353271b9ec301dd4ba158af481323c831c6e9b494d5ac3f5aa58cf4b207699cc"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.25.2/zizmor-x86_64-apple-darwin.tar.gz"
 provenance = "github-attestations"
 
 [tools.zizmor."platforms.windows-x64"]
-checksum = "sha256:b777ec2cb1098139ba74b32e30d11ed149c69ab692d23788c466d4a31704bd4b"
-url = "https://github.com/zizmorcore/zizmor/releases/download/v1.24.1/zizmor-x86_64-pc-windows-msvc.zip"
+checksum = "sha256:65d46a8144f701200621b580f632076d80d082d60856de9f88793a95fb5882d7"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.25.2/zizmor-x86_64-pc-windows-msvc.zip"
 provenance = "github-attestations"
