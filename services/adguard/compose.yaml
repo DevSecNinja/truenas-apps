@@ -110,7 +110,7 @@ services:
 
   adguard-unbound:
     # Validate config with: docker exec adguard-unbound unbound-checkconf
-    image: docker.io/madnuttah/unbound:1.24.2-1@sha256:47fdc01759f661b6ac3d63b6e6f1e073e6b71617a37c419624e8a3cb82534b2e
+    image: docker.io/madnuttah/unbound:1.25.1-1@sha256:b6ee69f236f04332970266824de3a9141ae2fee1f7b188e3f8800314ef200c0f
     container_name: adguard-unbound
     depends_on:
       adguard-unbound-init:
@@ -181,7 +181,7 @@ services:
   # without wiping the Redis-backed external DNS cache.
   # Uses network_mode: service to reach Unbound's localhost-only control socket.
   adguard-unbound-flush:
-    image: docker.io/madnuttah/unbound:1.24.2-1@sha256:47fdc01759f661b6ac3d63b6e6f1e073e6b71617a37c419624e8a3cb82534b2e
+    image: docker.io/madnuttah/unbound:1.25.1-1@sha256:b6ee69f236f04332970266824de3a9141ae2fee1f7b188e3f8800314ef200c0f
     container_name: adguard-unbound-flush
     depends_on:
       adguard-unbound:
