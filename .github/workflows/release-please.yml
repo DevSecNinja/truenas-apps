@@ -35,7 +35,7 @@ concurrency:
 jobs:
   release-please:
     # renovate: datasource=github-tags depName=DevSecNinja/.github
-    uses: DevSecNinja/.github/.github/workflows/release-please.yml@af5030dd0d6f61b80fe58f949c9b985d1931ddf2 # v1.3.0
+    uses: DevSecNinja/.github/.github/workflows/release-please.yml@998ff283c3a431bbcb74421180121826cca8fdd7 # v1.4.0
     permissions:
       contents: write
       pull-requests: write
