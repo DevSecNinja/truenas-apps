@@ -70,7 +70,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.5.15
+          version: 2026.5.16
 
       - name: Scan images and build combined SARIF
         run: bash scripts/gha-trivy-image-scan.sh
