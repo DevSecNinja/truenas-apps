@@ -79,6 +79,15 @@ fi
 # disallow-other-stacks=no lets avahi share the port (SO_REUSEPORT) so both
 # mDNS responders coexist.
 #
+# This block also removes any deny-interfaces line when allow-interfaces is
+# set. Avahi ignores deny-interfaces entirely once allow-interfaces is present,
+# and TrueNAS auto-populates deny-interfaces with every Docker bridge — that
+# list grows unbounded as containers come and go and eventually overflows
+# avahi's per-line parse buffer, producing "Missing assignment ... <r-...>"
+# and a failed daemon start. Dropping the redundant line is behaviour-neutral
+# (the allow-list still governs which interfaces avahi binds) and prevents the
+# overflow from recurring.
+#
 # The config is backed up before editing and the daemon restart is verified:
 # if avahi-daemon fails to come back up the original config is restored, so a
 # pre-existing config error can never leave avahi dead. The idempotency check
@@ -87,29 +96,50 @@ fi
 AVAHI_CONF="/etc/avahi/avahi-daemon.conf"
 if [ ! -f "${AVAHI_CONF}" ]; then
     log_info "${AVAHI_CONF} not found, skipping Avahi tuning"
-elif grep -Eq '^[[:space:]]*disallow-other-stacks=no' "${AVAHI_CONF}" &&
-    systemctl is-active --quiet avahi-daemon; then
-    log_info "Avahi disallow-other-stacks already no and daemon active, skipping"
 else
-    avahi_backup="${AVAHI_CONF}.host-init.bak"
-    cp -p "${AVAHI_CONF}" "${avahi_backup}"
-    # Uncomment/replace an existing key, or append it under [server] if absent.
-    sed -i 's/^#*disallow-other-stacks=.*/disallow-other-stacks=no/' "${AVAHI_CONF}"
-    if ! grep -Eq '^[[:space:]]*disallow-other-stacks=' "${AVAHI_CONF}"; then
-        sed -i '/^\[server\]/a disallow-other-stacks=no' "${AVAHI_CONF}"
+    # Evaluate config state up front so set -e stays in effect (avoids invoking
+    # helpers inside if/&&/! conditions, which would disable errexit — SC2310).
+    avahi_stacks_ok=false
+    grep -Eq '^[[:space:]]*disallow-other-stacks=no' "${AVAHI_CONF}" && avahi_stacks_ok=true
+    # deny-interfaces is redundant (and overflow-prone) when allow-interfaces is set.
+    avahi_redundant_deny=false
+    if grep -Eq '^[[:space:]]*allow-interfaces=' "${AVAHI_CONF}" &&
+        grep -Eq '^[[:space:]]*deny-interfaces=' "${AVAHI_CONF}"; then
+        avahi_redundant_deny=true
     fi
-    if systemctl restart avahi-daemon; then
-        log_state "Set Avahi disallow-other-stacks=no and restarted avahi-daemon"
-        rm -f "${avahi_backup}"
+    avahi_active=false
+    systemctl is-active --quiet avahi-daemon && avahi_active=true
+
+    if [ "${avahi_stacks_ok}" = true ] && [ "${avahi_redundant_deny}" = false ] &&
+        [ "${avahi_active}" = true ]; then
+        log_info "Avahi already configured (disallow-other-stacks=no, no redundant deny-interfaces) and daemon active, skipping"
     else
-        # Restart failed — restore the pre-edit config and try once more so the
-        # host is never left without a working avahi-daemon.
-        log_warn "avahi-daemon failed to restart; restoring ${AVAHI_CONF}"
-        mv -f "${avahi_backup}" "${AVAHI_CONF}"
+        avahi_backup="${AVAHI_CONF}.host-init.bak"
+        cp -p "${AVAHI_CONF}" "${avahi_backup}"
+        # Uncomment/replace an existing key, or append it under [server] if absent.
+        sed -i 's/^#*disallow-other-stacks=.*/disallow-other-stacks=no/' "${AVAHI_CONF}"
+        if ! grep -Eq '^[[:space:]]*disallow-other-stacks=' "${AVAHI_CONF}"; then
+            sed -i '/^\[server\]/a disallow-other-stacks=no' "${AVAHI_CONF}"
+        fi
+        # Strip the redundant deny-interfaces line when an allow-interfaces list
+        # is present.
+        if [ "${avahi_redundant_deny}" = true ]; then
+            sed -i '/^[[:space:]]*deny-interfaces=/d' "${AVAHI_CONF}"
+            log_state "Removed redundant deny-interfaces line (allow-interfaces takes precedence)"
+        fi
         if systemctl restart avahi-daemon; then
-            log_warn "Restored avahi-daemon; ${AVAHI_CONF} likely has a pre-existing error — review it manually"
+            log_state "Set Avahi disallow-other-stacks=no and restarted avahi-daemon"
+            rm -f "${avahi_backup}"
         else
-            log_error "avahi-daemon still failing after restore; inspect 'journalctl -u avahi-daemon'"
+            # Restart failed — restore the pre-edit config and try once more so the
+            # host is never left without a working avahi-daemon.
+            log_warn "avahi-daemon failed to restart; restoring ${AVAHI_CONF}"
+            mv -f "${avahi_backup}" "${AVAHI_CONF}"
+            if systemctl restart avahi-daemon; then
+                log_warn "Restored avahi-daemon; ${AVAHI_CONF} likely has a pre-existing error — review it manually"
+            else
+                log_error "avahi-daemon still failing after restore; inspect 'journalctl -u avahi-daemon'"
+            fi
         fi
     fi
 fi
