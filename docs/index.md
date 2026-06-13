@@ -32,6 +32,7 @@ The setup follows
 | App                                                                                           | Purpose                                                        |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
+| [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
@@ -39,6 +40,7 @@ The setup follows
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |
 | [ESPHome](https://esphome.io/)                                                                | ESP device management and firmware builder                     |
+| [Excalidraw](https://excalidraw.com/)                                                         | Virtual whiteboard for hand-drawn diagrams                     |
 | [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
 | [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
 | [Home Assistant](https://www.home-assistant.io/)                                              | Open source home automation platform                           |

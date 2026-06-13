@@ -43,6 +43,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |
 | [ESPHome](https://esphome.io/)                                                                | ESP device management and firmware builder                     |
+| [Excalidraw](https://excalidraw.com/)                                                         | Virtual whiteboard for hand-drawn diagrams                     |
 | [Frigate](https://frigate.video/)                                                             | NVR with real-time AI object detection                         |
 | [Gatus](https://gatus.io/)                                                                    | Uptime monitoring with alerting and a status page              |
 | [Home Assistant](https://www.home-assistant.io/)                                              | Open source home automation platform                           |
@@ -179,7 +180,7 @@ Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings 
 
 | Server   | Platform        | Apps                                                                                      | Purpose                                                         |
 | -------- | --------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| svlnas   | TrueNAS         | All 27 apps                                                                               | Primary home lab (TrueNAS mode)                                 |
+| svlnas   | TrueNAS         | All 34 apps                                                                               | Primary home lab (TrueNAS mode)                                 |
 | svlazext | Azure VM Debian | AdGuard, Alloy, Traefik, Traefik Forward Auth (Cloudflared paused — no tunneled services) | DNS filtering + Unbound, edge routing, and telemetry collection |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:
