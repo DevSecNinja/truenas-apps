@@ -31,16 +31,39 @@ All of these tweaks are consolidated into a single script, `scripts/host-init.sh
 
 Register the script in the TrueNAS GUI under **System Settings → Advanced → Init/Shutdown Scripts**:
 
-| Setting | Value                                         |
-| ------- | --------------------------------------------- |
-| Type    | Script                                        |
-| Command | `bash /mnt/vm-pool/apps/scripts/host-init.sh` |
-| When    | Post Init                                     |
-| Enabled | Yes                                           |
+| Setting | Value                                             |
+| ------- | ------------------------------------------------- |
+| Type    | Script                                            |
+| Command | `bash /home/truenas_admin/host-init/host-init.sh` |
+| When    | Post Init                                         |
+| Enabled | Yes                                               |
 
-After adding this entry, delete the three legacy Post Init entries it replaces (the two `ethtool` offload commands and the `host-sysctl.sh` script).
+The command points at an **unencrypted mirror** of the script, not the repo copy on the encrypted apps pool — see [Why the script lives on unencrypted storage](#why-the-script-lives-on-unencrypted-storage) below.
+
+After adding this entry, delete the three legacy Post Init entries it replaces (the two `ethtool` offload commands and the `host-sysctl.sh` script). Also delete any earlier entry that pointed at the encrypted-pool path `bash /mnt/vm-pool/apps/scripts/host-init.sh` — that path silently no-ops at boot because the dataset is still locked.
 
 To apply the changes without a reboot, run the script by hand once: `sudo bash /mnt/vm-pool/apps/scripts/host-init.sh`.
+
+### Why the script lives on unencrypted storage
+
+The repository lives on an **encrypted ZFS dataset** at `/mnt/vm-pool/apps`, which is unlocked **manually after every boot**. When TrueNAS runs its Post Init scripts, that dataset is still locked, so `/mnt/vm-pool/apps/scripts/host-init.sh` does not yet exist — which is why pointing the Post Init entry at the repo copy never ran anything at boot.
+
+To fix this, `scripts/dccd.sh` mirrors the script to an **unencrypted, always-mounted** boot-pool path that is available immediately at boot:
+
+| Property        | Value                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| Function        | `sync_host_init()` in `scripts/dccd.sh`                                                    |
+| Destination     | `/home/truenas_admin/host-init/` (override via `HOST_INIT_SYNC_DEST`)                      |
+| Files mirrored  | `host-init.sh` → `host-init/host-init.sh`, `lib/log.sh` → `host-init/lib/log.sh`           |
+| When it runs    | Every TrueNAS-mode (`-t`) dccd run, immediately after `update_compose_files()`             |
+| Update strategy | Overwrites the destination unconditionally on every run (no change tracking — kept simple) |
+| Privileges      | Plain `cp` (no `sudo`) into the user-owned `/home/truenas_admin` path                      |
+
+The `lib/log.sh` dependency is preserved under `host-init/lib/log.sh` so the relative `source` inside `host-init.sh` still resolves. The copy runs **without `sudo`**, writing only to the user-owned `/home/truenas_admin` path, so it stays safe to run from a passwordless cron job. The destination can be changed by setting `HOST_INIT_SYNC_DEST` (default `/home/truenas_admin/host-init`); the Post Init command must then point at `<HOST_INIT_SYNC_DEST>/host-init.sh` to match.
+
+<!-- dprint-ignore -->
+!!! note "First-run bootstrap"
+    The mirror only appears after at least one TrueNAS-mode dccd run completes following an unlock. For the very first setup, run dccd manually once after unlocking the dataset (or copy `host-init.sh` and `lib/log.sh` by hand) before relying on the boot hook.
 
 ### What the Script Does
 

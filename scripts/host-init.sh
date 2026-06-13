@@ -12,8 +12,15 @@
 #
 # Usage in TrueNAS SCALE:
 #   System Settings → Advanced → Init/Shutdown Scripts
-#   Type: Script  |  Command: bash /mnt/vm-pool/apps/scripts/host-init.sh
+#   Type: Script  |  Command: bash /home/truenas_admin/host-init/host-init.sh
 #   When: Post Init  |  Enabled: Yes
+#
+# IMPORTANT — why the command points at /home, not the repo:
+# This repo lives on an encrypted dataset (/mnt/vm-pool/apps) that is unlocked
+# manually AFTER boot, so the repo copy does NOT exist when Post Init runs.
+# dccd.sh mirrors this script (plus lib/log.sh) to the unencrypted, always-
+# mounted path /home/truenas_admin/host-init on every TrueNAS deploy, so a copy
+# is always present at the next boot. Point the Post Init entry at that mirror.
 #
 # Replace the legacy Post Init entries (the two ethtool commands and the old
 # host-sysctl.sh script) with this single script.

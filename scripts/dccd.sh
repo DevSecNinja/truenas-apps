@@ -22,17 +22,23 @@ COMPOSE_OPTS=""                               # Additional options for docker co
 EXCLUDE=""                                    # Exclude pattern for directories
 TRUENAS=0                                     # TrueNAS Scale mode
 TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app configs
-DECRYPT_ONLY=0                                # Decrypt SOPS files and exit (skip deploy)
-FORCE=0                                       # Force redeploy, skip hash check
-NO_PULL=0                                     # Skip pulling images (for local testing)
-APP_FILTER=""                                 # Only deploy this specific app (empty = all)
-REMOVE_APP=""                                 # Tear down this specific app (empty = none)
-SERVER_NAME=""                                # Server name from servers.yaml (empty = deploy all)
-SERVER_APPS=()                                # Apps assigned to the server (populated by parse_server_apps)
-WAIT_TIMEOUT=120                              # Timeout in seconds for --wait (0 = no timeout)
-GATUS_URL=""                                  # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
-QUIET=0                                       # Quiet mode: suppress output unless deploying or error
-GATUS_DNS_SERVER=""                           # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
+# Unencrypted, always-mounted destination for the boot-time host setup script.
+# The repo lives on an encrypted dataset that is NOT unlocked when TrueNAS runs
+# Post Init scripts, so host-init.sh must be mirrored to boot-pool storage that
+# exists before the pool is unlocked. dccd overwrites it on every TrueNAS run.
+# The TrueNAS Post Init entry must point at <HOST_INIT_SYNC_DEST>/host-init.sh.
+HOST_INIT_SYNC_DEST="${HOST_INIT_SYNC_DEST:-/home/truenas_admin/host-init}"
+DECRYPT_ONLY=0      # Decrypt SOPS files and exit (skip deploy)
+FORCE=0             # Force redeploy, skip hash check
+NO_PULL=0           # Skip pulling images (for local testing)
+APP_FILTER=""       # Only deploy this specific app (empty = all)
+REMOVE_APP=""       # Tear down this specific app (empty = none)
+SERVER_NAME=""      # Server name from servers.yaml (empty = deploy all)
+SERVER_APPS=()      # Apps assigned to the server (populated by parse_server_apps)
+WAIT_TIMEOUT=120    # Timeout in seconds for --wait (0 = no timeout)
+GATUS_URL=""        # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
+QUIET=0             # Quiet mode: suppress output unless deploying or error
+GATUS_DNS_SERVER="" # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
 # GATUS_URL, GATUS_CD_TOKEN, and GATUS_DNS_SERVER can also be sourced from services/gatus/.env (already decrypted on disk)
 # GATUS_DNS_SERVER falls back to IP_DNS_SERVER_1 from the same .env file if -r is not supplied
 _DEPLOY_ERRORS=0       # Count of deployment failures (non-fatal errors logged during deploy)
@@ -1084,6 +1090,41 @@ redeploy_compose_file() {
     fi
 }
 
+# sync_host_init — mirror host-init.sh and its log.sh dependency to unencrypted
+# boot-pool storage so the TrueNAS Post Init hook can run it at boot, before the
+# encrypted apps dataset is unlocked. Idempotent and intentionally dumb: it
+# overwrites the destination unconditionally on every run (no change tracking)
+# and writes only to a user-owned path so it stays passwordless-cron-safe.
+# TrueNAS mode only; failures are non-fatal (logged as warnings).
+sync_host_init() {
+    local src_script="${BASE_DIR}/scripts/host-init.sh"
+    local src_lib="${BASE_DIR}/scripts/lib/log.sh"
+
+    if [ ! -f "${src_script}" ]; then
+        log_warn "host-init.sh not found at ${src_script} — skipping host-init sync"
+        return 0
+    fi
+    if [ ! -f "${src_lib}" ]; then
+        log_warn "log.sh not found at ${src_lib} — skipping host-init sync"
+        return 0
+    fi
+
+    # host-init.sh sources lib/log.sh relative to its own directory, so the
+    # destination must preserve the lib/ subdirectory layout.
+    if ! mkdir -p "${HOST_INIT_SYNC_DEST}/lib" 2>/dev/null; then
+        log_warn "Unable to create ${HOST_INIT_SYNC_DEST} — skipping host-init sync"
+        return 0
+    fi
+
+    if cp -f "${src_script}" "${HOST_INIT_SYNC_DEST}/host-init.sh" &&
+        cp -f "${src_lib}" "${HOST_INIT_SYNC_DEST}/lib/log.sh"; then
+        chmod 0755 "${HOST_INIT_SYNC_DEST}/host-init.sh" 2>/dev/null || true
+        log_state "Synced host-init.sh to ${HOST_INIT_SYNC_DEST} (boot-time copy, off encrypted pool)"
+    else
+        log_warn "Failed to sync host-init.sh to ${HOST_INIT_SYNC_DEST}"
+    fi
+}
+
 update_compose_files() {
     local dir="$1"
 
@@ -1812,3 +1853,9 @@ if [ -n "${REMOVE_APP}" ]; then
 fi
 
 update_compose_files "${BASE_DIR}"
+
+# Mirror the boot-time host setup script to unencrypted storage so it survives
+# the next reboot even while the apps dataset is still locked (TrueNAS only).
+if [ "${TRUENAS}" -eq 1 ]; then
+    sync_host_init
+fi
