@@ -29,6 +29,11 @@ _HOST_INIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC2034
 LOG_TAG="host-init"
 
+# TrueNAS Init/Shutdown scripts and some shells run with a minimal PATH that
+# omits /usr/sbin and /sbin, where ethtool, sysctl, and systemctl live. Prepend
+# them so the tooling resolves regardless of how the script is invoked.
+export PATH="/usr/sbin:/sbin:${PATH}"
+
 ########################################
 # Intel NIC offload — "Hardware Unit Hang"
 ########################################
@@ -73,12 +78,21 @@ fi
 # container fails to start with "Address already in use". Setting
 # disallow-other-stacks=no lets avahi share the port (SO_REUSEPORT) so both
 # mDNS responders coexist.
+#
+# The config is backed up before editing and the daemon restart is verified:
+# if avahi-daemon fails to come back up the original config is restored, so a
+# pre-existing config error can never leave avahi dead. The idempotency check
+# also requires avahi to be active, so a previously failed restart is retried
+# rather than silently skipped.
 AVAHI_CONF="/etc/avahi/avahi-daemon.conf"
 if [ ! -f "${AVAHI_CONF}" ]; then
     log_info "${AVAHI_CONF} not found, skipping Avahi tuning"
-elif grep -Eq '^[[:space:]]*disallow-other-stacks=no' "${AVAHI_CONF}"; then
-    log_info "Avahi disallow-other-stacks already no, skipping"
+elif grep -Eq '^[[:space:]]*disallow-other-stacks=no' "${AVAHI_CONF}" &&
+    systemctl is-active --quiet avahi-daemon; then
+    log_info "Avahi disallow-other-stacks already no and daemon active, skipping"
 else
+    avahi_backup="${AVAHI_CONF}.host-init.bak"
+    cp -p "${AVAHI_CONF}" "${avahi_backup}"
     # Uncomment/replace an existing key, or append it under [server] if absent.
     sed -i 's/^#*disallow-other-stacks=.*/disallow-other-stacks=no/' "${AVAHI_CONF}"
     if ! grep -Eq '^[[:space:]]*disallow-other-stacks=' "${AVAHI_CONF}"; then
@@ -86,8 +100,17 @@ else
     fi
     if systemctl restart avahi-daemon; then
         log_state "Set Avahi disallow-other-stacks=no and restarted avahi-daemon"
+        rm -f "${avahi_backup}"
     else
-        log_warn "Updated ${AVAHI_CONF} but failed to restart avahi-daemon"
+        # Restart failed — restore the pre-edit config and try once more so the
+        # host is never left without a working avahi-daemon.
+        log_warn "avahi-daemon failed to restart; restoring ${AVAHI_CONF}"
+        mv -f "${avahi_backup}" "${AVAHI_CONF}"
+        if systemctl restart avahi-daemon; then
+            log_warn "Restored avahi-daemon; ${AVAHI_CONF} likely has a pre-existing error — review it manually"
+        else
+            log_error "avahi-daemon still failing after restore; inspect 'journalctl -u avahi-daemon'"
+        fi
     fi
 fi
 

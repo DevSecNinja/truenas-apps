@@ -49,7 +49,7 @@ To apply the changes without a reboot, run the script by hand once: `sudo bash /
 | Block                  | Action                                                                                        | Why                                                                                                                                   |
 | ---------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Intel NIC offload      | Runs `ethtool -K <nic> tso off gso off` on `enp0s31f6` and `eno1` (only if present)           | The Intel I219 (`e1000e` driver) periodically resets under load with "Detected Hardware Unit Hang" unless segmentation offload is off |
-| Host sysctl tuning     | Delegates to `scripts/host-sysctl.sh`                                                         | Raises `net.ipv4.igmp_max_memberships` to 256 (see below)                                                                             |
+| Host sysctl tuning     | Sets `net.ipv4.igmp_max_memberships=256`                                                      | The default of 20 is too low for matter-server's Zeroconf multicast joins (see below)                                                 |
 | Avahi mDNS coexistence | Sets `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf` and restarts `avahi-daemon` | Lets the matter-server container share mDNS UDP port 5353 with the host's Avahi (see below)                                           |
 | Incus dnsmasq port     | Runs `incus network set incusbr0 raw.dnsmasq="port=5354"`                                     | Moves the `incusbr0` bridge's dnsmasq off port 5353 so it never contends with matter-server's mDNS responder                          |
 
@@ -61,7 +61,7 @@ The matter-server service uses Zeroconf (mDNS) for device discovery, which tries
 OSError: [Errno 105] No buffer space available
 ```
 
-`scripts/host-sysctl.sh` raises the limit to 256. It is invoked by `host-init.sh` but can also be run on its own.
+`host-init.sh` raises the limit to 256.
 
 ### Avahi mDNS Coexistence (port 5353)
 
