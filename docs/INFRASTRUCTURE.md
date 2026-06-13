@@ -21,6 +21,60 @@ The primary TrueNAS server is a compact, passively-cooled build optimised for lo
 | PSU         | 1   | Mini-box PicoPSU-160-XT         | DC-DC picoPSU — very low idle draw |
 | Accessory   | 1   | Mini-box PCI Bracket            | Mounts picoPSU connector to case   |
 
+## Host Boot-Time Setup
+
+TrueNAS SCALE resets host-level configuration (sysctl values, NIC settings, `/etc/avahi`, Incus network config) on system updates and reboots. Any host tweak required by the containerized services must therefore be re-applied at **every boot**.
+
+All of these tweaks are consolidated into a single script, `scripts/host-init.sh`, registered as a TrueNAS **Post Init** Init/Shutdown script. It runs as root, and each block is idempotent — it checks the current state and skips work that is already applied. This single script replaces three previously separate Post Init entries (two `ethtool` commands and the standalone `host-sysctl.sh` entry).
+
+### Init/Shutdown Scripts Configuration
+
+Register the script in the TrueNAS GUI under **System Settings → Advanced → Init/Shutdown Scripts**:
+
+| Setting | Value                                         |
+| ------- | --------------------------------------------- |
+| Type    | Script                                        |
+| Command | `bash /mnt/vm-pool/apps/scripts/host-init.sh` |
+| When    | Post Init                                     |
+| Enabled | Yes                                           |
+
+After adding this entry, delete the three legacy Post Init entries it replaces (the two `ethtool` offload commands and the `host-sysctl.sh` script).
+
+To apply the changes without a reboot, run the script by hand once: `sudo bash /mnt/vm-pool/apps/scripts/host-init.sh`.
+
+### What the Script Does
+
+`scripts/host-init.sh` performs four independent, idempotent blocks:
+
+| Block                  | Action                                                                                        | Why                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Intel NIC offload      | Runs `ethtool -K <nic> tso off gso off` on `enp0s31f6` and `eno1` (only if present)           | The Intel I219 (`e1000e` driver) periodically resets under load with "Detected Hardware Unit Hang" unless segmentation offload is off |
+| Host sysctl tuning     | Delegates to `scripts/host-sysctl.sh`                                                         | Raises `net.ipv4.igmp_max_memberships` to 256 (see below)                                                                             |
+| Avahi mDNS coexistence | Sets `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf` and restarts `avahi-daemon` | Lets the matter-server container share mDNS UDP port 5353 with the host's Avahi (see below)                                           |
+| Incus dnsmasq port     | Runs `incus network set incusbr0 raw.dnsmasq="port=5354"`                                     | Moves the `incusbr0` bridge's dnsmasq off port 5353 so it never contends with matter-server's mDNS responder                          |
+
+### Host sysctl Tuning (`igmp_max_memberships`)
+
+The matter-server service uses Zeroconf (mDNS) for device discovery, which tries to join a multicast group on every interface. The default `net.ipv4.igmp_max_memberships` of 20 is too low and the join fails with:
+
+```text
+OSError: [Errno 105] No buffer space available
+```
+
+`scripts/host-sysctl.sh` raises the limit to 256. It is invoked by `host-init.sh` but can also be run on its own.
+
+### Avahi mDNS Coexistence (port 5353)
+
+The matter-server container runs with `network_mode: host` and binds its own CHIP mDNS responder to UDP port 5353. The host's `avahi-daemon` already owns 5353 with an **exclusive** lock, so after a reboot the container fails to start with:
+
+```text
+chip.exceptions.ChipStackError: ... OS Error 0x02000062: Address already in use
+```
+
+Setting `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf` lifts Avahi's exclusivity lock (enables `SO_REUSEPORT`) so both mDNS responders coexist on port 5353. Avahi keeps full functionality — `.local` hostname resolution and SMB/SSH/printer discovery all continue to work. Avahi and the CHIP stack advertise different service types (Avahi: host/SSH/SMB records; CHIP: `_matter`/`_matterc` commissioning records), so record collisions are not a practical concern.
+
+The Incus dnsmasq block exists for the same reason: it moves a second 5353 listener (the `incusbr0` bridge's dnsmasq) onto port 5354 so only Avahi and CHIP share 5353.
+
 ## UID/GID Allocation
 
 Every service runs under a dedicated non-root user with a unique UID. Each user has an auto-created primary group with the same GID (UID = GID). This ensures file ownership is unambiguous in `ls -la` and allows fine-grained access control via TrueNAS group membership.

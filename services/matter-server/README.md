@@ -56,6 +56,18 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 4. In Home Assistant, add the Matter integration and point it to `ws://localhost:5580/ws`
 5. Commission Matter devices through the Home Assistant UI
 
+## Known Issues
+
+### `Address already in use` on UDP port 5353
+
+Because Matter Server runs with `network_mode: host`, its CHIP mDNS responder binds UDP port 5353 — the same port the TrueNAS host's `avahi-daemon` owns with an exclusive lock. After a reboot the container fails to start with:
+
+```text
+chip.exceptions.ChipStackError: ... OS Error 0x02000062: Address already in use
+```
+
+The fix lives in the host-level boot script `scripts/host-init.sh`, which sets `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf` so Avahi and CHIP can share port 5353 (`SO_REUSEPORT`). It also raises `net.ipv4.igmp_max_memberships` for mDNS multicast joins and moves the Incus dnsmasq listener off 5353. See [Host Boot-Time Setup](../INFRASTRUCTURE.md#host-boot-time-setup) for the full explanation and TrueNAS Init/Shutdown configuration.
+
 ## Upgrade Notes
 
 Review the [python-matter-server changelog](https://github.com/home-assistant-libs/python-matter-server/releases) before upgrading. Major version bumps may require re-commissioning devices or updating the Matter integration in HA.
