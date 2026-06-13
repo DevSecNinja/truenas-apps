@@ -61,6 +61,7 @@ nav:
   - Reference:
       - Architecture: ARCHITECTURE.md
       - Infrastructure: INFRASTRUCTURE.md
+      - Performance: PERFORMANCE.md
   - Guides:
       - Backup Strategy: BACKUP.md
       - Contributing: CONTRIBUTING.md

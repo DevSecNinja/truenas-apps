@@ -46,12 +46,12 @@ To apply the changes without a reboot, run the script by hand once: `sudo bash /
 
 `scripts/host-init.sh` performs four independent, idempotent blocks:
 
-| Block                  | Action                                                                                        | Why                                                                                                                                   |
-| ---------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Intel NIC offload      | Runs `ethtool -K <nic> tso off gso off` on `enp0s31f6` and `eno1` (only if present)           | The Intel I219 (`e1000e` driver) periodically resets under load with "Detected Hardware Unit Hang" unless segmentation offload is off |
-| Host sysctl tuning     | Sets `net.ipv4.igmp_max_memberships=256`                                                      | The default of 20 is too low for matter-server's Zeroconf multicast joins (see below)                                                 |
-| Avahi mDNS coexistence | Sets `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf` and restarts `avahi-daemon` | Lets the matter-server container share mDNS UDP port 5353 with the host's Avahi (see below)                                           |
-| Incus dnsmasq port     | Runs `incus network set incusbr0 raw.dnsmasq="port=5354"`                                     | Moves the `incusbr0` bridge's dnsmasq off port 5353 so it never contends with matter-server's mDNS responder                          |
+| Block                  | Action                                                                                                                                     | Why                                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Intel NIC offload      | Runs `ethtool -K <nic> tso off gso off` on `enp0s31f6` and `eno1` (only if present)                                                        | The Intel I219 (`e1000e` driver) periodically resets under load with "Detected Hardware Unit Hang" unless segmentation offload is off                          |
+| Host sysctl tuning     | Sets `net.ipv4.igmp_max_memberships=256`                                                                                                   | The default of 20 is too low for matter-server's Zeroconf multicast joins (see below)                                                                          |
+| Avahi mDNS coexistence | Sets `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf`, removes a redundant `deny-interfaces` line, and restarts `avahi-daemon` | Lets the matter-server container share mDNS UDP port 5353 with the host's Avahi, and prevents an overflow-prone interface list from breaking Avahi (see below) |
+| Incus dnsmasq port     | Runs `incus network set incusbr0 raw.dnsmasq="port=5354"`                                                                                  | Moves the `incusbr0` bridge's dnsmasq off port 5353 so it never contends with matter-server's mDNS responder                                                   |
 
 ### Host sysctl Tuning (`igmp_max_memberships`)
 
@@ -74,6 +74,8 @@ chip.exceptions.ChipStackError: ... OS Error 0x02000062: Address already in use
 Setting `disallow-other-stacks=no` in `/etc/avahi/avahi-daemon.conf` lifts Avahi's exclusivity lock (enables `SO_REUSEPORT`) so both mDNS responders coexist on port 5353. Avahi keeps full functionality — `.local` hostname resolution and SMB/SSH/printer discovery all continue to work. Avahi and the CHIP stack advertise different service types (Avahi: host/SSH/SMB records; CHIP: `_matter`/`_matterc` commissioning records), so record collisions are not a practical concern.
 
 The Incus dnsmasq block exists for the same reason: it moves a second 5353 listener (the `incusbr0` bridge's dnsmasq) onto port 5354 so only Avahi and CHIP share 5353.
+
+The block also removes a `deny-interfaces` line from the Avahi config whenever an `allow-interfaces` line is present. Avahi ignores `deny-interfaces` entirely once `allow-interfaces` is set, and TrueNAS auto-populates `deny-interfaces` with every Docker bridge (`br-*`). That list grows unbounded as containers come and go and eventually overflows Avahi's per-line config parse buffer, causing the daemon to fail at startup with `Missing assignment ... <r-...>`. Dropping the redundant line is behaviour-neutral (the allow-list still governs which interfaces Avahi binds) and prevents the overflow from recurring. The block backs up the config before editing and verifies the restart — if `avahi-daemon` fails to come back up, the original config is restored so the host is never left without a working responder.
 
 ## UID/GID Allocation
 
