@@ -33,10 +33,12 @@ Register the script in the TrueNAS GUI under **System Settings → Advanced → 
 
 | Setting | Value                                             |
 | ------- | ------------------------------------------------- |
-| Type    | Script                                            |
+| Type    | Command                                           |
 | Command | `bash /home/truenas_admin/host-init/host-init.sh` |
 | When    | Post Init                                         |
 | Enabled | Yes                                               |
+
+Use **Type: Command**, not **Type: Script**. The Script file picker only browses paths under `/mnt`, so it cannot select the `/home` mirror; Command is a free-text field with no path restriction.
 
 The command points at an **unencrypted mirror** of the script, not the repo copy on the encrypted apps pool — see [Why the script lives on unencrypted storage](#why-the-script-lives-on-unencrypted-storage) below.
 

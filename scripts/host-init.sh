@@ -12,8 +12,14 @@
 #
 # Usage in TrueNAS SCALE:
 #   System Settings → Advanced → Init/Shutdown Scripts
-#   Type: Script  |  Command: bash /home/truenas_admin/host-init/host-init.sh
+#   Type: Command  |  Command: bash /home/truenas_admin/host-init/host-init.sh
 #   When: Post Init  |  Enabled: Yes
+#
+# Use Type: Command (NOT Type: Script). The Script file picker only browses
+# paths under /mnt, so it cannot select the /home mirror. Type: Command is a
+# free-text field with no path restriction. NOTE: I don't know why this works,
+# even if you just hardcode the script path with 'Type: Script' it doesn't work,
+# so you must use 'Type: Command' and point at the script path as described above.
 #
 # IMPORTANT — why the command points at /home, not the repo:
 # This repo lives on an encrypted dataset (/mnt/vm-pool/apps) that is unlocked
