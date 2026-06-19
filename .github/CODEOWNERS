@@ -30,52 +30,103 @@
 /.ruby-version
 
 # Node / JS
+/package.json
 /package-lock.json
 /yarn.lock
 /pnpm-lock.yaml
 /npm-shrinkwrap.json
+**/package.json
 **/package-lock.json
 **/yarn.lock
 **/pnpm-lock.yaml
 
 # Python
+/pyproject.toml
 /poetry.lock
 /uv.lock
 /Pipfile.lock
 /requirements*.txt
+**/pyproject.toml
 **/poetry.lock
 **/uv.lock
 **/Pipfile.lock
 **/requirements*.txt
 
 # Go
+/go.mod
 /go.sum
+**/go.mod
 **/go.sum
 
 # Rust
+/Cargo.toml
 /Cargo.lock
+**/Cargo.toml
 **/Cargo.lock
 
 # Ruby
+/Gemfile
 /Gemfile.lock
+**/Gemfile
 **/Gemfile.lock
 
 # PHP
+/composer.json
 /composer.lock
+**/composer.json
 **/composer.lock
 
 # Elixir
+/mix.exs
 /mix.lock
+**/mix.exs
 **/mix.lock
 
 # Nix
+/flake.nix
 /flake.lock
+**/flake.nix
 **/flake.lock
 
 # Terraform / OpenTofu
 /.terraform.lock.hcl
 **/.terraform.lock.hcl
 
+# Container images (Dockerfile / Compose)
+/Dockerfile
+**/Dockerfile
+**/Dockerfile.*
+**/*.Dockerfile
+/docker-compose.yml
+/docker-compose.yaml
+**/docker-compose*.yml
+**/docker-compose*.yaml
+/compose.yml
+/compose.yaml
+**/compose*.yml
+**/compose*.yaml
+
+# GitHub Actions metadata (reusable workflow files already cleared above)
+/workflow-templates/*.yml
+/workflow-templates/*.yaml
+/action.yml
+/action.yaml
+**/action.yml
+**/action.yaml
+
+# pre-commit hooks
+/.pre-commit-config.yaml
+/.pre-commit-config.yml
+
 # Dev containers
+/.devcontainer/devcontainer.json
+/.devcontainer.json
+**/devcontainer.json
 /.devcontainer/devcontainer-lock.json
 **/devcontainer-lock.json
+
+# Renovate custom-managed scripts (log.sh release pin, SOPS version)
+**/dccd.sh
+**/build-log-sh-release.sh
+**/install-log-sh.sh
+**/update-log-sh.sh
