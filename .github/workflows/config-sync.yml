@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   sync:
-    uses: DevSecNinja/.github/.github/workflows/config-sync.yml@c1725a7573e1cb5277889d925901b477ee814352 # v1.7.0
+    uses: DevSecNinja/.github/.github/workflows/config-sync.yml@7f2abdd838a855dba31a2b2de6358529fdcef09d # v1.8.0
     permissions:
       contents: write
       pull-requests: write
