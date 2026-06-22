@@ -14,3 +14,9 @@ rules:
       - "true"
       - "false"
     check-keys: false
+
+# APM-managed / generated files use the tool's own formatting — never hand-edited.
+ignore: |-
+  apm.yml
+  apm.lock.yaml
+  apm_modules/
