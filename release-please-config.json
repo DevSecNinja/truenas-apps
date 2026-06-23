@@ -7,7 +7,7 @@
   "bump-minor-pre-major": false,
   "bump-patch-for-minor-pre-major": false,
   "draft": false,
-  "draft-pull-request": true,
+  "draft-pull-request": false,
   "prerelease": false,
   "packages": {
     ".": {
