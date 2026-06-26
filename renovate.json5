@@ -13,4 +13,17 @@
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
+  packageRules: [
+    {
+      // Group every Renovate dependency update under a single `deps`
+      // Conventional Commit type so release-please collects them in a
+      // dedicated "Dependencies" section of the release notes (release-please
+      // maps the `deps` type to "Dependencies"). This overrides the
+      // feat/fix/chore/ci types set per update-type by the shared
+      // github>DevSecNinja/.github preset, while keeping its scopes and
+      // version-arrow commit bodies intact.
+      matchPackageNames: ["*"],
+      semanticCommitType: "deps",
+    },
+  ],
 }

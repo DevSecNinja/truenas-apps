@@ -8,3 +8,10 @@ tag_prefix = "v"
 from_latest_tag = true
 ignore_merge_commits = true
 disable_changelog = true
+
+# Register the `deps` Conventional Commit type used by Renovate dependency
+# updates (see renovate.json5) so `cog verify` accepts `deps(scope): ...`
+# commit messages. release-please maps this type to the "Dependencies"
+# section of the release notes.
+[commit_types]
+deps = { changelog_title = "Dependencies" }
