@@ -168,6 +168,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                         |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
 | matter-server        | `matter-server-init`        | `./data`                                                                           |
+| memos                | `memos-init`                | `./data` (chown to `3128:3128`)                                                    |
 | metube               | `metube-init`               | `./data/state`                                                                     |
 | mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
 | openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                    |

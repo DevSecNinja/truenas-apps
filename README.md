@@ -51,6 +51,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                         |
 | [Lidarr](https://lidarr.audio/)                                                               | Music collection manager and download automation               |
 | [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                         |
+| [Memos](https://www.usememos.com/)                                                            | Lightweight, self-hosted note-taking and memo hub              |
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                  |
@@ -95,6 +96,7 @@ vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
 vm-pool/apps/services/lidarr
 vm-pool/apps/services/matter-server
+vm-pool/apps/services/memos
 vm-pool/apps/services/metube
 vm-pool/apps/services/mosquitto
 vm-pool/apps/services/openclaw

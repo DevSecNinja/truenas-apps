@@ -87,6 +87,7 @@ nav:
       - Immich: services/immich.md
       - Lidarr: services/lidarr.md
       - Matter Server: services/matter-server.md
+      - Memos: services/memos.md
       - MeTube: services/metube.md
       - Mosquitto: services/mosquitto.md
       - OpenClaw: services/openclaw.md
