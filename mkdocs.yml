@@ -71,6 +71,7 @@ nav:
       - Troubleshooting: TROUBLESHOOTING.md
   - Services:
       - AdGuard Home: services/adguard.md
+      - AirTrail: services/airtrail.md
       - Alloy: services/alloy.md
       - Bazarr: services/bazarr.md
       - Bitwarden Lite: services/bitwarden.md
