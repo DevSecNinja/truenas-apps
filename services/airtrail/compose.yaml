@@ -1,0 +1,297 @@
+---
+services:
+  # johly/airtrail does not support PUID/PGID — the image manages its own
+  # internal nodejs user (UID/GID 1000, the standard "node" user; see the
+  # upstream Dockerfile `USER node`). The init container pre-chowns
+  # ./data/uploads to 1000:1000 so the node process can write uploaded files
+  # (airline icons, etc.) to the bind-mount path. read_only: true applies; only
+  # /tmp requires tmpfs.
+  airtrail-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: airtrail-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data/uploads to the image-internal node user (UID 1000)
+      - DAC_OVERRIDE # Required to traverse ./data/uploads if previously chowned away from root
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -Rv 1000:1000 /data"
+    volumes:
+      - ./data/uploads:/data
+
+  airtrail:
+    image: docker.io/johly/airtrail:v3.11.0@sha256:542034a0bffeb2775c2136d2b8d980cd6931deebfc028be42b4364c1819e1b14
+    container_name: airtrail
+    depends_on:
+      airtrail-init:
+        condition: service_completed_successfully
+      airtrail-db:
+        condition: service_healthy
+    user: "1000:1000" # image-internal node user — no PUID/PGID support (see comment above)
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      # The public origin used for CSRF/origin checks. TLS is terminated at
+      # Traefik, which forwards x-forwarded-proto/x-forwarded-host (set in the
+      # image entrypoint) so SvelteKit resolves the real client origin.
+      - ORIGIN=https://airtrail.${DOMAINNAME}
+      - DB_URL=postgres://airtrail:${AIRTRAIL_DB_PASSWORD}@airtrail-db:5432/airtrail
+      - UPLOAD_LOCATION=/app/uploads
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - airtrail-frontend
+      - airtrail-backend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/uploads:/app/uploads
+    healthcheck:
+      # The image ships docker/healthcheck.js, which fetches /api/ping and
+      # checks the body equals "pong". node:22-slim has no wget/curl, so call
+      # the bundled node script directly rather than CMD-SHELL.
+      test:
+        - "CMD"
+        - "node"
+        - "/app/docker/healthcheck.js"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=AirTrail
+      - homepage.icon=si-airtrail
+      - homepage.href=https://airtrail.${DOMAINNAME}
+      - homepage.description=Flight tracking
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=airtrail-frontend"
+      ## Middlewares
+      - "traefik.http.routers.airtrail-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.airtrail-rtr.rule=Host(`airtrail.${DOMAINNAME}`)"
+      - "traefik.http.routers.airtrail-rtr.entrypoints=https"
+      ## HTTP Services
+      - "traefik.http.routers.airtrail-rtr.service=airtrail-svc"
+      - "traefik.http.services.airtrail-svc.loadbalancer.server.port=3000"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.airtrail-monitor.rule=Host(`airtrail.${DOMAINNAME}`)"
+      - "traefik.http.routers.airtrail-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.airtrail-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.airtrail-monitor.service=airtrail-svc"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/api/ping"
+      - "gatus.headers.Host=airtrail.${DOMAINNAME}"
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[BODY] == pong\", \"[RESPONSE_TIME] < 1000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
+
+  # pgautoupgrade starts as root to perform data-directory upgrade operations
+  # before handing off to Postgres. cap_drop: ALL would break that process.
+  airtrail-db-upgrade:
+    image: docker.io/pgautoupgrade/pgautoupgrade:18.4-alpine@sha256:9fdd8f8da95a5c4ca041290bfe966cd22ccd66f9f3bece17a0d37bd3b7e0a260
+    container_name: airtrail-db-upgrade
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - POSTGRES_DB=airtrail
+      - POSTGRES_USER=airtrail
+      - POSTGRES_PASSWORD=${AIRTRAIL_DB_PASSWORD}
+      - PGAUTO_ONESHOT=yes
+    restart: "no"
+    network_mode: none
+    mem_limit: ${DB_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./data/db:/var/lib/postgresql
+
+  # Postgres starts as root and uses gosu to switch to the postgres user during
+  # startup. cap_drop: ALL would break that privilege transition.
+  airtrail-db:
+    image: docker.io/library/postgres:18.4-alpine@sha256:96d56f7f57c6aacd1fcb908bc83b345ec5f83231ee486dd66a1baadce274db88
+    container_name: airtrail-db
+    depends_on:
+      airtrail-db-upgrade:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - POSTGRES_DB=airtrail
+      - POSTGRES_USER=airtrail
+      - POSTGRES_PASSWORD=${AIRTRAIL_DB_PASSWORD}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - airtrail-backend
+    mem_limit: ${DB_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - ./data/db:/var/lib/postgresql
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
+  # read_only is not set because s6-overlay needs extensive writable paths.
+  # cap_drop: ALL is therefore omitted.
+  # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
+  # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
+  airtrail-db-backup:
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: airtrail-db-backup
+    depends_on:
+      airtrail-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      - USER_DBBACKUP=3128 # svc-app-airtrail
+      - GROUP_DBBACKUP=3128 # svc-app-airtrail
+      - CONTAINER_NAME=airtrail-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      # Run once and exit — restarted nightly by dccd.sh
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
+      # Notification settings
+      - ENABLE_NOTIFICATIONS=TRUE
+      - NOTIFICATION_TYPE=EMAIL
+      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
+      - SMTP_DOMAIN=${NOTIFICATIONS_EMAIL_DOMAIN}
+      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
+      - SMTP_USER=${NOTIFICATIONS_EMAIL_USERNAME}
+      - SMTP_PASS=${NOTIFICATIONS_EMAIL_PASSWORD}
+      - MAIL_TO=${NOTIFICATIONS_EMAIL_TO}
+      - MAIL_FROM=${NOTIFICATIONS_EMAIL_FROM}
+      - SMTP_AUTHENTICATION=on
+      - SMTP_TLSCERTCHECK=TRUE
+      - SMTP_STARTTLS=on
+      - SMTP_TLS=on
+      # Backup defaults
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_CLEANUP_TIME=2880
+      # Encryption
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      # Database
+      - DB01_TYPE=pgsql
+      - DB01_HOST=airtrail-db
+      - DB01_NAME=airtrail
+      - DB01_USER=airtrail
+      - DB01_PORT=5432
+      - DB01_PASS=${AIRTRAIL_DB_PASSWORD}
+    restart: "no"
+    networks:
+      - airtrail-backend
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./backups/db-backup:/backup
+
+  # postgres_exporter — exposes airtrail-db metrics on :9187 for Alloy to scrape.
+  # Joins airtrail-backend only; metrics are reachable only by services already
+  # on airtrail-backend (the app, the DB, and Alloy once it joins this network).
+  # The official quay.io/prometheuscommunity/postgres-exporter image is built
+  # FROM scratch and ships only the static binary — no shell, no wget/curl, so
+  # `disable: true` is the only viable healthcheck (mirrors the Alloy pattern).
+  airtrail-db-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.19.1@sha256:e96064f876226d94bb6ce48a4c4b3dd76edba91168ec1ab024e5c4b959310b0f
+    container_name: airtrail-db-exporter
+    depends_on:
+      airtrail-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - DATA_SOURCE_NAME=postgresql://airtrail:${AIRTRAIL_DB_PASSWORD}@airtrail-db:5432/airtrail?sslmode=disable
+    # Point --config.file at /dev/null (always present in the container's /dev,
+    # parses as empty YAML) so the exporter does not log a startup warning
+    # about the missing optional auth_modules config. This deployment uses a
+    # single DATA_SOURCE_NAME, so no auth_modules config is needed.
+    command:
+      - --config.file=/dev/null
+    user: "65534:65534" # nobody:nogroup
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - airtrail-backend
+    mem_limit: ${DB_EXPORTER_MEM_LIMIT:-128m}
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    healthcheck:
+      # postgres-exporter image is built FROM scratch — no shell, no probe
+      # utilities. Liveness is monitored externally via Alloy's scrape error
+      # rate; a stuck exporter shows up as `up{job="postgres_airtrail"}=0`.
+      disable: true
+
+networks:
+  airtrail-frontend:
+    name: airtrail-frontend
+    driver: bridge
+  airtrail-backend:
+    name: airtrail-backend
+    driver: bridge
+    internal: true
