@@ -1,0 +1,111 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount so the devcontainer (image-internal
+  # "vscode" user, UID/GID 1000) can write cloned repositories to /workspaces.
+  # Runs once, then exits. The home directory is a named volume seeded from the
+  # image, so only ./data (workspaces) needs to be chown'd here.
+  devcontainer-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: devcontainer-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 1000:1000
+      - DAC_OVERRIDE # Required to traverse host dirs owned by truenas_admin
+    read_only: true
+    # Create ./data/workspaces before the main container bind-mounts it, so
+    # Docker does not auto-create it as root:root (which the vscode user could
+    # not write to), then hand the whole tree to UID/GID 1000.
+    command:
+      - "sh"
+      - "-c"
+      - mkdir -p /data/workspaces && chown -Rv 1000:1000 /data
+    volumes:
+      - ./data:/data
+
+  devcontainer:
+    # Personal dotfiles devcontainer image (chezmoi + mise + Homebrew baked in).
+    # Built from mcr.microsoft.com/devcontainers/base:debian-12.
+    image: ghcr.io/devsecninja/dotfiles-devcontainer:v0.6.0@sha256:238aec66927da1d67f7f7225123c1d207f7c01c93d451fab7189c94d53453940
+    container_name: devcontainer
+    hostname: devcontainer
+    # Keep the container alive with no listening services. Access it via
+    # "Dev Containers: Attach to Running Container" over a Docker context
+    # (SSH to the host + docker exec) — no ports are exposed, which keeps the
+    # container-escape attack surface minimal.
+    command:
+      - "sleep"
+      - "infinity"
+    depends_on:
+      devcontainer-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    # Runs as the image-internal "vscode" user (UID/GID 1000). The dotfiles,
+    # mise, and Homebrew tool chains are all baked under /home/vscode at that
+    # UID, so the container must run as 1000:1000. UID 3128 (svc-app-devcontainer)
+    # is reserved on the host only to keep the GID allocation unambiguous.
+    user: "1000:1000"
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - devcontainer
+    # Higher than the usual 1024m default: a dev environment runs language
+    # servers, compilers, and toolchains that need more headroom.
+    mem_limit: ${MEM_LIMIT:-4096m}
+    # Higher than the usual 100 default: language servers, build tools, and
+    # shells legitimately spawn many processes in an interactive dev session.
+    pids_limit: 512
+    security_opt:
+      # Blocks sudo/setuid escalation inside the container. Runtime apt/sudo is
+      # intentionally disabled — install tools via mise/Homebrew in userspace.
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /run
+    volumes:
+      # Cloned repositories live on the NVMe apps pool (vm-pool) — the server's
+      # SSD storage — and are visible on the host for backup and inspection.
+      - ./data/workspaces:/workspaces
+      # Named volume for the home directory. A bind mount would mask the
+      # image-baked dotfiles and tool chains (mise/Homebrew under /home/vscode);
+      # a named volume is seeded from the image on first creation and persists
+      # across container restarts.
+      - devcontainer-home:/home/vscode
+    healthcheck:
+      # The image has no listening service, so verify the core tooling instead.
+      test:
+        - "CMD"
+        - "git"
+        - "--version"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  devcontainer:
+    name: devcontainer
+    driver: bridge
+
+volumes:
+  devcontainer-home:
+    name: devcontainer-home

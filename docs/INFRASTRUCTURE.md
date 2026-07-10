@@ -148,28 +148,29 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user          | Service(s)                                  | Git-tracked config? |
-| ------- | --------------------- | ------------------------------------------- | ------------------- |
-| 3100    | `svc-app-traefik`     | traefik, traefik-init                       | Yes (`./config`)    |
-| 3101    | `svc-app-adguard`     | adguard, adguard-init, adguard-unbound-init | No (`./data/conf`)  |
-| 3102    | `svc-app-homepage`    | homepage, homepage-init                     | Yes (`./config`)    |
-| 3103    | `svc-app-gatus`       | gatus, gatus-db-backup                      | No                  |
-| 3104    | `svc-app-echo`        | echo-server                                 | No                  |
-| 3105    | `svc-app-tfa`         | traefik-forward-auth, init                  | No (`./data`)       |
-| 3106    | `svc-app-immich`      | immich-server, immich-ml, immich-init       | No                  |
-| 3107    | `svc-app-metube`      | metube, metube-init                         | No                  |
-| 3108    | `svc-app-unifi`       | unifi, unifi-db-backup                      | No                  |
-| 3109    | `svc-app-dozzle`      | dozzle, dozzle-init                         | No                  |
-| 3110    | `svc-app-radarr`      | radarr                                      | No                  |
-| 3118    | `svc-app-tubesync`    | tubesync                                    | No                  |
-| 3119    | `svc-app-drawio`      | drawio                                      | No                  |
-| 3120    | `svc-app-outline`     | outline-db-backup†                          | No                  |
-| 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                   | Yes (`./config`)    |
-| 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init               | Yes (`./config`)    |
-| 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
-| 3125    | `svc-app-alloy`       | alloy, alloy-init                           | Yes (`./config`)    |
-| 3126    | `svc-app-bitwarden`   | bitwarden                                   | No                  |
-| 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                     | No                  |
+| UID/GID | TrueNAS user           | Service(s)                                  | Git-tracked config? |
+| ------- | ---------------------- | ------------------------------------------- | ------------------- |
+| 3100    | `svc-app-traefik`      | traefik, traefik-init                       | Yes (`./config`)    |
+| 3101    | `svc-app-adguard`      | adguard, adguard-init, adguard-unbound-init | No (`./data/conf`)  |
+| 3102    | `svc-app-homepage`     | homepage, homepage-init                     | Yes (`./config`)    |
+| 3103    | `svc-app-gatus`        | gatus, gatus-db-backup                      | No                  |
+| 3104    | `svc-app-echo`         | echo-server                                 | No                  |
+| 3105    | `svc-app-tfa`          | traefik-forward-auth, init                  | No (`./data`)       |
+| 3106    | `svc-app-immich`       | immich-server, immich-ml, immich-init       | No                  |
+| 3107    | `svc-app-metube`       | metube, metube-init                         | No                  |
+| 3108    | `svc-app-unifi`        | unifi, unifi-db-backup                      | No                  |
+| 3109    | `svc-app-dozzle`       | dozzle, dozzle-init                         | No                  |
+| 3110    | `svc-app-radarr`       | radarr                                      | No                  |
+| 3118    | `svc-app-tubesync`     | tubesync                                    | No                  |
+| 3119    | `svc-app-drawio`       | drawio                                      | No                  |
+| 3120    | `svc-app-outline`      | outline-db-backup†                          | No                  |
+| 3122    | `svc-app-mosquitto`    | mosquitto, mosquitto-init                   | Yes (`./config`)    |
+| 3123    | `svc-app-wmbusmeters`  | wmbusmeters, wmbusmeters-init               | Yes (`./config`)    |
+| 3124    | `svc-app-matter`       | matter-server, matter-server-init           | No                  |
+| 3125    | `svc-app-alloy`        | alloy, alloy-init                           | Yes (`./config`)    |
+| 3126    | `svc-app-bitwarden`    | bitwarden                                   | No                  |
+| 3127    | `svc-app-openclaw`     | openclaw, openclaw-init                     | No                  |
+| 3128    | `svc-app-devcontainer` | devcontainer, devcontainer-init             | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -177,6 +178,12 @@ db-backup sidecar. The Outline server itself runs without a `user:` directive;
 an `outline-init` container pre-chowns `./data/data` to UID 1000 so the node
 process can write to the bind-mount path. See:
 https://github.com/outline/outline/discussions/9452
+
+The `devcontainer` service runs as the image-internal `vscode` user (UID/GID
+1000), since its dotfiles, `mise`, and Homebrew toolchains are baked under
+`/home/vscode` at that UID. UID 3128 (`svc-app-devcontainer`) is reserved on the
+host **only as a GID reservation** and is never used as the container's runtime
+UID (same pattern as Outline above).
 
 ### Shared Purpose Groups
 
