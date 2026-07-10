@@ -1,0 +1,63 @@
+---
+# Base labels shared across all DevSecNinja repositories.
+# Repo-specific labels (e.g. area/* labels) should be defined in each repo's
+# .github/labels.yaml file.
+
+# Renovate Types
+- name: renovate/container
+  color: "027fa0"
+- name: renovate/github-action
+  color: "027fa0"
+- name: renovate/github-release
+  color: "027fa0"
+- name: renovate/github-tag
+  color: "027fa0"
+- name: renovate/gomod
+  color: "027fa0"
+- name: renovate/mise
+  color: "027fa0"
+- name: renovate/ansible
+  color: "027fa0"
+
+# Semantic Types
+- name: type/digest
+  color: "ffeC19"
+- name: type/patch
+  color: "ffeC19"
+- name: type/minor
+  color: "ff9800"
+- name: type/major
+  color: "f6412d"
+
+# Automation
+- name: "merge: auto"
+  color: "0075ca"
+  description: PR is eligible for automerge
+  aliases:
+    - automerge
+- name: "merge: manual"
+  color: "5319e7"
+  description: PR requires manual review and merge
+- name: "autorelease: pending"
+  color: "ededed"
+  description: Release Please — release pending
+- name: "autorelease: tagged"
+  color: "0e8a16"
+  description: Release Please — release tagged
+- name: config-sync
+  color: "0075ca"
+- name: apm-sync
+  color: "0075ca"
+  description: Automated APM materialize PR
+- name: todo-to-issue
+  color: "0075ca"
+
+# Uncategorized
+- name: bug
+  color: "d73a4a"
+- name: enhancement
+  color: "a2eeef"
+- name: hold
+  color: "ee0701"
+- name: stale-dependency
+  color: "e4e669"
