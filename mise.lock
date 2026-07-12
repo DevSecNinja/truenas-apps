@@ -191,43 +191,43 @@ checksum = "sha256:771214659b86d2de5c8c5214e6d59484ceb0de8a87037d488ce37d6ca6f6c
 url = "https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-win-x64.zip"
 
 [[tools.dprint]]
-version = "0.55.0"
+version = "0.55.1"
 backend = "aqua:dprint/dprint"
 
 [tools.dprint."platforms.linux-arm64"]
-checksum = "sha256:12864a0ebe6274f9f4b647e6ae2abc5eb33ace9e722d94bd23942a2975783e18"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-aarch64-unknown-linux-musl.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661486"
+checksum = "sha256:2d414d659034650bc25b208a87ab427cd01a7ac6c21b3ed2191cf92e1b58f76c"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-aarch64-unknown-linux-musl.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010446"
 
 [tools.dprint."platforms.linux-arm64-musl"]
-checksum = "sha256:12864a0ebe6274f9f4b647e6ae2abc5eb33ace9e722d94bd23942a2975783e18"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-aarch64-unknown-linux-musl.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661486"
+checksum = "sha256:2d414d659034650bc25b208a87ab427cd01a7ac6c21b3ed2191cf92e1b58f76c"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-aarch64-unknown-linux-musl.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010446"
 
 [tools.dprint."platforms.linux-x64"]
-checksum = "sha256:b1365945a2c7ab51fa3c62221b3f984ba9971357e122dbf3817bdf02936f548a"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-x86_64-unknown-linux-musl.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661477"
+checksum = "sha256:7ce856d5999585e58666701eab5e0291abfb63953884d5dd0268001c89d74b8d"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-x86_64-unknown-linux-musl.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010456"
 
 [tools.dprint."platforms.linux-x64-musl"]
-checksum = "sha256:b1365945a2c7ab51fa3c62221b3f984ba9971357e122dbf3817bdf02936f548a"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-x86_64-unknown-linux-musl.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661477"
+checksum = "sha256:7ce856d5999585e58666701eab5e0291abfb63953884d5dd0268001c89d74b8d"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-x86_64-unknown-linux-musl.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010456"
 
 [tools.dprint."platforms.macos-arm64"]
-checksum = "sha256:cf6c0149ac9ed76aee2535d0dfeffd2c9d34bcfe42c397127bba4a8c934722cc"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-aarch64-apple-darwin.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661472"
+checksum = "sha256:94a9ce5ca91dbb609d4f22f2ccf28d8b422627c0944c6ee63d1beecac28f8cd4"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-aarch64-apple-darwin.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010452"
 
 [tools.dprint."platforms.macos-x64"]
-checksum = "sha256:69d032d8fe70441fc4307cdd5360d5e0086773bb2f7ba63d4863e59c64f3df38"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-x86_64-apple-darwin.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661470"
+checksum = "sha256:21f9784b3edf3b0a686932b4387359ebd83fba798ac2f7e2ba1e7b8c9f674e3e"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-x86_64-apple-darwin.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010440"
 
 [tools.dprint."platforms.windows-x64"]
-checksum = "sha256:44a025c8ca4cf5d9598349e48927a35186caac893fee0a5bb28e98996ef11432"
-url = "https://github.com/dprint/dprint/releases/download/0.55.0/dprint-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/459661480"
+checksum = "sha256:dfdee60f04810c14df310696ce680da7ece599cd27b162f77906adc80d5e9679"
+url = "https://github.com/dprint/dprint/releases/download/0.55.1/dprint-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/dprint/dprint/releases/assets/460010450"
 
 [[tools.git-cliff]]
 version = "2.13.1"
