@@ -49,7 +49,7 @@ _DEPLOY_RESTARTED=0    # Count of containers restarted/recreated during deployme
 _DEPLOY_FAILED_APPS=() # Names of failed apps
 _DHI_LOGIN_OK=0        # Set to 1 by auto_login_dhi when dhi.io login succeeded (skips file-based check)
 # renovate: datasource=github-releases depName=getsops/sops
-SOPS_VERSION="v3.13.1" # SOPS version for secret decryption
+SOPS_VERSION="v3.13.2" # SOPS version for secret decryption
 SOPS_INSTALL_DIR=""    # Directory to install SOPS binary (default: <BASE_DIR>/bin)
 SOPS_AGE_KEY_FILE=""   # Path to Age private key file for SOPS decryption (default: <BASE_DIR>/age.key)
 SOPS_BIN=""            # Path to SOPS binary (set by ensure_sops)
