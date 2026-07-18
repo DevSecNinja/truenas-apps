@@ -11,8 +11,8 @@
 
 set -euo pipefail
 
-LOG_SH_URL="https://github.com/DevSecNinja/dotfiles/releases/download/v0.5.0/log.sh"
-LOG_SH_SHA_URL="https://github.com/DevSecNinja/dotfiles/releases/download/v0.5.0/log.sh.sha256"
+LOG_SH_URL="https://github.com/DevSecNinja/dotfiles/releases/download/v0.6.0/log.sh"
+LOG_SH_SHA_URL="https://github.com/DevSecNinja/dotfiles/releases/download/v0.6.0/log.sh.sha256"
 
 DEST_DIR="$(cd "$(dirname "$0")" && pwd)/lib"
 mkdir -p "${DEST_DIR}"
