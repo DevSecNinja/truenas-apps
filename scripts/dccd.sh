@@ -6,7 +6,8 @@
 #   Run As User: truenas_admin (requires passwordless sudo for two commands:
 #                  /usr/bin/docker
 #                  /usr/bin/cat /root/.docker/config.json)
-#   Unselect 'Hide Standard Output' and 'Hide Standard Error'
+#   Output streams: INFO/STATE/RESULT/HINT/STEP → stdout; WARN/ERROR/FATAL → stderr.
+#   Select 'Hide Standard Output' to suppress routine info; real errors still appear in stderr.
 
 set -euo pipefail
 
@@ -707,7 +708,7 @@ redeploy_truenas_apps() {
         fi
 
         if [ ! -d "${app_config_dir}" ]; then
-            log_error "TrueNAS app config directory not found: ${app_config_dir}, skipping..."
+            log_warn "TrueNAS app config directory not found: ${app_config_dir}, skipping..."
             continue
         fi
 
@@ -984,7 +985,7 @@ compose_up_wait_tolerant() {
                 grep -oE "container [^ ]+ has no healthcheck" |
                 awk '{print $2}' |
                 paste -sd, -)
-            log_warn "${app_name}: container(s) without healthcheck (${missing}) — using \"running\" state as readiness"
+            log_info "${app_name}: container(s) without healthcheck (${missing}) — using \"running\" state as readiness"
             record_container_restarts "${app_name}" "${out}"
             return 0
         fi
