@@ -33,7 +33,7 @@ export TERM=xterm
 # shellcheck source=../../../scripts/lib/log.sh disable=SC1091
 . "${repo_root}/scripts/lib/log.sh"
 
-captured_stdout=$(log_warn "alloy: container(s) without healthcheck (alloy) — using \"running\" state as readiness")
+captured_stdout=$(log_warn "something unexpected happened (skipping)")
 printf 'captured_stdout=<%s>\n' "${captured_stdout}"
 HELPER
     chmod +x "${helper}"
@@ -44,6 +44,36 @@ HELPER
 
     run cat "${transcript}"
     assert_success
-    assert_output --partial $'\033[1;33m2026-05-04 00:00:32 WARN   [dccd] alloy: container(s) without healthcheck (alloy) — using "running" state as readiness\033[0m'
+    assert_output --partial $'\033[1;33m2026-05-04 00:00:32 WARN   [dccd] something unexpected happened (skipping)\033[0m'
     assert_output --partial "captured_stdout=<>"
+}
+
+@test "log_info: routes to stdout, not stderr" {
+    local helper
+    helper="${BATS_TMPDIR}/log-info-helper.sh"
+
+    cat >"${helper}" <<'HELPER'
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$1
+cd "${repo_root}"
+
+export LOG_TAG=dccd
+export LOG_TIMESTAMP="2026-05-04 00:00:32"
+export LOG_COLOR=never
+
+# shellcheck source=../../../scripts/lib/log.sh disable=SC1091
+. "${repo_root}/scripts/lib/log.sh"
+
+# INFO writes to stdout, so $() captures it (unlike WARN which escapes to stderr)
+captured=$(log_info "alloy: container(s) without healthcheck (alloy) — using \"running\" state as readiness")
+printf 'captured=<%s>\n' "${captured}"
+HELPER
+    chmod +x "${helper}"
+
+    run bash "${helper}" "${REPO_ROOT}"
+    assert_success
+    assert_output --partial "captured=<2026-05-04 00:00:32 INFO"
+    assert_output --partial "container(s) without healthcheck"
 }
