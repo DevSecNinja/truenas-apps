@@ -708,7 +708,7 @@ redeploy_truenas_apps() {
         fi
 
         if [ ! -d "${app_config_dir}" ]; then
-            log_warn "TrueNAS app config directory not found: ${app_config_dir}, skipping..."
+            log_info "TrueNAS app config directory not found: ${app_config_dir}, skipping..."
             continue
         fi
 
