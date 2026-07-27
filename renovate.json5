@@ -13,4 +13,10 @@
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
+  // Filter out versions still inside their minimumReleaseAge soak so Renovate
+  // proposes the highest already-soaked version instead of parking the update
+  // on the newest (still-pending) release. Without this, frequently-releasing
+  // images (e.g. traefik-forward-auth) stay stuck under "Pending Status Checks"
+  // and their PRs are never created. See issue #115.
+  internalChecksFilter: "strict",
 }
