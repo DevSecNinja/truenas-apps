@@ -13,7 +13,11 @@ name: Renovate PR cooldown
 on:
   pull_request:
   schedule:
-    - cron: "17 */6 * * *"
+    # Twice daily is ample precision for a 14-day soak: a PR that crosses
+    # the threshold flips to green within 12h. Halving the previous 6h
+    # cadence roughly halves the scheduled Actions minutes this workflow
+    # burns without materially delaying auto-merge.
+    - cron: "17 */12 * * *"
   workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow -- only posts a commit status.
 
 concurrency:
