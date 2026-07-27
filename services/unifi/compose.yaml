@@ -122,7 +122,7 @@ services:
   # need extensive writable paths beyond what can be covered by tmpfs mounts.
   # cap_drop: ALL is therefore omitted.
   unifi:
-    image: lscr.io/linuxserver/unifi-network-application:version-10.3.55@sha256:90295d8eb83f9bcc059d12f5e4c0bbac812e0a2261365ba67f1d7df3c805c724
+    image: lscr.io/linuxserver/unifi-network-application:version-10.4.57@sha256:30c19017c4f849ee4285cf7bcd0d3f292b0b6055735912c009d2a16c15319a51
     container_name: unifi
     depends_on:
       unifi-db:
