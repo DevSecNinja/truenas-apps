@@ -28,7 +28,7 @@ services:
       - ./data:/data
 
   openclaw:
-    image: ghcr.io/openclaw/openclaw:2026.4.29@sha256:2c56a23cb2fe826a0d521bf6d61c8e4bb4e4201274f358eccddf5876393155ae
+    image: ghcr.io/openclaw/openclaw:2026.7.1@sha256:6a31d44b2944e7adcd2b582bf6fb463111264ebca97a0201795b799135bd102c
     container_name: openclaw
     depends_on:
       openclaw-init:
