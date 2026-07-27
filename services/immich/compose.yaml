@@ -294,7 +294,7 @@ services:
   # FROM scratch and ships only the static binary — no shell, no wget/curl, so
   # `disable: true` is the only viable healthcheck (mirrors the Alloy pattern).
   immich-db-exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.19.1@sha256:e96064f876226d94bb6ce48a4c4b3dd76edba91168ec1ab024e5c4b959310b0f
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     container_name: immich-db-exporter
     depends_on:
       immich-db:
