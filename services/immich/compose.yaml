@@ -41,7 +41,7 @@ services:
   # It runs as non-root and supports user: directly.
   # Hardware transcoding is enabled via the quicksync extends profile.
   immich-server:
-    image: ghcr.io/immich-app/immich-server:v2.6.3@sha256:0cc1f82953d9598eb9e9dd11cbde1f50fe54f9c46c4506b089e8ad7bfc9d1f0c
+    image: ghcr.io/immich-app/immich-server:v2.7.5@sha256:c15bff75068effb03f4355997d03dc7e0fc58720c2b54ad6f7f10d1bc57efaa5
     container_name: immich-server
     depends_on:
       immich-init:
@@ -143,7 +143,7 @@ services:
   # It runs as non-root and supports user: directly.
   # Hardware acceleration is enabled via the OpenVINO extends profile (Intel iGPU).
   immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:v2.6.3-openvino@sha256:428b319762c5c0f39218162bd24cab38f48d369c580389e9897c8ab92807cf7a
+    image: ghcr.io/immich-app/immich-machine-learning:v2.7.5-openvino@sha256:71cd5a681823c4b818f4b24b3f05816eccc3d085559e7615f695bde77e64f1f2
     container_name: immich-machine-learning
     depends_on:
       immich-init:
