@@ -1,11 +1,11 @@
 ---
 services:
-  # meeb/tubesync uses a startup init script (start.sh) that creates the PUID:PGID user,
-  # chowns /config to PUID:PGID, and starts supervisord before dropping privileges.
-  # This is the same root-start pattern as LinuxServer/s6-overlay images.
-  # read_only: true is omitted (init script writes to the root fs during startup).
-  # user: is omitted (init script requires root to chown /config to PUID:PGID).
-  # cap_drop: ALL still applied; CHOWN/SETUID/SETGID/SETPCAP re-added for init privilege drop.
+  # meeb/tubesync (v0.17.x+) uses s6-overlay: the tubesync-config-init service sets the
+  # app user's PUID:PGID, then chowns AND chmods /run/app and /config before dropping
+  # privileges to run TubeSync. This is the same root-start pattern as LinuxServer images.
+  # read_only: true is omitted (init writes to the root fs and re-permissions /config).
+  # user: is omitted (init requires root to chown/chmod /config to PUID:PGID).
+  # cap_drop: ALL still applied; CHOWN/FOWNER/SETUID/SETGID/SETPCAP re-added for init.
   tubesync:
     image: ghcr.io/meeb/tubesync:v0.18.2@sha256:8e131f9ca3d4893ea93a9f77fcbead4ee52b7c90a294a6be28fa3bdd3d92a1a1
     container_name: tubesync
@@ -31,9 +31,10 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN # init script chowns /config to PUID:PGID at startup
-      - SETUID # init script drops from root to PUID
-      - SETGID # init script drops from root to PGID
+      - CHOWN # init chowns /run/app and /config to PUID:PGID at startup
+      - FOWNER # init chmods /run/app and /config after chowning them to the app user
+      - SETUID # init drops from root to PUID
+      - SETGID # init drops from root to PGID
       - SETPCAP # clears the bounding capability set before exec-ing TubeSync
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128 # Intel QuickSync for ffmpeg hardware transcoding

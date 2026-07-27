@@ -18,7 +18,7 @@ If you follow specific YouTube channels and want their content available in your
 
 ## Architecture
 
-- **Image**: [meeb/tubesync](https://github.com/meeb/tubesync) (custom init script + supervisord)
+- **Image**: [meeb/tubesync](https://github.com/meeb/tubesync) (s6-overlay init system)
 - **User/Group**: `PUID=3118` / `PGID=3200` (`svc-app-tubesync:media`)
 - **Networks**: `tubesync-frontend` (Traefik-facing)
 - **Reverse proxy**: Traefik with `chain-auth@file` middleware
@@ -26,11 +26,11 @@ If you follow specific YouTube channels and want their content available in your
 
 ### Root-Start Exceptions
 
-TubeSync uses its own `start.sh` init script (similar to s6-overlay) that creates the PUID:PGID user, chowns `/config`, and launches supervisord. See [Architecture](../ARCHITECTURE.md) for the full rationale:
+TubeSync's s6-overlay `tubesync-config-init` service runs as root at startup: it sets the `app` user's UID/GID from `PUID`/`PGID`, then `chown`s and `chmod`s both `/run/app` (mode 0700) and `/config` (mode 0755) before dropping privileges to run TubeSync. See [Architecture](../ARCHITECTURE.md) for the full rationale:
 
-- **`read_only` is omitted**: init script writes to the root filesystem during startup
-- **`user:` is omitted**: init script requires root for privilege management
-- **`cap_add`**: `CHOWN`, `SETUID`, `SETGID`, `SETPCAP`
+- **`read_only` is omitted**: the init service writes to the root filesystem during startup
+- **`user:` is omitted**: the init service requires root for privilege management and to re-permission `/config`
+- **`cap_add`**: `CHOWN`, `FOWNER`, `SETUID`, `SETGID`, `SETPCAP` — `FOWNER` is required so the init can `chmod` files after chowning them to the `app` user
 
 ## Secrets
 
