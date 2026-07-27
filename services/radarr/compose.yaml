@@ -13,7 +13,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   radarr:
-    image: lscr.io/linuxserver/radarr:version-6.0.4.10291@sha256:c8a55bd83672d3b63dc20edf325277ce7dc3b69d4400568cc5bbc9e6a227ebf4
+    image: lscr.io/linuxserver/radarr:version-6.3.0.10514@sha256:e35056574cdc695a9ee745aa1ecda9eab3842450bf4b7b8471b023790fa3861d
     container_name: radarr
     hostname: radarr # Identifies the container on egress network; visible in ARP/mDNS and UniFi client list
     env_file:
