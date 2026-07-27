@@ -13,7 +13,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   sonarr:
-    image: lscr.io/linuxserver/sonarr:version-4.0.17.2952@sha256:b5670a3adb0f8a8b0f277feeaa69a5fbe3869ba4bb9fa7c0f0764c3b3f0e698f
+    image: lscr.io/linuxserver/sonarr:version-4.0.19.2979@sha256:24acea2956a0ccb11f103877d9f4f8576600fb34bff34820ed749c2256dab89f
     container_name: sonarr
     hostname: sonarr
     env_file:
