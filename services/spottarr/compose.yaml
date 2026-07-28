@@ -36,7 +36,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   spottarr:
-    image: ghcr.io/spottarr/spottarr:1.16.0@sha256:bf4663c5d54d47b2beb888bf980f9d6d26457e6939759c193229a2ebff2cbecc
+    image: ghcr.io/spottarr/spottarr:1.18.1@sha256:e5dff7b7c83a6547fd97771defa74ca3dd8f65d6995eba250f7612d8408db12d
     container_name: spottarr
     hostname: spottarr
     depends_on:
