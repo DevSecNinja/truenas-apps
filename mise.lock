@@ -389,7 +389,7 @@ version = "3.3.8"
 backend = "pipx:checkov"
 
 [[tools."pipx:mkdocs-material"]]
-version = "9.7.6"
+version = "9.7.7"
 backend = "pipx:mkdocs-material"
 
 [tools."pipx:mkdocs-material".options]
