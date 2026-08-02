@@ -13,4 +13,35 @@
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
+  packageRules: [
+    {
+      // Group every Renovate dependency update under a single `deps`
+      // Conventional Commit type so release-please collects them in a
+      // dedicated "Dependencies" section of the release notes (release-please
+      // maps the `deps` type to "Dependencies"). This overrides the
+      // feat/fix/chore/ci types set per update-type by the shared
+      // github>DevSecNinja/.github preset, while keeping its scopes and
+      // version-arrow commit bodies intact.
+      matchPackageNames: ["*"],
+      semanticCommitType: "deps",
+    },
+    {
+      // Because every dependency update now shares the single `deps` type, the
+      // semver level is no longer encoded in the type (it used to be feat for
+      // major/minor, fix for patch). Surface it inline instead by appending the
+      // update type to the version-arrow body, so each entry in the
+      // "Dependencies" release-notes section reads e.g.
+      //   update image docker.io/library/postgres ( 18.3 ➔ 18.4 ) [minor]
+      // This extends the shared preset's commitMessageExtra without touching the
+      // `[automerge]` commitMessageSuffix from autoMerge.json5.
+      matchUpdateTypes: ["major", "minor", "patch"],
+      commitMessageExtra: "( {{currentVersion}} ➔ {{newVersion}} ) [{{updateType}}]",
+    },
+    {
+      // Digest updates expose digests rather than versions; keep the digest
+      // arrows from the shared preset and append the `[digest]` label.
+      matchUpdateTypes: ["digest"],
+      commitMessageExtra: "( {{currentDigestShort}} ➔ {{newDigestShort}} ) [{{updateType}}]",
+    },
+  ],
 }

@@ -44,7 +44,7 @@ All commits follow the [Conventional Commits](https://www.conventionalcommits.or
 <type>(<scope>): <description>
 ```
 
-Common types: `feat`, `fix`, `chore`, `docs`, `refactor`, `ci`. The scope is typically the service folder name (e.g. `feat(immich):`, `fix(traefik):`). Compliance is enforced locally by a lefthook `commit-msg` hook using `cog verify`.
+Common types: `feat`, `fix`, `chore`, `docs`, `refactor`, `ci`, `deps`. The scope is typically the service folder name (e.g. `feat(immich):`, `fix(traefik):`). Compliance is enforced locally by a lefthook `commit-msg` hook using `cog verify`. The `deps` type is reserved for Renovate dependency updates and is grouped into a dedicated "Dependencies" section of the release notes by release-please. Within that single section, each dependency entry is tagged with its semver level (`[major]`, `[minor]`, `[patch]`, or `[digest]`) so the update magnitude stays visible.
 
 ## Release Process
 
