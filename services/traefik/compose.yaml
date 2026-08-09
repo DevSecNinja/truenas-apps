@@ -40,7 +40,9 @@ services:
   traefik:
     # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
     # Runs as nonroot (UID 65532) by default; overridden to 3100:3100 via user: below.
-    image: dhi.io/traefik:3.6.14-debian13@sha256:b71ffbb608f77f14c6b14290096670e9c2a51df5d8247710b8eac6ac4142025a
+    # Digest intentionally omitted: DHI pruned the previously pinned tag, so Renovate
+    # dropped this dep entirely. Renovate re-pins the digest via pinDigests. See #634.
+    image: dhi.io/traefik:3.7.10-debian13
     container_name: traefik
     depends_on:
       traefik-init:
