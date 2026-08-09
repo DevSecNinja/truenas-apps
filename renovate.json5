@@ -13,4 +13,16 @@
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
+  packageRules: [
+    {
+      // Overrides the shared linuxserver versioning rule so that "version-v*"
+      // style tags (e.g. version-v1.5.3) are recognised. The shared regex
+      // required a trailing build/release segment and captured the optional
+      // "v" prefix inside the numeric <major> group, so three-part tags like
+      // bazarr's version-v1.5.3 never matched and were never updated.
+      description: "Use custom versioning for linuxserver images",
+      matchPackageNames: ["/^lscr\\.io\\/linuxserver\\//"],
+      versioning: "regex:^(version)(?<compatibility>.*?)-v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)[\\.-]*r?(?<build>\\d+)*-*r?(?<release>\\w+)?|^latest*",
+    },
+  ],
 }
