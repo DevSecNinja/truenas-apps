@@ -46,7 +46,7 @@ services:
     # Same Redis version (8.6.2) as the previous alpine variant; runs as nonroot (UID 65532).
     # Digest intentionally omitted: DHI pruned the previously pinned tag, so Renovate
     # dropped this dep entirely. Renovate re-pins the digest via pinDigests. See #634.
-    image: dhi.io/redis:8.10.0-debian13
+    image: dhi.io/redis:8.10.0-debian13@sha256:9afde7fc6bcf371d7c9ed7a7f07bc50c07d4e74c678b1b408ee6634886cc4ba7
     container_name: adguard-redis
     # --save "" disables RDB snapshots — Redis is used only as an ephemeral DNS
     # cache backend for Unbound. No persistence required; read_only: true is safe.

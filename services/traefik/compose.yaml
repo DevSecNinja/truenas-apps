@@ -42,7 +42,7 @@ services:
     # Runs as nonroot (UID 65532) by default; overridden to 3100:3100 via user: below.
     # Digest intentionally omitted: DHI pruned the previously pinned tag, so Renovate
     # dropped this dep entirely. Renovate re-pins the digest via pinDigests. See #634.
-    image: dhi.io/traefik:3.7.10-debian13
+    image: dhi.io/traefik:3.7.10-debian13@sha256:c7eb7aec15936edab4972bc447346fd2053c8574ad4eddd032fa01f7461d70f5
     container_name: traefik
     depends_on:
       traefik-init:
