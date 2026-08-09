@@ -48,6 +48,7 @@ services:
 
 - Images must always include an explicit registry prefix (e.g. `docker.io/library/busybox`, `ghcr.io/gethomepage/homepage`). Bare image names like `busybox` or `user/image` are not allowed — Docker's implicit `docker.io` default is not reliable across runtimes and Renovate cannot enforce the correct registry without it
 - Images are digest-pinned (`@sha256:...`) — Renovate manages updates via PRs
+- When the same image is published on several registries, prefer the `docker.io` copy — see [Image Selection: Registry Preference](#image-selection-registry-preference) below.
 - **Prefer the smallest, most hardened image variant available** for a given version tag. When multiple variants are published, choose according to this priority order:
   1. **Hardened** (e.g., `-hardened`, Chainguard distroless/static images, Docker Hub Hardened Images at `dhi.io/<name>`) — minimal attack surface, no shell, stripped of unnecessary OS components. Note that hardened variants are sometimes published under a **different image name or registry** rather than as a tag suffix on the official image (e.g., `eclipse-mosquitto` has a hardened build at `dhi.io/eclipse-mosquitto`). Always check the [Docker Hub Hardened Images catalog](https://hub.docker.com/hardened-images/catalog) and [Chainguard](https://www.chainguard.dev/chainguard-images) for a hardened alternative before falling back to Alpine. **Note:** Images from `dhi.io` require Docker Hub authentication (`docker login dhi.io` with your Docker Hub username and a personal access token). Tag format is `<name>:<version>-<os>` (e.g., `dhi.io/traefik:3.6.14-debian13`). Runtime variants run as a nonroot user (UID 65532) and have no shell; health checks must use `CMD` format (not `CMD-SHELL`).
   2. **Alpine** (e.g., `2.1.2-alpine`) — musl-based, ~5 MB base layer, no unnecessary tools
@@ -74,6 +75,29 @@ Two caveats apply when adopting a DHI (or any new) image — the full procedure 
 
 1. **Verify multi-arch before adoption.** This homelab runs both `svlnas` (x86_64) and `svlazext` (arm64). Confirm the catalog page lists `LINUX/AMD64` **and** `LINUX/ARM64`. DHI has previously republished tags as amd64-only manifest digests for short windows, breaking arm64 hosts (see commits `b3cfb8c`, `dbd9f59`, `d3660cb`).
 2. **Initial commit must be tag-only — no `@sha256` digest.** Renovate runs on an amd64 GitHub runner and pins the digest on its next pass. Pinning manually from a stale snapshot can lock the deployment to an amd64-only digest if the registry has not yet republished as multi-arch. The tag itself stays pinned (e.g. `8.6.2-debian13`) for reproducibility.
+
+## Image Selection: Registry Preference
+
+Many images are published to several registries at once (e.g. `docker.io/linuxserver/sonarr`, `lscr.io/linuxserver/sonarr`, `ghcr.io/linuxserver/sonarr`). When the copies are functionally equivalent, pick the `docker.io` one. This is a **tie-breaker**, not an absolute rule — it never overrides the variant priority in **Key rules** above.
+
+**Why.** Renovate only derives a release timestamp for a Docker dependency when the registry host is exactly `https://index.docker.io`. For that host it queries the Docker Hub API at `hub.docker.com/v2/repositories/...` and reads the `tag_last_pushed` field; for every other host it takes the generic code path against the OCI Registry V2 `/tags/list` endpoint, which by specification returns tag names and nothing else. Renovate documents this in its Docker datasource: _"Only supported on Docker Hub: The release timestamp is determined from the `tag_last_pushed` field in the results."_ Note that `tag_last_pushed` comes from the separate `hub.docker.com` API — it is Hub-specific and is not part of the OCI registry specification.
+
+This is a **Renovate limitation keyed on the registry hostname, not an omission by the other registries**. Docker almost certainly holds push timestamps for `dhi.io` too — the DHI web portal displays them — but Renovate never asks for them, because the host is not `index.docker.io`. Renovate also refuses to trust the OCI `org.opencontainers.image.created` label as a substitute, because the publisher controls that value and could forge it to bypass the age gate.
+
+The 14-day soak is enforced either way: images from other registries fall back to the required `pr-cooldown` status check described in [Contributing § Enforcing the soak without a trusted timestamp](CONTRIBUTING.md#enforcing-the-soak-without-a-trusted-timestamp). The argument for `docker.io` is therefore narrower than "gate versus no gate":
+
+- The native soak measures the **actual publish time**. `pr-cooldown` measures the **age of the PR branch head commit**, which is a proxy and restarts whenever the branch is rebased.
+- The fallback has more moving parts — a scheduled workflow, a required status check, and a branch-ruleset entry. ADR 0005 in `DevSecNinja/.github` calls `pr-cooldown` a load-bearing control.
+
+**Tradeoff.** Docker Hub applies pull rate limits to anonymous and free-tier accounts; `ghcr.io` and `lscr.io` do not. `scripts/dccd.sh` re-pulls images on every deploy, so this is a real operational cost on a self-hosted box. Digest pinning keeps pulls cache-friendly, which is what makes the tradeoff acceptable — but it is a genuine tradeoff, and a service that is redeployed very frequently is a fair reason to stay on `ghcr.io`.
+
+**Exceptions that outrank this preference:**
+
+- **Hardened images.** `dhi.io` is a separate registry from `docker.io`, and hardened variants rank first in the variant priority order, so DHI images cannot follow this preference.
+- **Images published on only one registry.**
+- **A smaller or hardened variant that exists only on `ghcr.io`** (or another non-Hub registry) — variant size and hardening win over registry choice.
+
+**Precedent.** All LinuxServer images were moved from `lscr.io` to `docker.io` for exactly this reason (PR #641). The current manifest digest was verified to be identical across `docker.io`, `lscr.io`, and `ghcr.io` beforehand, confirming this was a registry change and not a switch to a different build lineage.
 
 ## Healthchecks on Distroless Bases
 
