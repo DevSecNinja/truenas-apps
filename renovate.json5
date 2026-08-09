@@ -26,5 +26,20 @@
       matchCurrentValue: "latest",
       enabled: true,
     },
+    {
+      // Same reasoning as the ":latest" rule above, for reusable workflows
+      // pinned to a commit SHA with a "# main" comment. The digest is the only
+      // way those ever advance, so the shared "Disable digest-only updates"
+      // rule freezes them at whatever SHA they were pinned at. That matters
+      // most for renovate-pr-cooldown.yml, which provides the required
+      // `pr-cooldown` check enforcing the 14-day soak for registries without a
+      // trusted release timestamp (DevSecNinja/.github ADR 0005) — a
+      // load-bearing control that must not be stuck on a stale revision.
+      description: "Re-enable digest updates for reusable workflows pinned to main",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["digest"],
+      matchCurrentValue: "main",
+      enabled: true,
+    },
   ],
 }
