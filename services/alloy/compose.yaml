@@ -36,7 +36,7 @@ services:
     # renovate: datasource=docker depName=dhi.io/alloy
     # Digest intentionally omitted: DHI pruned the previously pinned tag, so Renovate
     # dropped this dep entirely. Renovate re-pins the digest via pinDigests. See #634.
-    image: dhi.io/alloy:1.18.1-debian13
+    image: dhi.io/alloy:1.18.1-debian13@sha256:38b60d72d453000ee36a2b2d24bb7c9ad29e54fc27fdc822f4e9e75a20682222
     container_name: alloy
     command:
       - "run"
