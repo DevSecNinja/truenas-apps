@@ -273,7 +273,9 @@ services:
   outline-redis:
     # Docker Hub Hardened Image — requires `docker login dhi.io` (free with Docker Hub account).
     # Same Redis version (8.6.2) as the previous alpine variant; runs as nonroot (UID 65532).
-    image: dhi.io/redis:8.6.2-debian13@sha256:3f877f99e20fb4584c3170fd92b29cc45f13fb0328fea7a27bfbc375719af490
+    # Digest intentionally omitted: DHI pruned the previously pinned tag, so Renovate
+    # dropped this dep entirely. Renovate re-pins the digest via pinDigests. See #634.
+    image: dhi.io/redis:8.10.0-debian13
     container_name: outline-redis
     # --save "" disables RDB snapshots — Redis is a session/cache store here,
     # not a data source. All persistent state lives in Postgres.
