@@ -13,4 +13,18 @@
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
+  packageRules: [
+    {
+      // The shared config disables digest-only updates to reduce PR noise and
+      // avoid auto-merging potentially hijacked tags. For images pinned to a
+      // mutable tag like ":latest" the digest is the ONLY way they ever get
+      // updated, so re-enable digest updates for those. Placed here so it wins
+      // over the shared "Disable digest-only updates" rule.
+      description: "Re-enable digest updates for images pinned to the :latest tag",
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["digest"],
+      matchCurrentValue: "latest",
+      enabled: true,
+    },
+  ],
 }
