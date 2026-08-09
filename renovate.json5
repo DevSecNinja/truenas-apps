@@ -22,7 +22,7 @@
       // bazarr's version-v1.5.3 never matched and were never updated.
       description: "Use custom versioning for linuxserver images",
       matchPackageNames: ["/^lscr\\.io\\/linuxserver\\//"],
-      versioning: "regex:^(version)(?<compatibility>.*?)-v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)[\\.-]*r?(?<build>\\d+)*-*r?(?<release>\\w+)?|^latest*",
+      versioning: "regex:^(version)(?<compatibility>.*?)-v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)[\\.-]*r?(?<build>\\d+)*-*r?(?<release>\\w+)?|^latest$",
     },
   ],
 }
