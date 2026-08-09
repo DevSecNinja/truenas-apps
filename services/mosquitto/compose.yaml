@@ -33,7 +33,7 @@ services:
     # Runs as nonroot (UID 65532) by default; overridden to 3122:3122 via user: below.
     # Digest intentionally omitted: DHI pruned the previously pinned tag, so Renovate
     # dropped this dep entirely. Renovate re-pins the digest via pinDigests. See #634.
-    image: dhi.io/eclipse-mosquitto:2.1.2-debian13
+    image: dhi.io/eclipse-mosquitto:2.1.2-debian13@sha256:198f4b6e68c0b6ccc36707de7fb272757b60a5610ca17e7e22898e06778ad978
     container_name: mosquitto
     depends_on:
       mosquitto-init:
