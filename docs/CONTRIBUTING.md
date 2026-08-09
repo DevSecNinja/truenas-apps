@@ -4,33 +4,64 @@ This page covers the development workflow for maintaining this repository: depen
 
 ## Renovate
 
-Dependency updates are managed by Renovate. The configuration lives in `renovate.json5` (root) and split files under `.renovate/`:
+Dependency updates are managed by Renovate. Only `renovate.json5` lives in this repository — every other file below is a **remote preset** in [`DevSecNinja/.github`](https://github.com/DevSecNinja/.github), pulled in through the `extends` list. There is no `.renovate/` directory here.
 
-| File                              | Purpose                                                              |
-| --------------------------------- | -------------------------------------------------------------------- |
-| `renovate.json5`                  | Root config — global settings and `extends` index                    |
-| `.renovate/autoMerge.json5`       | Auto-merge policy for GitHub Actions                                 |
-| `.renovate/customManagers.json5`  | Regex managers for SOPS version, mise min_version, workflow versions |
-| `.renovate/groups.json5`          | Grouped updates (postgres, mise)                                     |
-| `.renovate/labels.json5`          | PR labels by update type and datasource                              |
-| `.renovate/packageRules.json5`    | Release age gates, stale-dependency flag, linuxserver versioning     |
-| `.renovate/semanticCommits.json5` | Scoped commit messages with version arrows                           |
+| File                                                          | Purpose                                                                               |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `renovate.json5`                                              | Root config — global settings, `extends` index, repo-local digest exceptions          |
+| `github>DevSecNinja/.github//.renovate/autoMerge.json5`       | Auto-merge policy (`pin`, `pinDigest`, `digest`, `minor`, `patch`)                    |
+| `github>DevSecNinja/.github//.renovate/base.json5`            | Shared baseline settings common to all `DevSecNinja` repositories                     |
+| `github>DevSecNinja/.github//.renovate/customManagers.json5`  | Regex managers for SOPS version, mise min_version, workflow versions                  |
+| `github>DevSecNinja/.github//.renovate/groups.json5`          | Grouped updates (postgres, mise)                                                      |
+| `github>DevSecNinja/.github//.renovate/labels.json5`          | PR labels by update type and datasource                                               |
+| `github>DevSecNinja/.github//.renovate/packageRules.json5`    | Release age gates, non-Docker-Hub registry gating, stale flag, linuxserver versioning |
+| `github>DevSecNinja/.github//.renovate/semanticCommits.json5` | Scoped commit messages with version arrows                                            |
 
 ### Update timing policy
 
-All updates must meet a minimum release age before Renovate opens a PR, giving time for bad releases to be retracted:
+All updates must meet a minimum release age before they can merge, giving time for bad releases to be retracted:
 
-| Update type            | Manager / datasource       | Minimum age           |
-| ---------------------- | -------------------------- | --------------------- |
-| minor / patch          | `actions/*` GitHub Actions | 3 days, auto-merged   |
-| digest                 | All GitHub Actions         | 14 days, auto-merged  |
-| minor / patch          | All other GitHub Actions   | 14 days, manual merge |
-| major                  | Everything                 | 14 days, manual merge |
-| minor / patch / digest | Docker images              | 14 days, manual merge |
-| minor / patch / digest | GitHub Releases            | 14 days, manual merge |
-| minor / patch / digest | `mise` tools               | 14 days, manual merge |
+| Update type   | Manager / datasource                 | Minimum age | Merge        |
+| ------------- | ------------------------------------ | ----------- | ------------ |
+| minor / patch | `actions/*` GitHub Actions           | 3 days      | Auto-merged  |
+| minor / patch | All other GitHub Actions             | 14 days     | Auto-merged  |
+| minor / patch | Docker images                        | 14 days     | Auto-merged  |
+| minor / patch | GitHub Releases                      | 14 days     | Auto-merged  |
+| minor / patch | `mise` tools                         | 14 days     | Auto-merged  |
+| digest        | Docker images pinned to `:latest`    | 14 days     | Auto-merged  |
+| digest        | GitHub Actions refs pinned to `main` | 14 days     | Auto-merged  |
+| major         | Everything                           | 14 days     | Manual merge |
 
-Auto-merges use `automergeType: "branch"` (direct push, no PR) and require CI to pass. Major updates always require a manual merge regardless of datasource.
+Auto-merged PRs require CI to pass and carry the `[automerge]` commit-message suffix. Most rules use `automergeType: "pr"` with `platformAutomerge: true`, so GitHub merges the PR itself once every required check is green; the 3-day `actions/*` exception uses `automergeType: "branch"` (direct push, no PR). **Major** updates always require a manual merge, regardless of datasource.
+
+Digest-only updates are **disabled by the shared preset** to reduce PR noise and to avoid auto-merging a hijacked mutable tag. This repository re-enables them in the two cases where the digest is the only thing that ever moves, both in `renovate.json5`: Docker images pinned to `:latest` (#628) and GitHub Actions / reusable-workflow refs pinned to `main` (#636).
+
+### Enforcing the soak without a trusted timestamp
+
+Renovate only derives a release timestamp for Docker images from Docker Hub — it reads `tag_last_pushed` from the `hub.docker.com` API, which is Hub-specific and not part of the OCI specification. The standard Registry V2 `/tags/list` endpoint every other registry serves returns tag names only, and Renovate will not fall back to the OCI `org.opencontainers.image.created` label because the publisher controls it and could forge it to skip the soak.
+
+The 14-day soak is **still enforced** for those images — just by a different mechanism:
+
+1. A rule in `packageRules.json5` matches Docker dependencies whose package name carries an explicit registry host other than Docker Hub (`/^[^/]*\./` combined with `!/^docker\.io\//`).
+2. That rule sets `minimumReleaseAgeBehaviour: "timestamp-optional"` — so Renovate opens the PR immediately instead of blocking on a timestamp it cannot obtain — and stamps the branch via `additionalBranchPrefix: "docker-gated-"`.
+3. `.github/workflows/renovate-pr-cooldown.yml` calls the shared reusable workflow, which posts the required `pr-cooldown` status check on those `renovate/docker-gated-*` branches. The check stays pending until the PR branch head commit is at least 14 days old; GitHub auto-merge then merges the PR.
+
+Because the same rule sets both the behaviour and the branch prefix, and the workflow gates exactly that prefix, the Renovate config and the gate cannot drift apart.
+
+Two consequences worth knowing:
+
+- There is **no registry allowlist** (removed in `DevSecNinja/.github` PR #312). Any registry nobody has explicitly configured is gated by default, which is fail-safe. Under the previous allowlist a new registry silently got nothing — `dhi.io` was missing for roughly 3.5 months and those images received no updates at all, including security updates (#634).
+- Bare Docker Hub names (e.g. `nginx`, `library/nginx`) keep the native soak and are not gated. This repository mandates an explicit registry prefix on every image, so bare names should not appear here anyway.
+
+Background: ADR 0005 in `DevSecNinja/.github` (`docs/design-decisions/0005-pr-age-cooldown-for-untrusted-timestamps.md`), which classifies `pr-cooldown` as a load-bearing control. For why `docker.io` is preferred when the same image is available on several registries, see [Architecture § Image Selection: Registry Preference](ARCHITECTURE.md#image-selection-registry-preference).
+
+### Silently skipped dependencies (`dhi.io`)
+
+Docker Hardened Images prune entire minor lines. When the tag a compose file is pinned to stops existing, `getCurrentVersion` returns null (the shared preset uses `rangeStrategy: "pin"`) and Renovate marks the dependency `skipReason: invalid-value`. The dependency dashboard filters skipped dependencies out, so the image **disappears from the dashboard with no warning** and silently stops receiving updates. This is how four hardened images went roughly 3.5 months without any updates (#634).
+
+<!-- dprint-ignore -->
+!!! warning "Symptom"
+    A `dhi.io` image that used to appear on the dependency dashboard and no longer does is not up to date — it is unparseable. Check the [catalog](https://hub.docker.com/hardened-images/catalog) and re-pin the compose file to a tag that still exists.
 
 ### Rule precedence note
 
