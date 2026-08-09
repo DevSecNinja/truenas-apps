@@ -32,6 +32,8 @@ All updates must meet a minimum release age before Renovate opens a PR, giving t
 
 Auto-merges use `automergeType: "branch"` (direct push, no PR) and require CI to pass. Major updates always require a manual merge regardless of datasource.
 
+The age gate for Docker images only works on registries that expose a per-tag push timestamp. Docker Hub (`docker.io`) does; `ghcr.io` and most other OCI registries do not, so Renovate cannot enforce `minimumReleaseAge` for images hosted only there. Prefer the `docker.io` copy when an image is published on multiple registries. See the registry-preference rule in [Architecture](ARCHITECTURE.md) for the full reasoning and exceptions.
+
 ### Rule precedence note
 
 `packageRules` are applied in the order they appear across all `extends` entries — **last matching rule wins** for each property. `autoMerge.json5` is loaded before `packageRules.json5`, so `packageRules.json5` must not contain a `matchManagers: ["github-actions"]` timing rule or it would override the 3-day exception for `actions/*`.
