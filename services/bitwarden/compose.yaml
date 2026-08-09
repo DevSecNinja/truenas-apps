@@ -15,7 +15,7 @@ services:
   #     are re-added because they are required by adduser/addgroup, the chown
   #     chain in entrypoint.sh, and the final su-exec privilege drop.
   bitwarden:
-    image: ghcr.io/bitwarden/lite:2026.7.0@sha256:be200b8701ea0e1bad94553285769e87225c681d578b7438677aa86eebc18840
+    image: ghcr.io/bitwarden/lite:2026.7.2@sha256:b034419dfa0df355379bba60da745394ee5a8b56716432351c09683983e6aa49
     container_name: bitwarden
     env_file:
       - path: .env # Decrypted from secret.sops.env
