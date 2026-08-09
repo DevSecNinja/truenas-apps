@@ -13,7 +13,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   lidarr:
-    image: lscr.io/linuxserver/lidarr:version-3.1.0.4875@sha256:dbffcf91da47d48e09e613857032c95a62755b928a71a7718688e3ab03fbbd26
+    image: docker.io/linuxserver/lidarr:version-3.1.0.4875@sha256:bfec0ec2dc351fa5928379d785b08be395886f109393b9040ed7973bd1008060
     container_name: lidarr
     hostname: lidarr
     env_file:

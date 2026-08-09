@@ -2,13 +2,15 @@
 name: Renovate PR cooldown
 
 # Enforces the 14-day soak as a PR-age gate for Renovate PRs from registries
-# without a trusted release timestamp (ghcr.io / lscr.io / quay.io), which the
-# shared presets set to minimumReleaseAgeBehaviour=timestamp-optional. The
-# reusable workflow posts a required `pr-cooldown` status check that only turns
-# green once the PR branch head commit is >=14 days old; GitHub auto-merge then
-# merges. Human and non-gated PRs always get a passing status. See
-# DevSecNinja/.github docs/design-decisions/0005-pr-age-cooldown-for-untrusted-
-# timestamps.md and truenas-apps#115.
+# without a trusted release timestamp — every registry except Docker Hub, which
+# is the only one Renovate reads a release timestamp from. The shared presets
+# set those to minimumReleaseAgeBehaviour=timestamp-optional and mark their
+# branches `renovate/docker-gated-`. The reusable workflow posts a required
+# `pr-cooldown` status check that only turns green once the PR branch head
+# commit is >=14 days old; GitHub auto-merge then merges. Human and non-gated
+# PRs always get a passing status. See DevSecNinja/.github
+# docs/design-decisions/0005-pr-age-cooldown-for-untrusted-timestamps.md and
+# truenas-apps#115.
 
 on:
   pull_request:
