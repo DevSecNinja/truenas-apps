@@ -41,5 +41,21 @@
       matchCurrentValue: "main",
       enabled: true,
     },
+    {
+      // qbittorrent's registry still carries 2022-era tags from a retired
+      // naming scheme, e.g.
+      // "14.3.9.99202110311443-7435-01519b5e7ubuntu20.04.1". Docker versioning
+      // parses stray versions out of those — "14.3.9" and "20.04.1" — and
+      // ranks them above the real releases (isGreaterThan("20.04.1", "5.2.2")
+      // is true), so Renovate offers a major "update" that would actually roll
+      // the container back to a 2021 build. Restricting to a single-digit
+      // major keeps the genuine 5.x line and drops the artefacts. Docker
+      // versioning has no range support, so this has to be a regex rather than
+      // something like "<10". Revisit if qbittorrent ever reaches 10.x.
+      description: "Ignore qbittorrent versions parsed from retired ubuntu-suffixed tags",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/linuxserver/qbittorrent"],
+      allowedVersions: "/^[0-9]\\.[0-9]+\\.[0-9]+$/",
+    },
   ],
 }
