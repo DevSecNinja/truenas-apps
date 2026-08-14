@@ -7,7 +7,7 @@ services:
   # user: is omitted (init requires root to chown/chmod /config to PUID:PGID).
   # cap_drop: ALL still applied; CHOWN/FOWNER/SETUID/SETGID/SETPCAP re-added for init.
   tubesync:
-    image: ghcr.io/meeb/tubesync:v0.18.2@sha256:8e131f9ca3d4893ea93a9f77fcbead4ee52b7c90a294a6be28fa3bdd3d92a1a1
+    image: ghcr.io/meeb/tubesync:v0.18.3@sha256:f41658ebc890fa7aba037e3e1f113b5a2af81581799e23c59534b9faff258092
     container_name: tubesync
     env_file:
       - path: .env # Decrypted from secret.sops.env
