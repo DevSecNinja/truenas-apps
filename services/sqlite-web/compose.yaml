@@ -10,7 +10,7 @@ services:
   # No init container needed — the HA database is managed by Home Assistant
   # and this container only reads it.
   sqlite-web:
-    image: ghcr.io/coleifer/sqlite-web:0.7.2@sha256:81f5971b15b79655693b1bab656a773666984a6b0b010cb03e372cff42e48003
+    image: ghcr.io/coleifer/sqlite-web:0.8.0@sha256:b69dc40fcc2719f2df99de2061606c203a8fb935c45dfb2d5c72df24d96b403e
     container_name: sqlite-web
     env_file:
       - path: .env # Decrypted from secret.sops.env
