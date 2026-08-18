@@ -35,6 +35,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | App                                                                                           | Purpose                                                        |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver            |
+| [AirTrail](https://github.com/johanohly/AirTrail)                                             | Self-hosted personal flight tracking                           |
 | [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs    |
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
@@ -81,6 +82,7 @@ Create a nested dataset hierarchy in the TrueNAS UI for granular snapshot and ba
 vm-pool/apps          # root — holds the git repo
 vm-pool/apps/services      # parent for all app datasets
 vm-pool/apps/services/adguard
+vm-pool/apps/services/airtrail
 vm-pool/apps/services/alloy
 vm-pool/apps/services/bazarr
 vm-pool/apps/services/bitwarden

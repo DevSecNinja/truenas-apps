@@ -96,6 +96,7 @@ services:
       openclaw-frontend:
       sqlite-web-frontend:
       bitwarden-frontend:
+      airtrail-frontend:
     security_opt:
       - no-new-privileges=true
     cap_drop:
@@ -302,4 +303,7 @@ networks:
     external: true
   bitwarden-frontend:
     name: bitwarden-frontend
+    external: true
+  airtrail-frontend:
+    name: airtrail-frontend
     external: true

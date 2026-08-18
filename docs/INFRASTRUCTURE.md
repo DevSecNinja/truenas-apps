@@ -170,12 +170,15 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3125    | `svc-app-alloy`       | alloy, alloy-init                           | Yes (`./config`)    |
 | 3126    | `svc-app-bitwarden`   | bitwarden                                   | No                  |
 | 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                     | No                  |
+| 3128    | `svc-app-airtrail`    | airtrail-db-backup†                         | No                  |
 
-† The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
-image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
-db-backup sidecar. The Outline server itself runs without a `user:` directive;
-an `outline-init` container pre-chowns `./data/data` to UID 1000 so the node
-process can write to the bind-mount path. See:
+† Neither the `outlinewiki/outline` nor the `johly/airtrail` image supports
+PUID/PGID — both run as the image-internal `node` user (UID/GID 1000). UID 3120
+(`svc-app-outline`) and UID 3128 (`svc-app-airtrail`) are used only for their
+respective db-backup sidecars. The application servers themselves run without a
+`user:` directive; an `outline-init` / `airtrail-init` container pre-chowns the
+writable bind-mount (`./data/data` for Outline, `./data/uploads` for AirTrail)
+to UID 1000 so the node process can write to it. See:
 https://github.com/outline/outline/discussions/9452
 
 ### Shared Purpose Groups
