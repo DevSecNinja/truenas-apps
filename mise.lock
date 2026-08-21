@@ -134,49 +134,49 @@ checksum = "sha256:074f68f05d270da5c0d69d3e234ec362bec4c6e3189c21d1c948d03860365
 url = "https://github.com/cocogitto/cocogitto/releases/download/7.0.0/cocogitto-7.0.0-x86_64-pc-windows-msvc.tar.gz"
 
 [[tools.docker-compose]]
-version = "5.3.1"
+version = "v5.4.0"
 backend = "aqua:docker/compose"
 
 [tools.docker-compose."platforms.linux-arm64"]
-checksum = "sha256:aa611e811d0ea25897839c404bfb5bf93ce706dc51c500a4457890f5d0606a86"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-linux-aarch64"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146957"
+checksum = "sha256:fc5d1371f1ec7987e703da94ede49af3fbfb240b83f22991a98511de7bc4b93b"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-linux-aarch64"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141098"
 provenance = "cosign"
 
 [tools.docker-compose."platforms.linux-arm64-musl"]
-checksum = "sha256:aa611e811d0ea25897839c404bfb5bf93ce706dc51c500a4457890f5d0606a86"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-linux-aarch64"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146957"
+checksum = "sha256:fc5d1371f1ec7987e703da94ede49af3fbfb240b83f22991a98511de7bc4b93b"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-linux-aarch64"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141098"
 provenance = "cosign"
 
 [tools.docker-compose."platforms.linux-x64"]
-checksum = "sha256:f9ebc6ebdb19d769b793c245a736caaeb198c62587f13b25c660c13b4987f959"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-linux-x86_64"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146925"
+checksum = "sha256:837fd1d35bf6a494f41b5b5988269a7be79de337cf1a1a6ff0e45ab51bb4e9be"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-linux-x86_64"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141075"
 provenance = "cosign"
 
 [tools.docker-compose."platforms.linux-x64-musl"]
-checksum = "sha256:f9ebc6ebdb19d769b793c245a736caaeb198c62587f13b25c660c13b4987f959"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-linux-x86_64"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146925"
+checksum = "sha256:837fd1d35bf6a494f41b5b5988269a7be79de337cf1a1a6ff0e45ab51bb4e9be"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-linux-x86_64"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141075"
 provenance = "cosign"
 
 [tools.docker-compose."platforms.macos-arm64"]
-checksum = "sha256:32691ba1196d819fa68cbdc0aad9a5569e730a35ae40c6fdd8458110ecd69488"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-darwin-aarch64"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146961"
+checksum = "sha256:bc3d1fd4c01e3af9b481fc5ea153ea7c006c77eb39be78e9af3e2e8ebecc0d61"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-darwin-aarch64"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141105"
 provenance = "cosign"
 
 [tools.docker-compose."platforms.macos-x64"]
-checksum = "sha256:56620a2e87e789147b9b1cc5d37eeecec2332e2cdf5c2d58a68f999f2dc416ca"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-darwin-x86_64"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146966"
+checksum = "sha256:59fc378c6832c7c8d628d4d38a4e2bebcad579b21d1d380e9b8872961fe3da83"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-darwin-x86_64"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141091"
 provenance = "cosign"
 
 [tools.docker-compose."platforms.windows-x64"]
-checksum = "sha256:6d36cc701393c066d67ebc77773b718d8c738bc4ccb350fbf1dc0e6a09f44cb9"
-url = "https://github.com/docker/compose/releases/download/v5.3.1/docker-compose-windows-x86_64.exe"
-url_api = "https://api.github.com/repos/docker/compose/releases/assets/469146923"
+checksum = "sha256:d51bc731b3ff6f062a26e8fdfd391ae98aeab516432f097c66d39c1c9d06680e"
+url = "https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-windows-x86_64.exe"
+url_api = "https://api.github.com/repos/docker/compose/releases/assets/500141069"
 provenance = "cosign"
 
 [[tools.dotenv-linter]]
