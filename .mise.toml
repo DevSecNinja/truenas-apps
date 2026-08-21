@@ -8,7 +8,7 @@ bats = "1.14.0"
 "pipx:checkov" = "3.3.9"
 "pipx:mkdocs-material" = { version = "9.7.7", uvx = "false", pipx_args = "--include-deps" }
 "pipx:yamllint" = "1.38.0"
-"pipx" = "1.16.5"
+"pipx" = "1.16.6"
 actionlint = "1.7.12"
 cocogitto = "7.0.0"
 git-cliff = "2.13.1"
