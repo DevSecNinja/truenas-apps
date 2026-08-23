@@ -20,7 +20,7 @@ Most home networks rely on the ISP's default DNS, which offers no filtering, no 
 
 ## Architecture
 
-- **Images**: [adguard/adguardhome](https://github.com/AdguardTeam/AdGuardHome), [madnuttah/unbound](https://github.com/madnuttah/unbound-docker), [redis](https://hub.docker.com/_/redis) (DNS cache backend), [busybox](https://hub.docker.com/_/busybox) (init containers)
+- **Images**: [adguard/adguardhome](https://github.com/AdguardTeam/AdGuardHome), [madnuttah/unbound](https://github.com/madnuttah/unbound-docker) (resolver), [redis](https://hub.docker.com/_/redis) (DNS cache backend), [busybox](https://hub.docker.com/_/busybox) (template and permission init containers)
 - **User/Group**: `3101:3101` (`svc-app-adguard`) — both AdGuard Home and Unbound run under this identity
 - **Networks**: `adguard-frontend` (bridge, `172.30.53.0/24`) — Unbound at `.2`, AdGuard at `.3`; `adguard-backend` (internal bridge, no host exposure) — Unbound and Redis only
 - **Ports**: `53/tcp` and `53/udp` published on the host for DNS resolution
@@ -45,7 +45,11 @@ The AdGuard Home configuration file (`config/conf/AdGuardHome.yaml`) is git-trac
 
 ### Config Template Substitution (Unbound)
 
-Unbound config files contain `${VAR}` placeholders for secrets and environment-specific values (domain names, IP addresses). The `adguard-unbound-init` container runs `config/unbound/envsubst.sh` at deploy time to substitute these placeholders with values from `secret.sops.env` and writes the processed output to `data/unbound/`. Unbound then mounts the processed files read-only.
+The `adguard-unbound` service wraps the image startup with `/sbin/tini -- /bin/sh -ec`. The wrapper uses `sed -i` on the ephemeral `/usr/local/unbound/unbound.conf` inside the container to re-enable the `conf.d` and `zones.d` `include-toplevel` directives, then validates that both exact directives are present. Because the shell uses `-e`, a failed rewrite or validation stops startup. Finally, `exec /entrypoint` hands control to the image's original entrypoint, preserving its initialization, permission setup, and privilege drop.
+
+Patching the image's ephemeral config instead of bind-mounting a generated or vendored base file avoids the first-deploy bind-mount race and preserves all other upstream defaults. When Renovate updates the image tag or digest, the next container starts from that image's `unbound.conf` and applies only the two required include changes, so new upstream defaults are not masked by an older persistent copy.
+
+The included Unbound config files contain `${VAR}` placeholders for secrets and environment-specific values (domain names, IP addresses). Before the resolver starts, `adguard-unbound-init` runs `config/unbound/envsubst.sh` to substitute these placeholders with values from `secret.sops.env` and writes the processed output to `data/unbound/`. Unbound then mounts the processed files read-only.
 
 Template files and their purpose:
 
@@ -55,7 +59,7 @@ Template files and their purpose:
 | `config/unbound/conf.d/server-overrides.conf` | Logging, private-domain, split-horizon zone                                                                      |
 | `config/unbound/zones.d/forward-zones.conf`   | Forward zones — empty by default (full recursive resolution from root); reserved for special-case zone overrides |
 | `config/unbound/conf.d/remote-control.conf`   | Unbound remote-control settings (mounted directly, no substitution)                                              |
-| `config/unbound/conf.d/cachedb.conf`          | `cachedb:` clause pointing to Redis backend (mounted directly, no substitution)                                  |
+| `config/unbound/conf.d/cachedb.conf`          | `cachedb:` clause pointing to Redis; the password is substituted at deploy time                                  |
 
 The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remain after substitution — missing variables in `secret.sops.env` cause the init container to fail loudly rather than starting Unbound with a broken config.
 
@@ -63,32 +67,34 @@ The `envsubst.sh` script verifies that no unresolved `${VAR}` placeholders remai
 
 | Container               | Role                                                                                                                                                            |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `adguard-unbound-init`  | One-shot init: substitutes `${VAR}` placeholders in Unbound config templates, chowns output to `3101:3101`                                                      |
+| `adguard-unbound-init`  | One-shot init: substitutes `${VAR}` placeholders in Unbound config templates and chowns output to the service identity                                          |
 | `adguard-redis`         | Ephemeral Redis cache backend for Unbound's `cachedb` module — cache survives Unbound restarts but is lost on Redis restart                                     |
-| `adguard-unbound`       | Recursive DNS resolver (Unbound) — resolves from root DNS servers, local-data for internal names                                                                |
+| `adguard-unbound`       | Recursive DNS resolver; patches and validates the image's ephemeral include directives before executing the upstream entrypoint                                 |
 | `adguard-unbound-flush` | One-shot sidecar: flushes Unbound's cache for `${DOMAINNAME}` via `unbound-control` — clears stale internal entries without wiping the Redis external DNS cache |
-| `adguard-init`          | One-shot init: copies `AdGuardHome.yaml` from repo config into `data/conf/`, chowns `data/work` and `data/conf` to `3101:3101`                                  |
+| `adguard-init`          | One-shot init: copies `AdGuardHome.yaml` from repo config into `data/conf/` and chowns `data/work` and `data/conf` to the service identity                      |
 | `adguard`               | AdGuard Home DNS filter — listens on port 53, forwards to Unbound on the frontend network                                                                       |
 
 ### Startup Order
 
 ```text
-adguard-redis (healthy) ──────────────────────────────────────────────────┐
-adguard-unbound-init (completed) ─────────────────────────────────────────┴─→ adguard-unbound (healthy) → adguard-unbound-flush (completed) ──┐
-adguard-init (completed) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴─→ adguard
+adguard-unbound-init (completed) ─┐
+adguard-redis (healthy) ──────────┴─→ adguard-unbound (healthy) → adguard-unbound-flush (completed) ──┐
+adguard-init (completed) ─────────────────────────────────────────────────────────────────────────────┴─→ adguard
 ```
 
 ### Init Containers
 
-**`adguard-unbound-init`** runs the envsubst script and chowns the output directory:
+**`adguard-unbound-init`** uses the BusyBox image to run the envsubst script and chown the output directory:
 
 - Capabilities: `CHOWN` (transfer ownership) + `DAC_OVERRIDE` (overwrite existing output files)
-- Volumes chown'd: `./data/unbound`
+- Output: `./data/unbound`
+- Ownership: the values declared by `UNBOUND_UID` and `UNBOUND_GID` for the resolver
 
-**`adguard-init`** seeds the AdGuard config from the git-tracked source and sets ownership on runtime directories:
+**`adguard-init`** uses the BusyBox image to seed the AdGuard config from the git-tracked source and set ownership on runtime directories:
 
 - Capabilities: `CHOWN` (transfer ownership) + `DAC_OVERRIDE` (traverse previously chowned directories)
-- Volumes chown'd: `./data/work`, `./data/conf`
+- Output: `./data/work`, `./data/conf`
+- Ownership: the AdGuard service account's PUID and PGID
 
 ### Unbound Exceptions
 
@@ -96,15 +102,16 @@ The `adguard-unbound` container deviates from the standard hardening baseline:
 
 - **`user:` is omitted**: the entrypoint starts as root, chowns directories to `UNBOUND_UID:UNBOUND_GID`, then drops privileges to the internal `_unbound` user
 - **`read_only` is omitted**: the image writes a pidfile and auth-zone data under `/usr/local/unbound/` during startup
-- **`cap_add`**: `CHOWN` (entrypoint chown), `SETUID` / `SETGID` (privilege drop to `_unbound`)
+- **`cap_add`**: `CHOWN` (entrypoint chown), `DAC_OVERRIDE` only because `sed -i` must rewrite `unbound.conf` within the image filesystem, `SETUID` / `SETGID` (privilege drop to `_unbound`), and `KILL` (Tini signal forwarding after the privilege drop)
 - **`module-config`**: overridden to `"validator cachedb iterator"` in `server-overrides.conf` (default is `"validator iterator"`) to enable the Redis-backed `cachedb` module
 
 ### Healthcheck
 
-Unbound's healthcheck verifies two things in sequence:
+Unbound's healthcheck verifies three things in sequence:
 
-1. Resolves `healthcheck.${DOMAINNAME}` — proves Unbound is running, the config was loaded, and envsubst substituted `${DOMAINNAME}` correctly
-2. Resolves `dns.google` — proves recursive resolution from root is working
+1. Reads `control-enable` with `unbound-checkconf` and requires the value `yes` — proves the startup wrapper enabled the `conf.d` include and made `remote-control.conf` effective
+2. Resolves `healthcheck.${DOMAINNAME}` — proves Unbound is running, the config was loaded, and envsubst substituted `${DOMAINNAME}` correctly
+3. Resolves `dns.google` — proves recursive resolution from root is working
 
 AdGuard's healthcheck is a simple HTTP check against its web UI on port 80.
 
@@ -126,7 +133,7 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 2. Create a `svc-app-adguard` group (GID 3101) and user (UID 3101) on the TrueNAS host — see [Infrastructure](../INFRASTRUCTURE.md#app-service-accounts) for the full procedure
 3. Add the required variables to `secret.sops.env` — at minimum `DOMAINNAME`, `DDNS_DOMAIN`, and the `IP_*` addresses referenced in the Unbound A-record template
 4. Encrypt the secrets file: `sops -e -i services/adguard/secret.sops.env`
-5. Deploy: the CD script decrypts secrets and brings the stack up. Verify Unbound health first (`docker logs adguard-unbound-init`), then confirm AdGuard is resolving queries on port 53
+5. Deploy: the CD script decrypts secrets and brings the stack up. Verify the template init (`docker logs adguard-unbound-init`) and resolver startup wrapper (`docker logs adguard-unbound`), then confirm AdGuard is resolving queries on port 53
 6. Point your network's DNS to the host IP running AdGuard (router DHCP settings or per-device)
 
 ## Upgrade Notes

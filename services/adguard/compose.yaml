@@ -126,6 +126,23 @@ services:
     environment:
       UNBOUND_UID: 3101
       UNBOUND_GID: 3101
+    # Unbound 1.26.0 ships both include-toplevel directives commented out.
+    # Patch the ephemeral image config, verify both includes, then hand control
+    # to the image's original entrypoint so future image defaults stay authoritative.
+    entrypoint:
+      - "/sbin/tini"
+      - "--"
+      - "/bin/sh"
+      - "-ec"
+    command:
+      - |
+        sed -i \
+          -e 's|^#include-toplevel: "/usr/local/unbound/conf.d/\*\.conf"|include-toplevel: "/usr/local/unbound/conf.d/*.conf"|' \
+          -e 's|^#include-toplevel: "/usr/local/unbound/zones.d/\*\.conf"|include-toplevel: "/usr/local/unbound/zones.d/*.conf"|' \
+          /usr/local/unbound/unbound.conf
+        grep -Fqx 'include-toplevel: "/usr/local/unbound/conf.d/*.conf"' /usr/local/unbound/unbound.conf
+        grep -Fqx 'include-toplevel: "/usr/local/unbound/zones.d/*.conf"' /usr/local/unbound/unbound.conf
+        exec /entrypoint
     # No user: — entrypoint starts as root, chowns dirs to UNBOUND_UID:UNBOUND_GID,
     # then drops privileges internally. Setting user: externally breaks that.
     # read_only is not set: image writes pidfile and auth-zone data under
@@ -147,6 +164,7 @@ services:
       - ALL
     cap_add:
       - CHOWN # Required for entrypoint to chown dirs to UNBOUND_UID:UNBOUND_GID
+      - DAC_OVERRIDE # Required for the startup wrapper to rewrite the upstream config
       - SETUID # Required to drop from root to _unbound user
       - SETGID # Required to drop from root to _unbound group
       - KILL # Required for tini (PID 1, root) to forward signals to unbound running as UID 3101;
@@ -163,13 +181,14 @@ services:
       # Required only when tls-cert-bundle is enabled in server-overrides.conf (DoT forward zones):
       # - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     healthcheck:
-      # 1. Resolves the canary record from conf.d/a-records.conf — proves unbound is
+      # 1. Confirms remote control is enabled — proves conf.d overrides were loaded.
+      # 2. Resolves the canary record from conf.d/a-records.conf — proves unbound is
       #    running, the config was loaded, and envsubst substituted ${DOMAINNAME}.
-      # 2. Resolves an external domain — proves recursive resolution from root servers works.
+      # 3. Resolves an external domain — proves recursive resolution from root servers works.
       test:
         - "CMD-SHELL"
-        - "drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep -q 'rcode: NOERROR' && drill -p 5335 @127.0.0.1 dns.google
-          | grep -q 'rcode: NOERROR'"
+        - "unbound-checkconf -o control-enable | grep -qx yes && drill -p 5335 @127.0.0.1 healthcheck.${DOMAINNAME} | grep
+          -q 'rcode: NOERROR' && drill -p 5335 @127.0.0.1 dns.google | grep -q 'rcode: NOERROR'"
       interval: 30s
       timeout: 10s
       retries: 3
