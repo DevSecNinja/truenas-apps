@@ -184,6 +184,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
 | _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
+| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                       |
 | alloy                | `alloy-init`                | `./data` (WAL + queue)                                                             |
 | dozzle               | `dozzle-init`               | `./data`                                                                           |
 | frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
@@ -250,6 +251,12 @@ This keeps secrets out of Git (the template only contains placeholder names) whi
 | -------------------- | --------------------------- | ----------------------------------------------- |
 | adguard (unbound)    | `adguard-unbound-init`      | `config/unbound/*.conf` → `data/unbound/*.conf` |
 | traefik-forward-auth | `traefik-forward-auth-init` | `config/config.yaml` → `data/config.yaml`       |
+
+### AdGuard Unbound Startup Wrapper
+
+The `adguard-unbound` resolver overrides its entrypoint with `/sbin/tini -- /bin/sh -ec`. At each container start, the wrapper uses `sed -i` on the ephemeral `/usr/local/unbound/unbound.conf` to re-enable the `conf.d` and `zones.d` `include-toplevel` directives, validates that both exact directives are present, then runs `exec /entrypoint` to preserve the image's upstream initialization and privilege drop. `DAC_OVERRIDE` is added only because `sed` must rewrite this config within the image filesystem.
+
+No generated base config is bind-mounted. This avoids the first-deploy bind-mount race and ensures each Renovate image update starts with that image's current defaults; the wrapper changes only the two required include directives instead of masking new defaults with an older persistent copy. The healthcheck requires `unbound-checkconf -o control-enable` to return `yes`, proving that the `conf.d` include made the mounted remote-control config effective.
 
 ## Networking: Per-Service Isolation
 
