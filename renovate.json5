@@ -25,6 +25,10 @@
       matchUpdateTypes: ["digest"],
       matchCurrentValue: "latest",
       enabled: true,
+      // Digest updates do not reliably carry a release timestamp. Without
+      // this override the shared strict 14-day soak leaves them in
+      // "Pending Status Checks" forever.
+      minimumReleaseAge: "0",
     },
     {
       // Same reasoning as the ":latest" rule above, for reusable workflows
@@ -56,6 +60,23 @@
       matchDatasources: ["docker"],
       matchPackageNames: ["docker.io/linuxserver/qbittorrent"],
       allowedVersions: "/^[0-9]\\.[0-9]+\\.[0-9]+$/",
+    },
+    {
+      // Docker versioning treats the numeric suffix after the hyphen as
+      // compatibility, so 1.25.1-1 can never advance to 1.25.1-2 or a newer
+      // Unbound release with a different package revision.
+      description: "Parse madnuttah/unbound package revisions as build numbers",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/madnuttah/unbound"],
+      versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<build>\\d+)(?:-(?<compatibility>quic))?$",
+    },
+    {
+      // The release- prefix is not parsed by Docker versioning, so Renovate
+      // detects the dependency but misses newer release-* tags.
+      description: "Parse wmbusmeters release tags",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/wmbusmeters/wmbusmeters"],
+      versioning: "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
     },
   ],
 }
