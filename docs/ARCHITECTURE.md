@@ -186,6 +186,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
 | adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                       |
 | alloy                | `alloy-init`                | `./data` (WAL + queue)                                                             |
+| devcontainer         | `devcontainer-init`         | `./data` (chown to UID 1000 — image-internal `vscode` user)                        |
 | dozzle               | `dozzle-init`               | `./data`                                                                           |
 | frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
 | gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
