@@ -27,7 +27,7 @@ services:
       - ./backups:/backups
 
   plex:
-    image: docker.io/linuxserver/plex:version-1.43.3.10828-00f62d37d@sha256:0f57346cb9eda39631da8e6f6517dbf0471b91f8e65621305a3e166f8ffce952
+    image: docker.io/linuxserver/plex:version-1.43.3.10861-07dfddaeb@sha256:d2d85229429f2a8b84a6f5523f7cd69470d9b705a1aba9046887eb73d395101f
     container_name: plex
     depends_on:
       plex-init:
