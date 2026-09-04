@@ -13,7 +13,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   sabnzbd:
-    image: docker.io/linuxserver/sabnzbd:version-5.1.0@sha256:e79d3fd9282b7fa51a3382cec9fdcc4cf736f46c9d43d188193e3ce1c7accbcd
+    image: docker.io/linuxserver/sabnzbd:version-5.1.1@sha256:78253a5ed379d08c16deba4154a2468875aa25a729c54c59c1199f851f87c29e
     container_name: sabnzbd
     hostname: sabnzbd
     env_file:
