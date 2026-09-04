@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   cooldown:
-    uses: DevSecNinja/.github/.github/workflows/renovate-pr-cooldown.yml@14651183caf76526c7596e60fce70437f6ad1831 # main
+    uses: DevSecNinja/.github/.github/workflows/renovate-pr-cooldown.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main
     permissions:
       contents: read
       pull-requests: read
