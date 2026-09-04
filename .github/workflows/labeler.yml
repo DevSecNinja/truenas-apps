@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   labeler:
-    uses: DevSecNinja/.github/.github/workflows/labeler.yml@e744bc05bb096d6356cc913900ff62482e656046 # main
+    uses: DevSecNinja/.github/.github/workflows/labeler.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main
     permissions:
       contents: read
       pull-requests: write

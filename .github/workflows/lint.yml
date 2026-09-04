@@ -18,7 +18,7 @@ permissions:
 jobs:
   # --- Centralized reusable lint workflow from DevSecNinja/.github ---
   lint:
-    uses: DevSecNinja/.github/.github/workflows/lint.yml@0c4551a1ebe5f5332511514e4d45a9bb4df2df09 # main
+    uses: DevSecNinja/.github/.github/workflows/lint.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main
     permissions:
       contents: read
       security-events: write
@@ -63,7 +63,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@bf22fcfcb4ef94a359eed55cea4b5ce7f5b98167 # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,7 +84,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@bf22fcfcb4ef94a359eed55cea4b5ce7f5b98167 # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -109,7 +109,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@bf22fcfcb4ef94a359eed55cea4b5ce7f5b98167 # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
