@@ -182,7 +182,8 @@ https://github.com/outline/outline/discussions/9452
 The `svc-app-dawarich` user has UID 3128, primary group
 `svc-app-dawarich` (GID 3128), and no shared-purpose group memberships.
 The application, worker, init ownership target, and database backup sidecar
-use this identity.
+use this identity. The nfrastack/db-backup `4.9.2` compatibility release selects
+it through `USER_DBBACKUP=3128` and `GROUP_DBBACKUP=3128`.
 
 ### Shared Purpose Groups
 
@@ -269,7 +270,7 @@ Compose definition and encrypted secrets alongside all Dawarich runtime data:
 | `./data/sidekiq-tmp`  | Sidekiq worker cache and home directories                                             |
 | `./data/storage`      | Dawarich application storage                                                          |
 | `./data/watched`      | Watched GPS import directory                                                          |
-| `./backups/db-backup` | ZSTD-compressed, encrypted PostgreSQL backups                                         |
+| `./backups/db-backup` | ZSTD-compressed, GPG-encrypted PostgreSQL backups with SHA1 sidecars                  |
 
 Before the first deployment:
 
@@ -283,19 +284,31 @@ Before the first deployment:
 
 `dawarich-init` assigns the public assets, storage, watched imports, and the
 app/worker temporary paths to `3128:3128`. Redis is assigned to its
-image-internal `999:999` identity. PostGIS and the backup image manage their
-own runtime directory permissions. The init container retains `CHOWN`,
+image-internal `999:999` identity. PostGIS manages its own runtime directory
+permissions. The nfrastack/db-backup `4.9.2` compatibility release manages the
+backup path while mapping its internal user and group to `3128:3128` through
+`USER_DBBACKUP` and `GROUP_DBBACKUP`. The init container retains `CHOWN`,
 `FOWNER`, and `DAC_OVERRIDE`; `DAC_OVERRIDE` lets repeat deployments traverse
 mode `770` runtime paths. Before changing ownership, it fails if any required
 decrypted value is empty or `CHANGE_ME`. PostGIS and Redis depend on successful
-init completion, so a placeholder database password cannot initialize
-PostGIS.
+init completion, so a placeholder database password cannot initialize PostGIS.
 
 The internal `dawarich-backend` network is owned by `_bootstrap` and referenced
 as external by both Alloy and Dawarich. A full `dccd.sh` deployment processes
 `_bootstrap` first, so the network exists before either consumer on a fresh
-host. Redis remains backend-only. The database backup container is the only
-backend service that also joins `dawarich-frontend`, solely for SMTP egress.
+host. Redis and the database backup container remain backend-only. The backup
+container sets `ENABLE_NOTIFICATIONS=FALSE` and does not join
+`dawarich-frontend`; all remaining `NOTIFICATIONS_EMAIL_*` variables configure
+Dawarich application email only.
+
+The backup container runs `backup-now` with `MODE=MANUAL` on every full
+`dccd.sh` deployment. It uses ZSTD compression, GPG passphrase encryption
+through `DEFAULT_ENCRYPT` and `DEFAULT_ENCRYPT_PASSPHRASE`, a SHA1 sidecar, and
+`DEFAULT_CLEANUP_TIME=2880`. Runtime testing successfully decrypted and
+restored the dump into a fresh PostgreSQL database. Version 5.0.0 was
+intentionally not selected because runtime restore validation failed with an
+invalid bigint conversion; `4.9.2` preserves the proven v4 workflow in the
+maintained nfrastack image and repository.
 
 ## Media Access
 

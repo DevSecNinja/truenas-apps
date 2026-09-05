@@ -77,8 +77,8 @@ services:
           "$${DAWARICH_OTP_KEY_DERIVATION_SALT:-}" \
           "$${DAWARICH_ARCHIVE_ENCRYPTION_KEY:-}" \
           "$${DAWARICH_SIDEKIQ_PASSWORD:-}" \
+          "$${DAWARICH_MOBILE_PROXY_TOKEN:-}" \
           "$${NOTIFICATIONS_EMAIL_FROM:-}" \
-          "$${NOTIFICATIONS_EMAIL_TO:-}" \
           "$${NOTIFICATIONS_EMAIL_HOST:-}" \
           "$${NOTIFICATIONS_EMAIL_DOMAIN:-}" \
           "$${NOTIFICATIONS_EMAIL_USERNAME:-}" \
@@ -153,7 +153,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:uid=3128,gid=3128,mode=1777
+      - /tmp
     volumes:
       - ./data/public:/var/app/public
       - ./data/storage:/var/app/storage
@@ -186,15 +186,46 @@ services:
       ## HTTP Services
       - "traefik.http.routers.dawarich-rtr.service=dawarich"
       - "traefik.http.services.dawarich.loadbalancer.server.port=3000"
-      ## GPS clients authenticate with Dawarich API tokens and cannot complete
-      ## interactive Forward Auth. Only the two ingestion endpoints bypass it;
-      ## API login, registration, documentation, and all other APIs stay behind SSO.
-      - "traefik.http.routers.dawarich-api-rtr.rule=Host(`dawarich.${DOMAINNAME}`) && (Path(`/api/v1/owntracks/points`) ||
-        Path(`/api/v1/overland/batches`))"
-      - "traefik.http.routers.dawarich-api-rtr.entrypoints=https"
-      - "traefik.http.routers.dawarich-api-rtr.priority=100"
-      - "traefik.http.routers.dawarich-api-rtr.middlewares=chain-no-auth@file"
-      - "traefik.http.routers.dawarich-api-rtr.service=dawarich"
+      ## The official iOS app supports custom reverse-proxy headers. Require a
+      ## second secret in addition to its Dawarich API key, and allowlist only
+      ## API-key-protected mobile resources. Auth and API docs stay behind SSO.
+      - >-
+        traefik.http.routers.dawarich-mobile-rtr.rule=Host(`dawarich.${DOMAINNAME}`) &&
+        Header(`X-Dawarich-Proxy-Token`, `${DAWARICH_MOBILE_PROXY_TOKEN}`) &&
+        (Path(`/api/v1/health`) ||
+        Path(`/api/v1/users/me`) ||
+        Path(`/api/v1/plan`) ||
+        PathPrefix(`/api/v1/settings/mobile`) ||
+        PathPrefix(`/api/v1/points`) ||
+        Path(`/api/v1/timeline`) ||
+        PathPrefix(`/api/v1/tracks`) ||
+        PathPrefix(`/api/v1/visits`) ||
+        Path(`/api/v1/stats`) ||
+        PathPrefix(`/api/v1/insights`) ||
+        PathPrefix(`/api/v1/digests`) ||
+        PathPrefix(`/api/v1/demo_data`) ||
+        PathPrefix(`/api/v1/families`) ||
+        PathPrefix(`/api/v1/photos`) ||
+        PathPrefix(`/api/v1/countries`) ||
+        PathPrefix(`/api/v1/maps`) ||
+        PathPrefix(`/api/v1/tiles`) ||
+        PathPrefix(`/api/v1/places`))
+      - "traefik.http.routers.dawarich-mobile-rtr.entrypoints=https"
+      - "traefik.http.routers.dawarich-mobile-rtr.priority=110"
+      - "traefik.http.routers.dawarich-mobile-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.dawarich-mobile-rtr.service=dawarich"
+      ## Third-party trackers use API keys in their documented ingestion URLs.
+      ## Keep the bypass to POST requests on the three exact receiver endpoints.
+      - >-
+        traefik.http.routers.dawarich-ingest-rtr.rule=Host(`dawarich.${DOMAINNAME}`) &&
+        Method(`POST`) &&
+        (Path(`/api/v1/owntracks/points`) ||
+        Path(`/api/v1/overland/batches`) ||
+        Path(`/api/v1/traccar/points`))
+      - "traefik.http.routers.dawarich-ingest-rtr.entrypoints=https"
+      - "traefik.http.routers.dawarich-ingest-rtr.priority=100"
+      - "traefik.http.routers.dawarich-ingest-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.dawarich-ingest-rtr.service=dawarich"
       ## Monitoring (Gatus — no auth, internal entrypoint only)
       - "traefik.http.routers.dawarich-monitor.rule=Host(`dawarich.${DOMAINNAME}`)"
       - "traefik.http.routers.dawarich-monitor.entrypoints=monitoring"
@@ -248,7 +279,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:uid=3128,gid=3128,mode=1777
+      - /tmp
     volumes:
       - ./data/public:/var/app/public
       - ./data/storage:/var/app/storage
@@ -366,9 +397,11 @@ services:
       retries: 5
       start_period: 30s
 
-  # One-shot encrypted PostgreSQL backup, started by each full dccd deployment.
+  # One-shot encrypted PostgreSQL backup using the maintained nfrastack v4
+  # compatibility release. The v5 rewrite is not used because restore testing
+  # exposed an invalid bigint conversion in its PostgreSQL restore path.
   dawarich-db-backup:
-    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
     container_name: dawarich-db-backup
     depends_on:
       dawarich-db:
@@ -385,21 +418,11 @@ services:
       - CONTAINER_NAME=dawarich-db-backup
       - CONTAINER_ENABLE_MONITORING=FALSE
       - CONTAINER_ENABLE_SCHEDULING=FALSE
+      - CHECK_NEW_VERSION=FALSE
+      - STATS_ENABLED=FALSE
       - MODE=MANUAL
       - MANUAL_RUN_FOREVER=FALSE
-      - ENABLE_NOTIFICATIONS=TRUE
-      - NOTIFICATION_TYPE=EMAIL
-      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
-      - SMTP_DOMAIN=${NOTIFICATIONS_EMAIL_DOMAIN}
-      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
-      - SMTP_USER=${NOTIFICATIONS_EMAIL_USERNAME}
-      - SMTP_PASS=${NOTIFICATIONS_EMAIL_PASSWORD}
-      - MAIL_TO=${NOTIFICATIONS_EMAIL_TO}
-      - MAIL_FROM=${NOTIFICATIONS_EMAIL_FROM}
-      - SMTP_AUTHENTICATION=on
-      - SMTP_TLSCERTCHECK=TRUE
-      - SMTP_STARTTLS=on
-      - SMTP_TLS=on
+      - ENABLE_NOTIFICATIONS=FALSE
       - DEFAULT_CHECKSUM=SHA1
       - DEFAULT_COMPRESSION=ZSTD
       - DEFAULT_CLEANUP_TIME=2880
@@ -413,7 +436,6 @@ services:
       - DB01_PASS=${DAWARICH_DB_PASSWORD}
     restart: "no"
     networks:
-      - dawarich-frontend # Egress for SMTP backup notifications
       - dawarich-backend
     mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
     pids_limit: 100

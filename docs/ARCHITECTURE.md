@@ -176,6 +176,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 **Exceptions — images that manage their own permissions:**
 
 - **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and chown their own directories during their own init phase. They do not need an external init container.
+- **nfrastack/db-backup** manages backup output ownership through its `USER_DBBACKUP` and `GROUP_DBBACKUP` settings. It does not need an external init container.
 - **Database images** (postgres, MongoDB) initialise their own data directories. They do not need an external init container.
 
 **Services using this pattern:**
@@ -243,6 +244,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit `user:` and `read_only`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **LinuxServer socket-proxy** — runs as root by design to proxy the Docker socket. Does not support custom users, mods, or scripts. Omit `cap_drop: ALL`; `no-new-privileges` and `read_only` are still applied.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
+- **nfrastack/db-backup** — the `4.9.2` compatibility release uses `USER_DBBACKUP`/`GROUP_DBBACKUP` to select its internal backup identity; omit `user:` and `read_only`. Dawarich maps both settings to its dedicated service account.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 - **meeb/tubesync** — uses its own `start.sh` init script to create the `PUID:PGID` user, chown `/config`, and launch supervisord; omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **ghcr.io/home-assistant/home-assistant** — uses s6-overlay (confirmed by `s6-rc` log lines). Omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, `SETPCAP` via `cap_add` (standard s6-overlay set). Also add `NET_RAW` — required by HA's built-in DHCP watcher integration, which opens raw `AF_PACKET` sockets to track devices; without it HA logs `[Errno 1] Operation not permitted` at startup and the DHCP integration stops working. No TrueNAS service account or init container is required — s6-overlay manages `/config` ownership internally.
@@ -312,8 +314,24 @@ uses it only to scrape `dawarich-db-exporter`. The `_bootstrap` stack creates
 the network before Alloy and Dawarich because its directory sorts first in a
 full `dccd.sh` deployment. This ownership and ordering prevent Alloy from
 failing on a fresh deployment while keeping the network internal. Redis remains
-backend-only. Of the backend services, only the database backup container also
-joins `dawarich-frontend`, solely for outbound SMTP notifications.
+backend-only. The database backup container also stays backend-only and sets
+`ENABLE_NOTIFICATIONS=FALSE`; the remaining `NOTIFICATIONS_EMAIL_*` variables
+configure only Dawarich application email.
+
+`dawarich-db-backup` uses the maintained
+`docker.io/nfrastack/db-backup:4.9.2` compatibility release. It runs
+`backup-now` in one-shot `MODE=MANUAL` mode on every full `dccd.sh` deployment.
+`DEFAULT_COMPRESSION=ZSTD`, `DEFAULT_CHECKSUM=SHA1`,
+`DEFAULT_ENCRYPT=TRUE`, and
+`DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}` produce a ZSTD-compressed,
+GPG-encrypted PostgreSQL dump with a SHA1 sidecar.
+`DEFAULT_CLEANUP_TIME=2880` retains the artifacts for 2880 minutes. Runtime
+testing successfully decrypted the dump and restored it into a fresh PostgreSQL
+database.
+
+Version 5.0.0 was intentionally not selected because runtime restore validation
+failed with an invalid bigint conversion. Version 4.9.2 preserves the proven v4
+workflow while using the maintained nfrastack image and repository.
 
 ### Exception: iot-backend
 
@@ -326,16 +344,43 @@ for the web UI, including protection against exposure of the upstream seeded
 demo administrator. The chain combines rate limiting, Forward Auth, and
 `middlewares-dawarich-secure-headers`. Its CSP adds only
 `https://tyles.dwri.xyz`, required by the default Protomaps vector tiles, and
-permits same-origin and `blob:` web workers for MapLibre. A second router has a
-higher priority, matches only
-`/api/v1/owntracks/points` and `/api/v1/overland/batches` exactly, and uses
-`chain-no-auth@file`. GPS clients can therefore reach those ingestion
-endpoints without interactive Forward Auth, but both still require Dawarich
-API-key authentication. API login, registration, `/api-docs`, and every other
-endpoint remain on the main `chain-auth-dawarich@file` router. This prevents
-the known seeded `demo@dawarich.app` / `safepassword` credentials from being
-exchanged for an API key without first passing SSO; the credentials must still
-be changed immediately after first login.
+permits same-origin and `blob:` web workers for MapLibre. All requests use this
+router unless one of two higher-priority, `chain-no-auth@file` routers matches:
+
+| Router                | Match                                                                                                 | Application authentication |
+| --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------- |
+| Official mobile       | Correct `X-Dawarich-Proxy-Token` and an allowlisted `/api/v1` mobile resource                         | User's Dawarich API key    |
+| Third-party ingestion | `POST` to exactly `/api/v1/owntracks/points`, `/api/v1/overland/batches`, or `/api/v1/traccar/points` | Dawarich API key           |
+
+The mobile allowlist contains `health`, `users/me`, `plan`, `settings/mobile`,
+`points`, `timeline`, `tracks`, `visits`, `stats`, `insights`, `digests`,
+`demo_data`, `families`, `photos`, `countries`, `maps`, `tiles`, and `places`.
+The additional proxy token comes from `DAWARICH_MOBILE_PROXY_TOKEN` in the
+SOPS-encrypted service environment. It limits the Forward Auth bypass to
+official clients configured with that second secret; it does not replace the
+user's Dawarich API key.
+
+```mermaid
+flowchart LR
+    Request --> Mobile{Mobile header and allowlisted path?}
+    Mobile -->|Yes| MobileAPI[Mobile API with Dawarich API key]
+    Mobile -->|No| Ingest{POST to exact ingestion path?}
+    Ingest -->|Yes| IngestAPI[Ingestion API with Dawarich API key]
+    Ingest -->|No| Entra[chain-auth-dawarich]
+    Entra --> Default[Web UI or other route]
+```
+
+GPSLogger and PhoneTrack use the OwnTracks endpoint. API login and registration,
+`/api-docs`, non-`POST` requests to ingestion paths, and all other endpoints
+remain on the main router. Requests with a missing or incorrect mobile proxy
+token also fall through to Forward Auth. This prevents the known seeded
+`demo@dawarich.app` / `safepassword` credentials from being exchanged for an
+API key without first passing SSO; the credentials must still be changed
+immediately after first login.
+
+Third-party clients may send API keys in query strings. Because query strings
+can be recorded in proxy access logs, access to those logs must be restricted
+and exposed keys must be rotated.
 
 ### Cloudflare Tunnel through Traefik
 
@@ -566,7 +611,7 @@ services/<service>/
 
 **`vm-pool/homes`** is a sibling dataset to `vm-pool/apps` (not a child). It holds user home directories. When a TrueNAS local user account has its home directory set to `/mnt/vm-pool/homes` and **Create Home Directory** is enabled, TrueNAS automatically creates a per-user subdirectory (e.g. `/mnt/vm-pool/homes/jean-paul`) with owner-only permissions (`rwx------`). Pool-level snapshots cover it automatically alongside `vm-pool/apps`.
 
-**`backups/`** holds database backup files produced by the backup sidecar container (e.g., `tiredofit/db-backup`). Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
+**`backups/`** holds database backup files produced by backup sidecars such as `tiredofit/db-backup` and `nfrastack/db-backup`. Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
 
 ## Secret Management
 
