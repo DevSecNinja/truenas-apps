@@ -312,7 +312,6 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 COMMIT="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/truenas-apps-smoke.XXXXXX")"
 PROJECT="smoke-$(printf '%.12s' "${COMMIT}")-$$"
-SOURCE="${COMMIT}"
 
 if [ -n "$(git -C "${REPO_ROOT}" ls-files --others --exclude-standard)" ]; then
     printf '%s\n' "BLOCKED: review and include required untracked files before testing"
@@ -327,9 +326,14 @@ if ! git -C "${REPO_ROOT}" diff --quiet "${COMMIT}" --; then
         git -C "${REPO_ROOT}" diff --binary "${COMMIT}" -- |
             git hash-object --stdin
     )"
-    git -C "${REPO_ROOT}" diff --binary "${COMMIT}" -- |
-        git -C "${TEST_ROOT}" apply --binary
+    if ! git -C "${REPO_ROOT}" diff --binary "${COMMIT}" -- |
+        git -C "${TEST_ROOT}" apply --binary; then
+        printf '%s\n' "ERROR: failed to apply tracked worktree changes to disposable source" >&2
+        exit 1
+    fi
     SOURCE="${COMMIT}+worktree-${WORKTREE_ID}"
+else
+    SOURCE="${COMMIT}"
 fi
 cd "${TEST_ROOT}"
 ```

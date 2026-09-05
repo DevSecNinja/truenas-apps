@@ -20,7 +20,8 @@ so each component can be isolated and operated independently.
 | Route                                                       | Authentication                                | Description                                    |
 | ----------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------- |
 | `https://dawarich.${DOMAINNAME}` and all unspecified routes | Traefik Forward Auth, then Dawarich account   | Web UI and default route                       |
-| Allowlisted official mobile API routes                      | `X-Dawarich-Proxy-Token` and Dawarich API key | Official iOS app                               |
+| `/api/v1/health`                                            | `X-Dawarich-Proxy-Token`                      | iOS discovery; returns no user data            |
+| Other allowlisted official mobile API routes                | `X-Dawarich-Proxy-Token` and Dawarich API key | Official iOS mobile data                       |
 | `POST /api/v1/overland/batches`                             | Dawarich API key                              | Overland ingestion                             |
 | `POST /api/v1/owntracks/points`                             | Dawarich API key                              | OwnTracks, GPSLogger, and PhoneTrack ingestion |
 | `POST /api/v1/traccar/points`                               | Dawarich API key                              | Traccar ingestion                              |
@@ -28,10 +29,12 @@ so each component can be isolated and operated independently.
 The main router uses `chain-auth-dawarich@file` as defense in depth because
 upstream seeds a demo administrator. The chain combines rate limiting, Forward
 Auth, and `middlewares-dawarich-secure-headers`. Its restrictive CSP permits
-`connect-src 'self' https:` because upstream supports user-configurable vector,
-raster, and style basemap URLs. Custom basemap endpoints must use HTTPS; HTTP
-custom origins remain intentionally blocked. `worker-src` remains limited to
-`'self' blob:` for MapLibre.
+`connect-src 'self' https: wss:`. HTTPS permits upstream's user-configurable
+vector, raster, and style basemap URLs; custom basemap endpoints must use HTTPS,
+and HTTP custom origins remain intentionally blocked. Explicit `wss:` permits
+ActionCable updates for the live map, family locations, tracks, and
+notifications because browsers do not consistently treat `'self'` as
+authorizing WSS. `worker-src` remains limited to `'self' blob:` for MapLibre.
 
 With `SELF_HOSTED=true` on Dawarich 1.14.2, `/sidekiq` requires a signed-in
 Dawarich administrator account. No separate Sidekiq dashboard credentials are
@@ -39,12 +42,15 @@ configured.
 
 Two higher-priority routers provide narrowly scoped Forward Auth bypasses:
 
-- The official mobile router requires both the user's Dawarich API key and an
-  `X-Dawarich-Proxy-Token` header matching
+- The official mobile router requires an `X-Dawarich-Proxy-Token` header matching
   `DAWARICH_MOBILE_PROXY_TOKEN`. It accepts only the following `/api/v1`
   resources: `health`, `users/me`, `plan`, `settings/mobile`, `points`,
   `timeline`, `tracks`, `visits`, `stats`, `insights`, `digests`, `demo_data`,
   `families`, `photos`, `countries`, `maps`, `tiles`, and `places`.
+  `/api/v1/health` intentionally skips API-key authentication upstream because
+  the official iOS app uses it for server and version discovery; it returns no
+  user data. Every other allowlisted mobile data endpoint requires both the
+  proxy token and the user's Dawarich API key.
 - The third-party ingestion router accepts only `POST` requests to the three
   exact endpoints listed in the table. These endpoints still require a
   Dawarich API key.
@@ -64,9 +70,11 @@ Dawarich iOS 2.5 and later supports custom reverse-proxy headers. Configure:
 | Custom header name  | `X-Dawarich-Proxy-Token`                             |
 | Custom header value | The decrypted value of `DAWARICH_MOBILE_PROXY_TOKEN` |
 
-The API key identifies and authorizes the Dawarich user. The separate proxy
-token permits the request to use only the mobile router's allowlisted API
-surface without interactive Entra Forward Auth.
+The API key identifies and authorizes the Dawarich user for every mobile data
+endpoint. The separate proxy token permits the request to use only the mobile
+router's allowlisted API surface without interactive Entra Forward Auth. The
+app's `/api/v1/health` discovery request requires only the proxy token and
+returns no user data.
 
 ### Third-Party GPS Clients
 
@@ -154,24 +162,24 @@ All persistent paths remain inside the
 Secrets are managed in `secret.sops.env`, committed SOPS-encrypted, and
 decrypted to `.env` during deployment.
 
-| Variable                           | Purpose                                              |
-| ---------------------------------- | ---------------------------------------------------- |
-| `DOMAINNAME`                       | Base domain for Traefik routing                      |
-| `DAWARICH_SECRET_KEY_BASE`         | Rails secret key base                                |
-| `DAWARICH_DB_PASSWORD`             | PostGIS password for the Dawarich database user      |
-| `DAWARICH_REDIS_PASSWORD`          | Redis authentication password                        |
-| `DAWARICH_OTP_PRIMARY_KEY`         | Primary key for encrypted OTP attributes             |
-| `DAWARICH_OTP_DETERMINISTIC_KEY`   | Deterministic key for encrypted OTP attributes       |
-| `DAWARICH_OTP_KEY_DERIVATION_SALT` | Key-derivation salt for encrypted OTP attributes     |
-| `DAWARICH_ARCHIVE_ENCRYPTION_KEY`  | Dawarich archive encryption key                      |
-| `DAWARICH_MOBILE_PROXY_TOKEN`      | Second secret required by the official mobile router |
-| `NOTIFICATIONS_EMAIL_FROM`         | Sender address for Dawarich application email        |
-| `NOTIFICATIONS_EMAIL_HOST`         | SMTP server for Dawarich application email           |
-| `NOTIFICATIONS_EMAIL_DOMAIN`       | SMTP HELO domain for Dawarich application email      |
-| `NOTIFICATIONS_EMAIL_USERNAME`     | SMTP username for Dawarich application email         |
-| `NOTIFICATIONS_EMAIL_PASSWORD`     | SMTP password for Dawarich application email         |
-| `NOTIFICATIONS_EMAIL_PORT`         | SMTP port for Dawarich application email             |
-| `DB_ENC_PASSPHRASE`                | GPG passphrase for database backup files             |
+| Variable                           | Purpose                                          |
+| ---------------------------------- | ------------------------------------------------ |
+| `DOMAINNAME`                       | Base domain for Traefik routing                  |
+| `DAWARICH_SECRET_KEY_BASE`         | Rails secret key base                            |
+| `DAWARICH_DB_PASSWORD`             | PostGIS password for the Dawarich database user  |
+| `DAWARICH_REDIS_PASSWORD`          | Redis authentication password                    |
+| `DAWARICH_OTP_PRIMARY_KEY`         | Primary key for encrypted OTP attributes         |
+| `DAWARICH_OTP_DETERMINISTIC_KEY`   | Deterministic key for encrypted OTP attributes   |
+| `DAWARICH_OTP_KEY_DERIVATION_SALT` | Key-derivation salt for encrypted OTP attributes |
+| `DAWARICH_ARCHIVE_ENCRYPTION_KEY`  | Dawarich archive encryption key                  |
+| `DAWARICH_MOBILE_PROXY_TOKEN`      | Official mobile router header secret             |
+| `NOTIFICATIONS_EMAIL_FROM`         | Sender address for Dawarich application email    |
+| `NOTIFICATIONS_EMAIL_HOST`         | SMTP server for Dawarich application email       |
+| `NOTIFICATIONS_EMAIL_DOMAIN`       | SMTP HELO domain for Dawarich application email  |
+| `NOTIFICATIONS_EMAIL_USERNAME`     | SMTP username for Dawarich application email     |
+| `NOTIFICATIONS_EMAIL_PASSWORD`     | SMTP password for Dawarich application email     |
+| `NOTIFICATIONS_EMAIL_PORT`         | SMTP port for Dawarich application email         |
+| `DB_ENC_PASSPHRASE`                | GPG passphrase for database backup files         |
 
 `dawarich-init` checks every required decrypted value before changing runtime
 permissions. It exits unsuccessfully if any value is empty or equals
@@ -237,15 +245,20 @@ backends are healthy.
   Traefik.
 - The web UI and unspecified routes use `chain-auth-dawarich@file`, combining
   rate limiting, Forward Auth, and Dawarich-specific secure headers. Its CSP
-  permits `connect-src 'self' https:` for upstream's user-configurable vector,
-  raster, and style basemap URLs. Custom endpoints must use HTTPS because HTTP
-  custom origins remain blocked. `worker-src 'self' blob:` stays unchanged, and
-  the other directives remain restrictive.
+  permits `connect-src 'self' https: wss:`. HTTPS supports upstream's
+  user-configurable vector, raster, and style basemap URLs; custom endpoints
+  must use HTTPS because HTTP custom origins remain blocked. Explicit `wss:`
+  supports ActionCable updates for the live map, family locations, tracks, and
+  notifications because browsers do not consistently treat `'self'` as
+  authorizing WSS. `worker-src 'self' blob:` stays unchanged, and the other
+  directives remain restrictive.
 - With `SELF_HOSTED=true` on Dawarich 1.14.2, `/sidekiq` requires a signed-in
   Dawarich administrator account rather than separate dashboard credentials.
 - The official mobile router uses `chain-no-auth@file` only when the request
   has the configured `X-Dawarich-Proxy-Token` and targets an allowlisted mobile
-  API resource. The request must also carry the user's Dawarich API key.
+  API resource. `/api/v1/health` needs only the proxy token and returns no user
+  data; every other mobile data endpoint also requires the user's Dawarich API
+  key.
 - The third-party ingestion router uses `chain-no-auth@file` only for `POST` to
   `/api/v1/owntracks/points`, `/api/v1/overland/batches`, or
   `/api/v1/traccar/points`; Dawarich API-key authentication still applies.

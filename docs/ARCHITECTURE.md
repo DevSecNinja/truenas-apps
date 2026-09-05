@@ -346,25 +346,31 @@ Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
 for the web UI, including protection against exposure of the upstream seeded
 demo administrator. The chain combines rate limiting, Forward Auth, and
 `middlewares-dawarich-secure-headers`. Its restrictive CSP permits
-`connect-src 'self' https:` because upstream supports user-configurable vector,
-raster, and style basemap URLs. Custom basemap endpoints must use HTTPS; HTTP
-custom origins remain intentionally blocked. `worker-src` stays limited to
-`'self' blob:` for MapLibre, and the other directives remain restrictive. All
-requests use this router unless one of two higher-priority,
-`chain-no-auth@file` routers matches:
+`connect-src 'self' https: wss:`. HTTPS permits upstream's user-configurable
+vector, raster, and style basemap URLs; custom basemap endpoints must use HTTPS,
+and HTTP custom origins remain intentionally blocked. Explicit `wss:` permits
+ActionCable updates for the live map, family locations, tracks, and
+notifications because browsers do not consistently treat `'self'` as
+authorizing WSS. `worker-src` stays limited to `'self' blob:` for MapLibre, and
+the other directives remain restrictive. All requests use this router unless
+one of two higher-priority, `chain-no-auth@file` routers matches:
 
 | Router                | Match                                                                                                 | Application authentication |
 | --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------- |
-| Official mobile       | Correct `X-Dawarich-Proxy-Token` and an allowlisted `/api/v1` mobile resource                         | User's Dawarich API key    |
+| Mobile health         | Correct `X-Dawarich-Proxy-Token` and `/api/v1/health`                                                 | None; returns no user data |
+| Mobile data           | Correct `X-Dawarich-Proxy-Token` and any other allowlisted `/api/v1` mobile resource                  | User's Dawarich API key    |
 | Third-party ingestion | `POST` to exactly `/api/v1/owntracks/points`, `/api/v1/overland/batches`, or `/api/v1/traccar/points` | Dawarich API key           |
 
 The mobile allowlist contains `health`, `users/me`, `plan`, `settings/mobile`,
 `points`, `timeline`, `tracks`, `visits`, `stats`, `insights`, `digests`,
 `demo_data`, `families`, `photos`, `countries`, `maps`, `tiles`, and `places`.
-The additional proxy token comes from `DAWARICH_MOBILE_PROXY_TOKEN` in the
-SOPS-encrypted service environment. It limits the Forward Auth bypass to
-official clients configured with that second secret; it does not replace the
-user's Dawarich API key.
+The proxy token comes from `DAWARICH_MOBILE_PROXY_TOKEN` in the SOPS-encrypted
+service environment and limits the Forward Auth bypass to configured official
+clients. `/api/v1/health` intentionally skips API-key authentication upstream
+because the iOS app uses it for server and version discovery; it requires only
+the proxy token at Traefik and returns no user data. Every other allowlisted
+mobile data endpoint requires both the proxy token and the user's Dawarich API
+key.
 
 The main router also covers `/sidekiq`. With `SELF_HOSTED=true` on Dawarich
 1.14.2, that dashboard requires a signed-in Dawarich administrator account
@@ -373,7 +379,9 @@ rather than separate dashboard credentials.
 ```mermaid
 flowchart LR
     Request --> Mobile{Mobile header and allowlisted path?}
-    Mobile -->|Yes| MobileAPI[Mobile API with Dawarich API key]
+    Mobile -->|Yes| Health{Health endpoint?}
+    Health -->|Yes| Discovery[Discovery; no user data]
+    Health -->|No| MobileAPI[Mobile data with Dawarich API key]
     Mobile -->|No| Ingest{POST to exact ingestion path?}
     Ingest -->|Yes| IngestAPI[Ingestion API with Dawarich API key]
     Ingest -->|No| Entra[chain-auth-dawarich]

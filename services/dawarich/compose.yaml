@@ -184,8 +184,8 @@ services:
       - "traefik.http.routers.dawarich-rtr.service=dawarich"
       - "traefik.http.services.dawarich.loadbalancer.server.port=3000"
       ## The official iOS app supports custom reverse-proxy headers. Require a
-      ## second secret in addition to its Dawarich API key, and allowlist only
-      ## API-key-protected mobile resources. Auth and API docs stay behind SSO.
+      ## proxy token on its explicit allowlist; data routes also require the
+      ## Dawarich API key. Health is token-only. Auth and API docs stay behind SSO.
       - >-
         traefik.http.routers.dawarich-mobile-rtr.rule=Host(`dawarich.${DOMAINNAME}`) &&
         Header(`X-Dawarich-Proxy-Token`, `${DAWARICH_MOBILE_PROXY_TOKEN}`) &&
