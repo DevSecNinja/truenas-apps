@@ -10,6 +10,7 @@
 #     (single dataset; no child datasets — required for hardlinks/atomic moves)
 #   - arr-egress: shared macvlan network for arr stack internet egress
 #   - arr-stack-backend: internal bridge network for arr app inter-communication
+#   - dawarich-backend: internal network shared by Dawarich and Alloy
 #   - arr-egress-init: validates egress IP differs from home IP before arr apps start
 #
 # Note: depends_on cannot span separate Docker Compose stacks. The alphabetical
@@ -107,6 +108,7 @@ services:
         mac_address: ${EGRESS_INIT_MAC}
       arr-stack-backend:
       # Have to add the network to a container for it to be created
+      dawarich-backend:
       iot-backend:
     mem_limit: 64m
     pids_limit: 10
@@ -131,6 +133,10 @@ networks:
     name: arr-stack-backend
     driver: bridge
     internal: true # No internet access — arr apps egress via the shared arr-egress macvlan
+  dawarich-backend:
+    name: dawarich-backend
+    driver: bridge
+    internal: true # Internal only — Dawarich data services and Alloy metrics
   iot-backend:
     name: iot-backend
     driver: bridge

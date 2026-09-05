@@ -44,6 +44,12 @@ http:
           - "middlewares-rate-limit"
           - "middlewares-bitwarden-secure-headers"
           - "middlewares-forward-auth"
+    chain-auth-dawarich:
+      chain:
+        middlewares:
+          - "middlewares-rate-limit"
+          - "middlewares-dawarich-secure-headers"
+          - "middlewares-forward-auth"
     chain-auth:
       chain:
         middlewares:

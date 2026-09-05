@@ -11,6 +11,7 @@ Alloy collapses what previously required several agents into a single process:
 - **Host metrics** via `prometheus.exporter.unix` (the embedded `node_exporter` library — `/proc`, `/sys`, and the rootfs are bind-mounted from the host). Series are labelled `job=integrations/node_exporter` and `instance=$HOSTNAME_OVERRIDE` to match Grafana Cloud's "Linux Server" integration, whose dashboards and alerts query `node_*` series with that exact `job` and use `instance` as the per-host variable. The static `host` label is retained alongside for in-house dashboards.
 - **Container logs** via `loki.source.docker`, with a `discovery.docker` step that auto-discovers running containers and promotes compose project/service labels. Reaches the Docker socket through a read-only LinuxServer socket-proxy. A `loki.process` stage drops entries older than 167h before they reach Loki to stay inside Grafana Cloud Free's 7-day ingest window — this is what keeps a post-restart backfill of long-lived containers (immich-db-backup, matter-server) from getting whole batches rejected with HTTP 400.
 - **Traefik metrics** via `prometheus.scrape "traefik"`, targeting the local Traefik instance at `traefik:8082/metrics` over the shared `alloy-frontend` Docker network (60s interval, `host` and `job=traefik` labels added via relabeling). Per-router, per-service, and per-entrypoint label cardinality is enabled on the Traefik side. The `:8082` entrypoint is internal-only and gated by an `ipAllowList` restricted to the pinned `alloy-frontend` subnet (`172.30.100.8/29`) — see [Architecture § Alloy Metrics Scrape Entrypoint](../ARCHITECTURE.md#alloy-metrics-scrape-entrypoint).
+- **Dawarich Postgres** via `prometheus.scrape "postgres_dawarich"`, targeting `dawarich-db-exporter:9187` over the `dawarich-backend` Docker network (60s interval, `host` and `job=postgres_dawarich` labels added via relabeling). The exporter sidecar lives in `services/dawarich/compose.yaml` and reuses Dawarich's `DAWARICH_DB_PASSWORD`; Alloy does not scrape Dawarich's disabled Rails exporter. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
 - **Immich Postgres** via `prometheus.scrape "postgres_immich"`, targeting `immich-db-exporter:9187` over the `immich-backend` Docker network (60s interval, `host` and `job=postgres_immich` labels added via relabeling). The exporter sidecar lives in `services/immich/compose.yaml` and reuses Immich's `IMMICH_DB_PASSWORD` — no DB credentials are added to Alloy's `secret.sops.env`. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
 - **Outline Postgres** via `prometheus.scrape "postgres_outline"`, targeting `outline-db-exporter:9187` over the `outline-backend` Docker network (60s interval, `host` and `job=postgres_outline` labels added via relabeling). The exporter sidecar lives in `services/outline/compose.yaml` and reuses Outline's `OUTLINE_DB_PASSWORD`. Scoped to svlnas (dropped on svlazext via `compose.svlazext.yaml`).
 - **GitHub repo stats** via `prometheus.exporter.github` polling the GitHub REST API for `DevSecNinja/truenas-apps` and `DevSecNinja/dotfiles` (10m interval, `host` and `job=integrations/github_exporter` labels added via relabeling). Surfaces rate-limit headroom, stars/forks/watchers, open PR/issue counts, and repo size. Authenticates with a fine-grained GitHub PAT (`Metadata` + `Issues` + `Pull requests` read-only on the listed repos) stored as `GITHUB_API_TOKEN` in `secret.sops.env`. **Single-host scrape**: gated to `svlnas` via a `discovery.relabel` keep rule on `HOSTNAME_OVERRIDE` so only one Alloy instance polls the API; on svlazext the target list filters to empty and `prometheus.scrape` is a no-op.
@@ -41,8 +42,12 @@ See [issue #15](https://github.com/DevSecNinja/truenas-apps/issues/15) for the f
 
 - **Image**: [`dhi/alloy`](https://hub.docker.com/hardened-images/catalog/dhi/alloy) (Docker Hardened Image, Debian 13 base) — minimal rootfs, no shell beyond `/bin/sh` (dash), continuously rebuilt against patched bases. Requires the host to be logged in to a DHI-entitled Docker Hub account.
 - **User/Group**: `3125:3125` (`svc-app-alloy`)
-- **Networks**: `alloy-frontend` (Traefik-facing, also used for outbound Grafana Cloud traffic), `alloy-backend` (internal — Docker socket proxy)
+- **Networks**: `alloy-frontend` (Traefik-facing and outbound Grafana Cloud traffic), `alloy-backend` (internal Docker socket proxy), and the external app networks `dawarich-backend`, `immich-backend`, and `outline-backend` for PostgreSQL exporter scrapes
 - **Reverse proxy**: Traefik with `chain-auth@file` (SSO required)
+
+On svlnas, `_bootstrap` creates the internal `dawarich-backend` network before
+Alloy and Dawarich deploy. This lets Alloy join the external network on a fresh
+deployment without depending on the Dawarich stack to create it.
 
 ### Services
 
@@ -115,8 +120,8 @@ It is **not a secret** and lives in the compose file rather than `secret.sops.en
 7. **Deploy**:
 
    ```sh
-   bash scripts/dccd.sh -d /mnt/vm-pool/apps -t -f -A alloy   # svlnas
-   bash scripts/dccd.sh -d /opt/apps -S svlazext -A alloy      # svlazext
+   bash scripts/dccd.sh -d /mnt/vm-pool/apps -t -f             # svlnas: full deploy runs _bootstrap first
+   bash scripts/dccd.sh -d /opt/apps -S svlazext -A alloy      # svlazext: app backends are omitted
    ```
 
 8. **Verify** in Grafana Cloud Explore:

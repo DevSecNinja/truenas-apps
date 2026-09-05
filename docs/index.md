@@ -36,6 +36,7 @@ The setup follows
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
+| [Dawarich](https://dawarich.app/)                                                             | Self-hosted location history and GPS tracking                  |
 | [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |

@@ -114,6 +114,34 @@ http:
           X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
           server: ""
           Content-Security-Policy: "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"
+    # Standalone Dawarich headers middleware. The map UI fetches vector tiles
+    # from Dawarich's hosted Protomaps endpoint and MapLibre uses web workers.
+    middlewares-dawarich-secure-headers:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "OPTIONS"
+          - "PUT"
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        customFrameOptionsValue: "DENY"
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "same-origin"
+        permissionsPolicy: "camera 'none'; geolocation 'none'; microphone 'none'; payment 'none'; usb 'none'; vr 'none';"
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+        customResponseHeaders:
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
+          server: ""
+          Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
+            'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://tyles.dwri.xyz;
+            worker-src 'self' blob:; frame-ancestors 'none'"
     # Standalone qBittorrent-specific headers middleware — replaces middlewares-secure-headers
     # for qBittorrent. Uses frame-ancestors 'self' instead of 'none' because the qBittorrent
     # Web UI opens dialogs (e.g. "Add category") as same-origin iframes. frame-ancestors

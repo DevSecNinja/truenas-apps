@@ -444,7 +444,7 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks → **Add
 | Transfers           | Low Bandwidth (4)         |
 | Bandwidth Limit     | _(empty)_                 |
 
-Covers the entire `vm-pool` pool: apps, VMs, db dumps, secrets, git repo. `iso/` excluded — installer images have no restore value. All content is client-side encrypted before upload. Schedule is after the 03:00 replication and db-backup sidecars.
+Covers the entire `vm-pool` pool: apps, VMs, db dumps, secrets, git repo. `iso/` excluded — installer images have no restore value. All content is client-side encrypted before upload. The documented TrueNAS cron runs `dccd.sh` every 15 minutes with `-f`, so its one-shot database backup containers may run on every forced full deployment. The latest successful dumps present when this task starts are included in Cloud Sync.
 
 ---
 
@@ -668,6 +668,7 @@ All stateful databases in this repository have `tiredofit/db-backup` sidecars in
 | Service        | Database   | Backup sidecar             | Output path                                  |
 | -------------- | ---------- | -------------------------- | -------------------------------------------- |
 | Bitwarden      | SQLite     | `bitwarden-db-backup`      | `services/bitwarden/backups/db-backup/`      |
+| Dawarich       | PostgreSQL | `dawarich-db-backup`       | `services/dawarich/backups/db-backup/`       |
 | Gatus          | PostgreSQL | `gatus-db-backup`          | `services/gatus/backups/db-backup/`          |
 | Home Assistant | SQLite     | `home-assistant-db-backup` | `services/home-assistant/backups/db-backup/` |
 | Immich         | PostgreSQL | `immich-db-backup`         | `services/immich/backups/db-backup/`         |
@@ -676,11 +677,16 @@ All stateful databases in this repository have `tiredofit/db-backup` sidecars in
 
 ### How They Run
 
-All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they run one backup and exit. The `dccd.sh` CD script restarts them on each deploy cycle (every 15 minutes via cron). Dumps are:
+The db-backup sidecars run one backup and exit. They are started by each full
+`dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
+schedule rather than an intrinsic nightly schedule. The documented TrueNAS
+cron runs every 15 minutes with `-f`, so a one-shot backup may run on every
+forced full deployment. Dumps are:
 
 - Compressed with zstd (gzip for MongoDB — `mongodump --gzip` is invoked directly)
 - Encrypted with `DB_ENC_PASSPHRASE` (from each app's `secret.sops.env`)
-- Retained for 48 hours locally (`DEFAULT_CLEANUP_TIME=2880`)
+- Retained for 48 hours locally (`DEFAULT_CLEANUP_TIME=2880`), which bounds the
+  stored backup count according to the actual dccd cadence
 - Email notifications sent on success/failure
 
 ### Restore a Database Dump
@@ -709,7 +715,7 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
 
 3. Restore — the procedure depends on the database engine:
 
-   **PostgreSQL** (Gatus, Immich, Outline) — plain-text `pg_dump` SQL:
+   **PostgreSQL** (Dawarich, Gatus, Immich, Outline) — plain-text `pg_dump` SQL:
 
    ```sh
    # Copy the plain-text SQL dump into the container
@@ -832,20 +838,20 @@ smartctl -H /dev/sdX
 
 All times are local to the TrueNAS host.
 
-| Time                    | Task                                               | Type                   |
-| ----------------------- | -------------------------------------------------- | ---------------------- |
-| 02:00 Sun (weekly)      | S.M.A.R.T. short test (all disks)                  | Disk Health            |
-| 01:00 1st Sat (monthly) | S.M.A.R.T. long test (all disks)                   | Disk Health            |
-| 02:00 1st Sun (monthly) | ZFS scrub (both pools)                             | Disk Health            |
-| Every hour              | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
-| Every day               | archive-pool snapshot                              | ZFS Periodic Snapshot  |
-| 03:00 daily             | vm-pool → archive-pool replication                 | ZFS Replication        |
-| 04:00 daily             | vm-pool → Azure `vm-pool`                          | Cloud Sync (encrypted) |
-| 05:00 daily             | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
-| 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
-| 07:00 daily             | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
-| On each `dccd.sh` run   | Database dumps (all 5 DBs)                         | `tiredofit/db-backup`  |
-| 04:00 weekly (Sat)      | Automated backup/restore cycle (CI, all DB types)  | GitHub Actions         |
+| Time                                                   | Task                                               | Type                   |
+| ------------------------------------------------------ | -------------------------------------------------- | ---------------------- |
+| 02:00 Sun (weekly)                                     | S.M.A.R.T. short test (all disks)                  | Disk Health            |
+| 01:00 1st Sat (monthly)                                | S.M.A.R.T. long test (all disks)                   | Disk Health            |
+| 02:00 1st Sun (monthly)                                | ZFS scrub (both pools)                             | Disk Health            |
+| Every hour                                             | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
+| Every day                                              | archive-pool snapshot                              | ZFS Periodic Snapshot  |
+| 03:00 daily                                            | vm-pool → archive-pool replication                 | ZFS Replication        |
+| 04:00 daily                                            | vm-pool → Azure `vm-pool`                          | Cloud Sync (encrypted) |
+| 05:00 daily                                            | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
+| 06:00 daily                                            | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
+| 07:00 daily                                            | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
+| Every 15 minutes with the documented `dccd.sh -f` cron | Database dumps (all 7 DBs)                         | `tiredofit/db-backup`  |
+| 04:00 weekly (Sat)                                     | Automated backup/restore cycle (CI, all DB types)  | GitHub Actions         |
 
 Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline
 (`backup-restore-test.yml`) is independent of the NAS — it spins up ephemeral

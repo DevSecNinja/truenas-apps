@@ -1,0 +1,466 @@
+---
+x-dawarich-environment: &dawarich-environment
+  RAILS_ENV: production
+  SELF_HOSTED: "true"
+  APPLICATION_HOSTS: dawarich.${DOMAINNAME}
+  APPLICATION_PROTOCOL: https
+  DOMAIN: dawarich.${DOMAINNAME}
+  TIME_ZONE: Europe/Amsterdam
+  DISTANCE_UNIT: km
+  STORE_GEODATA: "true"
+  DATABASE_HOST: dawarich-db
+  DATABASE_PORT: "5432"
+  DATABASE_USERNAME: dawarich
+  DATABASE_PASSWORD: ${DAWARICH_DB_PASSWORD}
+  DATABASE_NAME: dawarich
+  REDIS_URL: redis://:${DAWARICH_REDIS_PASSWORD}@dawarich-redis:6379
+  RAILS_CACHE_DB: "0"
+  RAILS_JOB_QUEUE_DB: "1"
+  RAILS_WS_DB: "2"
+  RAILS_MAX_THREADS: "5"
+  BACKGROUND_PROCESSING_CONCURRENCY: "3"
+  SECRET_KEY_BASE: ${DAWARICH_SECRET_KEY_BASE}
+  OTP_ENCRYPTION_PRIMARY_KEY: ${DAWARICH_OTP_PRIMARY_KEY}
+  OTP_ENCRYPTION_DETERMINISTIC_KEY: ${DAWARICH_OTP_DETERMINISTIC_KEY}
+  OTP_ENCRYPTION_KEY_DERIVATION_SALT: ${DAWARICH_OTP_KEY_DERIVATION_SALT}
+  ARCHIVE_ENCRYPTION_KEY: ${DAWARICH_ARCHIVE_ENCRYPTION_KEY}
+  SIDEKIQ_USERNAME: ${DAWARICH_SIDEKIQ_USERNAME}
+  SIDEKIQ_PASSWORD: ${DAWARICH_SIDEKIQ_PASSWORD}
+  ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
+  SMTP_SERVER: ${NOTIFICATIONS_EMAIL_HOST}
+  SMTP_PORT: ${NOTIFICATIONS_EMAIL_PORT}
+  SMTP_DOMAIN: ${NOTIFICATIONS_EMAIL_DOMAIN}
+  SMTP_USERNAME: ${NOTIFICATIONS_EMAIL_USERNAME}
+  SMTP_PASSWORD: ${NOTIFICATIONS_EMAIL_PASSWORD}
+  SMTP_FROM: ${NOTIFICATIONS_EMAIL_FROM}
+  SMTP_AUTHENTICATION: login
+  SMTP_STARTTLS: "true"
+  RAILS_LOG_TO_STDOUT: "true"
+  HOME: /var/app/tmp/home
+  XDG_CACHE_HOME: /var/app/tmp/cache
+  TMPDIR: /tmp
+
+services:
+  # Dawarich normally starts as root and chowns its data before dropping
+  # privileges. Pre-owning the runtime paths lets both Rails processes run
+  # directly as the dedicated service account with no Linux capabilities.
+  dawarich-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: dawarich-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to assign runtime paths to the service users
+      - FOWNER # Required to tighten permissions after ownership changes
+      - DAC_OVERRIDE # Required to traverse mode 770 paths owned by service users
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - |-
+        for value in \
+          "$${DOMAINNAME:-}" \
+          "$${DAWARICH_SECRET_KEY_BASE:-}" \
+          "$${DAWARICH_DB_PASSWORD:-}" \
+          "$${DAWARICH_REDIS_PASSWORD:-}" \
+          "$${DAWARICH_OTP_PRIMARY_KEY:-}" \
+          "$${DAWARICH_OTP_DETERMINISTIC_KEY:-}" \
+          "$${DAWARICH_OTP_KEY_DERIVATION_SALT:-}" \
+          "$${DAWARICH_ARCHIVE_ENCRYPTION_KEY:-}" \
+          "$${DAWARICH_SIDEKIQ_PASSWORD:-}" \
+          "$${NOTIFICATIONS_EMAIL_FROM:-}" \
+          "$${NOTIFICATIONS_EMAIL_TO:-}" \
+          "$${NOTIFICATIONS_EMAIL_HOST:-}" \
+          "$${NOTIFICATIONS_EMAIL_DOMAIN:-}" \
+          "$${NOTIFICATIONS_EMAIL_USERNAME:-}" \
+          "$${NOTIFICATIONS_EMAIL_PASSWORD:-}" \
+          "$${NOTIFICATIONS_EMAIL_PORT:-}" \
+          "$${DB_ENC_PASSPHRASE:-}"; do
+          if [ -z "$${value}" ] || [ "$${value}" = "CHANGE_ME" ]; then
+            echo "ERROR: Dawarich secrets contain an empty or CHANGE_ME value" >&2
+            exit 1
+          fi
+        done
+        mkdir -p \
+          /app-tmp/pids /app-tmp/cache /app-tmp/sockets /app-tmp/home \
+          /sidekiq-tmp/cache /sidekiq-tmp/home &&
+        chown -R 3128:3128 /public /storage /watched /app-tmp /sidekiq-tmp &&
+        chmod -R u=rwX,g=rwX,o= /public /storage /watched /app-tmp /sidekiq-tmp &&
+        chown -R 999:999 /redis &&
+        chmod -R u=rwX,g=,o= /redis
+    volumes:
+      - ./data/public:/public
+      - ./data/storage:/storage
+      - ./data/watched:/watched
+      - ./data/app-tmp:/app-tmp
+      - ./data/sidekiq-tmp:/sidekiq-tmp
+      - ./data/redis:/redis
+
+  dawarich:
+    image: docker.io/freikin/dawarich:1.14.2@sha256:5de477cfc6f8d9d19d7660c262acb196ea8a15cebbcbb7db173e04a2860f3bb5
+    container_name: dawarich
+    entrypoint:
+      - "web-entrypoint.sh"
+    command:
+      - "bin/rails"
+      - "server"
+      - "-p"
+      - "3000"
+      - "-b"
+      - "::"
+    depends_on:
+      dawarich-init:
+        condition: service_completed_successfully
+      dawarich-db:
+        condition: service_healthy
+      dawarich-redis:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      <<: *dawarich-environment
+      PROMETHEUS_EXPORTER_ENABLED: "false"
+    user: "3128:3128" # svc-app-dawarich
+    deploy:
+      update_config:
+        order: stop-first # Migrations must complete before the replacement serves traffic
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    stop_grace_period: 60s
+    networks:
+      - dawarich-frontend
+      - dawarich-backend
+    mem_limit: ${MEM_LIMIT:-2048m}
+    pids_limit: 200
+    shm_size: 256mb
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:uid=3128,gid=3128,mode=1777
+    volumes:
+      - ./data/public:/var/app/public
+      - ./data/storage:/var/app/storage
+      - ./data/watched:/var/app/tmp/imports/watched
+      - ./data/app-tmp:/var/app/tmp
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget --header='X-Forwarded-Proto: https' -qO- http://127.0.0.1:3000/api/v1/health | grep -q '\"status\":\"ok\"'"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Dawarich
+      - homepage.icon=dawarich
+      - homepage.href=https://dawarich.${DOMAINNAME}
+      - homepage.description=Location History
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=dawarich-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.dawarich-rtr.rule=Host(`dawarich.${DOMAINNAME}`)"
+      - "traefik.http.routers.dawarich-rtr.entrypoints=https"
+      ## Keep the UI behind Forward Auth so the seeded first-run administrator
+      ## is not internet-accessible before its default password is changed.
+      - "traefik.http.routers.dawarich-rtr.middlewares=chain-auth-dawarich@file"
+      ## HTTP Services
+      - "traefik.http.routers.dawarich-rtr.service=dawarich"
+      - "traefik.http.services.dawarich.loadbalancer.server.port=3000"
+      ## GPS clients authenticate with Dawarich API tokens and cannot complete
+      ## interactive Forward Auth. Only the two ingestion endpoints bypass it;
+      ## API login, registration, documentation, and all other APIs stay behind SSO.
+      - "traefik.http.routers.dawarich-api-rtr.rule=Host(`dawarich.${DOMAINNAME}`) && (Path(`/api/v1/owntracks/points`) ||
+        Path(`/api/v1/overland/batches`))"
+      - "traefik.http.routers.dawarich-api-rtr.entrypoints=https"
+      - "traefik.http.routers.dawarich-api-rtr.priority=100"
+      - "traefik.http.routers.dawarich-api-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.dawarich-api-rtr.service=dawarich"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.dawarich-monitor.rule=Host(`dawarich.${DOMAINNAME}`)"
+      - "traefik.http.routers.dawarich-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.dawarich-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.dawarich-monitor.service=dawarich"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/api/v1/health"
+      - "gatus.headers.Host=dawarich.${DOMAINNAME}"
+      - "gatus.conditions=[\"[STATUS] == 200\", \"[BODY].status == ok\", \"[RESPONSE_TIME] < 2000\"]"
+      - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
+
+  dawarich-sidekiq:
+    image: docker.io/freikin/dawarich:1.14.2@sha256:5de477cfc6f8d9d19d7660c262acb196ea8a15cebbcbb7db173e04a2860f3bb5
+    container_name: dawarich-sidekiq
+    entrypoint:
+      - "sidekiq-entrypoint.sh"
+    command:
+      - "sidekiq"
+    depends_on:
+      dawarich-init:
+        condition: service_completed_successfully
+      dawarich:
+        condition: service_healthy
+      dawarich-db:
+        condition: service_healthy
+      dawarich-redis:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      <<: *dawarich-environment
+      PROMETHEUS_EXPORTER_ENABLED: "false"
+    user: "3128:3128" # svc-app-dawarich
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    stop_grace_period: 60s
+    networks:
+      - dawarich-frontend # Outbound access for reverse geocoding and remote imports
+      - dawarich-backend
+    mem_limit: ${SIDEKIQ_MEM_LIMIT:-4096m}
+    pids_limit: 200
+    shm_size: 256mb
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:uid=3128,gid=3128,mode=1777
+    volumes:
+      - ./data/public:/var/app/public
+      - ./data/storage:/var/app/storage
+      - ./data/watched:/var/app/tmp/imports/watched
+      - ./data/sidekiq-tmp:/var/app/tmp
+    healthcheck:
+      test:
+        - "CMD"
+        - "ruby"
+        - "-e"
+        - "exit(File.binread('/proc/1/cmdline').include?('sidekiq') ? 0 : 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Redis is started directly as its non-root image user. Persistence protects
+  # queued GPS processing jobs during controlled shutdowns and host restarts.
+  dawarich-redis:
+    image: docker.io/library/redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    container_name: dawarich-redis
+    command:
+      - "redis-server"
+      - "--save"
+      - "900"
+      - "1"
+      - "--save"
+      - "300"
+      - "10"
+      - "--appendonly"
+      - "no"
+      - "--requirepass"
+      - "${DAWARICH_REDIS_PASSWORD}"
+    depends_on:
+      dawarich-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "999:999" # redis user in the official Alpine image
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - dawarich-backend
+    mem_limit: ${REDIS_MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "redis-cli"
+        - "--no-auth-warning"
+        - "-a"
+        - "${DAWARICH_REDIS_PASSWORD}"
+        - "ping"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # The official PostGIS entrypoint starts as root to initialise ownership,
+  # then drops to postgres. Removing its privilege transition breaks first boot,
+  # so it follows the repository's documented database-image exception.
+  dawarich-db:
+    image: docker.io/postgis/postgis:17-3.5-alpine@sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
+    container_name: dawarich-db
+    depends_on:
+      dawarich-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - POSTGRES_DB=dawarich
+      - POSTGRES_USER=dawarich
+      - POSTGRES_PASSWORD=${DAWARICH_DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - dawarich-backend
+    mem_limit: ${DB_MEM_LIMIT:-2048m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # One-shot encrypted PostgreSQL backup, started by each full dccd deployment.
+  dawarich-db-backup:
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: dawarich-db-backup
+    depends_on:
+      dawarich-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      - USER_DBBACKUP=3128
+      - GROUP_DBBACKUP=3128
+      - CONTAINER_NAME=dawarich-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
+      - ENABLE_NOTIFICATIONS=TRUE
+      - NOTIFICATION_TYPE=EMAIL
+      - SMTP_HOST=${NOTIFICATIONS_EMAIL_HOST}
+      - SMTP_DOMAIN=${NOTIFICATIONS_EMAIL_DOMAIN}
+      - SMTP_PORT=${NOTIFICATIONS_EMAIL_PORT}
+      - SMTP_USER=${NOTIFICATIONS_EMAIL_USERNAME}
+      - SMTP_PASS=${NOTIFICATIONS_EMAIL_PASSWORD}
+      - MAIL_TO=${NOTIFICATIONS_EMAIL_TO}
+      - MAIL_FROM=${NOTIFICATIONS_EMAIL_FROM}
+      - SMTP_AUTHENTICATION=on
+      - SMTP_TLSCERTCHECK=TRUE
+      - SMTP_STARTTLS=on
+      - SMTP_TLS=on
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_CLEANUP_TIME=2880
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      - DB01_TYPE=pgsql
+      - DB01_HOST=dawarich-db
+      - DB01_NAME=dawarich
+      - DB01_USER=dawarich
+      - DB01_PORT=5432
+      - DB01_PASS=${DAWARICH_DB_PASSWORD}
+    restart: "no"
+    networks:
+      - dawarich-frontend # Egress for SMTP backup notifications
+      - dawarich-backend
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./backups/db-backup:/backup
+
+  # Exposes PostgreSQL metrics only on the isolated backend network for Alloy.
+  dawarich-db-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
+    container_name: dawarich-db-exporter
+    depends_on:
+      dawarich-db:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - DATA_SOURCE_NAME=postgresql://dawarich:${DAWARICH_DB_PASSWORD}@dawarich-db:5432/dawarich?sslmode=disable
+    command:
+      - --config.file=/dev/null
+    user: "65534:65534" # nobody:nogroup
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - dawarich-backend
+    mem_limit: ${DB_EXPORTER_MEM_LIMIT:-128m}
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    healthcheck:
+      # The scratch image has no shell or probe binary. Alloy detects exporter
+      # failure through the PostgreSQL scrape target's `up` metric.
+      disable: true
+
+networks:
+  dawarich-frontend:
+    name: dawarich-frontend
+    driver: bridge
+  dawarich-backend:
+    name: dawarich-backend
+    external: true # Created by _bootstrap before Alloy and Dawarich deploy

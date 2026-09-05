@@ -180,29 +180,61 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd                                                                    |
-| -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
-| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
-| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
-| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                       |
-| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                             |
-| dozzle               | `dozzle-init`               | `./data`                                                                           |
-| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
-| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
-| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
-| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                         |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
-| matter-server        | `matter-server-init`        | `./data`                                                                           |
-| metube               | `metube-init`               | `./data/state`                                                                     |
-| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
-| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                    |
-| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
-| spottarr             | `spottarr-chown`            | `./data`                                                                           |
-| traefik              | `traefik-init`              | `./data/acme`                                                                      |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
-| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                      |
+| Service              | Init container              | Volumes chown'd                                                                                                                                                                   |
+| -------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                                                                                                    |
+| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                      |
+| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                      |
+| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                            |
+| dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999` |
+| dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                          |
+| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                          |
+| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                                                                                                   |
+| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                  |
+| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                        |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                |
+| matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                          |
+| metube               | `metube-init`               | `./data/state`                                                                                                                                                                    |
+| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                                                                                                       |
+| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                   |
+| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                    |
+| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                          |
+| traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                     |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                          |
+| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                     |
+
+`dawarich-init` uses `docker.io/library/busybox:1.38.0`. Its container mount
+targets are `/public`, `/storage`, `/watched`, `/app-tmp`, `/sidekiq-tmp`, and
+`/redis`; it never changes ownership under `./config`. Before changing
+permissions, it rejects any required decrypted value that is empty or equals
+`CHANGE_ME`. It retains only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`;
+`DAC_OVERRIDE` is required to traverse mode `770` runtime paths on repeat
+deployments. PostGIS and Redis depend on successful init completion, preventing
+a placeholder database password from initializing PostGIS; the application and
+worker start only after their backends are healthy.
 
 ---
+
+**Exception — hardened direct-non-root override:**
+
+The upstream Dawarich image normally starts as root and uses its PUID/PGID
+entrypoint to prepare data before dropping privileges. This stack instead
+prepares every writable path with `dawarich-init`, then runs both the Rails
+application and Sidekiq worker directly as `3128:3128`. The web container
+explicitly uses `web-entrypoint.sh` with
+`bin/rails server -p 3000 -b ::`; the worker explicitly uses
+`sidekiq-entrypoint.sh`. Both containers use a read-only root filesystem, drop
+all capabilities, and set `no-new-privileges=true`. This bypasses the upstream
+root-start permission model while preserving its role-specific startup
+scripts and required writable paths.
+
+The Rails health check sends `X-Forwarded-Proto: https` with its internal HTTP
+request. Because `APPLICATION_PROTOCOL=https` enables Rails `force_ssl`,
+omitting the header redirects the probe instead of returning the expected
+health response. The Sidekiq health check invokes the image's Ruby interpreter
+to inspect `/proc/1/cmdline` and verify that PID 1 contains `sidekiq`. The image
+does not include `pgrep`/procps, so the check does not depend on those
+utilities.
 
 **Exceptions — s6-overlay and root-start containers:**
 
@@ -272,9 +304,38 @@ Services that need Docker API access get a dedicated **internal** backend networ
 
 The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
 
+### Exception: dawarich-backend
+
+Dawarich and Alloy share the external `dawarich-backend` internal bridge:
+Dawarich uses it for PostGIS, Redis, backup, and exporter traffic, while Alloy
+uses it only to scrape `dawarich-db-exporter`. The `_bootstrap` stack creates
+the network before Alloy and Dawarich because its directory sorts first in a
+full `dccd.sh` deployment. This ownership and ordering prevent Alloy from
+failing on a fresh deployment while keeping the network internal. Redis remains
+backend-only. Of the backend services, only the database backup container also
+joins `dawarich-frontend`, solely for outbound SMTP notifications.
+
 ### Exception: iot-backend
 
 The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares a single `iot-backend` internal bridge network so the services can communicate directly. For example, wmbusmeters publishes MQTT messages to Mosquitto, Home Assistant subscribes to MQTT topics, and Frigate sends events via MQTT. This network is created by the `_bootstrap` service and referenced as `external: true` by each IoT app. The backend bridge is `internal: true` and carries no internet route. Matter Server is excluded — it uses `network_mode: host` for mDNS device discovery and Thread border router communication.
+
+### Dawarich Split Authentication Routers
+
+Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
+for the web UI, including protection against exposure of the upstream seeded
+demo administrator. The chain combines rate limiting, Forward Auth, and
+`middlewares-dawarich-secure-headers`. Its CSP adds only
+`https://tyles.dwri.xyz`, required by the default Protomaps vector tiles, and
+permits same-origin and `blob:` web workers for MapLibre. A second router has a
+higher priority, matches only
+`/api/v1/owntracks/points` and `/api/v1/overland/batches` exactly, and uses
+`chain-no-auth@file`. GPS clients can therefore reach those ingestion
+endpoints without interactive Forward Auth, but both still require Dawarich
+API-key authentication. API login, registration, `/api-docs`, and every other
+endpoint remain on the main `chain-auth-dawarich@file` router. This prevents
+the known seeded `demo@dawarich.app` / `safepassword` credentials from being
+exchanged for an API key without first passing SSO; the credentials must still
+be changed immediately after first login.
 
 ### Cloudflare Tunnel through Traefik
 
@@ -359,7 +420,7 @@ Alloy scrapes Traefik's Prometheus metrics over a second internal entrypoint, `m
 
 The `metrics.prometheus` block in `traefik.yml` enables `addRoutersLabels`, `addServicesLabels`, and `addEntryPointsLabels` so per-router, per-service, and per-entrypoint cardinality is exposed. Each Alloy instance scrapes the local Traefik instance running on the same host (works for both svlnas and svlazext, since Traefik's `compose.svlazext.yaml` already lists `alloy-frontend` in its network list).
 
-Alloy additionally scrapes per-app **`postgres_exporter` sidecars** for Immich (`postgres_immich` job → `immich-db-exporter:9187`) and Outline (`postgres_outline` job → `outline-db-exporter:9187`) at 60s intervals. The exporters live in each app's own compose file and reuse that app's existing `*_DB_PASSWORD` secret — no DB credentials are added to Alloy's `secret.sops.env`. Reachability is provided by joining Alloy to the `immich-backend` and `outline-backend` Docker networks (both declared `external: true` in `services/alloy/compose.yaml`); `compose.svlazext.yaml` drops both via `networks: !override`, since neither app is deployed on svlazext. Unifi is intentionally **not** included — it uses MongoDB, not Postgres.
+Alloy additionally scrapes per-app **`postgres_exporter` sidecars** for Dawarich (`postgres_dawarich` job → `dawarich-db-exporter:9187`), Immich (`postgres_immich` job → `immich-db-exporter:9187`), and Outline (`postgres_outline` job → `outline-db-exporter:9187`) at 60s intervals. The exporters live in each app's own compose file and reuse that app's existing `*_DB_PASSWORD` secret — no DB credentials are added to Alloy's `secret.sops.env`. Reachability is provided by joining Alloy to the `dawarich-backend`, `immich-backend`, and `outline-backend` Docker networks (declared `external: true` in `services/alloy/compose.yaml`); `_bootstrap` creates the internal `dawarich-backend` before Alloy and Dawarich, and `compose.svlazext.yaml` drops all three app networks via `networks: !override`, since the apps are not deployed on svlazext. Dawarich's Rails exporter is disabled with `PROMETHEUS_EXPORTER_ENABLED=false`; Alloy scrapes only `postgres_dawarich` from `dawarich-db-exporter`, not the application container. Unifi is intentionally **not** included — it uses MongoDB, not Postgres.
 
 Alloy also runs the built-in **`prometheus.exporter.github`** component (10m scrape interval, `job=integrations/github_exporter`) which polls the GitHub REST API for `DevSecNinja/truenas-apps` and `DevSecNinja/dotfiles` repo-level stats: rate-limit headroom, stars/forks/watchers, open PR/issue counts, repo size. No new compose service or network — it's an in-process exporter that calls `api.github.com` over the host's public egress. Auth is a fine-grained GitHub PAT (`Metadata` + `Issues` + `Pull requests` read-only on the listed repos), stored as `GITHUB_API_TOKEN` in `services/alloy/secret.sops.env`. **Single-host scrape**: a `discovery.relabel` `keep` rule on `HOSTNAME_OVERRIDE` filters the target list to empty on every host except `svlnas`, so only one Alloy instance polls the API (avoids duplicated metrics and doubled API quota). Pairs with the official Grafana Cloud "GitHub integration" dashboards (GitHub API Usage, GitHub Repository Stats).
 
