@@ -321,6 +321,9 @@ configure only Dawarich application email.
 `dawarich-db-backup` uses the maintained
 `docker.io/nfrastack/db-backup:4.9.2` compatibility release. It runs
 `backup-now` in one-shot `MODE=MANUAL` mode on every full `dccd.sh` deployment.
+The backup job depends on the healthy `dawarich` Rails service rather than only
+PostgreSQL, so startup migrations, data migrations, and seeding finish before
+the dump can run.
 `DEFAULT_COMPRESSION=ZSTD`, `DEFAULT_CHECKSUM=SHA1`,
 `DEFAULT_ENCRYPT=TRUE`, and
 `DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}` produce a ZSTD-compressed,
@@ -342,10 +345,13 @@ The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares 
 Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
 for the web UI, including protection against exposure of the upstream seeded
 demo administrator. The chain combines rate limiting, Forward Auth, and
-`middlewares-dawarich-secure-headers`. Its CSP adds only
-`https://tyles.dwri.xyz`, required by the default Protomaps vector tiles, and
-permits same-origin and `blob:` web workers for MapLibre. All requests use this
-router unless one of two higher-priority, `chain-no-auth@file` routers matches:
+`middlewares-dawarich-secure-headers`. Its restrictive CSP permits
+`connect-src 'self' https:` because upstream supports user-configurable vector,
+raster, and style basemap URLs. Custom basemap endpoints must use HTTPS; HTTP
+custom origins remain intentionally blocked. `worker-src` stays limited to
+`'self' blob:` for MapLibre, and the other directives remain restrictive. All
+requests use this router unless one of two higher-priority,
+`chain-no-auth@file` routers matches:
 
 | Router                | Match                                                                                                 | Application authentication |
 | --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------- |
@@ -359,6 +365,10 @@ The additional proxy token comes from `DAWARICH_MOBILE_PROXY_TOKEN` in the
 SOPS-encrypted service environment. It limits the Forward Auth bypass to
 official clients configured with that second secret; it does not replace the
 user's Dawarich API key.
+
+The main router also covers `/sidekiq`. With `SELF_HOSTED=true` on Dawarich
+1.14.2, that dashboard requires a signed-in Dawarich administrator account
+rather than separate dashboard credentials.
 
 ```mermaid
 flowchart LR

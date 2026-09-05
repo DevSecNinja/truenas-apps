@@ -27,9 +27,15 @@ so each component can be isolated and operated independently.
 
 The main router uses `chain-auth-dawarich@file` as defense in depth because
 upstream seeds a demo administrator. The chain combines rate limiting, Forward
-Auth, and `middlewares-dawarich-secure-headers`. Its CSP adds only
-`https://tyles.dwri.xyz`, required by the default Protomaps vector tiles, and
-permits same-origin and `blob:` web workers for MapLibre.
+Auth, and `middlewares-dawarich-secure-headers`. Its restrictive CSP permits
+`connect-src 'self' https:` because upstream supports user-configurable vector,
+raster, and style basemap URLs. Custom basemap endpoints must use HTTPS; HTTP
+custom origins remain intentionally blocked. `worker-src` remains limited to
+`'self' blob:` for MapLibre.
+
+With `SELF_HOSTED=true` on Dawarich 1.14.2, `/sidekiq` requires a signed-in
+Dawarich administrator account. No separate Sidekiq dashboard credentials are
+configured.
 
 Two higher-priority routers provide narrowly scoped Forward Auth bypasses:
 
@@ -98,7 +104,7 @@ API-key authentication.
 | `dawarich-sidekiq`     | Runs `sidekiq-entrypoint.sh` for background GPS import and processing                      |
 | `dawarich-redis`       | Password-protected job queue and cache with persistent snapshots                           |
 | `dawarich-db`          | PostGIS database                                                                           |
-| `dawarich-db-backup`   | One-shot GPG-encrypted PostgreSQL backup                                                   |
+| `dawarich-db-backup`   | One-shot GPG-encrypted PostgreSQL backup after healthy Rails startup                       |
 | `dawarich-db-exporter` | Exposes PostgreSQL metrics on the backend network                                          |
 
 The application health check sends `X-Forwarded-Proto: https` with its internal
@@ -159,8 +165,6 @@ decrypted to `.env` during deployment.
 | `DAWARICH_OTP_KEY_DERIVATION_SALT` | Key-derivation salt for encrypted OTP attributes     |
 | `DAWARICH_ARCHIVE_ENCRYPTION_KEY`  | Dawarich archive encryption key                      |
 | `DAWARICH_MOBILE_PROXY_TOKEN`      | Second secret required by the official mobile router |
-| `DAWARICH_SIDEKIQ_USERNAME`        | Sidekiq dashboard username                           |
-| `DAWARICH_SIDEKIQ_PASSWORD`        | Sidekiq dashboard password                           |
 | `NOTIFICATIONS_EMAIL_FROM`         | Sender address for Dawarich application email        |
 | `NOTIFICATIONS_EMAIL_HOST`         | SMTP server for Dawarich application email           |
 | `NOTIFICATIONS_EMAIL_DOMAIN`       | SMTP HELO domain for Dawarich application email      |
@@ -233,8 +237,12 @@ backends are healthy.
   Traefik.
 - The web UI and unspecified routes use `chain-auth-dawarich@file`, combining
   rate limiting, Forward Auth, and Dawarich-specific secure headers. Its CSP
-  adds only `https://tyles.dwri.xyz` for the default Protomaps vector tiles and
-  allows same-origin and `blob:` workers for MapLibre.
+  permits `connect-src 'self' https:` for upstream's user-configurable vector,
+  raster, and style basemap URLs. Custom endpoints must use HTTPS because HTTP
+  custom origins remain blocked. `worker-src 'self' blob:` stays unchanged, and
+  the other directives remain restrictive.
+- With `SELF_HOSTED=true` on Dawarich 1.14.2, `/sidekiq` requires a signed-in
+  Dawarich administrator account rather than separate dashboard credentials.
 - The official mobile router uses `chain-no-auth@file` only when the request
   has the configured `X-Dawarich-Proxy-Token` and targets an allowlisted mobile
   API resource. The request must also carry the user's Dawarich API key.
@@ -260,6 +268,10 @@ with `DEFAULT_ENCRYPT=TRUE` and
 `DEFAULT_CLEANUP_TIME=2880` retains backup artifacts for 2880 minutes (48
 hours). The image maps its internal backup account to the Dawarich service
 identity with `USER_DBBACKUP=3128` and `GROUP_DBBACKUP=3128`.
+
+The backup job depends on the healthy `dawarich` Rails service rather than only
+PostgreSQL. This ordering lets startup migrations, data migrations, and seeding
+finish before the dump can run.
 
 The stack intentionally uses the maintained
 `docker.io/nfrastack/db-backup:4.9.2` compatibility release. Runtime restore
