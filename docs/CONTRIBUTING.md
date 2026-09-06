@@ -2,6 +2,155 @@
 
 This page covers the development workflow for maintaining this repository: dependency management, commit conventions, and the release process.
 
+## Generating Random SOPS Secrets
+
+For app-owned passwords, passphrases, and tokens, set the initial dotenv value to the literal `GENERATE` and encrypt the template. Keep user-supplied values such as OAuth or SMTP credentials out of the helper arguments, and reference existing shared secrets rather than generating duplicates.
+
+The variables must already exist in `services/<app>/secret.sops.env`, and that dotenv file must already be SOPS-encrypted. With a usable age key configured, run:
+
+```sh
+bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env VARIABLE=BYTE_COUNT [VARIABLE=BYTE_COUNT ...]
+```
+
+The helper is generate-once bootstrap only. It generates a cryptographically secure hexadecimal value only when a requested variable exists and its decrypted value is exactly `GENERATE`. Every existing non-sentinel value is preserved. When nothing needs generation, it exits successfully without rewriting the file.
+
+Do not run the helper concurrently against the same encrypted file. Rotate existing values manually:
+
+```sh
+sops edit services/<app>/secret.sops.env
+```
+
+Never commit `CHANGE_ME` placeholders for generated secrets.
+
+### Recommended age key setup: 1Password CLI
+
+Use SOPS-native `SOPS_AGE_KEY_CMD` so the private key remains in 1Password:
+
+1. [Install the 1Password CLI (`op`)](https://developer.1password.com/docs/cli/get-started/) for the local platform.
+2. In 1Password Desktop, enable **Settings > Developer > Integrate with 1Password CLI**.
+3. Sign in to 1Password Desktop, unlock the app, and approve any CLI authorization prompt.
+4. Verify that `op` is available and authenticated without printing any secret:
+
+   ```sh
+   command -v op >/dev/null
+   op account list >/dev/null
+   op whoami >/dev/null
+   ```
+
+5. Configure the secret reference in the current shell. Every angle-bracket component is a placeholder that must be replaced:
+
+   ```sh
+   export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'
+   ```
+
+SOPS invokes this command internally when it needs the key. Do not invoke or
+shell-evaluate `SOPS_AGE_KEY_CMD` yourself: SOPS tokenizes it and directly
+executes the resulting argument vector, while a shell would interpret
+metacharacters differently. Never print or log the command output. Keep the
+1Password item and field narrowly targeted to the required Age key.
+
+Before generating or editing, verify that the selected identity can decrypt the target while discarding stdout:
+
+```sh
+target='services/<app>/secret.sops.env'
+mise exec -- sops decrypt --input-type dotenv --output-type dotenv "${target}" >/dev/null
+```
+
+A normal multiline Age identity file is accepted: comment lines may surround
+one supported identity. A password field flattened into one line beginning with
+`#` is invalid because the private key becomes part of the comment. Store only
+the `AGE-SECRET-KEY-...` line or preserve real newlines in a Secure Note.
+
+Alternatively, create a local `sops.op.env` file (the `*.op.env` pattern is gitignored) containing only an `SOPS_AGE_KEY=op://<vault>/<item>/<field>` reference, then inject it for one command:
+
+```sh
+op run --env-file sops.op.env -- bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env VARIABLE=BYTE_COUNT
+```
+
+If the key cannot be retrieved or used to decrypt the template, the helper stops with actionable guidance.
+
+### Safe human review
+
+Open the encrypted target through SOPS with VS Code:
+
+```sh
+target='services/<app>/secret.sops.env'
+SOPS_EDITOR='code --wait' mise exec -- sops edit "${target}"
+```
+
+Replace remaining sentinels and required user-supplied or shared values in the editor. Save and close the file; SOPS then re-encrypts it. Never redirect decrypted output to a plaintext file.
+
+Check encryption status, reject unresolved sentinels without printing
+plaintext, review the Git status, scan the working tree for leaks, and confirm
+that no generated temporary files remain:
+
+```bash
+status="$(mise exec -- sops filestatus "${target}")"
+printf '%s\n' "${status}" | grep -Eq '"encrypted"[[:space:]]*:[[:space:]]*true' || {
+    printf '%s\n' 'ERROR: target is not SOPS-encrypted' >&2
+    exit 1
+}
+unset status
+
+set +e
+mise exec -- sops decrypt --input-type dotenv --output-type dotenv "${target}" |
+    awk -F= '$2 == "GENERATE" || $2 == "CHANGE_ME" { found = 1 } END { exit found ? 42 : 0 }'
+pipeline_status=("${PIPESTATUS[@]}")
+set -e
+if ((pipeline_status[0] != 0)); then
+    printf '%s\n' 'ERROR: target cannot be decrypted' >&2
+    exit 1
+fi
+if ((pipeline_status[1] == 42)); then
+    printf '%s\n' 'ERROR: unresolved secret sentinel' >&2
+    exit 1
+fi
+if ((pipeline_status[1] != 0)); then
+    printf '%s\n' 'ERROR: sentinel validation failed' >&2
+    exit 1
+fi
+unset pipeline_status
+
+git status --short -- "${target}"
+mise exec -- gitleaks dir --redact .
+leftover="$(
+    find "$(dirname "${target}")" -maxdepth 1 -type f \
+        -name "$(basename "${target}").generated.*" -print -quit
+)"
+test -z "${leftover}" || {
+    printf 'ERROR: generated temporary file remains: %s\n' "${leftover}" >&2
+    exit 1
+}
+unset leftover
+```
+
+### Optional key-file fallback
+
+Use `SOPS_AGE_KEY_FILE` only when 1Password CLI is unavailable. Without that variable, SOPS checks `%APPDATA%\sops\age\keys.txt` on Windows or `${XDG_CONFIG_HOME:-$HOME/.config}/sops/age/keys.txt` on Linux/WSL. Do not print, log, or read the private key through scripts.
+
+For an already provisioned Windows fallback, restrict the key file ACL to the current user:
+
+```powershell
+$keyFile = if ($env:SOPS_AGE_KEY_FILE) {
+    $env:SOPS_AGE_KEY_FILE
+} else {
+    Join-Path $env:APPDATA 'sops\age\keys.txt'
+}
+$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$acl = New-Object System.Security.AccessControl.FileSecurity
+$acl.SetAccessRuleProtection($true, $false)
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, 'FullControl', 'Allow')
+$acl.AddAccessRule($rule)
+Set-Acl -Path $keyFile -AclObject $acl
+```
+
+For an already provisioned Linux/WSL fallback, restrict the key file to mode `600`:
+
+```sh
+key_file="${SOPS_AGE_KEY_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/sops/age/keys.txt}"
+chmod 600 "$key_file"
+```
+
 ## Renovate
 
 Dependency updates are managed by Renovate. Only `renovate.json5` lives in this repository — every other file below is a **remote preset** in [`DevSecNinja/.github`](https://github.com/DevSecNinja/.github), pulled in through the `extends` list. There is no `.renovate/` directory here.
@@ -152,14 +301,14 @@ Run `task help` for detailed usage examples.
 
 ## Testing
 
-The repository has a [BATS](https://github.com/bats-core/bats-core) test suite for `scripts/dccd.sh`
-with 133 tests across three categories:
+The repository has a [BATS](https://github.com/bats-core/bats-core) suite for `scripts/dccd.sh` and
+the SOPS random-secret helper, with 214 tests:
 
-| Category    | Count | What it tests                                                       |
-| ----------- | ----- | ------------------------------------------------------------------- |
-| Unit        | 73    | Individual functions in isolation with all external commands mocked |
-| Integration | 56    | Multi-function workflows (deploy flow, option parsing, cleanup)     |
-| E2E         | 4     | Real Docker containers — skipped locally, runs in CI                |
+| Category    | Count | What it tests                                                        |
+| ----------- | ----- | -------------------------------------------------------------------- |
+| Unit        | 142   | DCCD functions and 21 mocked SOPS secret-helper tests                |
+| Integration | 72    | DCCD workflows and three integration tests using real Age and SOPS   |
+| E2E         | 4     | Real Docker containers for DCCD — skipped locally and run separately |
 
 ### Running tests
 
@@ -176,8 +325,13 @@ sets this automatically.
 
 ### Pre-commit hook
 
-Lefthook runs `bats tests/` as a pre-commit hook, so the full unit and integration suite executes
-before every commit. If tests fail, the commit is blocked.
+Lefthook runs both the DCCD and SOPS secret unit suites before every commit. CI and the Taskfile also
+include both projects' unit and integration tests; DCCD E2E tests run separately with Docker.
+
+The SOPS integration suite creates a fresh temporary Age identity for every test, encrypts a fixture,
+runs generate-once replacement through an offline fake `op`, decrypts and verifies the result, then
+reruns the helper to prove no-op idempotency. Failure paths prove the encrypted SHA-256 is unchanged
+and leave no generated temporary files. CI never uses a production Age key.
 
 ### Writing tests
 
