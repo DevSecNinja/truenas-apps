@@ -25,7 +25,8 @@ sops_secrets_setup() {
   mkdir -p "${MOCK_BIN}" "${MOCK_LOG}"
   export PATH="${MOCK_BIN}:${PATH}"
   export MOCK_BIN MOCK_LOG TARGET PLAINTEXT
-  unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD SOPS_AGE_KEY_FILE
+  unset MOCK_OP_EXIT MOCK_OP_OUTPUT MOCK_OP_OUTPUT_FILE
+  unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD SOPS_AGE_KEY_FILE TARGET_HASH_BEFORE
 
   printf '%s\n' 'not-a-real-age-key' >"${KEY_FILE}"
   write_encrypted_target
@@ -89,6 +90,23 @@ file_mtime() {
   else
     stat -f '%m' "${1}"
   fi
+}
+
+snapshot_target() {
+  TARGET_HASH_BEFORE="$(file_sha256 "${TARGET}")"
+}
+
+assert_no_generated_temp_files() {
+  run find "$(dirname "${TARGET}")" -maxdepth 1 -type f -name "$(basename "${TARGET}").generated.*" -print
+  assert_success
+  assert_output ""
+}
+
+assert_target_unchanged() {
+  run file_sha256 "${TARGET}"
+  assert_success
+  assert_output "${TARGET_HASH_BEFORE}"
+  assert_no_generated_temp_files
 }
 
 assert_target_usable() {

@@ -48,6 +48,8 @@ Determine the correct PUID/PGID model for this app (media consumer, media produc
 
 ### Step 2 — Create and populate the secrets template
 
+Follow the dedicated [SOPS secrets skill](../sops-secrets/SKILL.md) for key preflight, safe editing, generation, and validation.
+
 Classify every secret before creating the files:
 
 - **Random values**: App-owned passwords, passphrases, and tokens that can be generated locally.

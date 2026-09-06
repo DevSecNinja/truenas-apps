@@ -148,6 +148,23 @@ MOCK
   chmod +x "${MOCK_BIN}/od"
 }
 
+create_op_mock() {
+  cat >"${MOCK_BIN}/op" <<'MOCK'
+#!/bin/sh
+printf '%s\n' "$*" >>"${MOCK_LOG}/op.calls"
+
+if [ "${MOCK_OP_EXIT:-0}" != "0" ]; then
+    exit "${MOCK_OP_EXIT}"
+fi
+if [ -n "${MOCK_OP_OUTPUT_FILE:-}" ]; then
+    cat "${MOCK_OP_OUTPUT_FILE}"
+else
+    printf '%s\n' "${MOCK_OP_OUTPUT:-}"
+fi
+MOCK
+  chmod +x "${MOCK_BIN}/op"
+}
+
 sops_set_count() {
   if [[ -f "${MOCK_LOG}/sops-set.count" ]]; then
     tr -d '[:space:]' <"${MOCK_LOG}/sops-set.count"

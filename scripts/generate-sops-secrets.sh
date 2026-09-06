@@ -51,6 +51,40 @@ run_sops() {
     fi
 }
 
+preflight_op_key_command() {
+    local key_output
+    local identity_line_count=0
+    local invalid_identity_line=0
+    local line
+
+    if ! key_output="$(/bin/sh -c "${SOPS_AGE_KEY_CMD}" 2>/dev/null)"; then
+        error "1Password could not retrieve the configured age identity; unlock and authenticate op"
+        key_setup_help
+        return 1
+    fi
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line="${line%$'\r'}"
+        [[ -z "${line}" || "${line}" == \#* ]] && continue
+
+        if [[ "${line}" =~ ^AGE-(SECRET-KEY|PLUGIN)-[0-9A-Z-]+$ ]]; then
+            ((identity_line_count += 1))
+        else
+            invalid_identity_line=1
+        fi
+    done <<<"${key_output}"
+    unset key_output line
+
+    if ((identity_line_count != 1 || invalid_identity_line != 0)); then
+        error "1Password output must contain exactly one supported Age identity on its own line"
+        error "X25519, PQ, and plugin identities are supported; flattened comment-prefixed output is not"
+        key_setup_help
+        return 1
+    fi
+
+    return 0
+}
+
 generate_random_hex() {
     local byte_count="${1}"
     local value
@@ -133,6 +167,9 @@ main() {
             error "SOPS_AGE_KEY_CMD uses 1Password, but the op CLI is unavailable"
             key_setup_help
             return 1
+        fi
+        if [[ "${trimmed_key_command}" == "op" || "${trimmed_key_command}" == "op "* ]]; then
+            preflight_op_key_command
         fi
     fi
 

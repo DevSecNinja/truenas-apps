@@ -29,13 +29,52 @@ Use SOPS-native `SOPS_AGE_KEY_CMD` so the private key remains in 1Password:
 1. [Install the 1Password CLI (`op`)](https://developer.1password.com/docs/cli/get-started/) for the local platform.
 2. In 1Password Desktop, enable **Settings > Developer > Integrate with 1Password CLI**.
 3. Sign in to 1Password Desktop, unlock the app, and approve any CLI authorization prompt.
-4. Configure the secret reference in the current shell:
+4. Verify that `op` is available and authenticated without printing any secret:
+
+   ```sh
+   command -v op >/dev/null
+   op account list >/dev/null
+   op whoami >/dev/null
+   ```
+
+5. Configure the secret reference in the current shell. Every angle-bracket component is a placeholder that must be replaced:
 
    ```sh
    export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'
    ```
 
-SOPS invokes this command internally when it needs the key. Never run `op read` directly, use it in command substitution, or print or log its output. Keep the 1Password item and field narrowly targeted to the required age key.
+SOPS invokes this command internally when it needs the key. Do not invoke `op read` yourself except through the non-printing validation below, and never print or log its output. Keep the 1Password item and field narrowly targeted to the required age key.
+
+Safely verify that the reference returns exactly one supported Age identity
+without printing it:
+
+```sh
+identity_line_count="$(
+    set -o pipefail
+    /bin/sh -c "${SOPS_AGE_KEY_CMD}" |
+        awk '
+            { sub(/\r$/, "") }
+            /^$/ || /^#/ { next }
+            /^AGE-(SECRET-KEY|PLUGIN)-[0-9A-Z-]+$/ { count++; next }
+            { invalid = 1 }
+            END { if (invalid) exit 1; print count + 0 }
+        '
+)"
+test "${identity_line_count}" -eq 1
+unset identity_line_count
+```
+
+A normal multiline Age identity file is accepted: comment lines may surround
+one standalone X25519, post-quantum, or plugin identity. A flattened one-line
+value beginning with `#` is invalid because its private key is part of a
+comment. Preserve the original newlines in the 1Password field.
+
+Before generating or editing, verify that the selected identity can decrypt the target while discarding stdout:
+
+```sh
+target='services/<app>/secret.sops.env'
+mise exec -- sops decrypt --input-type dotenv --output-type dotenv "${target}" >/dev/null
+```
 
 Alternatively, create a local `sops.op.env` file (the `*.op.env` pattern is gitignored) containing only an `SOPS_AGE_KEY=op://<vault>/<item>/<field>` reference, then inject it for one command:
 
@@ -44,6 +83,61 @@ op run --env-file sops.op.env -- bash scripts/generate-sops-secrets.sh services/
 ```
 
 If the key cannot be retrieved or used to decrypt the template, the helper stops with actionable guidance.
+
+### Safe human review
+
+Open the encrypted target through SOPS with VS Code:
+
+```sh
+target='services/<app>/secret.sops.env'
+SOPS_EDITOR='code --wait' mise exec -- sops edit "${target}"
+```
+
+Replace remaining sentinels and required user-supplied or shared values in the editor. Save and close the file; SOPS then re-encrypts it. Never redirect decrypted output to a plaintext file.
+
+Check encryption status, reject unresolved sentinels without printing
+plaintext, review the Git status, scan the working tree for leaks, and confirm
+that no generated temporary files remain:
+
+```bash
+status="$(mise exec -- sops filestatus "${target}")"
+printf '%s\n' "${status}" | grep -Eq '"encrypted"[[:space:]]*:[[:space:]]*true' || {
+    printf '%s\n' 'ERROR: target is not SOPS-encrypted' >&2
+    exit 1
+}
+unset status
+
+set +e
+mise exec -- sops decrypt --input-type dotenv --output-type dotenv "${target}" |
+    awk -F= '$2 == "GENERATE" || $2 == "CHANGE_ME" { found = 1 } END { exit found ? 42 : 0 }'
+pipeline_status=("${PIPESTATUS[@]}")
+set -e
+if ((pipeline_status[0] != 0)); then
+    printf '%s\n' 'ERROR: target cannot be decrypted' >&2
+    exit 1
+fi
+if ((pipeline_status[1] == 42)); then
+    printf '%s\n' 'ERROR: unresolved secret sentinel' >&2
+    exit 1
+fi
+if ((pipeline_status[1] != 0)); then
+    printf '%s\n' 'ERROR: sentinel validation failed' >&2
+    exit 1
+fi
+unset pipeline_status
+
+git status --short -- "${target}"
+mise exec -- gitleaks dir --redact .
+leftover="$(
+    find "$(dirname "${target}")" -maxdepth 1 -type f \
+        -name "$(basename "${target}").generated.*" -print -quit
+)"
+test -z "${leftover}" || {
+    printf 'ERROR: generated temporary file remains: %s\n' "${leftover}" >&2
+    exit 1
+}
+unset leftover
+```
 
 ### Optional key-file fallback
 
@@ -223,12 +317,12 @@ Run `task help` for detailed usage examples.
 ## Testing
 
 The repository has a [BATS](https://github.com/bats-core/bats-core) suite for `scripts/dccd.sh` and
-the SOPS random-secret helper, with 208 tests:
+the SOPS random-secret helper, with 214 tests:
 
 | Category    | Count | What it tests                                                        |
 | ----------- | ----- | -------------------------------------------------------------------- |
-| Unit        | 134   | DCCD functions and 13 mocked SOPS secret-helper tests                |
-| Integration | 70    | DCCD workflows and one integration test using real Age and SOPS      |
+| Unit        | 140   | DCCD functions and 19 mocked SOPS secret-helper tests                |
+| Integration | 72    | DCCD workflows and three integration tests using real Age and SOPS   |
 | E2E         | 4     | Real Docker containers for DCCD — skipped locally and run separately |
 
 ### Running tests
@@ -248,6 +342,11 @@ sets this automatically.
 
 Lefthook runs both the DCCD and SOPS secret unit suites before every commit. CI and the Taskfile also
 include both projects' unit and integration tests; DCCD E2E tests run separately with Docker.
+
+The SOPS integration suite creates a fresh temporary Age identity for every test, encrypts a fixture,
+runs generate-once replacement through an offline fake `op`, decrypts and verifies the result, then
+reruns the helper to prove no-op idempotency. Failure paths prove the encrypted SHA-256 is unchanged
+and leave no generated temporary files. CI never uses a production Age key.
 
 ### Writing tests
 

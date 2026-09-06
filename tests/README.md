@@ -1,7 +1,7 @@
 # Test Framework
 
 This repository uses [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System)
-to test `scripts/dccd.sh` and the SOPS random-secret helper. The suite contains **208 tests** across
+to test `scripts/dccd.sh` and the SOPS random-secret helper. The suite contains **214 tests** across
 unit, integration, and end-to-end categories.
 
 ## Directory Structure
@@ -22,8 +22,8 @@ tests/
 │   └── e2e/                   # Real Docker container tests (4 tests)
 └── sops-secrets/
     ├── helpers/               # Shared fixtures and command mocks
-    ├── unit/                  # Mocked secret-generation tests (13 tests)
-    └── integration/           # Real Age/SOPS integration test (1 test)
+    ├── unit/                  # Mocked secret-generation tests (17 tests)
+    └── integration/           # Real Age/SOPS integration tests (3 tests)
 ```
 
 ## Setup
@@ -127,9 +127,15 @@ like option parsing, deploy orchestration, and cleanup.
 
 ### SOPS secret tests (`tests/sops-secrets/`)
 
-The SOPS secret suite contains 13 unit tests with mocked external commands and one integration test
-that uses real mise-managed Age and SOPS binaries. It covers validation, generate-once idempotency,
+The SOPS secret suite contains 19 unit tests with mocked external commands and three integration tests
+that use real mise-managed Age and SOPS binaries. It covers validation, generate-once idempotency,
 key-source handling, encryption, and value preservation.
+
+Each real integration test creates a fresh temporary Age identity and encrypts its own fixture. The
+happy path supplies that disposable identity through an offline fake `op`, generates the requested
+values, decrypts and verifies them, and reruns the helper to prove no-op idempotency. Failure paths
+prove the encrypted target SHA-256 is unchanged and no generated temporary files remain. CI uses no
+production key.
 
 ### E2E tests (`tests/dccd/e2e/`)
 
@@ -248,7 +254,9 @@ Tests run automatically on pull requests and can also be started manually.
 | BATS E2E (reusable) | `.github/workflows/bats-e2e.yml` | E2E tests with Docker    |
 
 The test caller workflow (`.github/workflows/test.yml`) invokes both reusable workflows. Unit and
-integration tests run in a standard runner. E2E tests run in a runner with Docker available.
+integration tests run in a standard runner after `mise-action` installs the pinned tools, including
+Age and SOPS. The real SOPS tests may skip locally when those tools are unavailable, but missing
+`mise`, Age, or SOPS is a hard failure under CI. E2E tests run in a runner with Docker available.
 
 Lefthook's unit checks run both `tests/dccd/unit/` and `tests/sops-secrets/unit/`, catching fast
 regressions before they reach CI. CI runs both projects' unit and integration suites; DCCD E2E tests
