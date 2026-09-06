@@ -68,6 +68,7 @@ services:
       traefik-backend:
       adguard-frontend:
       alloy-frontend:
+      dawarich-frontend:
       echo-server-frontend:
       excalidraw-frontend:
       gatus-frontend:
@@ -224,6 +225,9 @@ networks:
     external: true
   alloy-frontend:
     name: alloy-frontend
+    external: true
+  dawarich-frontend:
+    name: dawarich-frontend
     external: true
   gatus-frontend:
     name: gatus-frontend

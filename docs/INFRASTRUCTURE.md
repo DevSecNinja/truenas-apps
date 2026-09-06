@@ -144,32 +144,33 @@ All servers and workstations follow a structured naming scheme:
 | 3100–3199 | Per-app service accounts (UID = GID)             |
 | 3200+     | Shared purpose groups (no matching user account) |
 
-Each service account has a matching `svc-app-<name>` group created at the same GID as its UID. These groups are **GID reservations only** — they exist to prevent TrueNAS from assigning the GID to an unrelated group in the future. The app's _functional_ primary group is typically a shared purpose group (e.g., `media` at GID 3200), not the `svc-app-*` placeholder. There is no need to add `truenas_admin` or other users to the `svc-app-*` groups.
+Each service account has a matching `svc-app-<name>` group created at the same GID as its UID. These groups are **GID reservations only** — they exist to prevent TrueNAS from assigning the GID to an unrelated group in the future. The app's _functional_ primary group is typically a shared purpose group (e.g., `media` at GID 3200), not the `svc-app-*` placeholder. There is generally no need to add `truenas_admin` or other users to the `svc-app-*` groups. Dawarich is an exception: `truenas_admin` belongs to `svc-app-dawarich` for operational access to its mode `770` runtime directories.
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user          | Service(s)                                  | Git-tracked config? |
-| ------- | --------------------- | ------------------------------------------- | ------------------- |
-| 3100    | `svc-app-traefik`     | traefik, traefik-init                       | Yes (`./config`)    |
-| 3101    | `svc-app-adguard`     | adguard, adguard-init, adguard-unbound-init | No (`./data/conf`)  |
-| 3102    | `svc-app-homepage`    | homepage, homepage-init                     | Yes (`./config`)    |
-| 3103    | `svc-app-gatus`       | gatus, gatus-db-backup                      | No                  |
-| 3104    | `svc-app-echo`        | echo-server                                 | No                  |
-| 3105    | `svc-app-tfa`         | traefik-forward-auth, init                  | No (`./data`)       |
-| 3106    | `svc-app-immich`      | immich-server, immich-ml, immich-init       | No                  |
-| 3107    | `svc-app-metube`      | metube, metube-init                         | No                  |
-| 3108    | `svc-app-unifi`       | unifi, unifi-db-backup                      | No                  |
-| 3109    | `svc-app-dozzle`      | dozzle, dozzle-init                         | No                  |
-| 3110    | `svc-app-radarr`      | radarr                                      | No                  |
-| 3118    | `svc-app-tubesync`    | tubesync                                    | No                  |
-| 3119    | `svc-app-drawio`      | drawio                                      | No                  |
-| 3120    | `svc-app-outline`     | outline-db-backup†                          | No                  |
-| 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                   | Yes (`./config`)    |
-| 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init               | Yes (`./config`)    |
-| 3124    | `svc-app-matter`      | matter-server, matter-server-init           | No                  |
-| 3125    | `svc-app-alloy`       | alloy, alloy-init                           | Yes (`./config`)    |
-| 3126    | `svc-app-bitwarden`   | bitwarden                                   | No                  |
-| 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                     | No                  |
+| UID/GID | TrueNAS user          | Service(s)                                                    | Git-tracked config? |
+| ------- | --------------------- | ------------------------------------------------------------- | ------------------- |
+| 3100    | `svc-app-traefik`     | traefik, traefik-init                                         | Yes (`./config`)    |
+| 3101    | `svc-app-adguard`     | adguard, adguard-init, adguard-unbound-init                   | No (`./data/conf`)  |
+| 3102    | `svc-app-homepage`    | homepage, homepage-init                                       | Yes (`./config`)    |
+| 3103    | `svc-app-gatus`       | gatus, gatus-db-backup                                        | No                  |
+| 3104    | `svc-app-echo`        | echo-server                                                   | No                  |
+| 3105    | `svc-app-tfa`         | traefik-forward-auth, init                                    | No (`./data`)       |
+| 3106    | `svc-app-immich`      | immich-server, immich-ml, immich-init                         | No                  |
+| 3107    | `svc-app-metube`      | metube, metube-init                                           | No                  |
+| 3108    | `svc-app-unifi`       | unifi, unifi-db-backup                                        | No                  |
+| 3109    | `svc-app-dozzle`      | dozzle, dozzle-init                                           | No                  |
+| 3110    | `svc-app-radarr`      | radarr                                                        | No                  |
+| 3118    | `svc-app-tubesync`    | tubesync                                                      | No                  |
+| 3119    | `svc-app-drawio`      | drawio                                                        | No                  |
+| 3120    | `svc-app-outline`     | outline-db-backup†                                            | No                  |
+| 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                                     | Yes (`./config`)    |
+| 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init                                 | Yes (`./config`)    |
+| 3124    | `svc-app-matter`      | matter-server, matter-server-init                             | No                  |
+| 3125    | `svc-app-alloy`       | alloy, alloy-init                                             | Yes (`./config`)    |
+| 3126    | `svc-app-bitwarden`   | bitwarden                                                     | No                  |
+| 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                                       | No                  |
+| 3128    | `svc-app-dawarich`    | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -177,6 +178,12 @@ db-backup sidecar. The Outline server itself runs without a `user:` directive;
 an `outline-init` container pre-chowns `./data/data` to UID 1000 so the node
 process can write to the bind-mount path. See:
 https://github.com/outline/outline/discussions/9452
+
+The `svc-app-dawarich` user has UID 3128, primary group
+`svc-app-dawarich` (GID 3128), and no shared-purpose group memberships.
+The application, worker, init ownership target, and database backup sidecar
+use this identity. The nfrastack/db-backup `4.9.2` compatibility release selects
+it through `USER_DBBACKUP=3128` and `GROUP_DBBACKUP=3128`.
 
 ### Shared Purpose Groups
 
@@ -248,6 +255,60 @@ This gives `truenas_admin` full access while blocking all other users from readi
 1. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
 2. `truenas_admin` (a member of each app's primary group) gets group-write access via POSIX group permissions
 3. Next deploy, the init container re-chowns everything (idempotent)
+
+### Dawarich Dataset
+
+Create `vm-pool/apps/services/dawarich` as a child dataset. It contains the
+Compose definition and encrypted secrets alongside all Dawarich runtime data:
+
+| Path                  | Purpose                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `./data/app-tmp`      | Rails application temporary paths, including PID, cache, socket, and home directories |
+| `./data/db`           | PostGIS database                                                                      |
+| `./data/public`       | Generated public assets                                                               |
+| `./data/redis`        | Redis persistence                                                                     |
+| `./data/sidekiq-tmp`  | Sidekiq worker cache and home directories                                             |
+| `./data/storage`      | Dawarich application storage                                                          |
+| `./data/watched`      | Watched GPS import directory                                                          |
+| `./backups/db-backup` | ZSTD-compressed, GPG-encrypted PostgreSQL backups with SHA1 sidecars                  |
+
+Before the first deployment:
+
+1. Create the `svc-app-dawarich` group with GID 3128.
+2. Add `truenas_admin` to that group for operational access to the application
+   runtime directories that `dawarich-init` sets to mode `770`.
+3. Create the `svc-app-dawarich` user with UID 3128 and primary group
+   `svc-app-dawarich`.
+4. Create the `vm-pool/apps/services/dawarich` dataset.
+5. Populate every required value in `services/dawarich/secret.sops.env`.
+
+`dawarich-init` assigns the public assets, storage, watched imports, and the
+app/worker temporary paths to `3128:3128`. Redis is assigned to its
+image-internal `999:999` identity. PostGIS manages its own runtime directory
+permissions. The nfrastack/db-backup `4.9.2` compatibility release manages the
+backup path while mapping its internal user and group to `3128:3128` through
+`USER_DBBACKUP` and `GROUP_DBBACKUP`. The init container retains `CHOWN`,
+`FOWNER`, and `DAC_OVERRIDE`; `DAC_OVERRIDE` lets repeat deployments traverse
+mode `770` runtime paths. Before changing ownership, it fails if any required
+decrypted value is empty or `CHANGE_ME`. PostGIS and Redis depend on successful
+init completion, so a placeholder database password cannot initialize PostGIS.
+
+The internal `dawarich-backend` network is owned by `_bootstrap` and referenced
+as external by both Alloy and Dawarich. A full `dccd.sh` deployment processes
+`_bootstrap` first, so the network exists before either consumer on a fresh
+host. Redis and the database backup container remain backend-only. The backup
+container sets `ENABLE_NOTIFICATIONS=FALSE` and does not join
+`dawarich-frontend`; all remaining `NOTIFICATIONS_EMAIL_*` variables configure
+Dawarich application email only.
+
+The backup container runs `backup-now` with `MODE=MANUAL` on every full
+`dccd.sh` deployment. It uses ZSTD compression, GPG passphrase encryption
+through `DEFAULT_ENCRYPT` and `DEFAULT_ENCRYPT_PASSPHRASE`, a SHA1 sidecar, and
+`DEFAULT_CLEANUP_TIME=2880`. Runtime testing successfully decrypted and
+restored the dump into a fresh PostgreSQL database. Version 5.0.0 was
+intentionally not selected because runtime restore validation failed with an
+invalid bigint conversion; `4.9.2` preserves the proven v4 workflow in the
+maintained nfrastack image and repository.
 
 ## Media Access
 

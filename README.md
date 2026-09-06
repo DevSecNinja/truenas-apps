@@ -39,6 +39,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                         |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container) |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network |
+| [Dawarich](https://dawarich.app/)                                                             | Self-hosted location history and GPS tracking                  |
 | [Dozzle](https://dozzle.dev/)                                                                 | Real-time container log viewer                                 |
 | [Draw.io](https://www.drawio.com/)                                                            | Flowchart and diagram maker                                    |
 | [Echo Server](https://github.com/mendhak/docker-http-https-echo)                              | HTTP echo server for testing Traefik routing                   |
@@ -84,6 +85,7 @@ vm-pool/apps/services/adguard
 vm-pool/apps/services/alloy
 vm-pool/apps/services/bazarr
 vm-pool/apps/services/bitwarden
+vm-pool/apps/services/dawarich
 vm-pool/apps/services/dozzle
 vm-pool/apps/services/drawio
 vm-pool/apps/services/echo-server
@@ -180,7 +182,7 @@ Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings 
 
 | Server   | Platform        | Apps                                                                                      | Purpose                                                         |
 | -------- | --------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| svlnas   | TrueNAS         | All 34 apps                                                                               | Primary home lab (TrueNAS mode)                                 |
+| svlnas   | TrueNAS         | All 35 apps                                                                               | Primary home lab (TrueNAS mode)                                 |
 | svlazext | Azure VM Debian | AdGuard, Alloy, Traefik, Traefik Forward Auth (Cloudflared paused — no tunneled services) | DNS filtering + Unbound, edge routing, and telemetry collection |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:

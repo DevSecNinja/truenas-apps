@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/image-security.yml
       - scripts/gha-image-age-check.sh
+      - scripts/gha-renovate-health-check.sh
       - scripts/gha-trivy-image-scan.sh
   schedule:
     - cron: "0 2 * * 6"
@@ -47,6 +48,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           THRESHOLD_DAYS: ${{ inputs.threshold_days || '90' }}
         run: bash scripts/gha-image-age-check.sh
+
+      - name: Check Renovate dependency lookups
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/gha-renovate-health-check.sh
+        # The live dashboard describes main, not the pull request under test.
+        # Unit tests cover this script on pull requests.
+        if: ${{ github.event_name != 'pull_request' }}
 
   trivy-image-scan:
     name: Trivy image vulnerability scan

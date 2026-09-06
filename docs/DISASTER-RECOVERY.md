@@ -240,7 +240,11 @@ This also installs SOPS if not already present. At this stage no apps are create
 
 ## Step 9: Create TrueNAS Custom Apps
 
-In the TrueNAS UI, create a Custom App (YAML) for each service. Each entry uses the `include` directive to point at the compose file:
+In the TrueNAS UI, create a Custom App (YAML) for each service. Create
+`_bootstrap` first: it owns shared external networks, including the internal
+`dawarich-backend` network that Alloy and Dawarich require on a fresh
+deployment. Each entry uses the `include` directive to point at the compose
+file:
 
 ```yaml
 include:
@@ -248,7 +252,12 @@ include:
 services: {}
 ```
 
-**Create Traefik last.** TrueNAS deploys each app immediately when you create it. Each app's compose file creates its own frontend network (e.g., `echo-server-frontend`), and Traefik's compose file references all of these as `external: true` — so those networks must already exist before Traefik is created.
+**Create `_bootstrap` first and Traefik last.** TrueNAS deploys each app
+immediately when you create it. `_bootstrap` creates shared backend networks
+before their consumers. Each app's compose file creates its own frontend
+network (e.g., `echo-server-frontend`), and Traefik's compose file references
+all of these as `external: true` — so those networks must already exist before
+Traefik is created.
 
 ---
 
@@ -281,8 +290,13 @@ Add a TrueNAS cron job for continuous deployment:
   bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /mnt/vm-pool/apps/age.key
   ```
 - **Run As User:** `root`
-- **Schedule:** Every 15 minutes (or as desired)
+- **Schedule:** Every 15 minutes
 - Unselect **Hide Standard Output** and **Hide Standard Error** for troubleshooting
+
+Because this command includes `-f`, each run is a forced full deployment and
+may start every one-shot database backup job. Backup cadence therefore follows
+this 15-minute dccd schedule; each job's 48-hour retention bounds its stored
+backup count.
 
 ---
 
@@ -305,7 +319,7 @@ Use this as a quick reference:
 - [ ] Decrypt secrets by running `dccd.sh`
 - [ ] Restore data from backups (if available)
 - [ ] Recreate media/private dataset permissions (if applicable)
-- [ ] Create TrueNAS Custom App entries in the UI (Traefik last)
+- [ ] Create TrueNAS Custom App entries in the UI (`_bootstrap` first, Traefik last)
 - [ ] Run the CD script to validate
 - [ ] Verify all containers are healthy
 - [ ] Re-enable the cron job for continuous deployment

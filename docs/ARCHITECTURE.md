@@ -176,33 +176,66 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 **Exceptions — images that manage their own permissions:**
 
 - **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and chown their own directories during their own init phase. They do not need an external init container.
+- **nfrastack/db-backup** manages backup output ownership through its `USER_DBBACKUP` and `GROUP_DBBACKUP` settings. It does not need an external init container.
 - **Database images** (postgres, MongoDB) initialise their own data directories. They do not need an external init container.
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd                                                                    |
-| -------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
-| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)     |
-| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                       |
-| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                       |
-| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                             |
-| dozzle               | `dozzle-init`               | `./data`                                                                           |
-| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)           |
-| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)    |
-| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)   |
-| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                         |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache` |
-| matter-server        | `matter-server-init`        | `./data`                                                                           |
-| metube               | `metube-init`               | `./data/state`                                                                     |
-| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                        |
-| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                    |
-| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                     |
-| spottarr             | `spottarr-chown`            | `./data`                                                                           |
-| traefik              | `traefik-init`              | `./data/acme`                                                                      |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                           |
-| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                      |
+| Service              | Init container              | Volumes chown'd                                                                                                                                                                   |
+| -------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                                                                                                    |
+| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                      |
+| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                      |
+| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                            |
+| dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999` |
+| dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                          |
+| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                          |
+| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                                                                                                   |
+| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                  |
+| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                        |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                |
+| matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                          |
+| metube               | `metube-init`               | `./data/state`                                                                                                                                                                    |
+| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                                                                                                       |
+| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                   |
+| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                    |
+| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                          |
+| traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                     |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                          |
+| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                     |
+
+`dawarich-init` uses `docker.io/library/busybox:1.38.0`. Its container mount
+targets are `/public`, `/storage`, `/watched`, `/app-tmp`, `/sidekiq-tmp`, and
+`/redis`; it never changes ownership under `./config`. Before changing
+permissions, it rejects any required decrypted value that is empty or equals
+`CHANGE_ME`. It retains only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`;
+`DAC_OVERRIDE` is required to traverse mode `770` runtime paths on repeat
+deployments. PostGIS and Redis depend on successful init completion, preventing
+a placeholder database password from initializing PostGIS; the application and
+worker start only after their backends are healthy.
 
 ---
+
+**Exception — hardened direct-non-root override:**
+
+The upstream Dawarich image normally starts as root and uses its PUID/PGID
+entrypoint to prepare data before dropping privileges. This stack instead
+prepares every writable path with `dawarich-init`, then runs both the Rails
+application and Sidekiq worker directly as `3128:3128`. The web container
+explicitly uses `web-entrypoint.sh` with
+`bin/rails server -p 3000 -b ::`; the worker explicitly uses
+`sidekiq-entrypoint.sh`. Both containers use a read-only root filesystem, drop
+all capabilities, and set `no-new-privileges=true`. This bypasses the upstream
+root-start permission model while preserving its role-specific startup
+scripts and required writable paths.
+
+The Rails health check sends `X-Forwarded-Proto: https` with its internal HTTP
+request. Because `APPLICATION_PROTOCOL=https` enables Rails `force_ssl`,
+omitting the header redirects the probe instead of returning the expected
+health response. The Sidekiq health check invokes the image's Ruby interpreter
+to inspect `/proc/1/cmdline` and verify that PID 1 contains `sidekiq`. The image
+does not include `pgrep`/procps, so the check does not depend on those
+utilities.
 
 **Exceptions — s6-overlay and root-start containers:**
 
@@ -211,6 +244,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit `user:` and `read_only`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **LinuxServer socket-proxy** — runs as root by design to proxy the Docker socket. Does not support custom users, mods, or scripts. Omit `cap_drop: ALL`; `no-new-privileges` and `read_only` are still applied.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
+- **nfrastack/db-backup** — the `4.9.2` compatibility release uses `USER_DBBACKUP`/`GROUP_DBBACKUP` to select its internal backup identity; omit `user:` and `read_only`. Dawarich maps both settings to its dedicated service account.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 - **meeb/tubesync** — uses its own `start.sh` init script to create the `PUID:PGID` user, chown `/config`, and launch supervisord; omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **ghcr.io/home-assistant/home-assistant** — uses s6-overlay (confirmed by `s6-rc` log lines). Omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, `SETPCAP` via `cap_add` (standard s6-overlay set). Also add `NET_RAW` — required by HA's built-in DHCP watcher integration, which opens raw `AF_PACKET` sockets to track devices; without it HA logs `[Errno 1] Operation not permitted` at startup and the DHCP integration stops working. No TrueNAS service account or init container is required — s6-overlay manages `/config` ownership internally.
@@ -272,9 +306,99 @@ Services that need Docker API access get a dedicated **internal** backend networ
 
 The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
 
+### Exception: dawarich-backend
+
+Dawarich and Alloy share the external `dawarich-backend` internal bridge:
+Dawarich uses it for PostGIS, Redis, backup, and exporter traffic, while Alloy
+uses it only to scrape `dawarich-db-exporter`. The `_bootstrap` stack creates
+the network before Alloy and Dawarich because its directory sorts first in a
+full `dccd.sh` deployment. This ownership and ordering prevent Alloy from
+failing on a fresh deployment while keeping the network internal. Redis remains
+backend-only. The database backup container also stays backend-only and sets
+`ENABLE_NOTIFICATIONS=FALSE`; the remaining `NOTIFICATIONS_EMAIL_*` variables
+configure only Dawarich application email.
+
+`dawarich-db-backup` uses the maintained
+`docker.io/nfrastack/db-backup:4.9.2` compatibility release. It runs
+`backup-now` in one-shot `MODE=MANUAL` mode on every full `dccd.sh` deployment.
+The backup job depends on the healthy `dawarich` Rails service rather than only
+PostgreSQL, so startup migrations, data migrations, and seeding finish before
+the dump can run.
+`DEFAULT_COMPRESSION=ZSTD`, `DEFAULT_CHECKSUM=SHA1`,
+`DEFAULT_ENCRYPT=TRUE`, and
+`DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}` produce a ZSTD-compressed,
+GPG-encrypted PostgreSQL dump with a SHA1 sidecar.
+`DEFAULT_CLEANUP_TIME=2880` retains the artifacts for 2880 minutes. Runtime
+testing successfully decrypted the dump and restored it into a fresh PostgreSQL
+database.
+
+Version 5.0.0 was intentionally not selected because runtime restore validation
+failed with an invalid bigint conversion. Version 4.9.2 preserves the proven v4
+workflow while using the maintained nfrastack image and repository.
+
 ### Exception: iot-backend
 
 The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares a single `iot-backend` internal bridge network so the services can communicate directly. For example, wmbusmeters publishes MQTT messages to Mosquitto, Home Assistant subscribes to MQTT topics, and Frigate sends events via MQTT. This network is created by the `_bootstrap` service and referenced as `external: true` by each IoT app. The backend bridge is `internal: true` and carries no internet route. Matter Server is excluded — it uses `network_mode: host` for mDNS device discovery and Thread border router communication.
+
+### Dawarich Split Authentication Routers
+
+Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
+for the web UI, including protection against exposure of the upstream seeded
+demo administrator. The chain combines rate limiting, Forward Auth, and
+`middlewares-dawarich-secure-headers`. Its restrictive CSP permits
+`connect-src 'self' https: wss:`. HTTPS permits upstream's user-configurable
+vector, raster, and style basemap URLs; custom basemap endpoints must use HTTPS,
+and HTTP custom origins remain intentionally blocked. Explicit `wss:` permits
+ActionCable updates for the live map, family locations, tracks, and
+notifications because browsers do not consistently treat `'self'` as
+authorizing WSS. `worker-src` stays limited to `'self' blob:` for MapLibre, and
+the other directives remain restrictive. All requests use this router unless
+one of two higher-priority, `chain-no-auth@file` routers matches:
+
+| Router                | Match                                                                                                 | Application authentication |
+| --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------- |
+| Mobile health         | Correct `X-Dawarich-Proxy-Token` and `/api/v1/health`                                                 | None; returns no user data |
+| Mobile data           | Correct `X-Dawarich-Proxy-Token` and any other allowlisted `/api/v1` mobile resource                  | User's Dawarich API key    |
+| Third-party ingestion | `POST` to exactly `/api/v1/owntracks/points`, `/api/v1/overland/batches`, or `/api/v1/traccar/points` | Dawarich API key           |
+
+The mobile allowlist contains `health`, `users/me`, `plan`, `settings/mobile`,
+`points`, `timeline`, `tracks`, `visits`, `stats`, `insights`, `digests`,
+`demo_data`, `families`, `photos`, `countries`, `maps`, `tiles`, and `places`.
+The proxy token comes from `DAWARICH_MOBILE_PROXY_TOKEN` in the SOPS-encrypted
+service environment and limits the Forward Auth bypass to configured official
+clients. `/api/v1/health` intentionally skips API-key authentication upstream
+because the iOS app uses it for server and version discovery; it requires only
+the proxy token at Traefik and returns no user data. Every other allowlisted
+mobile data endpoint requires both the proxy token and the user's Dawarich API
+key.
+
+The main router also covers `/sidekiq`. With `SELF_HOSTED=true` on Dawarich
+1.14.2, that dashboard requires a signed-in Dawarich administrator account
+rather than separate dashboard credentials.
+
+```mermaid
+flowchart LR
+    Request --> Mobile{Mobile header and allowlisted path?}
+    Mobile -->|Yes| Health{Health endpoint?}
+    Health -->|Yes| Discovery[Discovery; no user data]
+    Health -->|No| MobileAPI[Mobile data with Dawarich API key]
+    Mobile -->|No| Ingest{POST to exact ingestion path?}
+    Ingest -->|Yes| IngestAPI[Ingestion API with Dawarich API key]
+    Ingest -->|No| Entra[chain-auth-dawarich]
+    Entra --> Default[Web UI or other route]
+```
+
+GPSLogger and PhoneTrack use the OwnTracks endpoint. API login and registration,
+`/api-docs`, non-`POST` requests to ingestion paths, and all other endpoints
+remain on the main router. Requests with a missing or incorrect mobile proxy
+token also fall through to Forward Auth. This prevents the known seeded
+`demo@dawarich.app` / `safepassword` credentials from being exchanged for an
+API key without first passing SSO; the credentials must still be changed
+immediately after first login.
+
+Third-party clients may send API keys in query strings. Because query strings
+can be recorded in proxy access logs, access to those logs must be restricted
+and exposed keys must be rotated.
 
 ### Cloudflare Tunnel through Traefik
 
@@ -359,7 +483,7 @@ Alloy scrapes Traefik's Prometheus metrics over a second internal entrypoint, `m
 
 The `metrics.prometheus` block in `traefik.yml` enables `addRoutersLabels`, `addServicesLabels`, and `addEntryPointsLabels` so per-router, per-service, and per-entrypoint cardinality is exposed. Each Alloy instance scrapes the local Traefik instance running on the same host (works for both svlnas and svlazext, since Traefik's `compose.svlazext.yaml` already lists `alloy-frontend` in its network list).
 
-Alloy additionally scrapes per-app **`postgres_exporter` sidecars** for Immich (`postgres_immich` job → `immich-db-exporter:9187`) and Outline (`postgres_outline` job → `outline-db-exporter:9187`) at 60s intervals. The exporters live in each app's own compose file and reuse that app's existing `*_DB_PASSWORD` secret — no DB credentials are added to Alloy's `secret.sops.env`. Reachability is provided by joining Alloy to the `immich-backend` and `outline-backend` Docker networks (both declared `external: true` in `services/alloy/compose.yaml`); `compose.svlazext.yaml` drops both via `networks: !override`, since neither app is deployed on svlazext. Unifi is intentionally **not** included — it uses MongoDB, not Postgres.
+Alloy additionally scrapes per-app **`postgres_exporter` sidecars** for Dawarich (`postgres_dawarich` job → `dawarich-db-exporter:9187`), Immich (`postgres_immich` job → `immich-db-exporter:9187`), and Outline (`postgres_outline` job → `outline-db-exporter:9187`) at 60s intervals. The exporters live in each app's own compose file and reuse that app's existing `*_DB_PASSWORD` secret — no DB credentials are added to Alloy's `secret.sops.env`. Reachability is provided by joining Alloy to the `dawarich-backend`, `immich-backend`, and `outline-backend` Docker networks (declared `external: true` in `services/alloy/compose.yaml`); `_bootstrap` creates the internal `dawarich-backend` before Alloy and Dawarich, and `compose.svlazext.yaml` drops all three app networks via `networks: !override`, since the apps are not deployed on svlazext. Dawarich's Rails exporter is disabled with `PROMETHEUS_EXPORTER_ENABLED=false`; Alloy scrapes only `postgres_dawarich` from `dawarich-db-exporter`, not the application container. Unifi is intentionally **not** included — it uses MongoDB, not Postgres.
 
 Alloy also runs the built-in **`prometheus.exporter.github`** component (10m scrape interval, `job=integrations/github_exporter`) which polls the GitHub REST API for `DevSecNinja/truenas-apps` and `DevSecNinja/dotfiles` repo-level stats: rate-limit headroom, stars/forks/watchers, open PR/issue counts, repo size. No new compose service or network — it's an in-process exporter that calls `api.github.com` over the host's public egress. Auth is a fine-grained GitHub PAT (`Metadata` + `Issues` + `Pull requests` read-only on the listed repos), stored as `GITHUB_API_TOKEN` in `services/alloy/secret.sops.env`. **Single-host scrape**: a `discovery.relabel` `keep` rule on `HOSTNAME_OVERRIDE` filters the target list to empty on every host except `svlnas`, so only one Alloy instance polls the API (avoids duplicated metrics and doubled API quota). Pairs with the official Grafana Cloud "GitHub integration" dashboards (GitHub API Usage, GitHub Repository Stats).
 
@@ -505,7 +629,7 @@ services/<service>/
 
 **`vm-pool/homes`** is a sibling dataset to `vm-pool/apps` (not a child). It holds user home directories. When a TrueNAS local user account has its home directory set to `/mnt/vm-pool/homes` and **Create Home Directory** is enabled, TrueNAS automatically creates a per-user subdirectory (e.g. `/mnt/vm-pool/homes/jean-paul`) with owner-only permissions (`rwx------`). Pool-level snapshots cover it automatically alongside `vm-pool/apps`.
 
-**`backups/`** holds database backup files produced by the backup sidecar container (e.g., `tiredofit/db-backup`). Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
+**`backups/`** holds database backup files produced by backup sidecars such as `tiredofit/db-backup` and `nfrastack/db-backup`. Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
 
 ## Secret Management
 

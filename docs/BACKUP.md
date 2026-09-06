@@ -444,7 +444,7 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks → **Add
 | Transfers           | Low Bandwidth (4)         |
 | Bandwidth Limit     | _(empty)_                 |
 
-Covers the entire `vm-pool` pool: apps, VMs, db dumps, secrets, git repo. `iso/` excluded — installer images have no restore value. All content is client-side encrypted before upload. Schedule is after the 03:00 replication and db-backup sidecars.
+Covers the entire `vm-pool` pool: apps, VMs, db dumps, secrets, git repo. `iso/` excluded — installer images have no restore value. All content is client-side encrypted before upload. The documented TrueNAS cron runs `dccd.sh` every 15 minutes with `-f`, so its one-shot database backup containers may run on every forced full deployment. The latest successful dumps present when this task starts are included in Cloud Sync.
 
 ---
 
@@ -661,27 +661,61 @@ For the `archive-media` container, blobs move from Cool to Cold tier after 7 day
 
 ## Application-Level Database Backups
 
-All stateful databases in this repository have `tiredofit/db-backup` sidecars in their compose files. These produce compressed, encrypted dump files independent of ZFS snapshots — providing an application-consistent recovery point that a raw filesystem snapshot may not guarantee (especially for PostgreSQL WAL consistency).
+All stateful databases in this repository have database backup sidecars in
+their compose files. Dawarich uses maintained
+`docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
+`tiredofit/db-backup` v4. These produce compressed, encrypted dump files
+independent of ZFS snapshots — providing an application-consistent recovery
+point that a raw filesystem snapshot may not guarantee (especially for
+PostgreSQL WAL consistency).
 
 ### Covered Databases
 
-| Service        | Database   | Backup sidecar             | Output path                                  |
-| -------------- | ---------- | -------------------------- | -------------------------------------------- |
-| Bitwarden      | SQLite     | `bitwarden-db-backup`      | `services/bitwarden/backups/db-backup/`      |
-| Gatus          | PostgreSQL | `gatus-db-backup`          | `services/gatus/backups/db-backup/`          |
-| Home Assistant | SQLite     | `home-assistant-db-backup` | `services/home-assistant/backups/db-backup/` |
-| Immich         | PostgreSQL | `immich-db-backup`         | `services/immich/backups/db-backup/`         |
-| Outline        | PostgreSQL | `outline-db-backup`        | `services/outline/backups/db-backup/`        |
-| Unifi          | MongoDB    | `unifi-db-backup`          | `services/unifi/backups/db-backup/`          |
+| Service        | Database   | Backup sidecar             | Image family    | Encryption | Output path                                  |
+| -------------- | ---------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
+| Bitwarden      | SQLite     | `bitwarden-db-backup`      | tiredofit v4    | GPG        | `services/bitwarden/backups/db-backup/`      |
+| Dawarich       | PostgreSQL | `dawarich-db-backup`       | nfrastack 4.9.2 | GPG        | `services/dawarich/backups/db-backup/`       |
+| Gatus          | PostgreSQL | `gatus-db-backup`          | tiredofit v4    | GPG        | `services/gatus/backups/db-backup/`          |
+| Home Assistant | SQLite     | `home-assistant-db-backup` | tiredofit v4    | GPG        | `services/home-assistant/backups/db-backup/` |
+| Immich         | PostgreSQL | `immich-db-backup`         | tiredofit v4    | GPG        | `services/immich/backups/db-backup/`         |
+| Outline        | PostgreSQL | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
+| Unifi          | MongoDB    | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
 
 ### How They Run
 
-All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they run one backup and exit. The `dccd.sh` CD script restarts them on each deploy cycle (every 15 minutes via cron). Dumps are:
+The db-backup sidecars run one backup and exit. They are started by each full
+`dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
+schedule rather than an intrinsic nightly schedule. The documented TrueNAS
+cron runs every 15 minutes with `-f`, so a one-shot backup may run on every
+forced full deployment. Dumps are:
 
 - Compressed with zstd (gzip for MongoDB — `mongodump --gzip` is invoked directly)
-- Encrypted with `DB_ENC_PASSPHRASE` (from each app's `secret.sops.env`)
-- Retained for 48 hours locally (`DEFAULT_CLEANUP_TIME=2880`)
-- Email notifications sent on success/failure
+- SHA1-checksummed
+- Encrypted with `DB_ENC_PASSPHRASE` from each app's `secret.sops.env`
+- Retained for 2880 minutes (48 hours), which bounds the stored backup count
+  according to the actual dccd cadence
+
+Dawarich's nfrastack `4.9.2` compatibility sidecar runs `backup-now` with
+`MODE=MANUAL` on every full `dccd.sh` deployment. It uses
+`DEFAULT_COMPRESSION=ZSTD`, `DEFAULT_CHECKSUM=SHA1`,
+`DEFAULT_ENCRYPT=TRUE`, and
+`DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}` to produce a
+ZSTD-compressed, GPG-encrypted PostgreSQL dump with a SHA1 sidecar.
+`DEFAULT_CLEANUP_TIME=2880` retains the artifacts for 2880 minutes. The
+sidecar maps its internal identity with `USER_DBBACKUP=3128` and
+`GROUP_DBBACKUP=3128`. `ENABLE_NOTIFICATIONS=FALSE` keeps it backend-only;
+Dawarich's remaining `NOTIFICATIONS_EMAIL_*` variables are application-only.
+
+The tiredofit v4 sidecars produce GPG-encrypted backups and continue to send
+success/failure email notifications.
+
+<!-- dprint-ignore -->
+!!! note "Why Dawarich remains on the v4 workflow"
+    Version 5.0.0 was intentionally not selected because runtime restore
+    validation failed with an invalid bigint conversion. The maintained
+    nfrastack `4.9.2` compatibility release preserves the proven v4 workflow.
+    Runtime testing successfully decrypted its dump and restored it into a fresh
+    PostgreSQL database.
 
 ### Restore a Database Dump
 
@@ -691,7 +725,13 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
    ls services/immich/backups/db-backup/
    ```
 
-2. Decrypt and decompress. The compressor depends on the engine — pgsql/sqlite3 dumps are zstd-compressed, while mongo dumps are gzip-compressed (`mongodump --gzip`):
+2. Decrypt with GPG using `DB_ENC_PASSPHRASE`, then decompress the dump:
+   - **Dawarich nfrastack 4.9.2 and tiredofit v4 PostgreSQL/SQLite backups:**
+     GPG-encrypted and zstd-compressed.
+   - **MongoDB backups:** GPG-encrypted and gzip-compressed because the sidecar
+     invokes `mongodump --gzip`.
+
+   The following commands apply to the GPG-encrypted backups:
 
    ```sh
    # PostgreSQL / SQLite — *.zst.gpg
@@ -709,13 +749,15 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
 
 3. Restore — the procedure depends on the database engine:
 
-   **PostgreSQL** (Gatus, Immich, Outline) — plain-text `pg_dump` SQL:
+   **PostgreSQL** (Dawarich, Gatus, Immich, Outline) — plain-text `pg_dump` SQL
+   after decrypting and decompressing with the matching image-generation
+   workflow:
 
    ```sh
    # Copy the plain-text SQL dump into the container
    docker cp pgsql_immich_immich_20260411-020000.sql immich-db:/tmp/
 
-   # Restore with psql (tiredofit/db-backup produces plain-text pg_dump output)
+   # Restore the plain-text pg_dump output with psql
    docker exec -it -e PGPASSWORD='<password>' immich-db psql \
      -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
    ```
@@ -751,10 +793,12 @@ All db-backup sidecars use `MODE=MANUAL` + `MANUAL_RUN_FOREVER=FALSE` — they r
    docker compose -f services/home-assistant/compose.yaml up -d
    ```
 
-The full backup → decrypt → decompress → restore cycle for **every** database
-type above is exercised every Saturday by the `Backup Restore Test` GitHub
-Actions workflow (`scripts/gha-backup-restore-test.sh`), using the same
-`tiredofit/db-backup` image and settings as production.
+The `Backup Restore Test` GitHub Actions workflow
+(`scripts/gha-backup-restore-test.sh`) exercises the tiredofit v4 GPG workflow
+for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's maintained
+nfrastack `4.9.2` compatibility image uses the same proven v4 GPG workflow; its
+runtime-produced dump has also been decrypted and restored into a fresh
+PostgreSQL database.
 
 ---
 
@@ -766,7 +810,7 @@ These credentials must be stored securely outside the NAS (password manager) to 
 | ------------------------------------- | ------------------------------------ | ---------------------------------- |
 | Age private key (`age.key`)           | Decrypts all `secret.sops.env` files | SOPS / `dccd.sh`                   |
 | Cloud Sync encryption password + salt | Decrypts Azure Blob backups          | rclone crypt / TrueNAS Cloud Sync  |
-| `DB_ENC_PASSPHRASE`                   | Decrypts database dump files         | `tiredofit/db-backup`              |
+| `DB_ENC_PASSPHRASE`                   | Decrypts database dump files         | tiredofit v4 and nfrastack 4.9.2   |
 | Azure Storage credential              | Authenticates to Azure Blob          | TrueNAS Cloud Sync tasks           |
 | ZFS encryption passphrase             | Unlocks `vm-pool/apps` dataset       | TrueNAS (on boot or manual unlock) |
 | TrueNAS system config (`.tar` file)   | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
@@ -832,25 +876,27 @@ smartctl -H /dev/sdX
 
 All times are local to the TrueNAS host.
 
-| Time                    | Task                                               | Type                   |
-| ----------------------- | -------------------------------------------------- | ---------------------- |
-| 02:00 Sun (weekly)      | S.M.A.R.T. short test (all disks)                  | Disk Health            |
-| 01:00 1st Sat (monthly) | S.M.A.R.T. long test (all disks)                   | Disk Health            |
-| 02:00 1st Sun (monthly) | ZFS scrub (both pools)                             | Disk Health            |
-| Every hour              | vm-pool snapshot                                   | ZFS Periodic Snapshot  |
-| Every day               | archive-pool snapshot                              | ZFS Periodic Snapshot  |
-| 03:00 daily             | vm-pool → archive-pool replication                 | ZFS Replication        |
-| 04:00 daily             | vm-pool → Azure `vm-pool`                          | Cloud Sync (encrypted) |
-| 05:00 daily             | archive-pool/private → Azure `archive-private`     | Cloud Sync (encrypted) |
-| 06:00 daily             | archive-pool/content/media → Azure `archive-media` | Cloud Sync (encrypted) |
-| 07:00 daily             | archive-pool (catch-all) → Azure `archive-pool`    | Cloud Sync (encrypted) |
-| On each `dccd.sh` run   | Database dumps (all 5 DBs)                         | `tiredofit/db-backup`  |
-| 04:00 weekly (Sat)      | Automated backup/restore cycle (CI, all DB types)  | GitHub Actions         |
+| Time                                                   | Task                                                | Type                     |
+| ------------------------------------------------------ | --------------------------------------------------- | ------------------------ |
+| 02:00 Sun (weekly)                                     | S.M.A.R.T. short test (all disks)                   | Disk Health              |
+| 01:00 1st Sat (monthly)                                | S.M.A.R.T. long test (all disks)                    | Disk Health              |
+| 02:00 1st Sun (monthly)                                | ZFS scrub (both pools)                              | Disk Health              |
+| Every hour                                             | vm-pool snapshot                                    | ZFS Periodic Snapshot    |
+| Every day                                              | archive-pool snapshot                               | ZFS Periodic Snapshot    |
+| 03:00 daily                                            | vm-pool → archive-pool replication                  | ZFS Replication          |
+| 04:00 daily                                            | vm-pool → Azure `vm-pool`                           | Cloud Sync (encrypted)   |
+| 05:00 daily                                            | archive-pool/private → Azure `archive-private`      | Cloud Sync (encrypted)   |
+| 06:00 daily                                            | archive-pool/content/media → Azure `archive-media`  | Cloud Sync (encrypted)   |
+| 07:00 daily                                            | archive-pool (catch-all) → Azure `archive-pool`     | Cloud Sync (encrypted)   |
+| Every 15 minutes with the documented `dccd.sh -f` cron | Database dumps (all 7 DBs)                          | Database backup sidecars |
+| 04:00 weekly (Sat)                                     | Automated tiredofit v4 restore cycle (all DB types) | GitHub Actions           |
 
 Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline
 (`backup-restore-test.yml`) is independent of the NAS — it spins up ephemeral
 Docker containers and validates the full encrypt → decrypt → restore path for
-every database engine in use (`pgsql`, `mongo`, `sqlite3`).
+every database engine in use (`pgsql`, `mongo`, `sqlite3`) with tiredofit v4.
+The Dawarich nfrastack `4.9.2` runtime dump has separately passed decrypt and
+fresh-PostgreSQL restore validation.
 
 ---
 
@@ -865,7 +911,8 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] Blob versioning is active on all containers (account-level setting, verify in Portal → Data Protection)
 - [ ] Snapshot browse test: `ls /mnt/vm-pool/apps/.zfs/snapshot/` shows recent entries
 - [ ] File restore test: copy a file from a snapshot and verify its contents
-- [ ] DB restore test: automated weekly by the `backup-restore-test` CI pipeline — check the [Actions tab](https://github.com/DevSecNinja/truenas-apps/actions/workflows/backup-restore-test.yml) for the latest run status
+- [ ] tiredofit v4 DB restore test: automated weekly by the `backup-restore-test` CI pipeline — check the [Actions tab](https://github.com/DevSecNinja/truenas-apps/actions/workflows/backup-restore-test.yml) for the latest run status
+- [ ] Dawarich nfrastack `4.9.2`: a recent GPG backup, SHA1 sidecar, and successful restore test are recorded
 - [ ] Azure restore test: pull one file via rclone with the crypt passphrase and verify contents
 - [ ] All secrets in the [Secrets Inventory](#secrets-inventory) are present and current in your password manager
 - [ ] Cloud Sync email notifications fire on simulated failure (disable network briefly, verify alert arrives)

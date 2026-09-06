@@ -3,8 +3,8 @@
 // Phase 1 scope (issue #15): host metrics, container metrics, container logs.
 // Ships everything to Grafana Cloud Free (Frankfurt region).
 //
-// Subsequent phases extend this file to scrape Traefik /metrics, the
-// github-actions exporter, Postgres exporters, and add log-redaction stages.
+// Extended integrations scrape Traefik, GitHub, and per-app Postgres exporters
+// and apply log-redaction stages before remote write.
 //
 // Connection settings come from secret.sops.env (decrypted to .env at deploy
 // time by dccd.sh). See services/alloy/README.md for the required variables.
@@ -291,12 +291,12 @@ prometheus.relabel "traefik" {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Postgres — scrape postgres_exporter sidecars deployed alongside Immich and
-// Outline. Each sidecar joins its app's `*-backend` Docker network and exposes
-// /metrics on :9187. Alloy joins the same `*-backend` networks (see
-// compose.yaml; dropped on svlazext via compose.svlazext.yaml `!override`).
+// Postgres — scrape postgres_exporter sidecars deployed alongside Dawarich,
+// Immich, and Outline. Each sidecar joins its app's `*-backend` Docker network
+// and exposes /metrics on :9187. Alloy joins the same `*-backend` networks
+// (see compose.yaml; dropped on svlazext via compose.svlazext.yaml `!override`).
 //
-// Both apps run on svlnas only. On hosts where they are not deployed the
+// These apps run on svlnas only. On hosts where they are not deployed the
 // Docker DNS names will not resolve and the scrapes fail silently —
 // `up{job="postgres_*"}=0` is the only signal, which is the intended
 // behaviour for a host where the database does not exist.
@@ -304,6 +304,35 @@ prometheus.relabel "traefik" {
 // Connection string is configured on the exporter side (DATA_SOURCE_NAME
 // env var); Alloy needs no DB credentials.
 ////////////////////////////////////////////////////////////////////////////////
+
+prometheus.scrape "postgres_dawarich" {
+	targets = [
+		{ __address__ = "dawarich-db-exporter:9187", instance = "dawarich-db" },
+	]
+	forward_to = [prometheus.relabel.postgres_dawarich.receiver]
+
+	scrape_interval = "60s"
+	scrape_timeout  = "10s"
+}
+
+prometheus.relabel "postgres_dawarich" {
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+	rule {
+		target_label = "host"
+		replacement  = sys.env("HOSTNAME_OVERRIDE")
+	}
+	rule {
+		target_label = "job"
+		replacement  = "postgres_dawarich"
+	}
+	// See the postgres_immich relabel block below for rationale.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "pg_stat_user_tables_.*|pg_stat_user_indexes_.*|pg_statio_user_.*"
+		action        = "drop"
+	}
+}
 
 prometheus.scrape "postgres_immich" {
 	targets = [
