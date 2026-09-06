@@ -17,13 +17,13 @@
     {
       // The shared config disables digest-only updates to reduce PR noise and
       // avoid auto-merging potentially hijacked tags. For images pinned to a
-      // mutable tag like ":latest" the digest is the ONLY way they ever get
-      // updated, so re-enable digest updates for those. Placed here so it wins
-      // over the shared "Disable digest-only updates" rule.
-      description: "Re-enable digest updates for images pinned to the :latest tag",
+      // mutable channel tag like ":latest" or ":beta" the digest is the ONLY
+      // way it ever gets updated, so re-enable digest updates for those. Placed
+      // here so it wins over the shared "Disable digest-only updates" rule.
+      description: "Re-enable digest updates for images pinned to mutable channel tags",
       matchDatasources: ["docker"],
       matchUpdateTypes: ["digest"],
-      matchCurrentValue: "latest",
+      matchCurrentValue: "/^(?:latest|beta)$/",
       enabled: true,
       // Digest updates do not reliably carry a release timestamp. Without
       // this override the shared strict 14-day soak leaves them in
@@ -31,7 +31,23 @@
       minimumReleaseAge: "0",
     },
     {
-      // Same reasoning as the ":latest" rule above, for reusable workflows
+      // These images intentionally use rolling major/minor tags. Their
+      // publishers replace the tag when a patch release is published, so
+      // disabling digest updates silently freezes the deployed patch version.
+      description: "Re-enable digest updates for explicitly rolling version tags",
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "docker.io/library/alpine",
+        "docker.io/library/redis",
+        "docker.io/valkey/valkey",
+      ],
+      matchUpdateTypes: ["digest"],
+      matchCurrentValue: "/^\\d+(?:\\.\\d+)?(?:-alpine)?$/",
+      enabled: true,
+      minimumReleaseAge: "0",
+    },
+    {
+      // Same reasoning as the mutable-channel rule above, for reusable workflows
       // pinned to a commit SHA with a "# main" comment. The digest is the only
       // way those ever advance, so the shared "Disable digest-only updates"
       // rule freezes them at whatever SHA they were pinned at. That matters
