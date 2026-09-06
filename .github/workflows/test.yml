@@ -24,7 +24,7 @@ jobs:
     with:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.8.10"
-      test-dirs: "tests/dccd/unit tests/dccd/integration"
+      test-dirs: "tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration"
       check-name: "dccd Unit & Integration Tests"
 
   e2e:
