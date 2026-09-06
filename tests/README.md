@@ -127,7 +127,7 @@ like option parsing, deploy orchestration, and cleanup.
 
 ### SOPS secret tests (`tests/sops-secrets/`)
 
-The SOPS secret suite contains 19 unit tests with mocked external commands and three integration tests
+The SOPS secret suite contains 20 unit tests with mocked external commands and three integration tests
 that use real mise-managed Age and SOPS binaries. It covers validation, generate-once idempotency,
 key-source handling, encryption, and value preservation.
 

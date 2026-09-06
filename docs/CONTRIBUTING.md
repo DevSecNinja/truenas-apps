@@ -321,7 +321,7 @@ the SOPS random-secret helper, with 214 tests:
 
 | Category    | Count | What it tests                                                        |
 | ----------- | ----- | -------------------------------------------------------------------- |
-| Unit        | 140   | DCCD functions and 19 mocked SOPS secret-helper tests                |
+| Unit        | 141   | DCCD functions and 20 mocked SOPS secret-helper tests                |
 | Integration | 72    | DCCD workflows and three integration tests using real Age and SOPS   |
 | E2E         | 4     | Real Docker containers for DCCD — skipped locally and run separately |
 

@@ -105,6 +105,7 @@ main() {
     local spec
     local variable
     local byte_count
+    local byte_count_text
     local current_value
     local generated_value
     local json_path
@@ -140,7 +141,12 @@ main() {
         fi
 
         variable="${BASH_REMATCH[1]}"
-        byte_count=$((10#${BASH_REMATCH[2]}))
+        byte_count_text="${BASH_REMATCH[2]}"
+        if ((${#byte_count_text} > ${#MAX_SECRET_BYTES})); then
+            error "${variable}: byte count must be between ${MIN_SECRET_BYTES} and ${MAX_SECRET_BYTES}"
+            return 2
+        fi
+        byte_count=$((10#${byte_count_text}))
         if ((byte_count < MIN_SECRET_BYTES || byte_count > MAX_SECRET_BYTES)); then
             error "${variable}: byte count must be between ${MIN_SECRET_BYTES} and ${MAX_SECRET_BYTES}"
             return 2

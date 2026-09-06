@@ -117,6 +117,17 @@ teardown() {
     assert_target_unchanged
 }
 
+@test "generate-sops-secrets: rejects overflowing byte count before arithmetic" {
+    snapshot_target
+    run run_generator FIRST=18446744073709551632
+
+    assert_failure
+    assert_output --partial "between 16 and 1024"
+    run test ! -e "${MOCK_LOG}/mise.calls"
+    assert_success
+    assert_target_unchanged
+}
+
 @test "generate-sops-secrets: rejects a requested variable absent from decrypted target" {
     snapshot_target
 
