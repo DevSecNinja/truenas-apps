@@ -3,12 +3,28 @@
 
 create_mise_mock() {
   cat >"${MOCK_BIN}/mise" <<'MOCK'
-#!/bin/sh
+#!/usr/bin/env bash
 printf '%s\n' "$*" >>"${MOCK_LOG}/mise.calls"
 
 if [ -n "${SOPS_AGE_KEY_CMD:-}" ]; then
     printf '%s\n' command >>"${MOCK_LOG}/key-source.calls"
-    /bin/sh -c "${SOPS_AGE_KEY_CMD}" >/dev/null 2>&1 || exit 91
+    if [[ ! "${SOPS_AGE_KEY_CMD}" =~ ^op[[:space:]]+read[[:space:]]+\"([^\"]+)\"$ ]]; then
+        exit 91
+    fi
+    key_output="$(op read "${BASH_REMATCH[1]}")" || exit 91
+    identity_count=0
+    invalid_identity=0
+    while IFS= read -r line || [ -n "${line}" ]; do
+        line="${line%$'\r'}"
+        [[ -z "${line}" || "${line}" == \#* ]] && continue
+        if [[ "${line}" =~ ^AGE-(SECRET-KEY|PLUGIN)-[0-9A-Z-]+$ ]]; then
+            identity_count=$((identity_count + 1))
+        else
+            invalid_identity=1
+        fi
+    done <<<"${key_output}"
+    unset key_output line
+    [ "${identity_count}" -eq 1 ] && [ "${invalid_identity}" -eq 0 ] || exit 91
 elif [ -n "${SOPS_AGE_KEY_FILE:-}" ]; then
     printf '%s\n' file >>"${MOCK_LOG}/key-source.calls"
     [ -f "${SOPS_AGE_KEY_FILE}" ] || exit 91

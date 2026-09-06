@@ -1,7 +1,7 @@
 # Test Framework
 
 This repository uses [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System)
-to test `scripts/dccd.sh` and the SOPS random-secret helper. The suite contains **214 tests** across
+to test `scripts/dccd.sh` and the SOPS random-secret helper. The suite contains **218 tests** across
 unit, integration, and end-to-end categories.
 
 ## Directory Structure
@@ -22,7 +22,7 @@ tests/
 │   └── e2e/                   # Real Docker container tests (4 tests)
 └── sops-secrets/
     ├── helpers/               # Shared fixtures and command mocks
-    ├── unit/                  # Mocked secret-generation tests (17 tests)
+    ├── unit/                  # Mocked secret-generation tests (21 tests)
     └── integration/           # Real Age/SOPS integration tests (3 tests)
 ```
 
@@ -127,7 +127,7 @@ like option parsing, deploy orchestration, and cleanup.
 
 ### SOPS secret tests (`tests/sops-secrets/`)
 
-The SOPS secret suite contains 20 unit tests with mocked external commands and three integration tests
+The SOPS secret suite contains 21 unit tests with mocked external commands and three integration tests
 that use real mise-managed Age and SOPS binaries. It covers validation, generate-once idempotency,
 key-source handling, encryption, and value preservation.
 

@@ -36,29 +36,10 @@ op account list >/dev/null
 op whoami >/dev/null
 ```
 
-Safely validate the reference without printing the key. The check accepts one
-X25519, post-quantum, or plugin identity:
-
-```sh
-identity_line_count="$(
-    set -o pipefail
-    /bin/sh -c "${SOPS_AGE_KEY_CMD}" |
-        awk '
-            { sub(/\r$/, "") }
-            /^$/ || /^#/ { next }
-            /^AGE-(SECRET-KEY|PLUGIN)-[0-9A-Z-]+$/ { count++; next }
-            { invalid = 1 }
-            END { if (invalid) exit 1; print count + 0 }
-        '
-)"
-test "${identity_line_count}" -eq 1
-unset identity_line_count
-```
-
-Valid output contains exactly one complete supported Age identity line. A normal
-multiline Age identity file may also contain comment lines. Reject output
-flattened into one comment-prefixed line, because the identity is no longer a
-standalone parseable line.
+Do not execute or shell-evaluate `SOPS_AGE_KEY_CMD` yourself. SOPS tokenizes the
+value and invokes the executable directly, so a shell-based preflight would have
+different semantics and could execute metacharacters that SOPS treats as plain
+arguments.
 
 Before editing, prove that SOPS can use the configured identity while discarding decrypted output:
 
@@ -68,6 +49,11 @@ mise exec -- sops decrypt --input-type dotenv --output-type dotenv "${target}" >
 ```
 
 `<app>`, `<vault>`, `<item>`, and `<field>` are placeholders, not literal production references.
+Valid 1Password output contains one supported Age identity. A normal multiline
+identity file may surround it with comments. A password field flattened into
+one comment-prefixed line is invalid because the identity becomes part of the
+comment; store only the `AGE-SECRET-KEY-...` line or preserve real newlines in a
+Secure Note.
 
 ## Generate Random Values Once
 
@@ -148,8 +134,8 @@ unset leftover
 
 - **`op` unavailable:** Install the 1Password CLI and verify `command -v op` succeeds.
 - **`op` unauthenticated or nonzero:** Unlock 1Password Desktop, approve CLI integration, and rerun `op whoami >/dev/null`.
-- **No standalone private-key line:** Store a valid Age identity file containing exactly one `AGE-SECRET-KEY-1...` line.
-- **One comment-prefixed flattened line:** Restore the original multiline identity-file formatting; do not strip its newlines.
+- **No standalone identity line:** Store one supported Age identity in the referenced field.
+- **One comment-prefixed flattened line:** Store only the `AGE-SECRET-KEY-...` value or restore the Secure Note's real newlines.
 - **SOPS cannot decrypt:** Confirm the selected identity matches a recipient on the target before editing or generating.
 - **Generation is a no-op:** The requested values are already populated; this is expected and must not rewrite the encrypted file.
 

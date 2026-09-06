@@ -197,9 +197,7 @@ AGE-SECRET-KEY-PQ-1TESTTEST"
     run run_generator FIRST=16
 
     assert_failure
-    assert_output --partial "exactly one supported Age identity"
-    run test ! -e "${MOCK_LOG}/mise.calls"
-    assert_success
+    assert_output --partial "could not decrypt"
     assert_target_unchanged
 }
 
@@ -226,9 +224,7 @@ AGE-SECRET-KEY-PQ-1TESTTEST"
     run run_generator FIRST=16
 
     assert_failure
-    assert_output --partial "unlock and authenticate op"
-    run test ! -e "${MOCK_LOG}/mise.calls"
-    assert_success
+    assert_output --partial "could not decrypt"
     assert_target_unchanged
 }
 
@@ -241,9 +237,7 @@ AGE-SECRET-KEY-PQ-1TESTTEST"
     run run_generator FIRST=16
 
     assert_failure
-    assert_output --partial "exactly one supported Age identity"
-    run test ! -e "${MOCK_LOG}/mise.calls"
-    assert_success
+    assert_output --partial "could not decrypt"
     assert_target_unchanged
 }
 
@@ -256,8 +250,22 @@ AGE-SECRET-KEY-PQ-1TESTTEST"
     run run_generator FIRST=16
 
     assert_failure
-    assert_output --partial "flattened comment-prefixed output is not"
-    run test ! -e "${MOCK_LOG}/mise.calls"
+    assert_output --partial "could not decrypt"
+    assert_target_unchanged
+}
+
+@test "generate-sops-secrets: does not shell-evaluate key command metacharacters" {
+    local marker="${TEST_ROOT}/shell-evaluated"
+    create_op_mock
+    export MOCK_OP_OUTPUT="AGE-SECRET-KEY-1TESTTEST"
+    export SOPS_AGE_KEY_CMD="op read \"op://TestVault/AgeKey/private-key\"; touch \"${marker}\""
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_failure
+    assert_output --partial "could not decrypt"
+    run test ! -e "${marker}"
     assert_success
     assert_target_unchanged
 }

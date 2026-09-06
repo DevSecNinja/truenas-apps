@@ -74,7 +74,10 @@ configure_real_tools() {
     create_op_mock
     export MOCK_OP_OUTPUT_FILE="${KEY_FILE}"
     export SOPS_AGE_KEY_CMD='op read "op://TestVault/AgeKey/private-key"'
-    local decrypted="${TEST_ROOT}/decrypted.env"
+    local decrypted
+    local first
+    local second
+    local existing
     local mtime_before
 
     snapshot_target
@@ -85,20 +88,20 @@ configure_real_tools() {
     refute_output "${TARGET_HASH_BEFORE}"
     assert_no_generated_temp_files
 
-    run env SOPS_AGE_KEY_CMD="${SOPS_AGE_KEY_CMD}" \
-        mise exec -- sops decrypt \
-        --input-type dotenv \
-        --output-type dotenv \
-        --output "${decrypted}" \
-        "${TARGET}"
-    assert_success
-    assert_file_exists "${decrypted}"
-    run grep -Eq '^FIRST=[0-9a-f]{32}$' "${decrypted}"
-    assert_success
-    run grep -Eq '^SECOND=[0-9a-f]{48}$' "${decrypted}"
-    assert_success
-    run grep -q '^EXISTING=keep-this-value$' "${decrypted}"
-    assert_success
+    decrypted="$(
+        env SOPS_AGE_KEY_CMD="${SOPS_AGE_KEY_CMD}" \
+            mise exec -- sops decrypt \
+            --input-type dotenv \
+            --output-type dotenv \
+            "${TARGET}"
+    )" || fail "real SOPS could not decrypt generated fixture"
+    first="$(printf '%s\n' "${decrypted}" | awk -F= '$1 == "FIRST" { print $2 }')"
+    second="$(printf '%s\n' "${decrypted}" | awk -F= '$1 == "SECOND" { print $2 }')"
+    existing="$(printf '%s\n' "${decrypted}" | awk -F= '$1 == "EXISTING" { print $2 }')"
+    [[ "${first}" =~ ^[0-9a-f]{32}$ ]] || fail "FIRST has unexpected format"
+    [[ "${second}" =~ ^[0-9a-f]{48}$ ]] || fail "SECOND has unexpected format"
+    [[ "${existing}" == "keep-this-value" ]] || fail "existing value was changed"
+    unset decrypted first second existing
     run grep -Fx 'read op://TestVault/AgeKey/private-key' "${MOCK_LOG}/op.calls"
     assert_success
 
@@ -124,7 +127,7 @@ configure_real_tools() {
     run bash "${GENERATOR}" "${TARGET}" FIRST=16
 
     assert_failure
-    assert_output --partial "unlock and authenticate op"
+    assert_output --partial "could not decrypt"
     assert_target_unchanged
     run grep -Fx 'read op://TestVault/AgeKey/private-key' "${MOCK_LOG}/op.calls"
     assert_success

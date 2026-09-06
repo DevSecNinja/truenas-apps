@@ -43,31 +43,11 @@ Use SOPS-native `SOPS_AGE_KEY_CMD` so the private key remains in 1Password:
    export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'
    ```
 
-SOPS invokes this command internally when it needs the key. Do not invoke `op read` yourself except through the non-printing validation below, and never print or log its output. Keep the 1Password item and field narrowly targeted to the required age key.
-
-Safely verify that the reference returns exactly one supported Age identity
-without printing it:
-
-```sh
-identity_line_count="$(
-    set -o pipefail
-    /bin/sh -c "${SOPS_AGE_KEY_CMD}" |
-        awk '
-            { sub(/\r$/, "") }
-            /^$/ || /^#/ { next }
-            /^AGE-(SECRET-KEY|PLUGIN)-[0-9A-Z-]+$/ { count++; next }
-            { invalid = 1 }
-            END { if (invalid) exit 1; print count + 0 }
-        '
-)"
-test "${identity_line_count}" -eq 1
-unset identity_line_count
-```
-
-A normal multiline Age identity file is accepted: comment lines may surround
-one standalone X25519, post-quantum, or plugin identity. A flattened one-line
-value beginning with `#` is invalid because its private key is part of a
-comment. Preserve the original newlines in the 1Password field.
+SOPS invokes this command internally when it needs the key. Do not invoke or
+shell-evaluate `SOPS_AGE_KEY_CMD` yourself: SOPS tokenizes it and directly
+executes the resulting argument vector, while a shell would interpret
+metacharacters differently. Never print or log the command output. Keep the
+1Password item and field narrowly targeted to the required Age key.
 
 Before generating or editing, verify that the selected identity can decrypt the target while discarding stdout:
 
@@ -75,6 +55,11 @@ Before generating or editing, verify that the selected identity can decrypt the 
 target='services/<app>/secret.sops.env'
 mise exec -- sops decrypt --input-type dotenv --output-type dotenv "${target}" >/dev/null
 ```
+
+A normal multiline Age identity file is accepted: comment lines may surround
+one supported identity. A password field flattened into one line beginning with
+`#` is invalid because the private key becomes part of the comment. Store only
+the `AGE-SECRET-KEY-...` line or preserve real newlines in a Secure Note.
 
 Alternatively, create a local `sops.op.env` file (the `*.op.env` pattern is gitignored) containing only an `SOPS_AGE_KEY=op://<vault>/<item>/<field>` reference, then inject it for one command:
 
@@ -321,7 +306,7 @@ the SOPS random-secret helper, with 214 tests:
 
 | Category    | Count | What it tests                                                        |
 | ----------- | ----- | -------------------------------------------------------------------- |
-| Unit        | 141   | DCCD functions and 20 mocked SOPS secret-helper tests                |
+| Unit        | 142   | DCCD functions and 21 mocked SOPS secret-helper tests                |
 | Integration | 72    | DCCD workflows and three integration tests using real Age and SOPS   |
 | E2E         | 4     | Real Docker containers for DCCD — skipped locally and run separately |
 
