@@ -1,0 +1,111 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount directory to the memos UID:GID so
+  # the non-root memos process can write its SQLite database and uploaded
+  # attachments. Runs once, then exits.
+  memos-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: memos-init
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3128:3128
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - "chown -Rv 3128:3128 /data"
+    volumes:
+      - ./data:/data
+
+  # usememos/memos is a self-contained Go binary. Its entrypoint runs the chown
+  # branch only when started as root; launched under the user: directive it skips
+  # straight to exec, so cap_drop: ALL and read_only: true are fully supported.
+  # SQLite is the default driver — all state lives under /var/opt/memos (./data).
+  memos:
+    image: ghcr.io/usememos/memos:0.29.1@sha256:3e1253477066eb2aefa91145f7f9038bb931ed88c8a3ee05310a933594cdba7d
+    container_name: memos
+    depends_on:
+      memos-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      - MEMOS_MODE=prod
+      - MEMOS_PORT=5230
+      - MEMOS_DATA=/var/opt/memos
+      - MEMOS_DRIVER=sqlite
+    user: "3128:3128" # svc-app-memos
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - memos-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/var/opt/memos
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://127.0.0.1:5230/healthz"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Memos
+      - homepage.icon=sh-memos
+      - homepage.href=https://memos.${DOMAINNAME}
+      - homepage.description=Lightweight Note-Taking
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=memos-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.memos-rtr.rule=Host(`memos.${DOMAINNAME}`)"
+      - "traefik.http.routers.memos-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.memos-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.memos-rtr.service=memos"
+      - "traefik.http.services.memos.loadbalancer.server.port=5230"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.memos-monitor.rule=Host(`memos.${DOMAINNAME}`)"
+      - "traefik.http.routers.memos-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.memos-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.memos-monitor.service=memos"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/healthz"
+      - "gatus.headers.Host=memos.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  memos-frontend:
+    name: memos-frontend
+    driver: bridge

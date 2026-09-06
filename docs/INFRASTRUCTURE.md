@@ -170,6 +170,7 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3125    | `svc-app-alloy`       | alloy, alloy-init                           | Yes (`./config`)    |
 | 3126    | `svc-app-bitwarden`   | bitwarden                                   | No                  |
 | 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                     | No                  |
+| 3128    | `svc-app-memos`       | memos, memos-init                           | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
