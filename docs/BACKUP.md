@@ -695,6 +695,22 @@ forced full deployment. Dumps are:
 - Retained for 2880 minutes (48 hours), which bounds the stored backup count
   according to the actual dccd cadence
 
+`dccd-all` enables the `dccd.sh -B` end-of-run check by default. It waits up to
+the configured `WAIT_TIMEOUT` for active `*-db-backup` services and requires
+each container to have exited with status 0, have a `FinishedAt` timestamp
+within the previous 48 hours, and include the backup image's successful
+completion marker (`Backup NN routines finish time: ... with exit code 0`) in
+Docker logs read since the container's latest `StartedAt`, excluding retained
+older-run success markers while allowing final buffered output after
+`FinishedAt`. If any check fails, `dccd.sh` fails. Disable the check for one
+invocation with:
+
+```sh
+DCCD_CHECK_BACKUPS=0 dccd-all
+```
+
+`false` and `no` are also accepted instead of `0`.
+
 Dawarich's nfrastack `4.9.2` compatibility sidecar runs `backup-now` with
 `MODE=MANUAL` on every full `dccd.sh` deployment. It uses
 `DEFAULT_COMPRESSION=ZSTD`, `DEFAULT_CHECKSUM=SHA1`,
