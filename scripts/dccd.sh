@@ -29,14 +29,16 @@ TRUENAS_APPS_BASE="/mnt/.ix-apps/app_configs" # Base path for TrueNAS app config
 # exists before the pool is unlocked. dccd overwrites it on every TrueNAS run.
 # The TrueNAS Post Init entry must point at <HOST_INIT_SYNC_DEST>/host-init.sh.
 HOST_INIT_SYNC_DEST="${HOST_INIT_SYNC_DEST:-/home/truenas_admin/host-init}"
-DECRYPT_ONLY=0      # Decrypt SOPS files and exit (skip deploy)
-FORCE=0             # Force redeploy, skip hash check
-NO_PULL=0           # Skip pulling images (for local testing)
-APP_FILTER=""       # Only deploy this specific app (empty = all)
-REMOVE_APP=""       # Tear down this specific app (empty = none)
-SERVER_NAME=""      # Server name from servers.yaml (empty = deploy all)
-SERVER_APPS=()      # Apps assigned to the server (populated by parse_server_apps)
-WAIT_TIMEOUT=120    # Timeout in seconds for --wait (0 = no timeout)
+DECRYPT_ONLY=0   # Decrypt SOPS files and exit (skip deploy)
+FORCE=0          # Force redeploy, skip hash check
+NO_PULL=0        # Skip pulling images (for local testing)
+APP_FILTER=""    # Only deploy this specific app (empty = all)
+REMOVE_APP=""    # Tear down this specific app (empty = none)
+SERVER_NAME=""   # Server name from servers.yaml (empty = deploy all)
+SERVER_APPS=()   # Apps assigned to the server (populated by parse_server_apps)
+WAIT_TIMEOUT=120 # Timeout in seconds for --wait (0 = no timeout)
+CHECK_BACKUPS=0  # Check one-shot database backup containers after deployment
+BACKUP_MAX_AGE_HOURS=48
 GATUS_URL=""        # Gatus instance URL for CD status reporting (e.g., https://status.example.com)
 QUIET=0             # Quiet mode: suppress output unless deploying or error
 GATUS_DNS_SERVER="" # DNS server for Gatus curl calls (e.g., 192.168.1.1 — overrides system resolver just for Gatus)
@@ -669,6 +671,138 @@ dump_project_logs_tail() {
             printf '%s\n' "${logs}" | log_data WARN "${container}: last ${lines} log lines"
         fi
     done <<<"${containers}"
+}
+
+# Verify every Compose-managed database backup container has exited successfully
+# within the configured freshness window. Active jobs are allowed to finish for
+# up to WAIT_TIMEOUT seconds, shared across all backup containers.
+check_backup_jobs() {
+    local all_containers backup_containers
+    if ! all_containers=$(
+        ${SUDO} docker ps -a \
+            --filter "label=com.docker.compose.service" \
+            --format '{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.service"}}' \
+            2>/dev/null
+    ); then
+        log_error "Unable to discover database backup containers"
+        return 1
+    fi
+    backup_containers=$(printf '%s\n' "${all_containers}" | awk -F '\t' '$3 ~ /-db-backup$/')
+
+    if [ -z "${backup_containers}" ]; then
+        log_warn "No database backup containers found; skipping backup freshness check"
+        return 0
+    fi
+
+    log_banner "Backup Job Check" RESULT
+
+    local now deadline
+    now=$(date +%s)
+    deadline=$((now + WAIT_TIMEOUT))
+
+    local checked=0
+    local failed=0
+    local container_id container_name service_name
+    while IFS=$'\t' read -r container_id container_name service_name; do
+        [ -z "${container_id}" ] && continue
+        checked=$((checked + 1))
+
+        local state exit_code started_at finished_at
+        local inspect_output=""
+        while true; do
+            if ! inspect_output=$(
+                ${SUDO} docker inspect \
+                    --format '{{.State.Status}}|{{.State.ExitCode}}|{{.State.StartedAt}}|{{.State.FinishedAt}}' \
+                    "${container_id}" 2>/dev/null
+            ); then
+                log_error "${container_name}: unable to inspect backup container"
+                failed=$((failed + 1))
+                break
+            fi
+
+            IFS='|' read -r state exit_code started_at finished_at <<<"${inspect_output}"
+            case "${state}" in
+            created | running | restarting)
+                now=$(date +%s)
+                if [ "${WAIT_TIMEOUT}" -ne 0 ] && [ "${now}" -ge "${deadline}" ]; then
+                    log_error "${container_name}: backup did not finish within ${WAIT_TIMEOUT}s"
+                    failed=$((failed + 1))
+                    break
+                fi
+                sleep 2
+                ;;
+            *)
+                break
+                ;;
+            esac
+        done
+
+        if [ -z "${inspect_output}" ] || [[ "${state}" == "created" || "${state}" == "running" || "${state}" == "restarting" ]]; then
+            continue
+        fi
+
+        if [ "${state}" != "exited" ] || [ "${exit_code}" -ne 0 ]; then
+            log_error "${container_name}: backup failed (state=${state}, exit=${exit_code})"
+            failed=$((failed + 1))
+            continue
+        fi
+
+        local started_epoch finished_epoch
+        if ! started_epoch=$(date --date="${started_at}" +%s 2>/dev/null); then
+            log_error "${container_name}: invalid start timestamp '${started_at}'"
+            failed=$((failed + 1))
+            continue
+        fi
+        if ! finished_epoch=$(date --date="${finished_at}" +%s 2>/dev/null); then
+            log_error "${container_name}: invalid completion timestamp '${finished_at}'"
+            failed=$((failed + 1))
+            continue
+        fi
+        if [ "${started_epoch}" -gt "${finished_epoch}" ]; then
+            log_error "${container_name}: backup completion precedes its start time"
+            failed=$((failed + 1))
+            continue
+        fi
+
+        now=$(date +%s)
+        local age_seconds=$((now - finished_epoch))
+        local max_age_seconds=$((BACKUP_MAX_AGE_HOURS * 60 * 60))
+        if [ "${age_seconds}" -lt 0 ]; then
+            log_error "${container_name}: completion timestamp is in the future (${finished_at})"
+            failed=$((failed + 1))
+        elif [ "${age_seconds}" -gt "${max_age_seconds}" ]; then
+            log_error "${container_name}: latest successful backup is older than ${BACKUP_MAX_AGE_HOURS} hours (${finished_at})"
+            failed=$((failed + 1))
+        else
+            local backup_logs
+            if ! backup_logs=$(
+                ${SUDO} docker logs \
+                    --since "${started_at}" \
+                    "${container_id}" 2>&1
+            ); then
+                log_error "${container_name}: unable to read backup logs"
+                failed=$((failed + 1))
+                continue
+            fi
+
+            if ! printf '%s\n' "${backup_logs}" |
+                grep -Eq 'Backup [[:digit:]]+ routines finish time: .* with exit code 0([^[:digit:]]|$)'; then
+                log_error "${container_name}: no successful backup completion found in logs from the last ${BACKUP_MAX_AGE_HOURS} hours"
+                failed=$((failed + 1))
+                continue
+            fi
+
+            local age_hours=$((age_seconds / 60 / 60))
+            log_result "${service_name}: successful backup confirmed in logs (${age_hours}h ago)"
+        fi
+    done <<<"${backup_containers}"
+
+    if [ "${failed}" -gt 0 ]; then
+        log_error "${failed}/${checked} database backup job(s) failed the freshness check"
+        return 1
+    fi
+
+    log_result "All ${checked} database backup job(s) completed successfully within ${BACKUP_MAX_AGE_HOURS} hours"
 }
 
 redeploy_truenas_apps() {
@@ -1429,12 +1563,6 @@ update_compose_files() {
         fi
     fi
 
-    local end_time elapsed_time
-    end_time=$(date +%s)
-    elapsed_time=$((end_time - _CD_START_TIME))
-    log_info "Total execution time: ${elapsed_time}s"
-
-    log_state "Done!"
 }
 
 # Simple URL encoding for query string values (handles spaces and common special chars)
@@ -1514,6 +1642,7 @@ usage() {
     Options:
       -a <name>       Only deploy the specified app (optional - matches directory name)
       -b <name>       Specify the remote branch to track (default: main)
+      -B              Check database backup jobs completed successfully within the last 48 hours
       -d <path>       Specify the base directory of the git repository (required)
       -D              Decrypt-only: git sync then decrypt all SOPS secret files, skip deploying
       -f              Force redeploy, skip the hash comparison check (optional)
@@ -1569,13 +1698,16 @@ fi
 # Options
 ########################################
 
-while getopts ":a:b:d:DfgG:k:hno:pqR:r:s:S:tw:x:" opt; do
+while getopts ":a:b:Bd:DfgG:k:hno:pqR:r:s:S:tw:x:" opt; do
     case "${opt}" in
     a)
         APP_FILTER="${OPTARG}"
         ;;
     b)
         REMOTE_BRANCH="${OPTARG}"
+        ;;
+    B)
+        CHECK_BACKUPS=1
         ;;
     d)
         BASE_DIR="${OPTARG}"
@@ -1712,6 +1844,11 @@ fi
 # Check if NO_PULL mode is enabled
 if [ "${NO_PULL}" -eq 1 ]; then
     log_info "No-pull mode enabled, will skip pulling images"
+fi
+
+# Check if backup freshness validation is enabled
+if [ "${CHECK_BACKUPS}" -eq 1 ]; then
+    log_info "Backup freshness check enabled (maximum age: ${BACKUP_MAX_AGE_HOURS}h)"
 fi
 
 # Check if APP_FILTER is provided
@@ -1860,3 +1997,21 @@ update_compose_files "${BASE_DIR}"
 if [ "${TRUENAS}" -eq 1 ]; then
     sync_host_init
 fi
+
+_backup_check_failed=0
+if [ "${CHECK_BACKUPS}" -eq 1 ]; then
+    # shellcheck disable=SC2310  # failure is returned after execution timing is logged
+    if ! check_backup_jobs; then
+        _backup_check_failed=1
+    fi
+fi
+
+_end_time=$(date +%s)
+_elapsed_time=$((_end_time - _CD_START_TIME))
+log_info "Total execution time: ${_elapsed_time}s"
+
+if [ "${_backup_check_failed}" -eq 1 ]; then
+    exit 1
+fi
+
+log_state "Done!"

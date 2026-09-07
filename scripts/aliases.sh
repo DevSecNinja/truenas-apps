@@ -309,12 +309,26 @@ alias dclean-all='dclean_all'
 # DCCD (Docker Compose Continuous Deploy)
 ########################################
 
-# Force-deploy all apps, excluding shared
+# Force-deploy all apps, excluding shared, then verify database backups.
+# Set DCCD_CHECK_BACKUPS=0 to skip the backup freshness check.
 dccd_all() {
+    local -a backup_check_args=()
+    case "${DCCD_CHECK_BACKUPS:-1}" in
+    1 | true | TRUE | yes | YES)
+        backup_check_args=(-B)
+        ;;
+    0 | false | FALSE | no | NO)
+        ;;
+    *)
+        echo "ERROR: DCCD_CHECK_BACKUPS must be 1/0, true/false, or yes/no." >&2
+        return 2
+        ;;
+    esac
+
     bash "${APPS_DIR}/scripts/dccd.sh" \
         -d "${APPS_DIR}" \
         -k "${APPS_DIR}/age.key" \
-        -x shared "${DCCD_MODE[@]}" -f
+        -x shared "${DCCD_MODE[@]}" "${backup_check_args[@]}" -f
 }
 alias dccd-all='dccd_all'
 

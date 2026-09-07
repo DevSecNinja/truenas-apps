@@ -201,6 +201,28 @@ Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media`). The 
 
 ### TrueNAS Host Setup
 
+For apps supported by `scripts/truenas-prep-app.sh`, run the reusable
+preparation command from the repository root instead of manually creating the
+app identity and child dataset. Dawarich is currently supported:
+
+```sh
+sudo bash scripts/truenas-prep-app.sh dawarich
+```
+
+The command creates or verifies the app group and user using the allocation in
+the [App Service Accounts](#app-service-accounts) table, adds
+`truenas_admin` as an auxiliary member when required, and creates the app child
+dataset beneath the ZFS dataset mounted at `services/`. If the service
+directory already contains the checkout, the command stages and restores those
+files around dataset creation. Repeated runs are safe: existing matching
+resources are reused, while account name or ID collisions stop the operation.
+It also refuses to create a missing dataset while the app is running. Set
+`TRUENAS_ADMIN_USER` only when the local administrative account is not
+`truenas_admin`.
+
+The `services/` parent must already be a mounted ZFS dataset. Use the manual
+creation procedure below for apps that the script does not yet support.
+
 **Important:** When creating service accounts in TrueNAS, always **create the group first**, then the user. If you rely on TrueNAS's "auto-create primary group" checkbox when creating a user, TrueNAS assigns the earliest available GID — which may not match the desired UID. By pre-creating the group with the correct GID, the auto-created primary group step is skipped and UID = GID is guaranteed.
 
 Creation order for each app service account:
@@ -274,13 +296,19 @@ Compose definition and encrypted secrets alongside all Dawarich runtime data:
 
 Before the first deployment:
 
-1. Create the `svc-app-dawarich` group with GID 3128.
-2. Add `truenas_admin` to that group for operational access to the application
-   runtime directories that `dawarich-init` sets to mode `770`.
-3. Create the `svc-app-dawarich` user with UID 3128 and primary group
-   `svc-app-dawarich`.
-4. Create the `vm-pool/apps/services/dawarich` dataset.
-5. Populate every required value in `services/dawarich/secret.sops.env`.
+1. From the repository root on TrueNAS, provision the account, administrative
+   group membership, and child dataset:
+
+   ```sh
+   sudo bash scripts/truenas-prep-app.sh dawarich
+   ```
+
+   The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
+   `truenas_admin` as an auxiliary member for access to mode `770` runtime
+   directories, creates the `svc-app-dawarich` user with UID 3128 and that
+   primary group, and creates the `vm-pool/apps/services/dawarich` dataset.
+2. Manually populate every required value in
+   `services/dawarich/secret.sops.env`.
 
 `dawarich-init` assigns the public assets, storage, watched imports, and the
 app/worker temporary paths to `3128:3128`. Redis is assigned to its

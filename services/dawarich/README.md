@@ -198,31 +198,40 @@ backends are healthy.
 
 ## First-Run Setup
 
-1. Create the `svc-app-dawarich` group with GID 3128 and add
-   `truenas_admin` as an auxiliary member.
-2. Create the `svc-app-dawarich` user with UID 3128 and primary group
-   `svc-app-dawarich`.
-3. Create the `vm-pool/apps/services/dawarich` dataset.
-4. Add a unique, high-entropy `DAWARICH_MOBILE_PROXY_TOKEN`, replace every
-   shared `CHANGE_ME` value in `secret.sops.env`, then re-encrypt the file with
-   SOPS. Do not reuse a Dawarich API key as the proxy token.
-5. Run a full `dccd.sh` deployment so `_bootstrap` creates
+1. From the repository root on TrueNAS, provision the Dawarich host
+   prerequisites:
+
+   ```sh
+   sudo bash scripts/truenas-prep-app.sh dawarich
+   ```
+
+   The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
+   `truenas_admin` as an auxiliary member for access to mode `770` runtime
+   directories, creates the `svc-app-dawarich` user with UID 3128 and that
+   primary group, and creates the `vm-pool/apps/services/dawarich` child dataset
+   without discarding an existing checkout. It is idempotent and stops on
+   account ID collisions or before creating a missing dataset while Dawarich is
+   running.
+2. Manually add a unique, high-entropy `DAWARICH_MOBILE_PROXY_TOKEN`, replace
+   every shared `CHANGE_ME` value in `secret.sops.env`, then re-encrypt the file
+   with SOPS. Do not reuse a Dawarich API key as the proxy token.
+3. Run a full `dccd.sh` deployment so `_bootstrap` creates
    `dawarich-backend` before Alloy and Dawarich.
-6. Confirm `dawarich-init` validates the decrypted values and completes before
+4. Confirm `dawarich-init` validates the decrypted values and completes before
    PostGIS or Redis starts; the application and worker then wait for the
    backends to become healthy.
-7. Open `https://dawarich.${DOMAINNAME}` through Traefik Forward Auth and sign
+5. Open `https://dawarich.${DOMAINNAME}` through Traefik Forward Auth and sign
    in with the upstream seeded
    account.
-8. **Immediately change the seeded `demo@dawarich.app` / `safepassword`
+6. **Immediately change the seeded `demo@dawarich.app` / `safepassword`
    credentials before importing data or configuring a GPS client.**
-9. Create a separate Dawarich API key for each GPS client.
-10. For the official iOS app 2.5 or later, configure the server URL, API key,
-    and custom proxy header described under [Official iOS App](#official-ios-app).
-11. Configure third-party clients to use only the applicable exact ingestion
-    endpoint. GPSLogger and PhoneTrack use `/api/v1/owntracks/points`. These
-    endpoints bypass Forward Auth only for `POST` and still require Dawarich
-    API-key authentication.
+7. Create a separate Dawarich API key for each GPS client.
+8. For the official iOS app 2.5 or later, configure the server URL, API key,
+   and custom proxy header described under [Official iOS App](#official-ios-app).
+9. Configure third-party clients to use only the applicable exact ingestion
+   endpoint. GPSLogger and PhoneTrack use `/api/v1/owntracks/points`. These
+   endpoints bypass Forward Auth only for `POST` and still require Dawarich
+   API-key authentication.
 
 ## Security Model
 
