@@ -303,6 +303,10 @@ Before the first deployment:
    sudo bash scripts/truenas-prep-app.sh dawarich
    ```
 
+   The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
+   `truenas_admin` as an auxiliary member for access to mode `770` runtime
+   directories, creates the `svc-app-dawarich` user with UID 3128 and that
+   primary group, and creates the `vm-pool/apps/services/dawarich` dataset.
 2. Manually populate every required value in
    `services/dawarich/secret.sops.env`.
 

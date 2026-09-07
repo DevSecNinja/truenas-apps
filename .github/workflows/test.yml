@@ -23,9 +23,9 @@ jobs:
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.8.10"
-      test-dirs: "tests/dccd/unit tests/dccd/integration"
-      check-name: "dccd Unit & Integration Tests"
+      mise-version: "2026.8.11"
+      test-dirs: "tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration"
+      check-name: "Unit & Integration Tests"
 
   e2e:
     # uses: DevSecNinja/.github/.github/workflows/bats-e2e.yml@  # after extraction
@@ -35,6 +35,6 @@ jobs:
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.8.10"
+      mise-version: "2026.8.11"
       test-dirs: "tests/dccd/e2e"
       check-name: "dccd E2E Tests"

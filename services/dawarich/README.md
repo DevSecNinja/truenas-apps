@@ -205,11 +205,13 @@ backends are healthy.
    sudo bash scripts/truenas-prep-app.sh dawarich
    ```
 
-   The command creates or verifies the dedicated group and user, adds
-   `truenas_admin` as an auxiliary group member, and safely creates the
-   per-app ZFS child dataset without discarding an existing checkout. It is
-   idempotent and stops on account ID collisions or before creating a missing
-   dataset while Dawarich is running.
+   The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
+   `truenas_admin` as an auxiliary member for access to mode `770` runtime
+   directories, creates the `svc-app-dawarich` user with UID 3128 and that
+   primary group, and creates the `vm-pool/apps/services/dawarich` child dataset
+   without discarding an existing checkout. It is idempotent and stops on
+   account ID collisions or before creating a missing dataset while Dawarich is
+   running.
 2. Manually add a unique, high-entropy `DAWARICH_MOBILE_PROXY_TOKEN`, replace
    every shared `CHANGE_ME` value in `secret.sops.env`, then re-encrypt the file
    with SOPS. Do not reuse a Dawarich API key as the proxy token.

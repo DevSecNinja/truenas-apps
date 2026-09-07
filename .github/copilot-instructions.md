@@ -106,6 +106,7 @@ docs/
     retire-docker-app/SKILL.md    # Skill for retiring an app
     commit-and-release/SKILL.md   # Skill for commits and releases
     docs-writing/SKILL.md         # Skill for writing documentation
+    sops-secrets/SKILL.md         # Skill for safe SOPS secret creation and review
 ```
 
 ## Compose File Conventions (MUST follow)
@@ -135,6 +136,10 @@ Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key st
 8. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
 9. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
 10. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
+
+## Managing SOPS Secrets
+
+Use the skill at `.github/skills/sops-secrets/SKILL.md` when creating, editing, generating, validating, or troubleshooting encrypted dotenv secrets.
 
 ## Retiring an App
 

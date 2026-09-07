@@ -46,15 +46,33 @@ Create `services/<app>/compose.yaml` following all compose conventions:
 
 Determine the correct PUID/PGID model for this app (media consumer, media producer, photos, or general — see INFRASTRUCTURE.md). If a new shared PGID group is needed, create the corresponding env file in `services/shared/env/`.
 
-### Step 2 — Create the secrets template
+### Step 2 — Create and populate the secrets template
 
-Create `services/<app>/secret.sops.env` listing every secret variable the app requires. Then encrypt it in-place:
+Follow the dedicated [SOPS secrets skill](../sops-secrets/SKILL.md) for key preflight, safe editing, generation, and validation.
+
+Classify every secret before creating the files:
+
+- **Random values**: App-owned passwords, passphrases, and tokens that can be generated locally.
+- **User-supplied values**: OAuth credentials, API keys, SMTP credentials, and other values issued or chosen outside this repository.
+- **Shared values**: Existing values provided by `services/shared/`; reference the shared secret file instead of generating a duplicate.
+
+Create `services/<app>/secret.sops.env` with every required variable. Set each random variable's initial value to the literal `GENERATE`, then encrypt the file in-place:
 
 ```sh
 sops -e -i services/<app>/secret.sops.env
 ```
 
-Output a summary table of all secrets/variables that need to be populated.
+The encrypted dotenv file must exist before random values are generated. Prefer SOPS-native `SOPS_AGE_KEY_CMD` with 1Password CLI, configured as `export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'`. Require 1Password Desktop CLI integration to be enabled and the user to be signed in with the app unlocked; never run or print the `op read` result directly. `SOPS_AGE_KEY_FILE` and the standard SOPS key-file locations are optional fallbacks only. Stop and provide actionable setup guidance if SOPS cannot access a usable key or decrypt the template.
+
+Run the bootstrap helper once as part of app creation, passing each random variable and its byte count directly. Do not include user-supplied or shared values:
+
+```sh
+bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env VARIABLE=BYTE_COUNT [VARIABLE=BYTE_COUNT ...]
+```
+
+The helper generates a cryptographically secure hexadecimal value only when a requested variable already exists and its decrypted value is exactly `GENERATE`. It preserves every existing non-sentinel value, along with comments, order, and unrelated values. If no sentinel values need generation, it exits successfully without rewriting the file.
+
+This helper is only for generate-once bootstrap. Rotate existing values manually with `sops edit`; never use the helper for rotation or run it concurrently against the same file. Never commit `CHANGE_ME` placeholders for generated secrets. Populate user-supplied values separately through SOPS, and output a summary table that identifies each variable as random, user-supplied, or shared without revealing values.
 
 ### Step 3 — Register the network in Traefik
 
@@ -134,6 +152,10 @@ Use this as a final review before committing:
 - [ ] `./config` volumes are mounted `:ro`
 - [ ] Image is digest-pinned with explicit registry prefix
 - [ ] `secret.sops.env` is encrypted
+- [ ] Random variables used encrypted literal `GENERATE` sentinels before the helper ran
+- [ ] Random secrets were generated once; no generated value uses a `CHANGE_ME` placeholder
+- [ ] User-supplied and shared values were excluded from helper arguments
+- [ ] Existing secrets were not rotated by the helper
 - [ ] Traefik network and labels are configured
 - [ ] DNS A-record is added
 - [ ] README.md, docs/index.md, ARCHITECTURE.md, INFRASTRUCTURE.md are updated

@@ -1,8 +1,8 @@
 # Test Framework
 
 This repository uses [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System)
-to test the `scripts/dccd.sh` continuous deployment script. The suite contains **133 tests** across
-three categories — unit, integration, and end-to-end.
+to test `scripts/dccd.sh` and the SOPS random-secret helper. The suite contains **218 tests** across
+unit, integration, and end-to-end categories.
 
 ## Directory Structure
 
@@ -13,13 +13,17 @@ tests/
 │   ├── bats-support/          # Output formatting and common assertions
 │   ├── bats-assert/           # Value and status assertions
 │   └── bats-file/             # File existence and content assertions
-└── dccd/
-    ├── helpers/
-    │   ├── common.bash        # Shared setup/teardown, sources dccd.sh with DCCD_TESTING=1
-    │   └── mocks.bash         # Mock generators for external commands
-    ├── unit/                  # Fast, isolated function tests (73 tests)
-    ├── integration/           # Multi-function workflow tests (56 tests)
-    └── e2e/                   # Real Docker container tests (4 tests)
+├── dccd/
+│   ├── helpers/
+│   │   ├── common.bash        # Shared setup/teardown, sources dccd.sh with DCCD_TESTING=1
+│   │   └── mocks.bash         # Mock generators for external commands
+│   ├── unit/                  # Fast, isolated function tests (121 tests)
+│   ├── integration/           # Multi-function workflow tests (69 tests)
+│   └── e2e/                   # Real Docker container tests (4 tests)
+└── sops-secrets/
+    ├── helpers/               # Shared fixtures and command mocks
+    ├── unit/                  # Mocked secret-generation tests (21 tests)
+    └── integration/           # Real Age/SOPS integration tests (3 tests)
 ```
 
 ## Setup
@@ -50,21 +54,23 @@ by Renovate.
 
 ### With go-task (preferred)
 
-| Command                               | What it runs                                        |
-| ------------------------------------- | --------------------------------------------------- |
-| `task test`                           | All tests (unit + integration; E2E skipped locally) |
-| `task test:unit`                      | Unit tests only                                     |
-| `task test:integration`               | Integration tests only                              |
-| `task test:e2e`                       | E2E tests (sets `DCCD_E2E=1` automatically)         |
-| `task test:file -- path/to/test.bats` | A single test file                                  |
-| `task test:ci`                        | CI mode with JUnit XML output                       |
+| Command                               | What it runs                                          |
+| ------------------------------------- | ----------------------------------------------------- |
+| `task test`                           | All DCCD and SOPS tests; DCCD E2E is skipped locally  |
+| `task test:unit`                      | DCCD and SOPS unit tests                              |
+| `task test:integration`               | DCCD and SOPS integration tests                       |
+| `task test:e2e`                       | DCCD E2E tests (sets `DCCD_E2E=1` automatically)      |
+| `task test:file -- path/to/test.bats` | A single test file                                    |
+| `task test:ci`                        | DCCD unit and integration tests with JUnit XML output |
 
 ### With mise
 
 ```sh
-mise exec -- bats tests/ --recursive
+mise exec -- bats tests/dccd/unit/ tests/dccd/integration/ tests/dccd/e2e/ tests/sops-secrets/unit/ tests/sops-secrets/integration/
 mise exec -- bats tests/dccd/unit/
 mise exec -- bats tests/dccd/integration/
+mise exec -- bats tests/sops-secrets/unit/
+mise exec -- bats tests/sops-secrets/integration/
 DCCD_E2E=1 mise exec -- bats tests/dccd/e2e/
 ```
 
@@ -119,6 +125,18 @@ like option parsing, deploy orchestration, and cleanup.
 | `root_guard.bats`       | Root-user rejection guard          |
 | `edge_cases.bats`       | Edge cases and error handling      |
 
+### SOPS secret tests (`tests/sops-secrets/`)
+
+The SOPS secret suite contains 21 unit tests with mocked external commands and three integration tests
+that use real mise-managed Age and SOPS binaries. It covers validation, generate-once idempotency,
+key-source handling, encryption, and value preservation.
+
+Each real integration test creates a fresh temporary Age identity and encrypts its own fixture. The
+happy path supplies that disposable identity through an offline fake `op`, generates the requested
+values, decrypts and verifies them, and reruns the helper to prove no-op idempotency. Failure paths
+prove the encrypted target SHA-256 is unchanged and no generated temporary files remain. CI uses no
+production key.
+
 ### E2E tests (`tests/dccd/e2e/`)
 
 End-to-end tests use **real Docker containers** — no mocks. They create temporary compose stacks,
@@ -144,7 +162,7 @@ DCCD_E2E=1 mise exec -- bats tests/dccd/e2e/
 
 In CI, E2E tests run in a separate workflow job with Docker available.
 
-## Writing New Tests
+## Writing New DCCD Tests
 
 ### Test file template
 
@@ -227,8 +245,7 @@ This avoids modifying `dccd.sh` for testability — the same script runs in prod
 
 ## CI Integration
 
-Tests run automatically on pull requests and pushes to `main` when files in `scripts/` or `tests/`
-change.
+Tests run automatically on pull requests and can also be started manually.
 
 | Workflow            | File                             | What it runs             |
 | ------------------- | -------------------------------- | ------------------------ |
@@ -237,7 +254,10 @@ change.
 | BATS E2E (reusable) | `.github/workflows/bats-e2e.yml` | E2E tests with Docker    |
 
 The test caller workflow (`.github/workflows/test.yml`) invokes both reusable workflows. Unit and
-integration tests run in a standard runner. E2E tests run in a runner with Docker available.
+integration tests run in a standard runner after `mise-action` installs the pinned tools, including
+Age and SOPS. The real SOPS tests may skip locally when those tools are unavailable, but missing
+`mise`, Age, or SOPS is a hard failure under CI. E2E tests run in a runner with Docker available.
 
-Tests also run as a lefthook pre-commit hook (`mise exec -- bats tests/`), catching regressions
-before they reach CI.
+Lefthook's unit checks run both `tests/dccd/unit/` and `tests/sops-secrets/unit/`, catching fast
+regressions before they reach CI. CI runs both projects' unit and integration suites; DCCD E2E tests
+run separately with Docker available.

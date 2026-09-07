@@ -57,6 +57,7 @@ jobs:
       - name: Run BATS tests
         env:
           BATS_ARGS: ${{ inputs.bats-args }}
+          CI: "true"
           TEST_DIRS: ${{ inputs.test-dirs }}
         run: |
           # shellcheck disable=SC2086

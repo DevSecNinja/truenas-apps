@@ -20,6 +20,11 @@ Requirements:
 - Update `README.md`: add the app to the Apps table and the dataset list.
 - Update `docs/ARCHITECTURE.md`: add init container table entries, shared env entries, or new access model sections as needed.
 - Update `docs/INFRASTRUCTURE.md`: add UID/GID table entries, shared purpose group entries, or storage sections as needed.
-- Create a `secret.sops.env` template listing every secret variable the app requires, then encrypt it in-place with `sops -e -i $(full-path)/secret.sops.env`.
-- Output a summary table of all secrets/variables that need to be populated in `secret.sops.env`.
+- Create `services/<app>/secret.sops.env` with every required variable, set random variables to the literal `GENERATE`, and encrypt the sentinels in-place before running the helper.
+- Prefer SOPS-native `SOPS_AGE_KEY_CMD` with an unlocked, signed-in 1Password Desktop CLI integration; never invoke or print the `op read` result directly. Treat `SOPS_AGE_KEY_FILE` and standard key-file locations as optional fallbacks.
+- With a usable SOPS age key, automatically run `bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env VARIABLE=BYTE_COUNT [VARIABLE=BYTE_COUNT ...]` for generated values only. Exclude user-supplied credentials and shared values.
+- Treat the helper as generate-once bootstrap: replace only exact decrypted `GENERATE` values, preserve every existing non-sentinel value, and accept a successful no-op without rewriting the file.
+- Never run the helper concurrently against the same file or use it for rotation; rotate manually with `sops edit`.
+- Never commit `CHANGE_ME` placeholders for generated secrets.
+- Output a summary table classifying each secret as generated, user-supplied, or shared without revealing its value.
 - Document any manual steps required on the TrueNAS host (creating groups, users, dataset ACLs, etc.).
