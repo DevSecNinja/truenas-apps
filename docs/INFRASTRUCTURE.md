@@ -171,6 +171,7 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 | 3126    | `svc-app-bitwarden`   | bitwarden                                                     | No                  |
 | 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                                       | No                  |
 | 3128    | `svc-app-dawarich`    | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup | No                  |
+| 3129    | `svc-app-memos`       | memos, memos-init                                             | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -184,6 +185,10 @@ The `svc-app-dawarich` user has UID 3128, primary group
 The application, worker, init ownership target, and database backup sidecar
 use this identity. The nfrastack/db-backup `4.9.2` compatibility release selects
 it through `USER_DBBACKUP=3128` and `GROUP_DBBACKUP=3128`.
+
+The `svc-app-memos` user has UID 3129, primary group `svc-app-memos` (GID
+3129), and no shared-purpose group memberships. The Memos application and init
+container use this identity.
 
 ### Shared Purpose Groups
 
@@ -203,25 +208,35 @@ Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media`). The 
 
 For apps supported by `scripts/truenas-prep-app.sh`, run the reusable
 preparation command from the repository root instead of manually creating the
-app identity and child dataset. Dawarich is currently supported:
+app identity and child dataset. The root `truenas-apps.yaml` manifest is the
+declarative source for supported apps. Each `apps.<name>` entry defines the
+dedicated account name, shared UID/GID, and whether the administrative user
+needs auxiliary app-group membership. `truenas-apps.schema.json`, CI, and
+Lefthook validate the manifest fields and service directory references.
+
+Dawarich and Memos are supported. Run the applicable command on TrueNAS only,
+after the changes are merged and pulled into the TrueNAS checkout:
 
 ```sh
 sudo bash scripts/truenas-prep-app.sh dawarich
+sudo bash scripts/truenas-prep-app.sh memos
 ```
 
-The command creates or verifies the app group and user using the allocation in
-the [App Service Accounts](#app-service-accounts) table, adds
-`truenas_admin` as an auxiliary member when required, and creates the app child
-dataset beneath the ZFS dataset mounted at `services/`. If the service
-directory already contains the checkout, the command stages and restores those
-files around dataset creation. Repeated runs are safe: existing matching
-resources are reused, while account name or ID collisions stop the operation.
-It also refuses to create a missing dataset while the app is running. Set
-`TRUENAS_ADMIN_USER` only when the local administrative account is not
-`truenas_admin`.
+The helper reads the selected manifest entry and creates or verifies the app
+group and user using the allocation in the
+[App Service Accounts](#app-service-accounts) table. It adds the administrative
+user to the app group only when requested, creates the app child dataset beneath
+the ZFS dataset mounted at `services/`, and sets the app directory to the
+administrative owner with mode `0770`. If the service directory already
+contains the checkout, the command stages and restores those files around
+dataset creation. Repeated runs are safe: existing matching resources are
+reused, while account name or ID collisions stop the operation. It also refuses
+to create a missing dataset while the app is running. The helper's usage output
+lists the current manifest keys. Set `TRUENAS_ADMIN_USER` only when the local
+administrative account is not `truenas_admin`.
 
 The `services/` parent must already be a mounted ZFS dataset. Use the manual
-creation procedure below for apps that the script does not yet support.
+creation procedure below only for justified apps that cannot use the helper.
 
 **Important:** When creating service accounts in TrueNAS, always **create the group first**, then the user. If you rely on TrueNAS's "auto-create primary group" checkbox when creating a user, TrueNAS assigns the earliest available GID — which may not match the desired UID. By pre-creating the group with the correct GID, the auto-created primary group step is skipped and UID = GID is guaranteed.
 

@@ -26,7 +26,7 @@ case "$1 $2" in
     if [[ -e "${MOCK_STATE}/dataset-create-fails" ]]; then
         exit 1
     fi
-    mkdir -p "${TEST_REPO_ROOT}/services/dawarich"
+    mkdir -p "${TEST_REPO_ROOT}/services/${MOCK_APP_NAME}"
     touch "${MOCK_STATE}/dataset.exists"
     ;;
 *)
@@ -42,9 +42,9 @@ printf '%s\n' "$*" >>"${MOCK_LOG}/zfs.calls"
 
 if [[ "$*" == "list -H -o name,mountpoint" ]]; then
     printf 'tank/services\t%s\n' "${TEST_REPO_ROOT}/services"
-elif [[ "$*" == "list -H -o name tank/services/dawarich" ]] &&
+elif [[ "$*" == "list -H -o name tank/services/${MOCK_APP_NAME}" ]] &&
     [[ -e "${MOCK_STATE}/dataset.exists" ]]; then
-    printf '%s\n' "tank/services/dawarich"
+    printf '%s\n' "tank/services/${MOCK_APP_NAME}"
 else
     exit 1
 fi
@@ -73,13 +73,15 @@ input="$(cat)"
 
 case "${args}" in
 *'{name: $name, gid: $gid'*)
-    printf '%s\n' '{"name":"svc-app-dawarich","gid":3128,"smb":false}'
+    printf '{"name":"%s","gid":%s,"smb":false}\n' \
+        "${MOCK_ACCOUNT_NAME}" "${MOCK_ACCOUNT_ID}"
     ;;
 *'username: $username'*)
-    printf '%s\n' '{"username":"svc-app-dawarich","uid":3128,"group":41}'
+    printf '{"username":"%s","uid":%s,"group":41}\n' \
+        "${MOCK_ACCOUNT_NAME}" "${MOCK_ACCOUNT_ID}"
     ;;
 *'{name: $name}'*)
-    printf '%s\n' '{"name":"tank/services/dawarich"}'
+    printf '{"name":"tank/services/%s"}\n' "${MOCK_APP_NAME}"
     ;;
 *'{groups: $groups}'*)
     printf '%s\n' '{"groups":[41]}'
@@ -102,7 +104,10 @@ case "${args}" in
     [[ -e "${MOCK_STATE}/gid-collision" ]] &&
         printf '%s\n' "GROUP_GID_COLLISION"
     ;;
-*'--arg name svc-app-dawarich'*'.username == $name'*)
+*'--arg name truenas_admin'*'.username == $name'*)
+    printf '%s\n' "ADMIN_USER"
+    ;;
+*'.username == $name'*)
     if [[ -e "${MOCK_STATE}/user.exists" ]]; then
         printf '%s\n' "USER_CORRECT"
     elif [[ -e "${MOCK_STATE}/user-name-wrong-uid" ]]; then
@@ -113,9 +118,6 @@ case "${args}" in
     [[ -e "${MOCK_STATE}/uid-collision" ]] &&
         printf '%s\n' "USER_UID_COLLISION"
     ;;
-*'--arg name truenas_admin'*'.username == $name'*)
-    printf '%s\n' "ADMIN_USER"
-    ;;
 *'index($group_id) != null'*)
     [[ -e "${MOCK_STATE}/admin-member" ]]
     ;;
@@ -124,7 +126,7 @@ case "${args}" in
     ;;
 "-r .gid")
     case "${input}" in
-    GROUP_CORRECT) printf '%s\n' "3128" ;;
+    GROUP_CORRECT) printf '%s\n' "${MOCK_ACCOUNT_ID}" ;;
     GROUP_WRONG) printf '%s\n' "9999" ;;
     esac
     ;;
@@ -140,7 +142,7 @@ case "${args}" in
     ;;
 "-r .uid")
     case "${input}" in
-    USER_CORRECT) printf '%s\n' "3128" ;;
+    USER_CORRECT) printf '%s\n' "${MOCK_ACCOUNT_ID}" ;;
     USER_WRONG) printf '%s\n' "9999" ;;
     esac
     ;;

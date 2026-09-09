@@ -17,10 +17,13 @@ argument-hint: 'Paste the existing compose YAML or describe the app to add'
 
 ## Prerequisites
 
-Read these docs before starting — they define the patterns every compose file must follow:
+Read these references before starting — they define the patterns every compose file must follow:
 
 - [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) — compose patterns, container security, networking, directory conventions
 - [INFRASTRUCTURE.md](../../../docs/INFRASTRUCTURE.md) — UID/GID allocation, storage layout, multi-server deployment
+- [truenas-apps.yaml](../../../truenas-apps.yaml) — add a schema-valid `apps.<name>` entry for each supported TrueNAS-hosted app
+- [truenas-apps.schema.json](../../../truenas-apps.schema.json) — required registry fields, account constraints, and validation rules
+- [truenas-prep-app.sh](../../../scripts/truenas-prep-app.sh) — idempotent host provisioning driven by the manifest
 
 Use the closest existing app in `services/` as a template. When in doubt, model after a simple single-container app like `echo-server` or a multi-container app like `immich`.
 
@@ -110,6 +113,12 @@ Create `services/<app>/README.md` with standard sections:
 - First-run setup
 - Upgrade notes (if applicable)
 
+For a TrueNAS-hosted app declared in `truenas-apps.yaml`, the first-run setup must use the helper command instead of manual group, user, or dataset instructions. State that the command runs as root on TrueNAS only after the changes are merged and pulled into the TrueNAS checkout:
+
+```sh
+sudo bash scripts/truenas-prep-app.sh <app>
+```
+
 Then generate the docs symlink and register the page:
 
 ```sh
@@ -126,7 +135,44 @@ If the app will run on a non-TrueNAS server:
 2. If the server also has Traefik, add the frontend network to `services/traefik/compose.<server>.yaml`
 3. Re-run `scripts/generate-sops-rules.sh` to update `.sops.yaml` creation rules
 
-### Step 8 — Validate
+### Step 8 — Configure TrueNAS host provisioning
+
+For a TrueNAS-hosted app, add a schema-valid `apps.<app>` entry to
+`truenas-apps.yaml`. Each entry must set:
+
+- `account_name`: the dedicated `svc-app-<app>` user and group
+- `account_id`: the unique shared UID/GID in the `3100–3199` per-app range
+- `admin_group_member`: whether the TrueNAS administrator needs auxiliary
+  membership in the app group
+
+Set `admin_group_member: true` only when the TrueNAS administrator needs access
+to app-owned runtime paths. Use `false` for simple apps without that
+requirement. The helper reads the entry dynamically, and its supported-app
+usage output is generated from the manifest keys; do not maintain a separate
+supported-app list.
+
+Do not add manifest entries for apps deployed to non-TrueNAS hosts. If a
+TrueNAS-hosted app cannot safely use the helper, document the justified
+exception and specify the precise manual account, dataset, ownership,
+permission, and other host steps required.
+
+The JSON schema, CI, and Lefthook validate the manifest and its service
+directory references. Add or update relevant registry and provisioning coverage
+under `tests/truenas-prep-app/`, then run the repository's normal test workflow:
+
+```sh
+mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.yaml
+task test
+```
+
+If the helper itself changes, also validate its shell syntax and lint:
+
+```sh
+bash -n scripts/truenas-prep-app.sh
+mise exec -- shellcheck scripts/truenas-prep-app.sh
+```
+
+### Step 9 — Validate
 
 ```sh
 docker compose -f services/<app>/compose.yaml config --quiet
@@ -134,13 +180,21 @@ docker compose -f services/<app>/compose.yaml config --quiet
 
 Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are decrypted at deploy time. Warnings are fine; errors are not.
 
-### Step 9 — Document manual host steps
+### Step 10 — Document post-merge host steps
 
-Output a summary of any manual steps required on the TrueNAS host:
+For an app declared in `truenas-apps.yaml`, output this exact
+post-merge/first-run instruction:
 
-- Creating groups and users
-- Dataset creation and ACLs
-- Any other host-level configuration
+```sh
+sudo bash scripts/truenas-prep-app.sh <app>
+```
+
+The helper runs as root on TrueNAS only after the implementation has landed and the TrueNAS checkout has been updated. Do not attempt to run it from the development worktree, and do not duplicate its group, user, dataset, or directory setup as manual instructions.
+
+Only for a justified TrueNAS exception that cannot safely use the helper, output
+the reason and precise manual host steps. Do not claim that an undeclared app is
+supported. Non-TrueNAS apps must not be added to the manifest or given the
+TrueNAS helper command.
 
 ## Checklist
 
@@ -161,4 +215,9 @@ Use this as a final review before committing:
 - [ ] README.md, docs/index.md, ARCHITECTURE.md, INFRASTRUCTURE.md are updated
 - [ ] Per-service README.md is created with docs symlink
 - [ ] mkdocs.yml nav is updated
+- [ ] TrueNAS-hosted app has a schema-valid `truenas-apps.yaml` entry, or an unsupported exception is explicitly justified with precise manual host steps
+- [ ] Manifest key, generated helper usage, first-run documentation, and the reported post-merge command agree
+- [ ] Manifest schema and service directory validation pass
+- [ ] Relevant registry and provisioning tests are updated and pass
+- [ ] Helper syntax and shell lint pass when the helper changes
 - [ ] `docker compose config --quiet` passes

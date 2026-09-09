@@ -4,6 +4,10 @@
 load '../helpers/common'
 load '../helpers/mocks'
 
+setup_file() {
+  require_test_yq
+}
+
 setup() {
   prep_common_setup
   create_prep_mocks

@@ -1,0 +1,107 @@
+---
+services:
+  # Sets ownership on the ./data bind-mount so Memos can persist its SQLite
+  # database and uploaded assets as the non-root svc-app-memos user.
+  memos-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: memos-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to chown ./data to 3129:3129 (svc-app-memos)
+    read_only: true
+    command:
+      - "sh"
+      - "-c"
+      - chown -Rv 3129:3129 /data
+    volumes:
+      - ./data:/data
+
+  memos:
+    # Digest intentionally omitted for initial adoption; Renovate will pin it.
+    image: docker.io/neosmemo/memos:0.30.0
+    container_name: memos
+    depends_on:
+      memos-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3129:3129" # svc-app-memos
+    environment:
+      - HOME=/var/opt/memos
+      - MEMOS_DRIVER=sqlite
+      - MEMOS_PORT=5230
+      - MEMOS_INSTANCE_URL=https://memos.${DOMAINNAME}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - memos-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/var/opt/memos
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--spider"
+        - "-q"
+        - "http://127.0.0.1:5230"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Memos
+      - homepage.icon=memos.svg
+      - homepage.href=https://memos.${DOMAINNAME}
+      - homepage.description=Private Notes and Knowledge
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=memos-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.memos-rtr.rule=Host(`memos.${DOMAINNAME}`)"
+      - "traefik.http.routers.memos-rtr.entrypoints=https"
+      ## Middlewares
+      - "traefik.http.routers.memos-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.memos-rtr.service=memos"
+      - "traefik.http.services.memos.loadbalancer.server.port=5230"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.memos-monitor.rule=Host(`memos.${DOMAINNAME}`)"
+      - "traefik.http.routers.memos-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.memos-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.memos-monitor.service=memos"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444"
+      - "gatus.headers.Host=memos.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+networks:
+  memos-frontend:
+    name: memos-frontend
+    driver: bridge

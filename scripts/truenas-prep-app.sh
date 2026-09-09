@@ -1,7 +1,7 @@
 #!/bin/bash
 # Provision host prerequisites for an app managed by this repository.
 # Run on TrueNAS SCALE as root:
-#   sudo bash scripts/truenas-prep-app.sh dawarich
+#   sudo bash scripts/truenas-prep-app.sh <app>
 
 set -euo pipefail
 
@@ -19,8 +19,10 @@ usage() {
 Usage: sudo bash scripts/truenas-prep-app.sh <app>
 
 Supported apps:
-  dawarich
+EOF
+    list_supported_apps
 
+    cat <<EOF
 Environment:
   TRUENAS_ADMIN_USER  Administrative user to add to app groups
                        (default: truenas_admin)
@@ -32,18 +34,62 @@ fail() {
     exit 1
 }
 
+list_supported_apps() {
+    local config_file="${REPO_ROOT}/truenas-apps.yaml"
+    local app
+    local apps
+
+    if ! command -v yq >/dev/null 2>&1 || [ ! -f "${config_file}" ]; then
+        printf '  (see truenas-apps.yaml)\n'
+        return
+    fi
+
+    if ! apps="$(yq -r '.apps | keys | .[]' "${config_file}")"; then
+        printf '  (unable to read truenas-apps.yaml)\n'
+        return
+    fi
+
+    while IFS= read -r app; do
+        printf '  %s\n' "${app}"
+    done <<<"${apps}"
+}
+
 load_app_config() {
-    case "$1" in
-    dawarich)
-        APP_NAME="dawarich"
-        ACCOUNT_NAME="svc-app-dawarich"
-        ACCOUNT_ID=3128
-        ADMIN_GROUP_MEMBER=true
-        ;;
-    *)
+    local requested_app="$1"
+    local config_file="${REPO_ROOT}/truenas-apps.yaml"
+    local app_config
+
+    [[ "${requested_app}" =~ ^[a-z][a-z0-9-]*$ ]] ||
+        fail "Invalid app name: ${requested_app}"
+    [ -f "${config_file}" ] ||
+        fail "TrueNAS app manifest not found: ${config_file}"
+    APP_NAME="${requested_app}"
+    APP_NAME="${requested_app}"
+    if ! app_config="$(
+        yq -r \
+            ".apps.\"${APP_NAME}\" | [.account_name, .account_id, .admin_group_member] | @tsv" \
+            "${config_file}"
+    )"; then
+        fail "Unable to read TrueNAS app manifest: ${config_file}"
+    fi
+    IFS=$'\t' read -r ACCOUNT_NAME ACCOUNT_ID ADMIN_GROUP_MEMBER <<<"${app_config}"
+
+    if [ "${ACCOUNT_NAME}" = "null" ] && [ "${ACCOUNT_ID}" = "null" ] &&
+        [ "${ADMIN_GROUP_MEMBER}" = "null" ]; then
         usage >&2
-        fail "Unsupported app: $1"
-        ;;
+        fail "Unsupported app: ${APP_NAME}"
+    fi
+
+    [ "${ACCOUNT_NAME}" = "svc-app-${APP_NAME}" ] ||
+        fail "Invalid account_name for ${APP_NAME}: expected svc-app-${APP_NAME}"
+    [[ "${ACCOUNT_ID}" =~ ^[0-9]+$ ]] ||
+        fail "Invalid account_id for ${APP_NAME}: expected an integer"
+    if ((ACCOUNT_ID < 3100 || ACCOUNT_ID > 3199)); then
+        fail "Invalid account_id for ${APP_NAME}: expected a value from 3100 to 3199"
+    fi
+    case "${ADMIN_GROUP_MEMBER}" in
+    true | false) ;;
+    *) fail "Invalid admin_group_member for ${APP_NAME}: expected true or false" ;;
     esac
 }
 
@@ -294,10 +340,11 @@ main() {
         return 1
     fi
 
-    load_app_config "$1"
     require_command jq
+    require_command yq
     require_command midclt
     require_command zfs
+    load_app_config "$1"
 
     [ -d "${REPO_ROOT}/services/${APP_NAME}" ] ||
         fail "Service directory not found: ${REPO_ROOT}/services/${APP_NAME}"
