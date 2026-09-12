@@ -104,7 +104,8 @@ jobs:
           -- dotenv-linter check
 
   validate-manifests:
-    name: validate deployment manifests
+    # Keep this context stable: the main branch ruleset requires it by name.
+    name: validate servers.yaml
     runs-on: ubuntu-24.04
     steps:
       - name: Harden runner
