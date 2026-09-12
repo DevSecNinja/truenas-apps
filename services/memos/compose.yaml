@@ -101,6 +101,54 @@ services:
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles user switching internally via USER_DBBACKUP/GROUP_DBBACKUP.
+  # read_only is also not set because s6-overlay needs extensive writable paths.
+  # cap_drop: ALL is therefore omitted.
+  # MODE=MANUAL + MANUAL_RUN_FOREVER=FALSE makes the container run one backup
+  # and exit cleanly. The nightly CD script (dccd.sh) starts it fresh each run.
+  #
+  # Backs up the Memos SQLite database via the SQLite Online Backup API,
+  # producing a consistent snapshot while Memos uses WAL mode.
+  memos-db-backup:
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: memos-db-backup
+    depends_on:
+      memos:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      - USER_DBBACKUP=0
+      - GROUP_DBBACKUP=0
+      - CONTAINER_NAME=memos-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      # Run once and exit — restarted nightly by dccd.sh
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
+      - ENABLE_NOTIFICATIONS=FALSE
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_CLEANUP_TIME=2880
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      - DB01_TYPE=sqlite3
+      - DB01_HOST=/memos-data/memos_prod.db
+    restart: "no"
+    network_mode: none
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./data:/memos-data:ro
+      - ./backups/db-backup:/backup
+
 networks:
   memos-frontend:
     name: memos-frontend

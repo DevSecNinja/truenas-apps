@@ -5,7 +5,7 @@
 #
 #   * PostgreSQL (pgsql)  — used by gatus, immich, outline
 #   * MongoDB    (mongo)  — used by unifi
-#   * SQLite     (sqlite3) — used by home-assistant
+#   * SQLite     (sqlite3) — used by home-assistant, memos
 #
 # Each scenario validates that:
 #
@@ -16,10 +16,28 @@
 #   4. The dump restores cleanly into a fresh database instance.
 #   5. The restored data matches the original (sentinel row verification).
 #
+# The sqlite3 scenario additionally mirrors the production
+# home-assistant-db-backup / memos-db-backup sidecars more closely because
+# both real services run with USER_DBBACKUP=0 / GROUP_DBBACKUP=0 (not the
+# invoking user's own UID/GID) and Memos keeps its source database in WAL
+# mode with a live, un-checkpointed -wal sidecar file at backup time. That
+# scenario additionally verifies:
+#
+#   6. Exactly one encrypted artifact is produced (no duplicate/looped run).
+#   7. The SHA1 checksum sidecar file matches the artifact's actual digest.
+#   8. The "latest-" convenience symlink resolves to the produced artifact.
+#   9. Output ownership is 0:0, matching USER_DBBACKUP=0/GROUP_DBBACKUP=0.
+#  10. The container's own completion-marker log line and exit code are both
+#      inspected directly, independent of `set -e` propagation.
+#  11. A binary attachment-style BLOB column survives the backup/restore
+#      cycle byte-for-byte (Memos 0.30 stores attachments as SQLite blobs).
+#
 # Images are intentionally kept in sync with services/*/compose.yaml so that
 # the test exercises the exact same backup toolchain used in production.
 #
-# Required host tools: docker, gpg, zstd, sqlite3
+# Required host tools: docker, gpg, zstd, sqlite3, openssl, sha1sum, stat
+# (openssl, sha1sum, and stat/coreutils ship by default on the ubuntu-24.04
+# GitHub Actions runner used by .github/workflows/backup-restore-test.yml)
 #
 # Exit codes:
 #   0 — all checks passed
@@ -48,6 +66,14 @@ PG_SOURCE="backup-test-pg-source"
 PG_RESTORE="backup-test-pg-restore"
 MONGO_SOURCE="backup-test-mongo-source"
 MONGO_RESTORE="backup-test-mongo-restore"
+SQLITE_BACKUP="backup-test-sqlite-backup"
+
+# PID of the backgrounded sqlite3 process that holds a live connection open
+# during the SQLite scenario (see run_sqlite_scenario), so a live -wal file
+# exists at backup time. Tracked globally so cleanup() can also terminate it
+# if the script exits abnormally mid-scenario. Empty when no such process is
+# currently held open.
+SQLITE_HOLDER_PID=""
 
 # Unique sentinel value written before backup and verified after restore.
 # If it survives the full cycle the pipeline is working correctly.
@@ -78,9 +104,14 @@ die() {
 
 cleanup() {
     log_state "Cleaning up containers, network, and temp files..."
+    if [ -n "${SQLITE_HOLDER_PID}" ] && kill -0 "${SQLITE_HOLDER_PID}" 2>/dev/null; then
+        kill "${SQLITE_HOLDER_PID}" 2>/dev/null || true
+        wait "${SQLITE_HOLDER_PID}" 2>/dev/null || true
+    fi
     docker rm -f \
         "${PG_SOURCE}" "${PG_RESTORE}" \
         "${MONGO_SOURCE}" "${MONGO_RESTORE}" \
+        "${SQLITE_BACKUP}" \
         2>/dev/null || true
     docker network rm "${NETWORK}" 2>/dev/null || true
     rm -rf "${WORK_DIR}"
@@ -371,10 +402,30 @@ JS
     log_info "MongoDB scenario PASSED"
 }
 
-# --- Scenario 3: SQLite ------------------------------------------------------
-
+# --- Scenario 3: SQLite (home-assistant-db-backup / memos-db-backup) --------
+#
+# This scenario intentionally mirrors production settings for BOTH sqlite3
+# consumers rather than a generic "any UID will do" smoke test:
+#
+#   * USER_DBBACKUP=0 / GROUP_DBBACKUP=0 (root) — the actual value both
+#     home-assistant-db-backup and memos-db-backup use in
+#     services/*/compose.yaml, not the invoking user's own UID/GID.
+#   * A live, un-checkpointed WAL sidecar file at backup time (Memos runs
+#     SQLite in WAL mode continuously). SQLite checkpoints (merges) the -wal
+#     file back into the main database when the *last* connection closes,
+#     regardless of wal_autocheckpoint — that pragma only disables the
+#     separate size-triggered automatic checkpoint. So the setup session's
+#     sqlite3 connection is kept open in the background (via `.shell sleep`)
+#     for the duration of the backup, exactly matching the file layout
+#     db-backup sees against a running Memos instance.
+#   * A BLOB attachment column (Memos 0.30 stores uploaded attachments as
+#     SQLite blobs in the same database file), verified byte-for-byte.
+#   * The exact resource-limit / hardening flags used by the compose sidecar
+#     (network none, no-new-privileges, memory limit, PID limit).
+#   * Single-artifact, checksum, symlink, ownership, and log-marker
+#     evidence — see the module header for the full list.
 run_sqlite_scenario() {
-    log_info "=== SQLite backup/restore cycle ==="
+    log_info "=== SQLite backup/restore cycle (home-assistant / memos pattern) ==="
 
     local src_dir="${WORK_DIR}/sqlite_src"
     local backup_dir="${WORK_DIR}/sqlite_backup"
@@ -382,20 +433,81 @@ run_sqlite_scenario() {
     mkdir -p "${src_dir}" "${backup_dir}" "${restore_dir}"
 
     local src_db="${src_dir}/${DB_NAME}.db"
-    log_info "Creating source SQLite database with sentinel..."
-    sqlite3 "${src_db}" <<SQL
+
+    # Synthetic binary "attachment" — arbitrary random bytes, not real data.
+    # Captured up-front so the restored copy can be compared byte-for-byte.
+    local blob_hex
+    blob_hex=$(openssl rand -hex 128 | tr '[:lower:]' '[:upper:]')
+
+    log_info "Creating source SQLite database in WAL mode with representative memo/attachment rows..."
+    # SQLite performs a full checkpoint (merging the -wal file back into the
+    # main database) when the LAST connection to a database file closes,
+    # regardless of wal_autocheckpoint — that pragma only disables the
+    # separate size-triggered automatic checkpoint during active use. A
+    # short-lived `sqlite3 db <<SQL ... SQL` session that closes its
+    # connection as soon as the heredoc ends would therefore checkpoint the
+    # -wal file away before the backup ever runs, silently testing an idle,
+    # already-checkpointed database instead of the live-WAL state a running
+    # Memos process actually presents to db-backup.
+    #
+    # To keep the connection genuinely open (simulating a live Memos
+    # process), the setup statements are followed by `.shell sleep`, and the
+    # whole sqlite3 session is backgrounded. Its PID is tracked in the
+    # global SQLITE_HOLDER_PID so it can be terminated as soon as the backup
+    # and its restore/verification no longer need the live WAL, and so
+    # cleanup() can still terminate it if the script exits abnormally before
+    # that point.
+    sqlite3 "${src_db}" <<SQL &
+.bail on
+PRAGMA journal_mode=WAL;
+PRAGMA wal_autocheckpoint=0;
 CREATE TABLE restore_sentinel (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL);
 INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');
+CREATE TABLE memo (id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, created_ts INTEGER NOT NULL);
+INSERT INTO memo (content, created_ts) VALUES ('Synthetic test memo body ${SENTINEL}', strftime('%s', 'now'));
+CREATE TABLE resource (id INTEGER PRIMARY KEY AUTOINCREMENT, memo_id INTEGER NOT NULL, filename TEXT NOT NULL, blob BLOB NOT NULL);
+INSERT INTO resource (memo_id, filename, blob) VALUES (1, 'synthetic-attachment.bin', X'${blob_hex}');
+.shell sleep 60
 SQL
+    SQLITE_HOLDER_PID=$!
 
-    log_info "Running tiredofit/db-backup (sqlite3)..."
-    # SQLite doesn't need a server; mount the db read-only into the backup
-    # container, mirroring the home-assistant compose setup.
-    docker run --rm \
+    log_info "Waiting for a live, non-empty -wal file (holder PID ${SQLITE_HOLDER_PID})..."
+    local wal_wait_attempts=0
+    local wal_wait_max=50
+    while [ ! -s "${src_db}-wal" ]; do
+        wal_wait_attempts=$((wal_wait_attempts + 1))
+        if ! kill -0 "${SQLITE_HOLDER_PID}" 2>/dev/null; then
+            die "sqlite3 holder process (PID ${SQLITE_HOLDER_PID}) exited before a -wal file appeared"
+        fi
+        if [ "${wal_wait_attempts}" -ge "${wal_wait_max}" ]; then
+            die "timed out waiting for a live -wal file at ${src_db}-wal"
+        fi
+        sleep 0.2
+    done
+    log_info "Confirmed live -wal sidecar file is present at backup time: ${src_db}-wal"
+
+    log_info "Running tiredofit/db-backup (sqlite3, root-owned output, hardened flags)..."
+    # SQLite doesn't need a server; mount the whole source directory
+    # read-only (main db file + -wal/-shm sidecars) into the backup
+    # container, mirroring the home-assistant / memos compose setup exactly,
+    # including the exact hardening flags applied to memos-db-backup:
+    # network none, no-new-privileges, a memory limit, and a PID limit.
+    # USER_DBBACKUP=0 / GROUP_DBBACKUP=0 matches both production sidecars —
+    # not the invoking user's own UID/GID — because the ./backups/db-backup
+    # output directory is freshly created by Docker/Podman on first run and
+    # is never chowned away from root by any init container, so root:root
+    # is both the actual and the intended owner for this dataset.
+    local run_exit
+    set +e
+    docker run \
+        --name "${SQLITE_BACKUP}" \
         --network none \
-        -e USER_DBBACKUP="${HOST_UID}" \
-        -e GROUP_DBBACKUP="${HOST_GID}" \
-        -e CONTAINER_NAME="backup-test-sqlite-backup" \
+        --memory 1024m \
+        --pids-limit 100 \
+        --security-opt no-new-privileges:true \
+        -e USER_DBBACKUP=0 \
+        -e GROUP_DBBACKUP=0 \
+        -e CONTAINER_NAME="${SQLITE_BACKUP}" \
         -e CONTAINER_ENABLE_MONITORING=FALSE \
         -e CONTAINER_ENABLE_SCHEDULING=FALSE \
         -e MODE=MANUAL \
@@ -403,6 +515,7 @@ SQL
         -e ENABLE_NOTIFICATIONS=FALSE \
         -e DEFAULT_CHECKSUM=SHA1 \
         -e DEFAULT_COMPRESSION=ZSTD \
+        -e DEFAULT_CLEANUP_TIME=2880 \
         -e DEFAULT_ENCRYPT=TRUE \
         -e DEFAULT_ENCRYPT_PASSPHRASE="${ENC_PASSPHRASE}" \
         -e DB01_TYPE=sqlite3 \
@@ -410,11 +523,69 @@ SQL
         -v "${src_dir}:/db:ro" \
         -v "${backup_dir}:/backup" \
         "${DB_BACKUP_IMAGE}" \
-        backup-now >/dev/null
+        backup-now >"${WORK_DIR}/sqlite_backup_run.log" 2>&1
+    run_exit=$?
+    set -e
+    if [ "${run_exit}" -ne 0 ]; then
+        local run_log
+        run_log="$(<"${WORK_DIR}/sqlite_backup_run.log")"
+        die "sqlite backup container exited ${run_exit} (expected 0); log follows:${run_log}"
+    fi
+
+    log_info "Inspecting container logs for the completion marker..."
+    docker logs "${SQLITE_BACKUP}" 2>&1 | grep -qE 'Backup [0-9]+ routines finish time.*exit code 0' ||
+        die "db-backup completion marker not found in container logs"
+
+    docker rm "${SQLITE_BACKUP}" >/dev/null 2>&1 || true
+
+    log_info "Verifying artifact count, checksum, symlink, and root ownership..."
+    docker run --rm \
+        --network none \
+        -e HOST_UID="${HOST_UID}" \
+        -e HOST_GID="${HOST_GID}" \
+        -v "${backup_dir}:/backup" \
+        --entrypoint /bin/sh \
+        "${DB_BACKUP_IMAGE}" \
+        -c '
+            set -eu
+            count=$(find /backup -name "*.gpg" -type f | wc -l | tr -d " ")
+            [ "${count}" = "1" ] || {
+                printf "expected exactly one *.gpg backup artifact, found %s\n" "${count}" >&2
+                exit 1
+            }
+            artifact=$(find /backup -name "*.gpg" -type f | head -n1)
+            checksum=$(find /backup -name "*.sha1" -type f | head -n1)
+            latest=$(find /backup -name "latest-*" -type l | head -n1)
+            [ -n "${checksum}" ] || {
+                printf "%s\n" "no *.sha1 checksum sidecar file found" >&2
+                exit 1
+            }
+            [ -n "${latest}" ] || {
+                printf "%s\n" "no latest-* symlink found alongside the backup artifact" >&2
+                exit 1
+            }
+            expected=$(awk "{print \$1}" "${checksum}")
+            actual=$(sha1sum "${artifact}" | awk "{print \$1}")
+            [ "${expected}" = "${actual}" ] || {
+                printf "%s\n" "SHA1 checksum mismatch" >&2
+                exit 1
+            }
+            [ "$(readlink -f "${latest}")" = "$(readlink -f "${artifact}")" ] || {
+                printf "%s\n" "latest-* symlink does not resolve to the backup artifact" >&2
+                exit 1
+            }
+            owner=$(stat -c "%u:%g" "${artifact}")
+            [ "${owner}" = "0:0" ] || {
+                printf "expected backup artifact owned 0:0, got %s\n" "${owner}" >&2
+                exit 1
+            }
+            chown -R "${HOST_UID}:${HOST_GID}" /backup
+        '
 
     local enc_file dump_file
     enc_file="$(find_backup_file "${backup_dir}")"
     log_info "Backup file: ${enc_file}"
+
     dump_file="$(decrypt_and_decompress "${enc_file}")"
     log_info "Dump ready: ${dump_file}"
 
@@ -431,20 +602,37 @@ SQL
     log_info "Restoring dump into a fresh SQLite database..."
     local restore_db="${restore_dir}/${DB_NAME}.db"
     cp "${dump_file}" "${restore_db}"
-    # Sanity-check the copied file with PRAGMA integrity_check.
+
+    log_info "Running PRAGMA integrity_check on the restored database..."
     local integrity
     integrity=$(sqlite3 "${restore_db}" "PRAGMA integrity_check;")
     [ "${integrity}" = "ok" ] ||
         die "restored SQLite db failed integrity_check (got '${integrity}')"
 
-    log_info "Verifying sentinel row in restored database..."
-    local restored
+    log_info "Verifying sentinel and representative memo row in restored database..."
+    local restored restored_memo
     restored=$(sqlite3 "${restore_db}" \
         "SELECT COUNT(*) FROM restore_sentinel WHERE value = '${SENTINEL}';")
     [ "${restored}" = "1" ] ||
         die "SQLite sentinel mismatch after restore (expected 1, got '${restored}')"
 
-    log_info "SQLite scenario PASSED"
+    restored_memo=$(sqlite3 "${restore_db}" \
+        "SELECT COUNT(*) FROM memo WHERE content = 'Synthetic test memo body ${SENTINEL}';")
+    [ "${restored_memo}" = "1" ] ||
+        die "restored memo row not found or content mismatch (expected 1, got '${restored_memo}')"
+
+    log_info "Verifying restored attachment blob matches the original byte-for-byte..."
+    local restored_blob_hex
+    restored_blob_hex=$(sqlite3 "${restore_db}" "SELECT hex(blob) FROM resource WHERE id = 1;")
+    [ "${restored_blob_hex}" = "${blob_hex}" ] ||
+        die "restored attachment blob does not match the original (hex mismatch)"
+
+    log_info "Releasing the held sqlite3 connection (PID ${SQLITE_HOLDER_PID})..."
+    kill "${SQLITE_HOLDER_PID}" 2>/dev/null || true
+    wait "${SQLITE_HOLDER_PID}" 2>/dev/null || true
+    SQLITE_HOLDER_PID=""
+
+    log_info "SQLite scenario (home-assistant / memos pattern) PASSED"
 }
 
 # --- Run all scenarios -------------------------------------------------------

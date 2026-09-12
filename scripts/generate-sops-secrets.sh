@@ -4,6 +4,10 @@
 set +x +v
 set -eo pipefail
 
+_GENERATE_SOPS_SECRETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sops-common.sh disable=SC1091
+. "${_GENERATE_SOPS_SECRETS_DIR}/sops-common.sh"
+
 MIN_SECRET_BYTES=16
 MAX_SECRET_BYTES=1024
 TEMP_TARGET=""
@@ -21,18 +25,6 @@ cleanup() {
     return "${status}"
 }
 
-key_setup_help() {
-    cat >&2 <<'EOF'
-Recommended 1Password setup:
-  export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'
-
-Alternatively, use `op run --env-file <gitignored-file>` to inject
-SOPS_AGE_KEY from an op:// reference. Never run op read directly or print its
-output. SOPS_AGE_KEY_FILE and SOPS standard key-file locations remain optional
-fallbacks.
-EOF
-}
-
 usage() {
     cat <<EOF
 Usage: $0 <secret.sops.env> VARIABLE=BYTE_COUNT [VARIABLE=BYTE_COUNT ...]
@@ -40,15 +32,12 @@ Usage: $0 <secret.sops.env> VARIABLE=BYTE_COUNT [VARIABLE=BYTE_COUNT ...]
 Only variables whose decrypted value is exactly GENERATE are changed. Byte
 counts must be between ${MIN_SECRET_BYTES} and ${MAX_SECRET_BYTES}. Existing
 values are preserved; rotate them manually with 'sops edit'.
-EOF
-}
 
-run_sops() {
-    if [[ -n "${SOPS_AGE_KEY_CMD:-}" ]]; then
-        env -u SOPS_AGE_KEY -u SOPS_AGE_KEY_FILE mise exec -- sops "$@"
-    else
-        mise exec -- sops "$@"
-    fi
+SOPS is invoked via 'mise exec -- sops' by default. Set SOPS_BIN to an
+explicit sops executable path (or a bare command resolvable on PATH) to
+override that — e.g. SOPS_BIN=/usr/local/bin/sops. SOPS_AGE_KEY_CMD
+continues to work unchanged with either invocation method.
+EOF
 }
 
 generate_random_hex() {
@@ -76,7 +65,6 @@ main() {
     local generated_value
     local json_path
     local seen="|"
-    local trimmed_key_command
     local index
     declare -a variables=()
     declare -a byte_counts=()
@@ -93,9 +81,8 @@ main() {
         return 1
     fi
 
-    if ! grep -q '^sops_mac=ENC\[AES256_GCM,' "${target}" ||
-        ! grep -q '^sops_version=' "${target}" ||
-        ! grep -Eq '^[A-Za-z_][A-Za-z0-9_]*=ENC\[AES256_GCM,' "${target}"; then
+    # shellcheck disable=SC2310
+    if ! sops_is_encrypted_dotenv "${target}"; then
         error "target is not a SOPS-encrypted dotenv file: ${target}"
         return 1
     fi
@@ -127,21 +114,6 @@ main() {
         byte_counts+=("${byte_count}")
     done
 
-    if ! command -v mise >/dev/null 2>&1; then
-        error "mise is required; install it and run 'mise install sops'"
-        return 1
-    fi
-
-    if [[ -n "${SOPS_AGE_KEY_CMD:-}" ]]; then
-        trimmed_key_command="${SOPS_AGE_KEY_CMD#"${SOPS_AGE_KEY_CMD%%[![:space:]]*}"}"
-        if [[ "${trimmed_key_command}" == "op" || "${trimmed_key_command}" == "op "* ]] &&
-            ! command -v op >/dev/null 2>&1; then
-            error "SOPS_AGE_KEY_CMD uses 1Password, but the op CLI is unavailable"
-            key_setup_help
-            return 1
-        fi
-    fi
-
     for index in "${!variables[@]}"; do
         variable="${variables[${index}]}"
         json_path="[\"${variable}\"]"
@@ -151,10 +123,10 @@ main() {
                 --input-type dotenv \
                 --output-type dotenv \
                 --extract "${json_path}" \
-                "${target}" 2>/dev/null
+                "${target}"
         )"; then
             error "SOPS could not decrypt ${target} or find ${variable}"
-            key_setup_help
+            sops_key_setup_help
             return 1
         fi
 
