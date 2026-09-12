@@ -137,6 +137,25 @@ Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key st
 9. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
 10. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
 
+### Post-Merge TrueNAS App Rollout (Mandatory)
+
+For a brand-new TrueNAS Custom App, operator handoffs must use the aliases from `/mnt/vm-pool/apps/scripts/aliases.sh`, which must already be sourced:
+
+1. Run `dccd-app <app>` on `svlnas`. It pulls the merged changes and decrypts SOPS files while limiting deployment to the new app. The first run will report that the TrueNAS app config directory is missing and skip deployment because the Custom App does not exist yet; this is expected.
+2. From `/mnt/vm-pool/apps`, run `sudo bash scripts/truenas-prep-app.sh <app>` to provision the manifest-declared account, group, and child dataset while preserving checked-out files.
+3. In the TrueNAS UI, create a Custom App named `<app>` with:
+
+   ```yaml
+   include:
+     - /mnt/vm-pool/apps/services/<app>/compose.yaml
+   services: {}
+   ```
+
+4. Run `dccd-all`. This force-deploys all TrueNAS apps in the normal order, applies dependent AdGuard and Traefik changes, decrypts secrets, and runs the default backup freshness check.
+5. Complete the app-specific first-run setup and verify health and access.
+
+Do not use `dccd-all` for the first sync: Traefik may already reference the new frontend network before its Custom App and network exist. Do not replace this handoff with raw `git pull`, raw `dccd.sh` commands, or improvised targeted deployments unless troubleshooting or explicitly requested.
+
 ## Managing SOPS Secrets
 
 Use the skill at `.github/skills/sops-secrets/SKILL.md` when creating, editing, generating, validating, or troubleshooting encrypted dotenv secrets.

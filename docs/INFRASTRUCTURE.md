@@ -214,13 +214,58 @@ dedicated account name, shared UID/GID, and whether the administrative user
 needs auxiliary app-group membership. `truenas-apps.schema.json`, CI, and
 Lefthook validate the manifest fields and service directory references.
 
-Dawarich and Memos are supported. Run the applicable command on TrueNAS only,
-after the changes are merged and pulled into the TrueNAS checkout:
+#### Brand-New Custom App Rollout
 
-```sh
-sudo bash scripts/truenas-prep-app.sh dawarich
-sudo bash scripts/truenas-prep-app.sh memos
-```
+Use this sequence after merging a new manifest-supported app. On `svlnas`, the
+aliases must already be sourced from `/mnt/vm-pool/apps/scripts/aliases.sh`.
+
+1. Pull the merged changes and decrypt SOPS files while limiting the first pass
+   to the new app:
+
+   ```sh
+   dccd-app <app>
+   ```
+
+   Because the TrueNAS Custom App does not exist yet, dccd reports that its
+   TrueNAS app config directory is missing and skips deployment. This is
+   expected during the first pass. Do not run `dccd-all` first: Traefik may
+   already reference the new frontend network before its Custom App and network
+   exist.
+2. From the updated checkout, provision the manifest-declared account, group,
+   and child dataset:
+
+   ```sh
+   cd /mnt/vm-pool/apps
+   sudo bash scripts/truenas-prep-app.sh <app>
+   ```
+
+   The helper preserves the files already checked out under the service
+   directory.
+3. In the TrueNAS UI, create a Custom App named `<app>` with:
+
+   ```yaml
+   include:
+     - /mnt/vm-pool/apps/services/<app>/compose.yaml
+   services: {}
+   ```
+
+4. Run the canonical final deployment:
+
+   ```sh
+   dccd-all
+   ```
+
+   This force-deploys all TrueNAS apps in the normal order, includes the new
+   app and dependent AdGuard and Traefik changes, decrypts secrets, and runs the
+   default backup freshness check.
+5. Complete the application-specific first-run setup and verify health and
+   access.
+
+Do not replace this handoff with raw `git pull`, raw `dccd.sh` invocations, or
+an improvised series of targeted app deployments unless troubleshooting or
+explicitly requested.
+
+Dawarich and Memos are currently supported by the manifest-driven helper.
 
 The helper reads the selected manifest entry and creates or verifies the app
 group and user using the allocation in the

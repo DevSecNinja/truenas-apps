@@ -113,7 +113,7 @@ Create `services/<app>/README.md` with standard sections:
 - First-run setup
 - Upgrade notes (if applicable)
 
-For a TrueNAS-hosted app declared in `truenas-apps.yaml`, the first-run setup must use the helper command instead of manual group, user, or dataset instructions. State that the command runs as root on TrueNAS only after the changes are merged and pulled into the TrueNAS checkout:
+For a TrueNAS-hosted app declared in `truenas-apps.yaml`, the first-run setup must document the complete post-merge rollout in Step 10. Use the helper command instead of manual group, user, or dataset instructions:
 
 ```sh
 sudo bash scripts/truenas-prep-app.sh <app>
@@ -182,19 +182,60 @@ Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are d
 
 ### Step 10 — Document post-merge host steps
 
-For an app declared in `truenas-apps.yaml`, output this exact
-post-merge/first-run instruction:
+For an app declared in `truenas-apps.yaml`, document this complete rollout for
+the operator on `svlnas`. The aliases must already be sourced from
+`/mnt/vm-pool/apps/scripts/aliases.sh`.
 
-```sh
-sudo bash scripts/truenas-prep-app.sh <app>
-```
+1. Pull the merged changes and decrypt SOPS files while limiting the first pass
+   to the new app:
 
-The helper runs as root on TrueNAS only after the implementation has landed and the TrueNAS checkout has been updated. Do not attempt to run it from the development worktree, and do not duplicate its group, user, dataset, or directory setup as manual instructions.
+   ```sh
+   dccd-app <app>
+   ```
+
+   Because the TrueNAS Custom App does not exist yet, dccd will report that its
+   TrueNAS app config directory is missing and skip deployment. This is expected
+   during onboarding. Do not run `dccd-all` first: Traefik may already reference
+   the new frontend network before its Custom App and network exist.
+2. From the updated TrueNAS checkout, provision the manifest-declared account,
+   group, and child dataset:
+
+   ```sh
+   cd /mnt/vm-pool/apps
+   sudo bash scripts/truenas-prep-app.sh <app>
+   ```
+
+   The helper preserves the checked-out files while creating the child dataset.
+3. In the TrueNAS UI, create a Custom App named `<app>` with:
+
+   ```yaml
+   include:
+     - /mnt/vm-pool/apps/services/<app>/compose.yaml
+   services: {}
+   ```
+
+4. Run the canonical final deployment:
+
+   ```sh
+   dccd-all
+   ```
+
+   This force-deploys all TrueNAS apps in the normal order, includes the new app
+   and dependent integrations such as AdGuard and Traefik, decrypts secrets, and
+   runs the default backup freshness check.
+5. Complete the application-specific first-run setup and verify health and
+   access.
+
+Do not replace this sequence with raw `git pull`, raw `dccd.sh` invocations, or
+an improvised series of targeted deployments unless troubleshooting or
+explicitly requested. Do not attempt to run the helper from the development
+worktree or duplicate its group, user, dataset, or directory setup as manual
+instructions.
 
 Only for a justified TrueNAS exception that cannot safely use the helper, output
 the reason and precise manual host steps. Do not claim that an undeclared app is
-supported. Non-TrueNAS apps must not be added to the manifest or given the
-TrueNAS helper command.
+supported. Non-TrueNAS apps must not be added to the manifest or given this
+TrueNAS rollout.
 
 ## Checklist
 
@@ -216,7 +257,11 @@ Use this as a final review before committing:
 - [ ] Per-service README.md is created with docs symlink
 - [ ] mkdocs.yml nav is updated
 - [ ] TrueNAS-hosted app has a schema-valid `truenas-apps.yaml` entry, or an unsupported exception is explicitly justified with precise manual host steps
-- [ ] Manifest key, generated helper usage, first-run documentation, and the reported post-merge command agree
+- [ ] Post-merge rollout starts with `dccd-app <app>` and documents the expected missing TrueNAS config skip
+- [ ] Post-merge rollout runs `truenas-prep-app.sh <app>` from the updated TrueNAS checkout
+- [ ] Post-merge rollout creates the named TrueNAS Custom App with the absolute compose include
+- [ ] Post-merge rollout finishes with `dccd-all` before application-specific setup
+- [ ] Manifest key, generated helper usage, first-run documentation, and the reported post-merge sequence agree
 - [ ] Manifest schema and service directory validation pass
 - [ ] Relevant registry and provisioning tests are updated and pass
 - [ ] Helper syntax and shell lint pass when the helper changes

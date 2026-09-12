@@ -53,10 +53,24 @@ Memos does not require any application-generated random secrets for this deploym
 
 ## First-Run Setup
 
-1. After the changes are merged and pulled into the TrueNAS checkout, run the
-   host preparation helper from the repository root:
+The aliases must already be sourced from
+`/mnt/vm-pool/apps/scripts/aliases.sh` on `svlnas`.
+
+1. After the changes merge, pull them and decrypt the SOPS files with the
+   app-scoped alias:
 
    ```sh
+   dccd-app memos
+   ```
+
+   Because the `memos` TrueNAS Custom App does not exist yet, dccd will report
+   that its TrueNAS app config directory is missing and skip deployment. This is
+   expected for the first pass. Do not start with `dccd-all`: Traefik already
+   references the frontend network that the new Custom App will create.
+2. From the updated TrueNAS checkout, run the host preparation helper:
+
+   ```sh
+   cd /mnt/vm-pool/apps
    sudo bash scripts/truenas-prep-app.sh memos
    ```
 
@@ -64,10 +78,26 @@ Memos does not require any application-generated random secrets for this deploym
    and user, creates the child ZFS dataset without discarding the existing
    checkout, and sets the app directory ownership and mode. The Memos manifest
    entry does not request administrative auxiliary group membership.
-2. Deploy the stack and confirm `memos-init` completes successfully.
-3. Open `https://memos.${DOMAINNAME}` and create the first Memos account.
-4. Configure registration and access policy in the Memos admin settings as
-   desired.
+3. In the TrueNAS UI, create a Custom App named `memos` with:
+
+   ```yaml
+   include:
+     - /mnt/vm-pool/apps/services/memos/compose.yaml
+   services: {}
+   ```
+
+4. Run the canonical final deployment:
+
+   ```sh
+   dccd-all
+   ```
+
+   This deploys Memos and applies its dependent AdGuard and Traefik changes
+   through the normal TrueNAS ordering, decrypts secrets, and runs the default
+   backup freshness check. Confirm that `memos-init` completes and Memos is
+   healthy.
+5. Open `https://memos.${DOMAINNAME}`, create the first Memos account, configure
+   the registration and access policy in the admin settings, and verify access.
 
 ## Upgrade Notes
 
