@@ -55,7 +55,7 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 
 Memos itself does not require any application-generated random secrets;
 `DB_ENC_PASSPHRASE` is generated once for the backup sidecar following the
-[SOPS secrets skill](../../.github/skills/sops-secrets/SKILL.md).
+repository's `sops-secrets` SOPS secrets skill.
 
 ## Database Backup
 

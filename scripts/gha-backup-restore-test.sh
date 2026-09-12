@@ -538,43 +538,53 @@ SQL
 
     docker rm "${SQLITE_BACKUP}" >/dev/null 2>&1 || true
 
-    log_info "Asserting exactly one encrypted backup artifact was produced (no duplicate/looped run)..."
-    local gpg_count
-    # SC2312: pipefail is active; find/wc always succeed here.
-    # shellcheck disable=SC2312
-    gpg_count=$(find "${backup_dir}" -name "*.gpg" -type f | wc -l | tr -d ' ')
-    [ "${gpg_count}" = "1" ] || die "expected exactly one *.gpg backup artifact, found ${gpg_count}"
+    log_info "Verifying artifact count, checksum, symlink, and root ownership..."
+    docker run --rm \
+        --network none \
+        -e HOST_UID="${HOST_UID}" \
+        -e HOST_GID="${HOST_GID}" \
+        -v "${backup_dir}:/backup" \
+        --entrypoint /bin/sh \
+        "${DB_BACKUP_IMAGE}" \
+        -c '
+            set -eu
+            count=$(find /backup -name "*.gpg" -type f | wc -l | tr -d " ")
+            [ "${count}" = "1" ] || {
+                printf "expected exactly one *.gpg backup artifact, found %s\n" "${count}" >&2
+                exit 1
+            }
+            artifact=$(find /backup -name "*.gpg" -type f | head -n1)
+            checksum=$(find /backup -name "*.sha1" -type f | head -n1)
+            latest=$(find /backup -name "latest-*" -type l | head -n1)
+            [ -n "${checksum}" ] || {
+                printf "%s\n" "no *.sha1 checksum sidecar file found" >&2
+                exit 1
+            }
+            [ -n "${latest}" ] || {
+                printf "%s\n" "no latest-* symlink found alongside the backup artifact" >&2
+                exit 1
+            }
+            expected=$(awk "{print \$1}" "${checksum}")
+            actual=$(sha1sum "${artifact}" | awk "{print \$1}")
+            [ "${expected}" = "${actual}" ] || {
+                printf "%s\n" "SHA1 checksum mismatch" >&2
+                exit 1
+            }
+            [ "$(readlink -f "${latest}")" = "$(readlink -f "${artifact}")" ] || {
+                printf "%s\n" "latest-* symlink does not resolve to the backup artifact" >&2
+                exit 1
+            }
+            owner=$(stat -c "%u:%g" "${artifact}")
+            [ "${owner}" = "0:0" ] || {
+                printf "expected backup artifact owned 0:0, got %s\n" "${owner}" >&2
+                exit 1
+            }
+            chown -R "${HOST_UID}:${HOST_GID}" /backup
+        '
 
     local enc_file dump_file
     enc_file="$(find_backup_file "${backup_dir}")"
     log_info "Backup file: ${enc_file}"
-
-    log_info "Verifying the 'latest-' convenience symlink resolves to the produced artifact..."
-    local latest_link latest_target artifact_target
-    latest_link=$(find "${backup_dir}" -name "latest-*" | head -n1)
-    [ -n "${latest_link}" ] || die "no latest-* symlink found alongside the backup artifact"
-    latest_target="$(readlink -f "${latest_link}")"
-    artifact_target="$(readlink -f "${enc_file}")"
-    [ "${latest_target}" = "${artifact_target}" ] ||
-        die "latest-* symlink does not resolve to the produced backup file"
-
-    log_info "Verifying the SHA1 checksum sidecar file..."
-    local sha1_file expected_sha1 actual_sha1
-    sha1_file=$(find "${backup_dir}" -name "*.sha1" -type f | head -n1)
-    [ -n "${sha1_file}" ] || die "no *.sha1 checksum sidecar file found"
-    expected_sha1=$(awk '{print $1}' "${sha1_file}")
-    actual_sha1=$(sha1sum "${enc_file}" | awk '{print $1}')
-    [ "${expected_sha1}" = "${actual_sha1}" ] ||
-        die "SHA1 mismatch: sidecar says ${expected_sha1}, computed ${actual_sha1}"
-
-    log_info "Verifying backup output ownership is 0:0 — matches USER_DBBACKUP=0/GROUP_DBBACKUP=0..."
-    # No user-namespace remap is configured for any compose file in this
-    # repo, so uid/gid 0 inside the container is uid/gid 0 on the host
-    # bind-mount too — the same root-owned-dataset precedent already used by
-    # home-assistant-db-backup.
-    local owner
-    owner=$(stat -c '%u:%g' "${enc_file}")
-    [ "${owner}" = "0:0" ] || die "expected backup artifact owned 0:0, got ${owner}"
 
     dump_file="$(decrypt_and_decompress "${enc_file}")"
     log_info "Dump ready: ${dump_file}"
@@ -616,15 +626,6 @@ SQL
     restored_blob_hex=$(sqlite3 "${restore_db}" "SELECT hex(blob) FROM resource WHERE id = 1;")
     [ "${restored_blob_hex}" = "${blob_hex}" ] ||
         die "restored attachment blob does not match the original (hex mismatch)"
-
-    # Return root-owned backup output to the invoking user so cleanup works on
-    # the GitHub runner without requiring host sudo.
-    docker run --rm \
-        --network none \
-        -v "${backup_dir}:/backup" \
-        --entrypoint chown \
-        "${DB_BACKUP_IMAGE}" \
-        -R "${HOST_UID}:${HOST_GID}" /backup >/dev/null
 
     log_info "Releasing the held sqlite3 connection (PID ${SQLITE_HOLDER_PID})..."
     kill "${SQLITE_HOLDER_PID}" 2>/dev/null || true
