@@ -246,7 +246,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
 - **nfrastack/db-backup** — the `4.9.2` compatibility release uses `USER_DBBACKUP`/`GROUP_DBBACKUP` to select its internal backup identity; omit `user:` and `read_only`. Dawarich maps both settings to its dedicated service account.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
-- **meeb/tubesync** — uses its own `start.sh` init script to create the `PUID:PGID` user, chown `/config`, and launch supervisord; omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
+- **meeb/tubesync** — uses s6-overlay: `tubesync-config-init` sets the `app` user's `PUID:PGID` and prepares app-owned `/config` directories (mode 0755) and `/run/app` (mode 0700); service startup scripts finish root-level setup before dropping privileges to `app`. Omit `user:` and `read_only:`. Retain `cap_drop: ALL` and `no-new-privileges`; add back `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`. `FOWNER` permits chmod after chown; `DAC_OVERRIDE` lets root create `/config/state/hat` and access `/run/app` despite their app ownership and restrictive modes.
 - **ghcr.io/home-assistant/home-assistant** — uses s6-overlay (confirmed by `s6-rc` log lines). Omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, `SETPCAP` via `cap_add` (standard s6-overlay set). Also add `NET_RAW` — required by HA's built-in DHCP watcher integration, which opens raw `AF_PACKET` sockets to track devices; without it HA logs `[Errno 1] Operation not permitted` at startup and the DHCP integration stops working. No TrueNAS service account or init container is required — s6-overlay manages `/config` ownership internally.
 - **ghcr.io/esphome/esphome** — compiles C++ firmware at runtime using platformio, downloading platform packages and managing build artifacts across `/config/.esphome/`. Requires extensive filesystem writes; omit `user:` and `read_only:`. `cap_drop: ALL` is applied; no additional capabilities are needed.
 - **ghcr.io/blakeblackshear/frigate** — runs as root; manages its own internal processes (nginx, go2rtc, detector workers) and requires access to hardware devices (GPU, optional Coral TPU). Omit `user:` and `read_only:`. `cap_drop: ALL` is applied; no additional capabilities are needed.
@@ -263,7 +263,7 @@ Each exception is documented with a comment block in the compose file explaining
 | `SETGID`   | s6-overlay calls `setgid()` to drop from root to `PGID`                              |
 | `SETPCAP`  | s6-overlay clears the bounding capability set before exec-ing the application daemon |
 
-All other default Docker capabilities (`NET_RAW`, `NET_BIND_SERVICE`, `MKNOD`, `AUDIT_WRITE`, `SYS_CHROOT`, `FSETID`, `FOWNER`, `DAC_OVERRIDE`, `KILL`) are dropped and not needed.
+All other default Docker capabilities (`NET_RAW`, `NET_BIND_SERVICE`, `MKNOD`, `AUDIT_WRITE`, `SYS_CHROOT`, `FSETID`, `FOWNER`, `DAC_OVERRIDE`, `KILL`) remain dropped unless an explicitly documented app-specific requirement justifies adding them back.
 
 **Pitfalls specific to s6-overlay images:**
 
