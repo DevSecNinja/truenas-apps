@@ -122,6 +122,30 @@ Read `docs/ARCHITECTURE.md` (compose patterns) and `docs/INFRASTRUCTURE.md` (UID
 - **Volumes**: Mount `:ro` wherever the container only reads.
 - **Shared env**: All stacks reference `../shared/env/tz.env` for timezone.
 
+## TrueNAS Host Script Dependencies
+
+Minimize runtime dependencies in scripts executed directly on TrueNAS:
+
+- Before using a new external command or library, verify it against the actual
+  TrueNAS baseline or a documented provisioning path.
+- Prefer shell built-ins and existing script dependencies. Reuse `jq` for the
+  JSON provisioning registry instead of adding `yq`.
+- Python may be used when appropriate after verifying its interpreter and
+  required libraries against the TrueNAS baseline. Its standard library does
+  not parse YAML; using JSON and the existing `jq` dependency for this helper
+  avoids adding PyYAML or another package.
+- Never assume that a tool managed by `mise` for development or CI exists on
+  the TrueNAS host.
+- If an external dependency is unavoidable, add an explicit availability
+  check, document how it is installed or provisioned, and validate the script
+  on the host. Otherwise, redesign the implementation.
+- Test the missing-command path when a dependency is optional or is not
+  guaranteed by the host.
+
+The documented `yq` dependency for `dccd.sh -S <server>` is separate: it
+applies to non-TrueNAS server mode and is explicitly installed by that server's
+provisioning.
+
 ## Adding a New App
 
 Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key steps:
@@ -142,7 +166,10 @@ Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key st
 For a brand-new TrueNAS Custom App, operator handoffs must use the aliases from `/mnt/vm-pool/apps/scripts/aliases.sh`, which must already be sourced:
 
 1. Run `dccd-app <app>` on `svlnas`. It pulls the merged changes and decrypts SOPS files while limiting deployment to the new app. The first run will report that the TrueNAS app config directory is missing and skip deployment because the Custom App does not exist yet; this is expected.
-2. From `/mnt/vm-pool/apps`, run `sudo bash scripts/truenas-prep-app.sh <app>` to provision the manifest-declared account, group, and child dataset while preserving checked-out files.
+2. From `/mnt/vm-pool/apps`, run
+   `sudo bash scripts/truenas-prep-app.sh <app>` to provision the account,
+   group, and child dataset declared in `truenas-apps.json` while preserving
+   checked-out files.
 3. In the TrueNAS UI, create a Custom App named `<app>` with:
 
    ```yaml
@@ -162,9 +189,9 @@ After completing any new TrueNAS app implementation, the final response must
 end with a concise, command-oriented operator handoff that follows the rollout
 above. It must:
 
-- Substitute the app's actual manifest key in every command, name, path, and
-  YAML value. Never leave `<app>` or another placeholder in the delivered
-  response.
+- Substitute the app's actual `truenas-apps.json` app key in every command,
+  name, path, and YAML value. Never leave `<app>` or another placeholder in
+  the delivered response.
 - Provide `dccd-app` with the actual app name as the first command.
 - Provide `cd /mnt/vm-pool/apps` followed by
   `sudo bash scripts/truenas-prep-app.sh` with the actual app name.

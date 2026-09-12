@@ -69,6 +69,22 @@ MOCK
   cat >"${MOCK_BIN}/jq" <<'MOCK'
 #!/usr/bin/env bash
 args="$*"
+
+# Registry reads must exercise jq's real JSON parsing. Only the focused
+# TrueNAS API queries below are mocked because midclt returns state sentinels.
+for arg in "$@"; do
+    if [[ "${arg}" == "${TEST_REPO_ROOT}/truenas-apps.json" ]]; then
+        exec "${REAL_JQ}" "$@"
+    fi
+done
+case "${args}" in
+*'.account_name | select(type == "string")'* | \
+*'.account_id | select(type == "number" and floor == .)'* | \
+*'.admin_group_member | select(type == "boolean") | tostring'*)
+    exec "${REAL_JQ}" "$@"
+    ;;
+esac
+
 input="$(cat)"
 
 case "${args}" in

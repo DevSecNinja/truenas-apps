@@ -127,8 +127,8 @@ jobs:
       - name: Validate servers.yaml schema
         run: mise exec -- check-jsonschema --schemafile servers.schema.json servers.yaml
 
-      - name: Validate truenas-apps.yaml schema
-        run: mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.yaml
+      - name: Validate truenas-apps.json schema
+        run: mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.json
 
       - name: Validate server app directories exist
         run: |-
@@ -145,9 +145,10 @@ jobs:
 
       - name: Validate TrueNAS app directories exist
         run: |-
-          mise exec -- yq -r '.apps | keys | .[]' truenas-apps.yaml | while IFS= read -r app; do
+          apps="$(jq -er '.apps | keys[]' truenas-apps.json)"
+          while IFS= read -r app; do
             if [ ! -f "services/${app}/compose.yaml" ]; then
-              echo "ERROR: App '${app}' in truenas-apps.yaml has no services/${app}/compose.yaml"
+              echo "ERROR: App '${app}' in truenas-apps.json has no services/${app}/compose.yaml"
               exit 1
             fi
-          done
+          done <<<"${apps}"

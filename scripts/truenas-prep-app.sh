@@ -35,17 +35,21 @@ fail() {
 }
 
 list_supported_apps() {
-    local config_file="${REPO_ROOT}/truenas-apps.yaml"
+    local config_file="${REPO_ROOT}/truenas-apps.json"
     local app
     local apps
 
-    if ! command -v yq >/dev/null 2>&1 || [ ! -f "${config_file}" ]; then
-        printf '  (see truenas-apps.yaml)\n'
+    if ! command -v jq >/dev/null 2>&1 || [ ! -f "${config_file}" ]; then
+        printf '  (see truenas-apps.json)\n'
         return
     fi
 
-    if ! apps="$(yq -r '.apps | keys | .[]' "${config_file}")"; then
-        printf '  (unable to read truenas-apps.yaml)\n'
+    if ! apps="$(
+        jq -er \
+            'if (.apps | type) == "object" then .apps | keys[] else error("apps must be an object") end' \
+            "${config_file}"
+    )"; then
+        printf '  (unable to read truenas-apps.json)\n'
         return
     fi
 
@@ -56,7 +60,7 @@ list_supported_apps() {
 
 load_app_config() {
     local requested_app="$1"
-    local config_file="${REPO_ROOT}/truenas-apps.yaml"
+    local config_file="${REPO_ROOT}/truenas-apps.json"
     local app_config
 
     [[ "${requested_app}" =~ ^[a-z][a-z0-9-]*$ ]] ||
@@ -64,20 +68,35 @@ load_app_config() {
     [ -f "${config_file}" ] ||
         fail "TrueNAS app manifest not found: ${config_file}"
     APP_NAME="${requested_app}"
-    APP_NAME="${requested_app}"
+
+    if ! jq -e '(.apps | type) == "object"' "${config_file}" >/dev/null; then
+        fail "Unable to read TrueNAS app manifest: ${config_file}"
+    fi
+    if ! jq -e --arg app "${APP_NAME}" '.apps | has($app)' "${config_file}" >/dev/null; then
+        usage >&2
+        fail "Unsupported app: ${APP_NAME}"
+    fi
     if ! app_config="$(
-        yq -r \
-            ".apps.\"${APP_NAME}\" | [.account_name, .account_id, .admin_group_member] | @tsv" \
+        jq -cer --arg app "${APP_NAME}" \
+            '.apps[$app] | select(type == "object")' \
             "${config_file}"
     )"; then
         fail "Unable to read TrueNAS app manifest: ${config_file}"
     fi
-    IFS=$'\t' read -r ACCOUNT_NAME ACCOUNT_ID ADMIN_GROUP_MEMBER <<<"${app_config}"
-
-    if [ "${ACCOUNT_NAME}" = "null" ] && [ "${ACCOUNT_ID}" = "null" ] &&
-        [ "${ADMIN_GROUP_MEMBER}" = "null" ]; then
-        usage >&2
-        fail "Unsupported app: ${APP_NAME}"
+    if ! ACCOUNT_NAME="$(
+        jq -er '.account_name | select(type == "string")' <<<"${app_config}"
+    )"; then
+        fail "Invalid account_name for ${APP_NAME}: expected a string"
+    fi
+    if ! ACCOUNT_ID="$(
+        jq -er '.account_id | select(type == "number" and floor == .)' <<<"${app_config}"
+    )"; then
+        fail "Invalid account_id for ${APP_NAME}: expected an integer"
+    fi
+    if ! ADMIN_GROUP_MEMBER="$(
+        jq -er '.admin_group_member | select(type == "boolean") | tostring' <<<"${app_config}"
+    )"; then
+        fail "Invalid admin_group_member for ${APP_NAME}: expected true or false"
     fi
 
     [ "${ACCOUNT_NAME}" = "svc-app-${APP_NAME}" ] ||
@@ -341,7 +360,6 @@ main() {
     fi
 
     require_command jq
-    require_command yq
     require_command midclt
     require_command zfs
     load_app_config "$1"

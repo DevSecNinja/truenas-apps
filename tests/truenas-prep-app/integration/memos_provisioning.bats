@@ -5,7 +5,7 @@ load '../helpers/common'
 load '../helpers/mocks'
 
 setup_file() {
-  require_test_yq
+  require_test_jq
 }
 
 setup() {
@@ -19,7 +19,13 @@ teardown() {
   prep_common_teardown
 }
 
-@test "provision_memos: creates UID/GID 3129 and skips admin membership" {
+@test "provision_memos: succeeds without yq and skips admin membership" {
+  hide_test_command yq
+  run command -v yq
+  assert_failure
+  run command -v jq
+  assert_success
+
   run provision_memos
 
   assert_success
