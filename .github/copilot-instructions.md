@@ -156,6 +156,31 @@ For a brand-new TrueNAS Custom App, operator handoffs must use the aliases from 
 
 Do not use `dccd-all` for the first sync: Traefik may already reference the new frontend network before its Custom App and network exist. Do not replace this handoff with raw `git pull`, raw `dccd.sh` commands, or improvised targeted deployments unless troubleshooting or explicitly requested.
 
+#### Final-response contract
+
+After completing any new TrueNAS app implementation, the final response must
+end with a concise, command-oriented operator handoff that follows the rollout
+above. It must:
+
+- Substitute the app's actual manifest key in every command, name, path, and
+  YAML value. Never leave `<app>` or another placeholder in the delivered
+  response.
+- Provide `dccd-app` with the actual app name as the first command.
+- Provide `cd /mnt/vm-pool/apps` followed by
+  `sudo bash scripts/truenas-prep-app.sh` with the actual app name.
+- Identify the **TrueNAS Custom App name** separately as the actual app name.
+- Provide a standalone, copy-paste-ready YAML block containing only `include`
+  with the absolute tracked Compose path and `services: {}`. This is the
+  TrueNAS Custom App YAML, not the contents of the service's `compose.yaml`.
+- Provide `dccd-all` as the final deployment command.
+- State the concrete app-specific first-run actions after `dccd-all`, followed
+  by health and access verification. Do not leave a generic first-run
+  placeholder; for example, Memos requires creating the first account and
+  configuring its access and registration policy.
+
+Keep this handoff safe to paste. Do not add raw `git pull` or raw `dccd.sh`
+commands unless the response is explicitly troubleshooting.
+
 ## Managing SOPS Secrets
 
 Use the skill at `.github/skills/sops-secrets/SKILL.md` when creating, editing, generating, validating, or troubleshooting encrypted dotenv secrets.

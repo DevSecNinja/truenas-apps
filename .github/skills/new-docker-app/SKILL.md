@@ -226,6 +226,46 @@ the operator on `svlnas`. The aliases must already be sourced from
 5. Complete the application-specific first-run setup and verify health and
    access.
 
+#### Final-response contract
+
+After completing a new TrueNAS app implementation, always end the final user
+response with this rollout as a concise, command-oriented operator handoff.
+The `<app>` tokens in this skill are drafting placeholders only. Resolve every
+one to the app's actual manifest key in the delivered response, including in
+headings, commands, the Custom App name, paths, and YAML. Do not leave `<app>`
+or any other placeholder for the operator to edit.
+
+The final handoff must contain, in order:
+
+1. A standalone `sh` block containing `dccd-app <app>`.
+2. A standalone `sh` block containing:
+
+   ```sh
+   cd /mnt/vm-pool/apps
+   sudo bash scripts/truenas-prep-app.sh <app>
+   ```
+
+3. A separately labeled **TrueNAS Custom App name** set to `<app>`.
+4. A standalone, copy-paste-ready `yaml` block containing:
+
+   ```yaml
+   include:
+     - /mnt/vm-pool/apps/services/<app>/compose.yaml
+   services: {}
+   ```
+
+   This block is the TrueNAS Custom App definition that includes the tracked
+   Compose file. Do not output the service's full `compose.yaml`.
+5. A standalone `sh` block containing `dccd-all`.
+6. The concrete application-specific first-run actions, then health and access
+   verification. Do not use a generic first-run placeholder. For Memos, for
+   example, instruct the operator to create the first account and configure
+   the access and registration policy.
+
+The delivered blocks must already contain the actual app name and be safe to
+paste without editing. Do not add raw `git pull` or raw `dccd.sh` commands
+unless troubleshooting or explicitly requested.
+
 Do not replace this sequence with raw `git pull`, raw `dccd.sh` invocations, or
 an improvised series of targeted deployments unless troubleshooting or
 explicitly requested. Do not attempt to run the helper from the development
@@ -261,6 +301,10 @@ Use this as a final review before committing:
 - [ ] Post-merge rollout runs `truenas-prep-app.sh <app>` from the updated TrueNAS checkout
 - [ ] Post-merge rollout creates the named TrueNAS Custom App with the absolute compose include
 - [ ] Post-merge rollout finishes with `dccd-all` before application-specific setup
+- [ ] Final response ends with the complete, command-oriented TrueNAS operator handoff
+- [ ] Final handoff resolves every placeholder to the actual app name in commands, paths, the separately identified Custom App name, and YAML
+- [ ] Final handoff provides standalone, copy-paste-ready Custom App YAML rather than the full service Compose file
+- [ ] Final handoff states concrete app-specific first-run actions after `dccd-all`
 - [ ] Manifest key, generated helper usage, first-run documentation, and the reported post-merge sequence agree
 - [ ] Manifest schema and service directory validation pass
 - [ ] Relevant registry and provisioning tests are updated and pass
