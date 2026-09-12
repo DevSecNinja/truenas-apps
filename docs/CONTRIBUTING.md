@@ -193,7 +193,7 @@ The 14-day soak is **still enforced** for those images — just by a different m
 
 1. A rule in `packageRules.json5` matches Docker dependencies whose package name carries an explicit registry host other than Docker Hub (`/^[^/]*\./` combined with `!/^docker\.io\//`).
 2. That rule sets `minimumReleaseAgeBehaviour: "timestamp-optional"` — so Renovate opens the PR immediately instead of blocking on a timestamp it cannot obtain — and stamps the branch via `additionalBranchPrefix: "docker-gated-"`.
-3. `.github/workflows/renovate-pr-cooldown.yml` calls the shared reusable workflow, which posts the required `pr-cooldown` status check on those `renovate/docker-gated-*` branches. The check stays pending until the PR branch head commit is at least 14 days old; GitHub auto-merge then merges the PR.
+3. `.github/workflows/renovate-pr-cooldown.yml` calls the shared reusable workflow, which posts the required `pr-cooldown` status check on those `renovate/docker-gated-*` branches. The check stays pending until the PR branch HEAD committer date is at least 14 days old, with scheduled reevaluation every six hours. Eligible PRs can then merge via GitHub auto-merge once all required checks pass; major updates still require manual merge.
 
 Because the same rule sets both the behaviour and the branch prefix, and the workflow gates exactly that prefix, the Renovate config and the gate cannot drift apart.
 
@@ -203,6 +203,27 @@ Two consequences worth knowing:
 - Bare Docker Hub names (e.g. `nginx`, `library/nginx`) keep the native soak and are not gated. This repository mandates an explicit registry prefix on every image, so bare names should not appear here anyway.
 
 Background: ADR 0005 in `DevSecNinja/.github` (`docs/design-decisions/0005-pr-age-cooldown-for-untrusted-timestamps.md`), which classifies `pr-cooldown` as a load-bearing control. For why `docker.io` is preferred when the same image is available on several registries, see [Architecture § Image Selection: Registry Preference](ARCHITECTURE.md#image-selection-registry-preference).
+
+#### Homepage frozen-candidate pilot
+
+The local `renovate.json5` rule **Freeze Homepage update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker` and package `ghcr.io/gethomepage/homepage` only. It overrides the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` for Homepage, aiming to let an existing candidate finish its soak instead of repeatedly restarting it as newer candidates appear.
+
+- **Existing branch:** Ordinary automatic Renovate version/digest rewrites to the same existing branch stop. This freezes that branch's candidate; it is **not a per-digest queue**. Separate major-update branches and stale-branch cleanup remain normal.
+- **Cooldown:** The external required `pr-cooldown` check still waits 14 days from the HEAD committer date and reevaluates every six hours. The pilot does not shorten or bypass this gate.
+- **Merge:** GitHub `platformAutomerge` is already enabled. Non-strict up-to-date protection allows an eligible PR that is behind the base branch but has no conflicts to merge once all required checks pass, without rebasing merely to catch up.
+- **Next candidate:** After merge, the next scheduled Renovate run may propose the latest candidate, which starts a fresh soak. Intermediate versions/digests are not queued individually.
+
+**Operator intervention:** Conflicts, failing builds, and known-bad releases need an operator; the frozen branch will not automatically repair them. For a known-bad candidate, consider disabling automerge before diagnosing it so a passing cooldown cannot cause an unwanted merge.
+
+<!-- dprint-ignore -->
+!!! warning "Rebasing can replace the candidate and restart the cooldown"
+    Requesting a Renovate rebase from the PR or the Dependency Dashboard, including **rebase all**, can replace the target version/digest and restart the cooldown. Even a manual Git rebase that preserves the image target resets this HEAD-age gate by writing a new committer date. Rebase deliberately, then review the resulting target and required checks.
+
+**Scope and rollback:** No workflow, shared preset, branch-name, soak-duration, other-image, or digest-enabling policy changes are part of this pilot. To roll back, remove the local Homepage rule from `renovate.json5`; Homepage then inherits the shared `rebaseWhen: "conflicted"` behavior again.
+
+Observation and rollout tracking: [#758](https://github.com/DevSecNinja/truenas-apps/issues/758).
+
+References: [Renovate `rebaseWhen`](https://docs.renovatebot.com/configuration-options/#rebasewhen) and [renovatebot/renovate#26294](https://github.com/renovatebot/renovate/discussions/26294).
 
 ### Silently skipped dependencies (`dhi.io`)
 
