@@ -86,7 +86,7 @@ This is a **Renovate limitation keyed on the registry hostname, not an omission 
 
 The 14-day soak is enforced either way: images from other registries fall back to the required `pr-cooldown` status check described in [Contributing § Enforcing the soak without a trusted timestamp](CONTRIBUTING.md#enforcing-the-soak-without-a-trusted-timestamp). The argument for `docker.io` is therefore narrower than "gate versus no gate":
 
-- The native soak measures the **actual publish time**. `pr-cooldown` measures the **age of the PR branch head commit**, which is a proxy and restarts whenever the branch is rebased.
+- The native soak measures the **actual publish time**. `pr-cooldown` measures age from the **PR branch HEAD committer date**, which is a proxy and restarts when a new head commit is written, including a rebase that preserves the image target. The [Homepage frozen-candidate pilot](CONTRIBUTING.md#homepage-frozen-candidate-pilot) stops ordinary automatic Renovate rewrites to an existing Homepage branch, but leaves this gate unchanged.
 - The fallback has more moving parts — a scheduled workflow, a required status check, and a branch-ruleset entry. ADR 0005 in `DevSecNinja/.github` calls `pr-cooldown` a load-bearing control.
 
 **Tradeoff.** Docker Hub applies pull rate limits to anonymous and free-tier accounts; `ghcr.io` and `lscr.io` do not. `scripts/dccd.sh` re-pulls images on every deploy, so this is a real operational cost on a self-hosted box. Digest pinning keeps pulls cache-friendly, which is what makes the tradeoff acceptable — but it is a genuine tradeoff, and a service that is redeployed very frequently is a fair reason to stay on `ghcr.io`.

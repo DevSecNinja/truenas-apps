@@ -94,5 +94,11 @@
       matchPackageNames: ["docker.io/wmbusmeters/wmbusmeters"],
       versioning: "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
     },
+    {
+      description: "Freeze Homepage update candidates while they complete the cooldown",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/gethomepage/homepage"],
+      rebaseWhen: "never",
+    },
   ],
 }
