@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0](https://github.com/DevSecNinja/truenas-apps/compare/v1.1.0...v1.2.0) (2026-09-12)
+
+
+### Features
+
+* **memos:** add encrypted database backups ([#757](https://github.com/DevSecNinja/truenas-apps/issues/757)) ([5eb437d](https://github.com/DevSecNinja/truenas-apps/commit/5eb437d9a0c864ddd13fc3917f0713a3f41dc324))
+* **memos:** add TrueNAS deployment ([#737](https://github.com/DevSecNinja/truenas-apps/issues/737)) ([6ac515a](https://github.com/DevSecNinja/truenas-apps/commit/6ac515a44a8e0eb73af15ba2e8c4204d376a8cfd))
+
+
+### Bug Fixes
+
+* **renovate:** freeze Homepage updates during cooldown ([#759](https://github.com/DevSecNinja/truenas-apps/issues/759)) ([5634b68](https://github.com/DevSecNinja/truenas-apps/commit/5634b68018b96fabf4f40755f56b9c557482dbfd))
+* **truenas:** remove prep helper yq dependency ([#754](https://github.com/DevSecNinja/truenas-apps/issues/754)) ([72f961e](https://github.com/DevSecNinja/truenas-apps/commit/72f961eecb15a2a9670e03f0ebab02d3b77253ea))
+* **tubesync:** allow root startup to access app-owned directories ([#755](https://github.com/DevSecNinja/truenas-apps/issues/755)) ([d234556](https://github.com/DevSecNinja/truenas-apps/commit/d234556d9eeb564a80565f1d94e92b175a0ac14f))
+
 ## [1.1.0](https://github.com/DevSecNinja/truenas-apps/compare/v1.0.0...v1.1.0) (2026-09-07)
 
 
