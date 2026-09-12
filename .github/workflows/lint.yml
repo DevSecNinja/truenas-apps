@@ -63,7 +63,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,7 +84,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,13 +103,14 @@ jobs:
         run: find . -path "*/shared/env/*.env" -not -name "*.sops.env" -print0 | xargs -0 mise exec aqua:dotenv-linter/dotenv-linter@4.0.0
           -- dotenv-linter check
 
-  validate-servers:
+  validate-manifests:
+    # Keep this context stable: the main branch ruleset requires it by name.
     name: validate servers.yaml
     runs-on: ubuntu-24.04
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -126,7 +127,10 @@ jobs:
       - name: Validate servers.yaml schema
         run: mise exec -- check-jsonschema --schemafile servers.schema.json servers.yaml
 
-      - name: Validate app directories exist
+      - name: Validate truenas-apps.yaml schema
+        run: mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.yaml
+
+      - name: Validate server app directories exist
         run: |-
           mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do
             if [ ! -d "services/${app}" ]; then
@@ -135,6 +139,15 @@ jobs:
             fi
             if [ ! -f "services/${app}/compose.yaml" ]; then
               echo "ERROR: App '${app}' in servers.yaml has no services/${app}/compose.yaml"
+              exit 1
+            fi
+          done
+
+      - name: Validate TrueNAS app directories exist
+        run: |-
+          mise exec -- yq -r '.apps | keys | .[]' truenas-apps.yaml | while IFS= read -r app; do
+            if [ ! -f "services/${app}/compose.yaml" ]; then
+              echo "ERROR: App '${app}' in truenas-apps.yaml has no services/${app}/compose.yaml"
               exit 1
             fi
           done

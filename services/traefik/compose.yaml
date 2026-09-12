@@ -78,6 +78,7 @@ services:
       unifi-frontend:
       plex-frontend:
       metube-frontend:
+      memos-frontend:
       immich-frontend:
       bazarr-frontend:
       dozzle-frontend:
@@ -246,6 +247,9 @@ networks:
     external: true
   metube-frontend:
     name: metube-frontend
+    external: true
+  memos-frontend:
+    name: memos-frontend
     external: true
   immich-frontend:
     name: immich-frontend

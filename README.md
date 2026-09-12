@@ -52,6 +52,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                         |
 | [Lidarr](https://lidarr.audio/)                                                               | Music collection manager and download automation               |
 | [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                         |
+| [Memos](https://usememos.com/)                                                                | Private note-taking and knowledge service                      |
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                    |
 | [Mosquitto](https://mosquitto.org/)                                                           | MQTT broker for IoT device communication                       |
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                  |
@@ -97,6 +98,7 @@ vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
 vm-pool/apps/services/lidarr
 vm-pool/apps/services/matter-server
+vm-pool/apps/services/memos
 vm-pool/apps/services/metube
 vm-pool/apps/services/mosquitto
 vm-pool/apps/services/openclaw
@@ -182,7 +184,7 @@ Beyond TrueNAS, apps can be deployed to additional servers. Server-app mappings 
 
 | Server   | Platform        | Apps                                                                                      | Purpose                                                         |
 | -------- | --------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| svlnas   | TrueNAS         | All 35 apps                                                                               | Primary home lab (TrueNAS mode)                                 |
+| svlnas   | TrueNAS         | All 36 apps                                                                               | Primary home lab (TrueNAS mode)                                 |
 | svlazext | Azure VM Debian | AdGuard, Alloy, Traefik, Traefik Forward Auth (Cloudflared paused — no tunneled services) | DNS filtering + Unbound, edge routing, and telemetry collection |
 
 Each server runs its own `dccd.sh` cron job with the `-S <server>` flag:

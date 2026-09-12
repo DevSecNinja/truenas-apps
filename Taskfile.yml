@@ -55,7 +55,7 @@ tasks:
       - install:bats-libs
     cmds:
       - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/dccd/integration/ {{.TESTS_DIR}}/dccd/e2e/ {{.TESTS_DIR}}/sops-secrets/unit/
-        {{.TESTS_DIR}}/sops-secrets/integration/
+        {{.TESTS_DIR}}/sops-secrets/integration/ {{.TESTS_DIR}}/truenas-prep-app/integration/
 
   test:unit:
     desc: Run unit tests only
@@ -69,7 +69,7 @@ tasks:
     deps:
       - install:bats-libs
     cmds:
-      - mise exec -- bats {{.TESTS_DIR}}/dccd/integration/ {{.TESTS_DIR}}/sops-secrets/integration/
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/integration/ {{.TESTS_DIR}}/sops-secrets/integration/ {{.TESTS_DIR}}/truenas-prep-app/integration/
 
   test:e2e:
     desc: Run E2E tests (requires Docker, set DCCD_E2E=1)
@@ -93,7 +93,8 @@ tasks:
       - install:bats-libs
     cmds:
       - mkdir -p {{.REPO_ROOT}}/test-results
-      - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/dccd/integration/ --formatter junit -T > {{.REPO_ROOT}}/test-results/results.xml
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/dccd/integration/ {{.TESTS_DIR}}/sops-secrets/unit/ {{.TESTS_DIR}}/sops-secrets/integration/
+        {{.TESTS_DIR}}/truenas-prep-app/integration/ --formatter junit -T > {{.REPO_ROOT}}/test-results/results.xml
 
   # ─── Linting ──────────────────────────────────────────────
 

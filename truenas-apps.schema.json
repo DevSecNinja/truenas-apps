@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "truenas-apps.schema.json",
+  "title": "TrueNAS App Host Provisioning",
+  "description": "Declares the TrueNAS identities and host access required by apps supported by truenas-prep-app.sh.",
+  "type": "object",
+  "required": ["apps"],
+  "additionalProperties": false,
+  "properties": {
+    "apps": {
+      "type": "object",
+      "description": "Map of TrueNAS-hosted service directory names to their host provisioning configuration.",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["account_name", "account_id", "admin_group_member"],
+        "additionalProperties": false,
+        "properties": {
+          "account_name": {
+            "type": "string",
+            "description": "Dedicated TrueNAS service account and group name.",
+            "pattern": "^svc-app-[a-z][a-z0-9-]*$"
+          },
+          "account_id": {
+            "type": "integer",
+            "description": "Shared numeric UID and GID from the repository's per-app allocation range.",
+            "minimum": 3100,
+            "maximum": 3199
+          },
+          "admin_group_member": {
+            "type": "boolean",
+            "description": "Whether the TrueNAS administrator needs auxiliary membership in the app group."
+          }
+        }
+      }
+    }
+  }
+}

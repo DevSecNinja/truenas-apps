@@ -58,7 +58,7 @@ exclude = ["**/*.sops.env"]
 stage_fixed = true
 
 [pre-commit.commands.sops-encryption-check]
-run = "for f in {staged_files}; do grep -q '^sops_mac=' \"$f\" || { echo \"ERROR: $f is not SOPS-encrypted\"; exit 1; }; done"
+run = "for f in {staged_files}; do if ! grep -q '^sops_mac=' \"$f\"; then echo \"ERROR: $f is not SOPS-encrypted\"; exit 1; fi; done"
 glob = ["**/secret.sops.env"]
 
 [pre-commit.commands.validate-servers-schema]
@@ -66,8 +66,16 @@ run = "mise exec -- check-jsonschema --schemafile servers.schema.json servers.ya
 glob = ["servers.yaml", "servers.schema.json"]
 
 [pre-commit.commands.validate-servers-apps]
-run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do [ -d \"services/${app}\" ] || { echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; }; done"
+run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do if [ ! -d \"services/${app}\" ]; then echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; fi; done"
 glob = ["servers.yaml", "services/**/compose.yaml"]
+
+[pre-commit.commands.validate-truenas-apps-schema]
+run = "mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.yaml"
+glob = ["truenas-apps.yaml", "truenas-apps.schema.json"]
+
+[pre-commit.commands.validate-truenas-app-directories]
+run = "mise exec -- yq -r '.apps | keys | .[]' truenas-apps.yaml | while IFS= read -r app; do if [ ! -f \"services/${app}/compose.yaml\" ]; then echo \"ERROR: App '${app}' in truenas-apps.yaml has no services/${app}/compose.yaml\"; exit 1; fi; done"
+glob = ["truenas-apps.yaml", "services/**/compose.yaml"]
 
 [pre-commit.commands.bats]
 # Only unit tests run pre-commit (fast feedback). Integration + e2e run in CI.
@@ -75,6 +83,10 @@ glob = ["servers.yaml", "services/**/compose.yaml"]
 # TERM=dumb prevents tput failures when run from non-interactive contexts (e.g. VS Code git UI).
 run = "TERM=${TERM:-dumb} timeout 120 mise exec -- bats tests/dccd/unit tests/sops-secrets/unit"
 glob = ["scripts/dccd.sh", "scripts/generate-sops-secrets.sh", "tests/dccd/unit/**", "tests/dccd/helpers/**", "tests/sops-secrets/unit/**", "tests/sops-secrets/helpers/**", "tests/setup_libs.sh"]
+
+[pre-commit.commands.truenas-prep-app-tests]
+run = "TERM=${TERM:-dumb} mise exec -- bats \"$PWD/tests/truenas-prep-app/integration\""
+glob = ["scripts/truenas-prep-app.sh", "truenas-apps.yaml", "truenas-apps.schema.json", "tests/truenas-prep-app/**", "tests/setup_libs.sh"]
 
 [commit-msg.commands.cocogitto]
 run = "mise exec -- cog verify \"$(cat {1})\""
