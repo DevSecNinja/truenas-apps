@@ -87,6 +87,7 @@ docs/
   ARCHITECTURE.md        # Compose patterns, container security, networking, directory conventions
   CONTRIBUTING.md        # Development workflow: Renovate, commits, releases
   INFRASTRUCTURE.md      # Host setup: UID/GID allocation, storage, multi-server deployment
+  BACKUP.md              # 3-2-1 backup strategy, DB backup sidecars, persistent state inventory
   DATABASE-UPGRADES.md   # PostgreSQL upgrade procedures (pgautoupgrade)
   DISASTER-RECOVERY.md   # Full rebuild procedures
   RETIRED-SERVICES.md    # Log of retired services with reasoning and last active commit
@@ -152,14 +153,15 @@ Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key st
 
 1. Create `services/<app>/compose.yaml` following ARCHITECTURE.md patterns
 2. Create `services/<app>/secret.sops.env` listing required secret variables
-3. Add the app's frontend network to `services/traefik/compose.yaml`
-4. Add DNS records to `services/adguard/config/unbound/a-records.conf`
-5. Update `README.md` (apps table + dataset list)
-6. Update `docs/INFRASTRUCTURE.md` (UID/GID table) and `docs/ARCHITECTURE.md` (init container table)
-7. Create `services/<app>/README.md` with per-service documentation, then run `bash scripts/generate-docs-symlinks.sh` and add the entry to the `Services:` section in `mkdocs.yml`
-8. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
-9. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
-10. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
+3. Classify every persistent path (database, critical mutable file state, regeneratable cache, or external data) and add a database backup sidecar for any embedded database — see [Backup and Persistent State Requirements](#backup-and-persistent-state-requirements-mandatory) below
+4. Add the app's frontend network to `services/traefik/compose.yaml`
+5. Add DNS records to `services/adguard/config/unbound/a-records.conf`
+6. Update `README.md` (apps table + dataset list)
+7. Update `docs/INFRASTRUCTURE.md` (UID/GID table), `docs/ARCHITECTURE.md` (init container table), and `docs/BACKUP.md` (Covered Databases table or Persistent State Inventory)
+8. Create `services/<app>/README.md` with per-service documentation, including a Database Backup section for any embedded database, then run `bash scripts/generate-docs-symlinks.sh` and add the entry to the `Services:` section in `mkdocs.yml`
+9. Validate: `docker compose -f services/<app>/compose.yaml config --quiet`
+10. If the app will run on a non-TrueNAS server, add it to the appropriate server in `servers.yaml`
+11. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
 
 ### Post-Merge TrueNAS App Rollout (Mandatory)
 
@@ -207,6 +209,20 @@ above. It must:
 
 Keep this handoff safe to paste. Do not add raw `git pull` or raw `dccd.sh`
 commands unless the response is explicitly troubleshooting.
+
+## Backup and Persistent State Requirements (Mandatory)
+
+Full procedure and rationale: `.github/skills/new-docker-app/SKILL.md` (Step 3) and [docs/BACKUP.md](../docs/BACKUP.md).
+
+- **Classify every persistent path** on a new or changed service as one of: database, critical mutable file state, regeneratable cache, or external/media data.
+- **Every stateful database needs an application-consistent backup sidecar** (`tiredofit/db-backup` v4, or the maintained `nfrastack/db-backup` 4.9.2 compatibility release) unless a reviewed exception documents why ZFS snapshots alone are sufficient — written down in the service README and `docs/BACKUP.md`, never left implicit.
+- Backup sidecars must produce **encrypted** (`DEFAULT_ENCRYPT=TRUE` / GPG), ZSTD-compressed, SHA1-checksummed dumps written to `./backups/db-backup` — never `./data` or `./config` — with 48-hour (`DEFAULT_CLEANUP_TIME=2880`) retention.
+- Name the sidecar container `<app>-db-backup`. `dccd.sh -B` (default via `dccd-all`) discovers backups by this `*-db-backup` naming convention and fails the deploy if one exits non-zero or is stale.
+- Document restore steps in `docs/BACKUP.md` and link to them from the service's README.
+- Exercise a representative synthetic backup/restore test (seed data → back up → decrypt/decompress → restore into a scratch instance) before merging a new sidecar — the weekly CI job only proves the generic workflow, not this app's schema.
+- End the delivered response with an honest status report, not a claim of production deployment: state the backup behavior actually implemented (cadence, compression/checksum/encryption, retention, output path), the synthetic restore evidence actually obtained (or that it has not yet been run), the exact post-merge operator deployment/run steps required (`dccd-app <app>` then `dccd-all`), and a link to the documented restore path. Only say the sidecar "deployed" or "ran successfully" when real host evidence exists for that run; otherwise describe it as implemented and synthetically validated, pending the operator's post-merge deployment.
+
+**SOPS/1Password prerequisite for generated backup secrets** (e.g. `DB_ENC_PASSPHRASE`): confirm the 1Password CLI is authenticated and unlocked (or the equivalent for whatever identity is configured); configure `SOPS_AGE_KEY_CMD` (preferred) or another valid SOPS identity; prove decryption succeeds before editing anything; set the sentinel to `GENERATE` and fill it in with `scripts/generate-sops-secrets.sh`; never commit a plaintext value or a `CHANGE_ME` placeholder; stop and report the blocker if no usable key is available. This matches the general SOPS secret-generation preflight in [Managing SOPS Secrets](#managing-sops-secrets) below.
 
 ## Managing SOPS Secrets
 

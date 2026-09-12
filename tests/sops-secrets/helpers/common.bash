@@ -20,13 +20,16 @@ sops_secrets_setup() {
   KEY_FILE="${TEST_ROOT}/age-keys.txt"
   PLAINTEXT="${TEST_ROOT}/plaintext.env"
   GENERATOR="${REPO_ROOT}/scripts/generate-sops-secrets.sh"
+  VALIDATOR="${REPO_ROOT}/scripts/validate-sops-secrets.sh"
+  # shellcheck disable=SC2034 # Consumed by BATS test files after this helper is loaded.
+  SOPS_COMMON_LIB="${REPO_ROOT}/scripts/sops-common.sh"
   ORIGINAL_PATH="${PATH}"
 
   mkdir -p "${MOCK_BIN}" "${MOCK_LOG}"
   export PATH="${MOCK_BIN}:${PATH}"
   export MOCK_BIN MOCK_LOG TARGET PLAINTEXT
   unset MOCK_OP_EXIT MOCK_OP_OUTPUT MOCK_OP_OUTPUT_FILE
-  unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD SOPS_AGE_KEY_FILE TARGET_HASH_BEFORE
+  unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD SOPS_AGE_KEY_FILE SOPS_BIN TARGET_HASH_BEFORE
 
   printf '%s\n' 'not-a-real-age-key' >"${KEY_FILE}"
   write_encrypted_target
@@ -71,6 +74,16 @@ run_generator() {
     MOCK_SET_CORRUPT="${MOCK_SET_CORRUPT:-0}" \
     MOCK_OD_FAIL="${MOCK_OD_FAIL:-0}" \
     bash "${GENERATOR}" "${TARGET}" "$@"
+}
+
+run_validator() {
+  env \
+    SOPS_AGE_KEY_FILE="${KEY_FILE}" \
+    MOCK_PLAINTEXT="${PLAINTEXT}" \
+    MOCK_TARGET="${TARGET}" \
+    MOCK_DECRYPT_EXIT="${MOCK_DECRYPT_EXIT:-0}" \
+    MOCK_REQUIRE_ENCRYPTED="${MOCK_REQUIRE_ENCRYPTED:-1}" \
+    bash "${VALIDATOR}" "${TARGET}" "$@"
 }
 
 file_sha256() {

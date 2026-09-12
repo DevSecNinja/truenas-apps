@@ -21,6 +21,7 @@ Read these references before starting — they define the patterns every compose
 
 - [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) — compose patterns, container security, networking, directory conventions
 - [INFRASTRUCTURE.md](../../../docs/INFRASTRUCTURE.md) — UID/GID allocation, storage layout, multi-server deployment
+- [BACKUP.md](../../../docs/BACKUP.md) — persistent state classification, database backup sidecar patterns, and the `*-db-backup` freshness convention
 - [truenas-apps.json](../../../truenas-apps.json) — add a schema-valid `apps.<name>` entry for each supported TrueNAS-hosted app
 - [truenas-apps.schema.json](../../../truenas-apps.schema.json) — required registry fields, account constraints, and validation rules
 - [truenas-prep-app.sh](../../../scripts/truenas-prep-app.sh) — idempotent host provisioning driven by the registry
@@ -46,6 +47,7 @@ Create `services/<app>/compose.yaml` following all compose conventions:
 - **Volumes**: Mount `:ro` wherever the container only reads.
 - **Shared env**: Reference `../shared/env/tz.env` for timezone.
 - **Traefik labels**: Use the appropriate middleware chain (`chain-auth@file`, `chain-no-auth@file`, etc.). Add a no-auth router only when the app cannot support OAuth/SSO (e.g. mobile-only apps). Do **not** add Gatus bypass routers — Gatus uses its own monitoring configuration.
+- **Persistent paths**: Identify every writable volume this service needs. Step 3 requires classifying each one (database, critical mutable file state, regeneratable cache, or external data) and adding backup coverage for any embedded database.
 
 Determine the correct PUID/PGID model for this app (media consumer, media producer, photos, or general — see INFRASTRUCTURE.md). If a new shared PGID group is needed, create the corresponding env file in `services/shared/env/`.
 
@@ -77,31 +79,65 @@ The helper generates a cryptographically secure hexadecimal value only when a re
 
 This helper is only for generate-once bootstrap. Rotate existing values manually with `sops edit`; never use the helper for rotation or run it concurrently against the same file. Never commit `CHANGE_ME` placeholders for generated secrets. Populate user-supplied values separately through SOPS, and output a summary table that identifies each variable as random, user-supplied, or shared without revealing values.
 
-### Step 3 — Register the network in Traefik
+### Step 3 — Classify persistent state and add a database backup sidecar
+
+For every persistent volume declared in Step 1, classify each path as one of:
+
+- **Database** — an embedded or external data store with its own consistency semantics (WAL, transactions). A raw filesystem snapshot mid-write carries non-zero corruption risk without engine cooperation.
+- **Critical mutable file state** — hand-authored or generated files that are expensive or impossible to reconstruct (device pairings, credentials, UI-authored configuration) but are not a formal database engine.
+- **Regeneratable cache** — safe to lose; rebuilt automatically or holds low-value history/log data.
+- **External/media data** — large media/library content stored outside `./data` (typically on `archive-pool`), already covered by the archive-pool Cloud Sync tasks.
+
+Record the classification for every persistent path in the service's README (Step 7) and, for any embedded database, in `docs/BACKUP.md`'s Persistent State Inventory (Step 6).
+
+**Every stateful database needs an application-consistent backup sidecar** (`tiredofit/db-backup` v4, or the maintained `nfrastack/db-backup` 4.9.2 compatibility release) unless a reviewed exception explains why ZFS snapshots alone are sufficient. An exception must be written down — in the service's README and in `docs/BACKUP.md`'s Persistent State Inventory — never left implicit or silently skipped.
+
+When a sidecar is required:
+
+- Follow an existing sidecar pattern (e.g. `services/memos/compose.yaml`, `services/gatus/compose.yaml`) — `MODE=MANUAL`, `MANUAL_RUN_FOREVER=FALSE`, `DEFAULT_COMPRESSION=ZSTD`, `DEFAULT_CHECKSUM=SHA1`, `DEFAULT_ENCRYPT=TRUE`, `DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}`, `DEFAULT_CLEANUP_TIME=2880` (48-hour retention).
+- Output encrypted dumps to `./backups/db-backup` — never `./data` or `./config` — so they are picked up by the dccd freshness check and the existing Cloud Sync layers.
+- Name the container `<app>-db-backup`. `dccd.sh -B` (enabled by default via `dccd-all`) discovers sidecars by this `*-db-backup` naming convention and fails the deploy if one exits non-zero or its last successful run is stale (> 48 hours).
+- Add `DB_ENC_PASSPHRASE` to `services/<app>/secret.sops.env` as a random, app-owned secret — never share a passphrase across apps.
+- Add the new sidecar to the `Covered Databases` table in `docs/BACKUP.md` (Step 6), and add app-specific restore guidance to `docs/BACKUP.md`'s Restore a Database Dump section (extend an existing engine-specific subsection — e.g. SQLite, PostgreSQL, MongoDB — where the engine matches). Link to it from the service's README "Database Backup" section (Step 7).
+- Exercise the backup and restore path with a representative synthetic test before merging: seed a throwaway record, run the sidecar once, decrypt/decompress the dump, and restore it into a scratch instance of the same engine. The weekly `backup-restore-test` CI job only proves the generic `tiredofit`/`nfrastack` workflow — it does not substitute for validating this app's specific schema/data on first adoption.
+- End the final response for this app with an honest status report, not a claim of production deployment. Cover, in order: (1) the backup behavior actually implemented in the compose file (sidecar image, cadence, compression/checksum/encryption, retention, output path); (2) the synthetic backup/restore evidence actually obtained during this change — the seed/backup/decrypt/restore result from the bullet above, or an explicit statement that it has not yet been run; (3) the exact post-merge operator deployment/run steps required (e.g. `dccd-app <app>`, then `dccd-all`) so the sidecar executes at least once on the target host; and (4) a link to the documented restore path. Only describe the sidecar as "deployed" or "running successfully in production" when there is actual host evidence for that specific run (e.g. a real `docker compose`/`dccd.sh -B` log, exit code, or operator confirmation from the target host) obtained during this session — before that evidence exists, describe it as implemented and validated in a synthetic test, pending the operator's post-merge deployment.
+
+#### SOPS/1Password prerequisite for the backup passphrase
+
+`DB_ENC_PASSPHRASE` (and any other generated backup-encryption secret) must go through the same preflight as every other generated secret — never plaintext, never a placeholder:
+
+1. Confirm the 1Password CLI integration is enabled and the vault is unlocked (e.g. `op whoami` succeeds), or confirm the equivalent for whatever identity is configured.
+2. Configure `SOPS_AGE_KEY_CMD` (preferred) — e.g. `export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'` — or another valid SOPS identity (`SOPS_AGE_KEY_FILE` or a standard key-file location) if 1Password is not used.
+3. Prove decryption works before editing anything, e.g. `sops -d services/<app>/secret.sops.env >/dev/null` (or decrypt an existing app's file as a smoke test) must succeed.
+4. Set `DB_ENC_PASSPHRASE=GENERATE` in the encrypted file, then run `bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env DB_ENC_PASSPHRASE=<byte_count>` to fill it in. Never hand-type a passphrase or commit a `CHANGE_ME`/plaintext value.
+5. **Stop and report the blocker** if SOPS cannot access a usable key or decrypt the template — do not fall back to an unencrypted secret, a hardcoded value, or skip encryption "temporarily."
+
+### Step 4 — Register the network in Traefik
 
 Add the app's `<app>-frontend` network to `services/traefik/compose.yaml`:
 
 - Add it to the `traefik` service's `networks:` list
 - Add the external network definition at the bottom of the file
 
-### Step 4 — Add DNS records
+### Step 5 — Add DNS records
 
 Add the app's subdomain(s) to `services/adguard/config/unbound/conf.d/a-records.conf`, pointing to the correct `${IP_*}` variable for the server it runs on (e.g. `${IP_SVLNAS}` for NAS-hosted apps). Keep entries alphabetically sorted within the Internal or External section.
 
 If unsure what host the app should run on, ask the user.
 
-### Step 5 — Update documentation
+### Step 6 — Update documentation
 
 Update these files (keep tables alphabetically sorted by app name):
 
-| File                     | What to update                                                         |
-| ------------------------ | ---------------------------------------------------------------------- |
-| `README.md`              | Apps table row, dataset list entry                                     |
-| `docs/index.md`          | Keep in sync with README.md (plain Markdown only, no HTML)             |
-| `docs/ARCHITECTURE.md`   | Init container table entries, shared env entries, access model section |
-| `docs/INFRASTRUCTURE.md` | UID/GID table entries, shared purpose group entries, storage section   |
+| File                     | What to update                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `README.md`              | Apps table row, dataset list entry                                                                                                               |
+| `docs/index.md`          | Keep in sync with README.md (plain Markdown only, no HTML)                                                                                       |
+| `docs/ARCHITECTURE.md`   | Init container table entries, shared env entries, access model section                                                                           |
+| `docs/INFRASTRUCTURE.md` | UID/GID table entries, shared purpose group entries, storage section                                                                             |
+| `docs/BACKUP.md`         | Covered Databases table (if a backup sidecar was added in Step 3), or the Persistent State Inventory (if a documented exception applies instead) |
 
-### Step 6 — Create per-service documentation
+### Step 7 — Create per-service documentation
 
 Create `services/<app>/README.md` with standard sections:
 
@@ -112,8 +148,9 @@ Create `services/<app>/README.md` with standard sections:
 - Secrets table
 - First-run setup
 - Upgrade notes (if applicable)
+- A "Database Backup" section for any embedded database from Step 3 (cadence, compression, checksum, encryption, retention, output path, restore link) — see `services/memos/README.md` or `services/gatus/README.md` for the expected shape
 
-For a TrueNAS-hosted app declared in `truenas-apps.json`, the first-run setup must document the complete post-merge rollout in Step 10. Use the helper command instead of manual group, user, or dataset instructions:
+For a TrueNAS-hosted app declared in `truenas-apps.json`, the first-run setup must document the complete post-merge rollout in Step 11. Use the helper command instead of manual group, user, or dataset instructions:
 
 ```sh
 sudo bash scripts/truenas-prep-app.sh <app>
@@ -127,7 +164,7 @@ bash scripts/generate-docs-symlinks.sh
 
 Add the entry to the `Services:` section in `mkdocs.yml` in alphabetical order by display name.
 
-### Step 7 — Multi-server setup (if applicable)
+### Step 8 — Multi-server setup (if applicable)
 
 If the app will run on a non-TrueNAS server:
 
@@ -135,7 +172,7 @@ If the app will run on a non-TrueNAS server:
 2. If the server also has Traefik, add the frontend network to `services/traefik/compose.<server>.yaml`
 3. Re-run `scripts/generate-sops-rules.sh` to update `.sops.yaml` creation rules
 
-### Step 8 — Configure TrueNAS host provisioning
+### Step 9 — Configure TrueNAS host provisioning
 
 For a TrueNAS-hosted app, add a schema-valid `apps.<app>` entry to
 `truenas-apps.json`. Each entry must set:
@@ -190,7 +227,7 @@ bash -n scripts/truenas-prep-app.sh
 mise exec -- shellcheck scripts/truenas-prep-app.sh
 ```
 
-### Step 9 — Validate
+### Step 10 — Validate
 
 ```sh
 docker compose -f services/<app>/compose.yaml config --quiet
@@ -198,7 +235,7 @@ docker compose -f services/<app>/compose.yaml config --quiet
 
 Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are decrypted at deploy time. Warnings are fine; errors are not.
 
-### Step 10 — Document post-merge host steps
+### Step 11 — Document post-merge host steps
 
 For an app declared in `truenas-apps.json`, document this complete rollout for
 the operator on `svlnas`. The aliases must already be sourced from
@@ -309,10 +346,18 @@ Use this as a final review before committing:
 - [ ] Random secrets were generated once; no generated value uses a `CHANGE_ME` placeholder
 - [ ] User-supplied and shared values were excluded from helper arguments
 - [ ] Existing secrets were not rotated by the helper
+- [ ] Every persistent path is classified (database, critical mutable file state, regeneratable cache, or external data)
+- [ ] Every embedded database has an application-consistent backup sidecar, or a documented, reviewed exception in the service README and `docs/BACKUP.md`
+- [ ] Backup sidecar writes encrypted, ZSTD-compressed, SHA1-checksummed dumps to `./backups/db-backup` (never `./data`/`./config`) with 48-hour retention
+- [ ] Backup sidecar container is named `<app>-db-backup` for the `dccd.sh -B` freshness check
+- [ ] `DB_ENC_PASSPHRASE` (or equivalent) was generated via the SOPS/1Password preflight — 1Password CLI authenticated/unlocked, a valid SOPS identity confirmed, decryption proven before editing, `GENERATE` + `scripts/generate-sops-secrets.sh` used, never plaintext or a placeholder
+- [ ] `docs/BACKUP.md` Covered Databases table and Restore a Database Dump section are updated (or the Persistent State Inventory records the reviewed exception)
+- [ ] A representative synthetic backup/restore test was performed and confirmed before merge
+- [ ] Final response reports the backup sidecar's implemented behavior, synthetic restore evidence, required post-merge deployment/run steps, and restore-doc link — without claiming production deployment or a successful run unless actual host evidence exists
 - [ ] Traefik network and labels are configured
 - [ ] DNS A-record is added
-- [ ] README.md, docs/index.md, ARCHITECTURE.md, INFRASTRUCTURE.md are updated
-- [ ] Per-service README.md is created with docs symlink
+- [ ] README.md, docs/index.md, ARCHITECTURE.md, INFRASTRUCTURE.md, BACKUP.md are updated
+- [ ] Per-service README.md is created with docs symlink, including a Database Backup section for any embedded database
 - [ ] mkdocs.yml nav is updated
 - [ ] TrueNAS-hosted app has a schema-valid `truenas-apps.json` entry, or an unsupported exception is explicitly justified with precise manual host steps
 - [ ] Post-merge rollout starts with `dccd-app <app>` and documents the expected missing TrueNAS config skip

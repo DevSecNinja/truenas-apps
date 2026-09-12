@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 # PATH-based mise/SOPS and random-source mocks.
 
-create_mise_mock() {
-  cat >"${MOCK_BIN}/mise" <<'MOCK'
+# Writes a fake `sops` executable to $1 that emulates just enough of real
+# SOPS behavior (dotenv decrypt/set plus SOPS_AGE_KEY_CMD/SOPS_AGE_KEY_FILE
+# key-source handling) for generate-sops-secrets.sh and
+# validate-sops-secrets.sh to exercise their full logic against. Shared by
+# create_mise_mock (fronted by a `mise exec -- sops ...` wrapper, the
+# default invocation path) and create_fake_sops_bin (installed as an
+# explicit SOPS_BIN override), so both code paths run through byte-for-byte
+# identical sops semantics instead of two subtly different test doubles.
+write_fake_sops() {
+  local path="${1:?write_fake_sops: path required}"
+
+  cat >"${path}" <<'MOCK'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >>"${MOCK_LOG}/mise.calls"
+printf '%s\n' "$*" >>"${MOCK_LOG}/sops.calls"
 
 if [ -n "${SOPS_AGE_KEY_CMD:-}" ]; then
     printf '%s\n' command >>"${MOCK_LOG}/key-source.calls"
@@ -121,7 +131,31 @@ EOF
         ;;
 esac
 MOCK
+  chmod +x "${path}"
+}
+
+# Default invocation path: a `mise` wrapper that forwards `exec -- sops ...`
+# straight through to the shared fake sops implementation above. Preserves
+# the existing mise.calls call-log (tests assert on its presence/absence and
+# contents) in addition to the fake sops's own sops.calls log.
+create_mise_mock() {
+  write_fake_sops "${MOCK_BIN}/__fake_sops"
+  cat >"${MOCK_BIN}/mise" <<MOCK
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"${MOCK_LOG}/mise.calls"
+"${MOCK_BIN}/__fake_sops" "\$@"
+MOCK
   chmod +x "${MOCK_BIN}/mise"
+}
+
+# Explicit SOPS_BIN override path: installs the identical fake sops
+# implementation directly at an arbitrary path, bypassing mise entirely.
+# Tests set SOPS_BIN to the returned path (or pass it explicitly) to prove
+# the override is honored — mise.calls must never appear when this is used.
+create_fake_sops_bin() {
+  local path="${1:?create_fake_sops_bin: path required}"
+
+  write_fake_sops "${path}"
 }
 
 create_od_mock() {

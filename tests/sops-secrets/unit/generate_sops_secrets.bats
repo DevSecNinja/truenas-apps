@@ -318,3 +318,127 @@ AGE-SECRET-KEY-PQ-1TESTTEST"
     assert_target_unchanged
     assert_target_usable
 }
+
+@test "generate-sops-secrets: explicit SOPS_BIN bypasses mise entirely" {
+    local fake_sops="${TEST_ROOT}/fake-sops"
+    create_fake_sops_bin "${fake_sops}"
+    export SOPS_BIN="${fake_sops}"
+    snapshot_target
+
+    run run_generator FIRST=16 SECOND=24
+
+    assert_success
+    run file_sha256 "${TARGET}"
+    assert_success
+    refute_output "${TARGET_HASH_BEFORE}"
+    run test ! -e "${MOCK_LOG}/mise.calls"
+    assert_success
+    assert_file_exists "${MOCK_LOG}/sops.calls"
+    assert_no_generated_temp_files
+}
+
+@test "generate-sops-secrets: a SOPS_BIN path containing spaces works end-to-end (quoting proof)" {
+    # Mirrors real-world paths that legitimately contain spaces (e.g.
+    # Windows "C:\Program Files\..." style installs resolved via
+    # `mise which sops`, confirmed to work unmodified under Git Bash). An
+    # unquoted invocation anywhere in the call chain would word-split this
+    # into bogus arguments instead of actually running the binary.
+    local fake_dir="${TEST_ROOT}/dir with spaces"
+    local fake_sops="${fake_dir}/fake sops binary"
+    mkdir -p "${fake_dir}"
+    create_fake_sops_bin "${fake_sops}"
+    export SOPS_BIN="${fake_sops}"
+    snapshot_target
+
+    run run_generator FIRST=16 SECOND=24
+
+    assert_success
+    run file_sha256 "${TARGET}"
+    assert_success
+    refute_output "${TARGET_HASH_BEFORE}"
+    run test ! -e "${MOCK_LOG}/mise.calls"
+    assert_success
+    assert_file_exists "${MOCK_LOG}/sops.calls"
+    assert_no_generated_temp_files
+}
+
+@test "generate-sops-secrets: default mise invocation is preserved when SOPS_BIN is unset" {
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_success
+    assert_file_exists "${MOCK_LOG}/mise.calls"
+    assert_file_exists "${MOCK_LOG}/sops.calls"
+}
+
+@test "generate-sops-secrets: a nonexistent SOPS_BIN fails clearly without modifying ciphertext" {
+    export SOPS_BIN="${TEST_ROOT}/does-not-exist-sops"
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_failure
+    assert_output --partial "SOPS_BIN does not exist"
+    run test ! -e "${MOCK_LOG}/mise.calls"
+    assert_success
+    assert_target_unchanged
+}
+
+@test "generate-sops-secrets: a SOPS_BIN pointing at a directory fails clearly" {
+    export SOPS_BIN="${TEST_ROOT}"
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_failure
+    assert_output --partial "not a regular file"
+    assert_target_unchanged
+}
+
+@test "generate-sops-secrets: a non-executable SOPS_BIN fails clearly" {
+    local not_executable="${TEST_ROOT}/not-executable"
+    printf '#!/bin/sh\n' >"${not_executable}"
+    chmod -x "${not_executable}"
+    export SOPS_BIN="${not_executable}"
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_failure
+    assert_output --partial "not executable"
+    assert_target_unchanged
+}
+
+@test "generate-sops-secrets: a bare SOPS_BIN command not on PATH fails clearly" {
+    export SOPS_BIN="definitely-not-a-real-sops-binary"
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_failure
+    assert_output --partial "not found on PATH"
+    assert_target_unchanged
+}
+
+@test "generate-sops-secrets: SOPS_AGE_KEY_CMD isolation is preserved with an explicit SOPS_BIN" {
+    local fake_sops="${TEST_ROOT}/fake-sops"
+    create_fake_sops_bin "${fake_sops}"
+    export SOPS_BIN="${fake_sops}"
+    create_op_mock
+    export MOCK_OP_OUTPUT="AGE-SECRET-KEY-1TESTTEST"
+    KEY_FILE="${TEST_ROOT}/missing-fallback-key"
+    export SOPS_AGE_KEY_CMD='op read "op://TestVault/AgeKey/private-key"'
+    snapshot_target
+
+    run run_generator FIRST=16
+
+    assert_success
+    run file_sha256 "${TARGET}"
+    assert_success
+    refute_output "${TARGET_HASH_BEFORE}"
+    run test ! -e "${MOCK_LOG}/mise.calls"
+    assert_success
+    run grep -q '^command$' "${MOCK_LOG}/key-source.calls"
+    assert_success
+}

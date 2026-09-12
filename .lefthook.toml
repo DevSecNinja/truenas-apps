@@ -82,7 +82,7 @@ glob = ["truenas-apps.json", "services/**/compose.yaml"]
 # 120s timeout guards against runaway hangs (e.g. mocks failing to terminate).
 # TERM=dumb prevents tput failures when run from non-interactive contexts (e.g. VS Code git UI).
 run = "TERM=${TERM:-dumb} timeout 120 mise exec -- bats tests/dccd/unit tests/sops-secrets/unit"
-glob = ["scripts/dccd.sh", "scripts/generate-sops-secrets.sh", "tests/dccd/unit/**", "tests/dccd/helpers/**", "tests/sops-secrets/unit/**", "tests/sops-secrets/helpers/**", "tests/setup_libs.sh"]
+glob = ["scripts/dccd.sh", "scripts/generate-sops-secrets.sh", "scripts/validate-sops-secrets.sh", "scripts/sops-common.sh", "tests/dccd/unit/**", "tests/dccd/helpers/**", "tests/sops-secrets/unit/**", "tests/sops-secrets/helpers/**", "tests/setup_libs.sh"]
 
 [pre-commit.commands.truenas-prep-app-tests]
 run = "TERM=${TERM:-dumb} mise exec -- bats \"$PWD/tests/truenas-prep-app/integration\""

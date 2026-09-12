@@ -661,13 +661,17 @@ For the `archive-media` container, blobs move from Cool to Cold tier after 7 day
 
 ## Application-Level Database Backups
 
-All stateful databases in this repository have database backup sidecars in
-their compose files. Dawarich uses maintained
+The following stateful databases have application-consistent backup sidecars
+in their compose files today. Dawarich uses maintained
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
 `tiredofit/db-backup` v4. These produce compressed, encrypted dump files
 independent of ZFS snapshots — providing an application-consistent recovery
 point that a raw filesystem snapshot may not guarantee (especially for
-PostgreSQL WAL consistency).
+PostgreSQL WAL consistency). **Not every service with an embedded database has
+this layer yet** — see [Persistent State Inventory](#persistent-state-inventory-beyond-application-level-backups)
+below for the full audit of what currently relies on storage-layer (ZFS
+snapshot/replication/off-site) coverage only, and note that coverage itself
+is not uniform across every path.
 
 ### Covered Databases
 
@@ -678,6 +682,7 @@ PostgreSQL WAL consistency).
 | Gatus          | PostgreSQL | `gatus-db-backup`          | tiredofit v4    | GPG        | `services/gatus/backups/db-backup/`          |
 | Home Assistant | SQLite     | `home-assistant-db-backup` | tiredofit v4    | GPG        | `services/home-assistant/backups/db-backup/` |
 | Immich         | PostgreSQL | `immich-db-backup`         | tiredofit v4    | GPG        | `services/immich/backups/db-backup/`         |
+| Memos          | SQLite     | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
 | Outline        | PostgreSQL | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
 | Unifi          | MongoDB    | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
 
@@ -790,9 +795,9 @@ success/failure email notifications.
      --archive=/tmp/restore.archive
    ```
 
-   **SQLite** (Home Assistant) — binary copy via the SQLite Online Backup API.
-   The `.sqlite3` file is a complete database, not a `.dump`, so it can simply
-   replace the live DB while Home Assistant is stopped:
+   **SQLite** (Home Assistant, Memos) — binary copy via the SQLite Online
+   Backup API. The `.sqlite3`/`.db` file is a complete database, not a
+   `.dump`, so it can replace the live DB while the application is stopped:
 
    ```sh
    # Stop the Home Assistant stack first so the recorder DB isn't being written.
@@ -809,12 +814,189 @@ success/failure email notifications.
    docker compose -f services/home-assistant/compose.yaml up -d
    ```
 
+   Memos follows the same pattern but runs SQLite in WAL mode, so the live
+   directory may still contain `memos_prod.db-wal`/`memos_prod.db-shm`
+   sidecar files from the running (or crashed) process. Restoring only the
+   main `.db` file while leaving stale WAL/SHM files in place can reapply old
+   uncommitted writes on top of the restored database or make SQLite refuse
+   to open it cleanly — remove them before restarting. Memos also runs as
+   the non-root `3129:3129` (`svc-app-memos`) account, so the restored file
+   must be `chown`'d back to that UID/GID before the container can write to
+   it again:
+
+   ```sh
+   # Stop Memos so nothing holds the SQLite file (or its WAL) open.
+   docker compose -f services/memos/compose.yaml down
+
+   # Move the existing DB aside; remove stale WAL/SHM sidecar files — they
+   # belong to the old database file, not the restored one.
+   mv services/memos/data/memos_prod.db{,.bak}
+   rm -f services/memos/data/memos_prod.db-wal services/memos/data/memos_prod.db-shm
+
+   # Drop in the restored (decrypted, decompressed) database file copy.
+   cp sqlite3_memos_memos_20260411-020000.db services/memos/data/memos_prod.db
+
+   # Memos runs as non-root 3129:3129 (svc-app-memos) — restore that ownership
+   # on the copied file before the container starts writing to it again.
+   chown 3129:3129 services/memos/data/memos_prod.db
+
+   # Verify integrity before restarting Memos.
+   sqlite3 services/memos/data/memos_prod.db "PRAGMA integrity_check;"
+   docker compose -f services/memos/compose.yaml up -d
+   ```
+
+   Memos 0.30 defaults attachment storage to SQLite blobs rather than local
+   files, so restoring `memos_prod.db` alone restores both notes and
+   attachments as of that backup — there is no separate attachment directory
+   to reconcile under the default configuration. If the storage driver is
+   later changed to local disk or S3, this restore procedure must be revisited.
+
 The `Backup Restore Test` GitHub Actions workflow
 (`scripts/gha-backup-restore-test.sh`) exercises the tiredofit v4 GPG workflow
 for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's maintained
 nfrastack `4.9.2` compatibility image uses the same proven v4 GPG workflow; its
 runtime-produced dump has also been decrypted and restored into a fresh
 PostgreSQL database.
+
+---
+
+## Persistent State Inventory (Beyond Application-Level Backups)
+
+This section audits **every** `services/*/compose.yaml` in the repository —
+not just the apps most likely to have a database — for bind-mounted or named
+persistent writable paths, classifies what each one holds, and states the
+actual storage-layer coverage it receives. Coverage is **not uniform**: it
+depends on which pool and sub-path a service's data lives under, so each
+entry below states its specific coverage rather than a blanket claim.
+
+### Classification
+
+- **Database** — an embedded or external data store with its own consistency
+  semantics (WAL, transactions). A raw filesystem snapshot mid-write carries
+  non-zero corruption risk without engine cooperation (online backup API,
+  quiescing, or a transactional dump).
+- **Critical mutable file state** — hand-authored or generated files that are
+  expensive or impossible to reconstruct (device pairings, credentials,
+  configuration written through a UI, uploaded attachments) but are not a
+  formal database engine.
+- **Regeneratable cache** — safe to lose; rebuilt automatically or holds
+  low-value history/log data.
+- **External/media data** — large media/library content stored outside a
+  service's own `./data` (typically on `archive-pool`).
+
+### Storage-Layer Coverage Reference
+
+The tables below cite one of these coverage levels instead of a generic "ZFS
+layers" claim, because coverage genuinely differs by pool and sub-path:
+
+| Coverage label                             | What it means                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **vm-pool 3-layer**                        | The service's data lives under `services/<app>/` on `vm-pool`. Covered by [Layer 1](#layer-1-zfs-periodic-snapshots) (hourly/daily/weekly/monthly snapshots), [Layer 2](#layer-2-local-cross-pool-replication) (daily replication to `archive-pool`), and [Layer 3](#layer-3-off-site-azure-blob-cloud-sync) Task A (`vm-pool` → Azure, daily — excludes only `iso/` and `.zfs/`). |
+| **archive-pool (private)**                 | Path is under `archive-pool/private/`. Covered by the archive-pool snapshot tasks (daily/weekly/monthly — **no hourly**), the archive-pool mirror's own hardware redundancy (substitutes for cross-pool replication), and Cloud Sync **Task B** (`archive-private`, daily).                                                                                                        |
+| **archive-pool (media)**                   | Path is under `archive-pool/content/media/`. Same snapshot/mirror coverage as above, plus Cloud Sync **Task C** (`archive-media`, daily; tiers to Cold after 7 days).                                                                                                                                                                                                              |
+| **archive-pool (downloads — no off-site)** | Path is under `archive-pool/content/downloads/`. Covered **only** by local archive-pool snapshots — this sub-path is explicitly excluded from every Cloud Sync task (Task C only covers `media/`; Task D's exclude list names `content/downloads/` directly). There is **no off-site copy**.                                                                                       |
+| **archive-pool (catch-all)**               | Any other archive-pool path not matched above. Covered by archive-pool snapshots plus Cloud Sync **Task D** (`archive-pool`, daily).                                                                                                                                                                                                                                               |
+| **None**                                   | No persistent writable state exists for this path (stateless, tmpfs-only, or strictly read-only).                                                                                                                                                                                                                                                                                  |
+
+### Additional Persistent Paths in Covered-Database Apps
+
+The apps in [Covered Databases](#covered-databases) have a `*-db-backup`
+sidecar for their primary database, but several also persist additional
+state on disk that the sidecar does **not** include in its dump (it only
+backs up the named database engine, not arbitrary files on the volume).
+
+| Service        | Persistent path                                      | Classification                                                                                                                               | Storage-layer coverage        | Notes                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bitwarden      | `./data/logs`                                        | Regeneratable cache (application logs)                                                                                                       | vm-pool 3-layer               | Low value; safe to lose.                                                                                                                                                                  |
+| Dawarich       | `./data/public`, `./data/storage`                    | **Critical mutable file state** (Rails Active Storage uploads — imports, generated exports, and, if used, photos)                            | vm-pool 3-layer               | **Not** included in `dawarich-db-backup`'s PostgreSQL dump — that sidecar only backs up `dawarich-db`. File-level state here is only protected by vm-pool ZFS/replication/off-site.       |
+| Dawarich       | `./data/watched`                                     | Regeneratable cache (drop-folder for GPX/import files)                                                                                       | vm-pool 3-layer               | Transient — files are typically consumed on import.                                                                                                                                       |
+| Dawarich       | `./data/redis`                                       | Regeneratable cache (Sidekiq job-queue RDB snapshot)                                                                                         | vm-pool 3-layer               | `--appendonly no`; periodic `--save`. Losing it only requires re-queuing background jobs.                                                                                                 |
+| Gatus          | `./data/sidecar-config`                              | Not app state — regenerated from git-tracked `./config` plus live Docker label discovery on every deploy                                     | N/A — no unique state to lose | Mirrors the AdGuard `AdGuardHome.yaml` pattern below.                                                                                                                                     |
+| Home Assistant | `./data/config` (excluding `home-assistant_v2.db`)   | **Critical mutable file state** (`.storage/` entity registry & integration configs, `configuration.yaml`, `secrets.yaml`, custom components) | vm-pool 3-layer               | **Not** included in `home-assistant-db-backup`'s dump — that sidecar only backs up the SQLite recorder database, not the rest of `/config`.                                               |
+| Immich         | `/mnt/archive-pool/private/photos/immich` (`upload`) | External/private media data (the actual photo/video library)                                                                                 | **archive-pool (private)**    | Different coverage than `immich-db-backup` or vm-pool: no hourly snapshots, no cross-pool replication (already on the redundant pool), off-site via Task B, not Task A.                   |
+| Immich         | `./data/model-cache`                                 | Regeneratable cache (ML models)                                                                                                              | vm-pool 3-layer               | Re-downloaded from Hugging Face / ModelScope on demand.                                                                                                                                   |
+| Memos          | — (none beyond the covered database)                 | N/A                                                                                                                                          | N/A                           | Memos 0.30 defaults attachment storage to SQLite blobs, so `memos-db-backup` already covers attachments — see the [Memos README](services/memos.md#database-backup).                      |
+| Outline        | `./data/data` (`FILE_STORAGE=local`)                 | **Critical mutable file state** (uploaded document attachments/images)                                                                       | vm-pool 3-layer               | **Not** included in `outline-db-backup`'s PostgreSQL dump — attachments are stored as local files, referenced by URL from the database, not as DB blobs.                                  |
+| Unifi          | `./data/config`                                      | **Critical mutable file state** (controller runtime config, SSH host keys, cert store)                                                       | vm-pool 3-layer               | **Not** included in `unifi-db-backup`'s MongoDB dump.                                                                                                                                     |
+| Unifi          | `./backups/autobackup`                               | Application-native backup (UniFi's own periodic `.unf` export)                                                                               | vm-pool 3-layer               | A genuine extra protection layer from UniFi itself, but it is **not** independent of the host — it lands on the same vm-pool dataset and is not encrypted or restore-tested by this repo. |
+
+### Inventory — Services With No Database Backup Sidecar
+
+Every other service's persistent path, in full:
+
+| Service             | Persistent path                                       | Classification                                                                                        | App-consistent backup?                | Storage-layer coverage                     | Notes                                                                                                                                                                                                                                |
+| ------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_bootstrap`        | `/mnt/archive-pool/content/media/**`                  | External/media data                                                                                   | No                                    | **archive-pool (media)**                   | Shared media tree created by `content-init`; actual media library.                                                                                                                                                                   |
+| `_bootstrap`        | `/mnt/archive-pool/content/downloads/**`              | Regeneratable cache (transient download staging)                                                      | No                                    | **archive-pool (downloads — no off-site)** | Re-downloadable; explicitly has no off-site copy — see the coverage reference above.                                                                                                                                                 |
+| AdGuard (`adguard`) | `./data/conf/AdGuardHome.yaml`                        | Not app state — overwritten from git-tracked `./config` on every deploy                               | N/A                                   | N/A — no persistent config to lose         | `adguard-init` always re-applies the repo's `AdGuardHome.yaml`; any in-UI changes are intentionally not durable.                                                                                                                     |
+| AdGuard (`adguard`) | `./data/work`                                         | Regeneratable cache (query log + internal stats DB)                                                   | No                                    | vm-pool 3-layer                            | Low value; safe to lose.                                                                                                                                                                                                             |
+| Alloy               | `./data`                                              | Regeneratable cache (Prometheus/Loki WAL, remote-write queue, `remotecfg` cache)                      | No                                    | vm-pool 3-layer                            | Losing it only creates a gap in shipped telemetry history; Alloy resumes scraping/tailing from current state.                                                                                                                        |
+| **Bazarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | Bazarr (Servarr family) defaults to an embedded SQLite database under `/config`. See the [Servarr wiki backup guidance](https://wiki.servarr.com/other-apps#backup).                                                                 |
+| Dozzle              | `./data/__default__`                                  | Critical mutable file state (user profile data)                                                       | No                                    | vm-pool 3-layer                            | Small, low-value, easily recreated.                                                                                                                                                                                                  |
+| ESPHome             | `./data/config`                                       | Critical mutable file state (device YAML configs + compiled firmware artifacts)                       | No                                    | vm-pool 3-layer                            | No formal database engine; hand-authored device configs are valuable but not a DB.                                                                                                                                                   |
+| Frigate             | `./data/config` (`frigate.db`)                        | **Database**                                                                                          | **No — moderate/high-confidence gap** | vm-pool 3-layer                            | Frigate's default SQLite database (recorded event/object metadata) lives under `/config` per the [Frigate configuration reference](https://docs.frigate.video/configuration/reference/).                                             |
+| Frigate             | `./data/storage`                                      | External/media data (recorded clips/snapshots)                                                        | No                                    | vm-pool 3-layer                            | Distinct from `frigate.db` above; large binary media, not part of the database.                                                                                                                                                      |
+| **Lidarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | Same Servarr SQLite pattern as Bazarr/Radarr/Sonarr/Prowlarr.                                                                                                                                                                        |
+| Matter Server       | `./data`                                              | Critical mutable file state (JSON fabric/device credential storage)                                   | No                                    | vm-pool 3-layer                            | Not a relational/document DB engine, but losing it requires re-pairing every Matter/Thread device — high operational cost despite the classification.                                                                                |
+| MeTube              | `./data/state`                                        | Regeneratable cache (download history/state)                                                          | No                                    | vm-pool 3-layer                            | Low value; re-downloadable.                                                                                                                                                                                                          |
+| Mosquitto           | `./data/data`                                         | Critical mutable file state / regeneratable cache (persistence file for retained messages & sessions) | No                                    | vm-pool 3-layer                            | Low value — retained state is typically re-published by connected IoT devices.                                                                                                                                                       |
+| OpenClaw            | `./data`                                              | Critical mutable file state (gateway config, conversation history, workspace data)                    | No                                    | vm-pool 3-layer                            | No formal database engine identified.                                                                                                                                                                                                |
+| Plex                | `./data/config` (`com.plexapp.plugins.library.db`)    | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | Plex's central SQLite library database (watch history, metadata, collections) is well documented by Plex support.                                                                                                                    |
+| Plex                | `./backups` (Plex's own "Scheduled Tasks" backup dir) | Application-native backup (Plex's own periodic database-backup task)                                  | No                                    | vm-pool 3-layer                            | A genuine extra protection layer configured in Plex's own UI (see the [Plex README](services/plex.md)), but it is not independent of the host — same vm-pool dataset, not encrypted or restore-tested here.                          |
+| **Prowlarr**        | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | Same Servarr SQLite pattern.                                                                                                                                                                                                         |
+| qBittorrent         | `./data/config`                                       | Critical mutable file state (session/torrent resume data)                                             | No                                    | vm-pool 3-layer                            | **Uncertain**: no formal relational database engine was identified for qBittorrent's own core state during this audit; treat as file state pending upstream confirmation rather than assuming SQLite.                                |
+| **Radarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | Same Servarr SQLite pattern.                                                                                                                                                                                                         |
+| SABnzbd             | `./data/config`                                       | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | SABnzbd maintains an internal SQLite database for job history under its config/admin path.                                                                                                                                           |
+| **Sonarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | Same Servarr SQLite pattern.                                                                                                                                                                                                         |
+| Spottarr            | `./data`                                              | **Database (engine unconfirmed)**                                                                     | **No — uncertain gap**                | vm-pool 3-layer                            | The compose file's own comment states the container "can write its database," but the specific engine was not confirmed against upstream Spottarr documentation during this audit.                                                   |
+| Traefik             | `./data/acme`                                         | Critical mutable file state (ACME/Let's Encrypt certificates and private keys)                        | No                                    | vm-pool 3-layer                            | Automatically re-obtainable from Let's Encrypt, but subject to rate limits and a brief downtime window during reissuance — not zero-cost to lose.                                                                                    |
+| TubeSync            | `./data/config` (SQLite by default)                   | **Database**                                                                                          | **No — high-confidence gap**          | vm-pool 3-layer                            | TubeSync (Django) defaults to a local SQLite database unless a `DATABASE_CONNECTION` override is configured; no such override is present in this stack's compose file. See the [TubeSync project](https://github.com/meeb/tubesync). |
+| wmbusmeters         | `./data/logs`, `./data/state`                         | Critical mutable file state / regeneratable cache (meter read-state to prevent duplicate readings)    | No                                    | vm-pool 3-layer                            | Low value; regenerable from live meter transmissions.                                                                                                                                                                                |
+
+### Excluded — No Persistent Writable State to Audit
+
+These services were reviewed and have no additional persistent writable
+state beyond what is already covered above:
+
+- **Cloudflared** — no volumes at all; a stateless tunnel agent.
+- **Draw.io** — `tmpfs`-only; no bind-mounted writable volume.
+- **Echo Server** — `tmpfs`-only; no bind-mounted writable volume.
+- **Excalidraw** — `tmpfs`-only (static nginx site); no bind-mounted writable volume.
+- **Homepage** — only mounts `./config:/app/config:ro` (read-only, git-tracked); no writable persistent volume of its own.
+- **SQLite Web** — only mounts Home Assistant's database read-only (`../home-assistant/data/config:/data:ro`) as a browser UI; it has no writable state of its own, and the underlying database is already covered in [Covered Databases](#covered-databases).
+- **Traefik Forward Auth** — `./data/config.yaml` is fully regenerated from the git-tracked `./config` template and `secret.sops.env` by `traefik-forward-auth-init` on every deploy; no unique runtime state survives a redeploy that is not already in `./config` or the secrets file.
+
+<!-- dprint-ignore -->
+!!! warning "High-confidence uncovered database gaps"
+    Five Servarr-family apps (Bazarr, Lidarr, Prowlarr, Radarr, Sonarr) plus
+    Plex, TubeSync, Frigate, and SABnzbd each embed a database (SQLite in
+    every identified case) on `vm-pool`, with **no** application-consistent
+    backup sidecar — only the vm-pool 3-layer coverage (snapshots +
+    replication + off-site Cloud Sync) protects them today. This is a
+    **known, undocumented-as-an-exception gap**, not an oversight to be
+    silently ignored: these databases are plausibly lower-value/more
+    rebuildable than the databases in [Covered Databases](#covered-databases)
+    (their state can largely be reconstructed from the media library and
+    indexer reconfiguration), but that reasoning has not been formally
+    reviewed and recorded as a reviewed exception per the
+    [new-docker-app skill](https://github.com/DevSecNinja/truenas-apps/blob/main/.github/skills/new-docker-app/SKILL.md).
+    Treat each as open until either a backup sidecar is added or the exception
+    is explicitly reviewed and documented here.
+    Spottarr and qBittorrent are marked **uncertain** — their embedded state
+    was not conclusively classified during this audit. Do not assume these
+    gaps are closed without adding and testing a dedicated backup sidecar.
+
+<!-- dprint-ignore -->
+!!! note "Covered-database apps still have unbacked-up file state"
+    Dawarich's Active Storage uploads, Home Assistant's `.storage/` config,
+    Outline's local attachments, and Unifi's controller config/SSH keys are
+    all outside their respective `*-db-backup` sidecar's dump — see
+    [Additional Persistent Paths in Covered-Database Apps](#additional-persistent-paths-in-covered-database-apps).
+    They currently rely on vm-pool's standard snapshot/replication/off-site
+    coverage only, the same as any other file on that pool — this is a
+    materially different (weaker for point-in-time consistency, but still
+    3-2-1-compliant) guarantee than the application-consistent database
+    dumps in [Covered Databases](#covered-databases).
 
 ---
 
@@ -904,7 +1086,7 @@ All times are local to the TrueNAS host.
 | 05:00 daily                                            | archive-pool/private → Azure `archive-private`      | Cloud Sync (encrypted)   |
 | 06:00 daily                                            | archive-pool/content/media → Azure `archive-media`  | Cloud Sync (encrypted)   |
 | 07:00 daily                                            | archive-pool (catch-all) → Azure `archive-pool`     | Cloud Sync (encrypted)   |
-| Every 15 minutes with the documented `dccd.sh -f` cron | Database dumps (all 7 DBs)                          | Database backup sidecars |
+| Every 15 minutes with the documented `dccd.sh -f` cron | Database dumps (all 8 covered DBs)                  | Database backup sidecars |
 | 04:00 weekly (Sat)                                     | Automated tiredofit v4 restore cycle (all DB types) | GitHub Actions           |
 
 Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline
