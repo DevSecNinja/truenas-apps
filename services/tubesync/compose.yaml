@@ -5,7 +5,7 @@ services:
   # privileges to run TubeSync. This is the same root-start pattern as LinuxServer images.
   # read_only: true is omitted (init writes to the root fs and re-permissions /config).
   # user: is omitted (init requires root to chown/chmod /config to PUID:PGID).
-  # cap_drop: ALL still applied; CHOWN/FOWNER/SETUID/SETGID/SETPCAP re-added for init.
+  # cap_drop: ALL still applied; CHOWN/DAC_OVERRIDE/FOWNER/SETUID/SETGID/SETPCAP re-added for init.
   tubesync:
     image: ghcr.io/meeb/tubesync:v0.18.3@sha256:f41658ebc890fa7aba037e3e1f113b5a2af81581799e23c59534b9faff258092
     container_name: tubesync
@@ -32,6 +32,7 @@ services:
       - ALL
     cap_add:
       - CHOWN # init chowns /run/app and /config to PUID:PGID at startup
+      - DAC_OVERRIDE # root services create state under app-owned /config and access /run/app (0700)
       - FOWNER # init chmods /run/app and /config after chowning them to the app user
       - SETUID # init drops from root to PUID
       - SETGID # init drops from root to PGID

@@ -26,11 +26,17 @@ If you follow specific YouTube channels and want their content available in your
 
 ### Root-Start Exceptions
 
-TubeSync's s6-overlay `tubesync-config-init` service runs as root at startup: it sets the `app` user's UID/GID from `PUID`/`PGID`, then `chown`s and `chmod`s both `/run/app` (mode 0700) and `/config` (mode 0755) before dropping privileges to run TubeSync. See [Architecture](../ARCHITECTURE.md) for the full rationale:
+TubeSync's s6-overlay `tubesync-config-init` service runs as root at startup: it sets the `app` user's UID/GID from `PUID`/`PGID`, then `chown`s and `chmod`s `/run/app` (mode 0700) and `/config` directories (mode 0755). Service startup scripts finish root-level setup before dropping privileges to `app`. See [Architecture](../ARCHITECTURE.md) for the full rationale:
 
 - **`read_only` is omitted**: the init service writes to the root filesystem during startup
 - **`user:` is omitted**: the init service requires root for privilege management and to re-permission `/config`
-- **`cap_add`**: `CHOWN`, `FOWNER`, `SETUID`, `SETGID`, `SETPCAP` — `FOWNER` is required so the init can `chmod` files after chowning them to the `app` user
+- **`cap_add`**: `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID`, `SETPCAP` — `FOWNER` allows init to `chmod` app-owned files; `DAC_OVERRIDE` lets root startup services create `/config/state/hat` under app-owned mode 0755 directories and access `/run/app` (mode 0700). `CHOWN` and `FOWNER` alone do not bypass those access permissions
+
+`cap_drop: ALL` and `no-new-privileges` remain enabled. These startup capabilities do not replace running the application as `PUID`/`PGID`.
+
+### Restart Permission Errors
+
+`Permission denied` errors for `/config/state/hat` or `/run/app` can occur when the deployed container lacks `DAC_OVERRIDE`, even though startup runs as root. Redeploy the changed Compose configuration through `dccd` to recreate the container with the added capability; `docker restart` alone cannot apply capability changes. This fix does not require a recursive permission reset or deleting data.
 
 ## Secrets
 
