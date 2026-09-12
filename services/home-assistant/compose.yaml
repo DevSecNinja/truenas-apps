@@ -48,7 +48,7 @@ services:
   #                "[Errno 1] Operation not permitted" and the DHCP
   #                integration silently stops tracking devices.
   home-assistant:
-    image: ghcr.io/home-assistant/home-assistant:beta@sha256:8848691147f01a6eee7753de2ade21b04d6168fcd2e2a7089f6f84e3b7b86960
+    image: ghcr.io/home-assistant/home-assistant:beta@sha256:a1bc133af84ee6505fe2c266d9805b7c75b780dfdc188edfee3b11e8f3cd8efe
     container_name: home-assistant
     depends_on:
       home-assistant-init:
