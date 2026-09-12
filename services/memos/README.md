@@ -74,10 +74,10 @@ The aliases must already be sourced from
    sudo bash scripts/truenas-prep-app.sh memos
    ```
 
-   The idempotent helper creates or verifies the manifest-declared Memos group
-   and user, creates the child ZFS dataset without discarding the existing
-   checkout, and sets the app directory ownership and mode. The Memos manifest
-   entry does not request administrative auxiliary group membership.
+   The idempotent helper creates or verifies the `truenas-apps.json`-declared
+   Memos group and user, creates the child ZFS dataset without discarding the
+   existing checkout, and sets the app directory ownership and mode. The Memos
+   registry entry does not request administrative auxiliary group membership.
 3. In the TrueNAS UI, create a Custom App named `memos` with:
 
    ```yaml

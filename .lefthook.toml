@@ -70,12 +70,12 @@ run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u |
 glob = ["servers.yaml", "services/**/compose.yaml"]
 
 [pre-commit.commands.validate-truenas-apps-schema]
-run = "mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.yaml"
-glob = ["truenas-apps.yaml", "truenas-apps.schema.json"]
+run = "mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.json"
+glob = ["truenas-apps.json", "truenas-apps.schema.json"]
 
 [pre-commit.commands.validate-truenas-app-directories]
-run = "mise exec -- yq -r '.apps | keys | .[]' truenas-apps.yaml | while IFS= read -r app; do if [ ! -f \"services/${app}/compose.yaml\" ]; then echo \"ERROR: App '${app}' in truenas-apps.yaml has no services/${app}/compose.yaml\"; exit 1; fi; done"
-glob = ["truenas-apps.yaml", "services/**/compose.yaml"]
+run = "jq -er '.apps | keys[]' truenas-apps.json >/dev/null && jq -r '.apps | keys[]' truenas-apps.json | while IFS= read -r app; do app=${app%$'\\r'}; test -f services/${app}/compose.yaml || { echo ERROR: App ${app} in truenas-apps.json has no services/${app}/compose.yaml; exit 1; }; done"
+glob = ["truenas-apps.json", "services/**/compose.yaml"]
 
 [pre-commit.commands.bats]
 # Only unit tests run pre-commit (fast feedback). Integration + e2e run in CI.
@@ -86,7 +86,7 @@ glob = ["scripts/dccd.sh", "scripts/generate-sops-secrets.sh", "tests/dccd/unit/
 
 [pre-commit.commands.truenas-prep-app-tests]
 run = "TERM=${TERM:-dumb} mise exec -- bats \"$PWD/tests/truenas-prep-app/integration\""
-glob = ["scripts/truenas-prep-app.sh", "truenas-apps.yaml", "truenas-apps.schema.json", "tests/truenas-prep-app/**", "tests/setup_libs.sh"]
+glob = ["scripts/truenas-prep-app.sh", "truenas-apps.json", "truenas-apps.schema.json", "tests/truenas-prep-app/**", "tests/setup_libs.sh"]
 
 [commit-msg.commands.cocogitto]
 run = "mise exec -- cog verify \"$(cat {1})\""

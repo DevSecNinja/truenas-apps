@@ -5,7 +5,7 @@ load '../helpers/common'
 load '../helpers/mocks'
 
 setup_file() {
-  require_test_yq
+  require_test_jq
 }
 
 setup() {

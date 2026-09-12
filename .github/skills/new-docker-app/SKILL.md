@@ -21,9 +21,9 @@ Read these references before starting — they define the patterns every compose
 
 - [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) — compose patterns, container security, networking, directory conventions
 - [INFRASTRUCTURE.md](../../../docs/INFRASTRUCTURE.md) — UID/GID allocation, storage layout, multi-server deployment
-- [truenas-apps.yaml](../../../truenas-apps.yaml) — add a schema-valid `apps.<name>` entry for each supported TrueNAS-hosted app
+- [truenas-apps.json](../../../truenas-apps.json) — add a schema-valid `apps.<name>` entry for each supported TrueNAS-hosted app
 - [truenas-apps.schema.json](../../../truenas-apps.schema.json) — required registry fields, account constraints, and validation rules
-- [truenas-prep-app.sh](../../../scripts/truenas-prep-app.sh) — idempotent host provisioning driven by the manifest
+- [truenas-prep-app.sh](../../../scripts/truenas-prep-app.sh) — idempotent host provisioning driven by the registry
 
 Use the closest existing app in `services/` as a template. When in doubt, model after a simple single-container app like `echo-server` or a multi-container app like `immich`.
 
@@ -113,7 +113,7 @@ Create `services/<app>/README.md` with standard sections:
 - First-run setup
 - Upgrade notes (if applicable)
 
-For a TrueNAS-hosted app declared in `truenas-apps.yaml`, the first-run setup must document the complete post-merge rollout in Step 10. Use the helper command instead of manual group, user, or dataset instructions:
+For a TrueNAS-hosted app declared in `truenas-apps.json`, the first-run setup must document the complete post-merge rollout in Step 10. Use the helper command instead of manual group, user, or dataset instructions:
 
 ```sh
 sudo bash scripts/truenas-prep-app.sh <app>
@@ -138,7 +138,7 @@ If the app will run on a non-TrueNAS server:
 ### Step 8 — Configure TrueNAS host provisioning
 
 For a TrueNAS-hosted app, add a schema-valid `apps.<app>` entry to
-`truenas-apps.yaml`. Each entry must set:
+`truenas-apps.json`. Each entry must set:
 
 - `account_name`: the dedicated `svc-app-<app>` user and group
 - `account_id`: the unique shared UID/GID in the `3100–3199` per-app range
@@ -148,22 +148,40 @@ For a TrueNAS-hosted app, add a schema-valid `apps.<app>` entry to
 Set `admin_group_member: true` only when the TrueNAS administrator needs access
 to app-owned runtime paths. Use `false` for simple apps without that
 requirement. The helper reads the entry dynamically, and its supported-app
-usage output is generated from the manifest keys; do not maintain a separate
+usage output is generated from the registry keys; do not maintain a separate
 supported-app list.
 
-Do not add manifest entries for apps deployed to non-TrueNAS hosts. If a
+Do not add registry entries for apps deployed to non-TrueNAS hosts. If a
 TrueNAS-hosted app cannot safely use the helper, document the justified
 exception and specify the precise manual account, dataset, ownership,
 permission, and other host steps required.
 
-The JSON schema, CI, and Lefthook validate the manifest and its service
+The JSON schema, CI, and Lefthook validate the registry and its service
 directory references. Add or update relevant registry and provisioning coverage
 under `tests/truenas-prep-app/`, then run the repository's normal test workflow:
 
 ```sh
-mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.yaml
+mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.json
 task test
 ```
+
+The host preparation helper requires `jq` on `PATH` to read the JSON
+provisioning registry and construct TrueNAS API payloads.
+
+Minimize dependencies in any host-side provisioning logic added for the app.
+Before using another external command or library, verify it against the actual
+TrueNAS baseline or a documented provisioning path.
+Prefer shell built-ins and existing dependencies; reuse `jq` rather than adding
+`yq` for this JSON registry. Python may be used when appropriate after
+verifying its interpreter and required libraries against the host baseline,
+but its standard library does not parse YAML. JSON plus the existing `jq`
+dependency avoids adding PyYAML or another package for this helper. Do not
+assume that `mise`-managed development or CI tools exist at TrueNAS runtime. An
+unavoidable dependency needs an explicit availability check, a documented
+installation or provisioning path, and host-level validation; otherwise,
+redesign the implementation. Add coverage for the missing-command path when
+the dependency is optional or not guaranteed. For this registry, retain the
+test proving that it loads when `yq` is absent.
 
 If the helper itself changes, also validate its shell syntax and lint:
 
@@ -182,7 +200,7 @@ Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are d
 
 ### Step 10 — Document post-merge host steps
 
-For an app declared in `truenas-apps.yaml`, document this complete rollout for
+For an app declared in `truenas-apps.json`, document this complete rollout for
 the operator on `svlnas`. The aliases must already be sourced from
 `/mnt/vm-pool/apps/scripts/aliases.sh`.
 
@@ -197,7 +215,7 @@ the operator on `svlnas`. The aliases must already be sourced from
    TrueNAS app config directory is missing and skip deployment. This is expected
    during onboarding. Do not run `dccd-all` first: Traefik may already reference
    the new frontend network before its Custom App and network exist.
-2. From the updated TrueNAS checkout, provision the manifest-declared account,
+2. From the updated TrueNAS checkout, provision the registry-declared account,
    group, and child dataset:
 
    ```sh
@@ -231,7 +249,7 @@ the operator on `svlnas`. The aliases must already be sourced from
 After completing a new TrueNAS app implementation, always end the final user
 response with this rollout as a concise, command-oriented operator handoff.
 The `<app>` tokens in this skill are drafting placeholders only. Resolve every
-one to the app's actual manifest key in the delivered response, including in
+one to the app's actual registry key in the delivered response, including in
 headings, commands, the Custom App name, paths, and YAML. Do not leave `<app>`
 or any other placeholder for the operator to edit.
 
@@ -274,7 +292,7 @@ instructions.
 
 Only for a justified TrueNAS exception that cannot safely use the helper, output
 the reason and precise manual host steps. Do not claim that an undeclared app is
-supported. Non-TrueNAS apps must not be added to the manifest or given this
+supported. Non-TrueNAS apps must not be added to the registry or given this
 TrueNAS rollout.
 
 ## Checklist
@@ -296,7 +314,7 @@ Use this as a final review before committing:
 - [ ] README.md, docs/index.md, ARCHITECTURE.md, INFRASTRUCTURE.md are updated
 - [ ] Per-service README.md is created with docs symlink
 - [ ] mkdocs.yml nav is updated
-- [ ] TrueNAS-hosted app has a schema-valid `truenas-apps.yaml` entry, or an unsupported exception is explicitly justified with precise manual host steps
+- [ ] TrueNAS-hosted app has a schema-valid `truenas-apps.json` entry, or an unsupported exception is explicitly justified with precise manual host steps
 - [ ] Post-merge rollout starts with `dccd-app <app>` and documents the expected missing TrueNAS config skip
 - [ ] Post-merge rollout runs `truenas-prep-app.sh <app>` from the updated TrueNAS checkout
 - [ ] Post-merge rollout creates the named TrueNAS Custom App with the absolute compose include
@@ -305,8 +323,10 @@ Use this as a final review before committing:
 - [ ] Final handoff resolves every placeholder to the actual app name in commands, paths, the separately identified Custom App name, and YAML
 - [ ] Final handoff provides standalone, copy-paste-ready Custom App YAML rather than the full service Compose file
 - [ ] Final handoff states concrete app-specific first-run actions after `dccd-all`
-- [ ] Manifest key, generated helper usage, first-run documentation, and the reported post-merge sequence agree
-- [ ] Manifest schema and service directory validation pass
+- [ ] Registry key, generated helper usage, first-run documentation, and the reported post-merge sequence agree
+- [ ] Registry schema and service directory validation pass
+- [ ] TrueNAS host-side dependencies are guaranteed or explicitly checked, provisioned, documented, and host-validated
+- [ ] Tests cover absent optional or non-guaranteed host commands where relevant
 - [ ] Relevant registry and provisioning tests are updated and pass
 - [ ] Helper syntax and shell lint pass when the helper changes
 - [ ] `docker compose config --quiet` passes

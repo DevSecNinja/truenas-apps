@@ -208,15 +208,39 @@ Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media`). The 
 
 For apps supported by `scripts/truenas-prep-app.sh`, run the reusable
 preparation command from the repository root instead of manually creating the
-app identity and child dataset. The root `truenas-apps.yaml` manifest is the
-declarative source for supported apps. Each `apps.<name>` entry defines the
-dedicated account name, shared UID/GID, and whether the administrative user
-needs auxiliary app-group membership. `truenas-apps.schema.json`, CI, and
-Lefthook validate the manifest fields and service directory references.
+app identity and child dataset. The root `truenas-apps.json` provisioning
+registry is the declarative source for supported apps. Each `apps.<name>` entry
+defines the dedicated account name, shared UID/GID, and whether the
+administrative user needs auxiliary app-group membership.
+`truenas-apps.schema.json`, CI, and Lefthook validate the registry fields and
+service directory references. The helper requires `jq` on `PATH` to read the
+JSON registry and construct TrueNAS API payloads.
+
+#### TrueNAS Script Dependency Policy
+
+Scripts executed directly on TrueNAS must minimize external dependencies:
+
+- Verify each new command or library against the actual TrueNAS baseline or a
+  documented provisioning path before using it.
+- Prefer shell built-ins and existing dependencies. The provisioning helper
+  reuses `jq` for the JSON registry rather than adding `yq`.
+- Python may be used when appropriate after verifying its interpreter and
+  required libraries against the host baseline. Its standard library does not
+  parse YAML; JSON plus the existing `jq` dependency lets this helper avoid
+  PyYAML or another package.
+- Do not assume tools installed by `mise` for development or CI are available
+  at TrueNAS runtime.
+- For an unavoidable dependency, add an explicit availability check, document
+  its installation or provisioning path, and validate it on the TrueNAS host.
+  Redesign the implementation if those conditions cannot be met.
+- Test behavior without optional or non-guaranteed commands when relevant.
+
+The `yq` requirement in [Multi-Server Deployment](#multi-server-deployment)
+applies only to explicitly provisioned non-TrueNAS server mode.
 
 #### Brand-New Custom App Rollout
 
-Use this sequence after merging a new manifest-supported app. On `svlnas`, the
+Use this sequence after merging a new registry-supported app. On `svlnas`, the
 aliases must already be sourced from `/mnt/vm-pool/apps/scripts/aliases.sh`.
 
 1. Pull the merged changes and decrypt SOPS files while limiting the first pass
@@ -231,7 +255,7 @@ aliases must already be sourced from `/mnt/vm-pool/apps/scripts/aliases.sh`.
    expected during the first pass. Do not run `dccd-all` first: Traefik may
    already reference the new frontend network before its Custom App and network
    exist.
-2. From the updated checkout, provision the manifest-declared account, group,
+2. From the updated checkout, provision the registry-declared account, group,
    and child dataset:
 
    ```sh
@@ -265,9 +289,9 @@ Do not replace this handoff with raw `git pull`, raw `dccd.sh` invocations, or
 an improvised series of targeted app deployments unless troubleshooting or
 explicitly requested.
 
-Dawarich and Memos are currently supported by the manifest-driven helper.
+Dawarich and Memos are currently supported by the registry-driven helper.
 
-The helper reads the selected manifest entry and creates or verifies the app
+The helper reads the selected registry entry and creates or verifies the app
 group and user using the allocation in the
 [App Service Accounts](#app-service-accounts) table. It adds the administrative
 user to the app group only when requested, creates the app child dataset beneath
@@ -277,7 +301,7 @@ contains the checkout, the command stages and restores those files around
 dataset creation. Repeated runs are safe: existing matching resources are
 reused, while account name or ID collisions stop the operation. It also refuses
 to create a missing dataset while the app is running. The helper's usage output
-lists the current manifest keys. Set `TRUENAS_ADMIN_USER` only when the local
+lists the current registry keys. Set `TRUENAS_ADMIN_USER` only when the local
 administrative account is not `truenas_admin`.
 
 The `services/` parent must already be a mounted ZFS dataset. Use the manual

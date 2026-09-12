@@ -4,7 +4,7 @@
 load '../helpers/common'
 
 setup_file() {
-  require_test_yq
+  require_test_jq
 }
 
 setup() {
@@ -22,7 +22,13 @@ teardown() {
   assert_output "dawarich|svc-app-dawarich|3128|true"
 }
 
-@test "load_app_config: preserves false for Memos admin membership" {
+@test "load_app_config: loads the Memos JSON registry when yq is absent" {
+  hide_test_command yq
+  run command -v yq
+  assert_failure
+  run command -v jq
+  assert_success
+
   run load_app_config_values "memos"
 
   assert_success
