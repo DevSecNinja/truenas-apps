@@ -28,7 +28,7 @@ services:
 
   memos:
     # Digest intentionally omitted for initial adoption; Renovate will pin it.
-    image: docker.io/neosmemo/memos:0.30.0
+    image: docker.io/neosmemo/memos:0.30.0@sha256:71a5b4738d1bed96e92112004054f0888e92791b64eb78afd79077c96e6f9327
     container_name: memos
     depends_on:
       memos-init:
