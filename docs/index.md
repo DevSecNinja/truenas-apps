@@ -68,6 +68,13 @@ The setup follows
 | [Unifi](https://ui.com/)                                                                      | Ubiquiti network controller with MongoDB backend               |
 | [wmbusmeters](https://github.com/wmbusmeters/wmbusmeters)                                     | Wireless M-Bus smart meter reader (water/gas/heat)             |
 
+## Historical Archives
+
+The operator confirmed creation and ACL setup of the non-app `archive-pool/archives` dataset,
+intended for historical blog backups, UniFi backups, and encrypted password-manager exports
+through a private `archives` SMB share. See [Historical Archives over SMB](INFRASTRUCTURE.md#historical-archives-over-smb)
+for setup status and remaining SMB and backup verification; this is not an app or an automated database-backup directory.
+
 ## Documentation
 
 | Page                                      | Description                                          |

@@ -73,6 +73,15 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 
 ---
 
+## Historical Archives
+
+The operator confirmed creation and ACL setup of the non-app `archive-pool/archives` dataset,
+intended for historical blog backups, UniFi backups, and encrypted password-manager exports
+through a private `archives` SMB share. See [Historical Archives over SMB](docs/INFRASTRUCTURE.md#historical-archives-over-smb)
+for setup status and remaining SMB and backup verification; this is not an app or an automated database-backup directory.
+
+---
+
 ## 🏗️ Setup
 
 ### 1. Create the dataset structure and clone the repo

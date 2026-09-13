@@ -599,6 +599,136 @@ user: "3106:3202" # svc-app-immich:private-photos
 4. Add an init container that chowns the service's specific subdirectory under `/mnt/archive-pool/private/`
 5. Bind-mount only that subdirectory into the container — never the parent `private/` path
 
+## Historical Archives over SMB
+
+**Setup status (2026-09-13):** The operator reported creating the new, empty
+`archive-pool/archives` dataset and completing its NFSv4 / Restricted ACL setup.
+This has not been independently host-verified. Other dataset settings (including encryption),
+SMB share activation and file-transfer tests, off-site sync, and sample restores remain unverified.
+
+The dedicated dataset, mounted at `/mnt/archive-pool/archives`, is intended for historical
+blog backup archives, UniFi backups, password-manager exports, and similar imported files.
+It is a top-level sibling of `content`, `private`, and `replication` on the mirrored HDD
+pool, with independent ACLs and snapshots. The procedures below remain a setup reference;
+skip completed dataset and ACL steps rather than recreating or resetting them.
+
+Do not put these files under `vm-pool/apps` (live apps), `replication` (a managed replication
+target), or `content` (shared media and its hardlink layout). Keeping the dataset outside
+`private` avoids that parent's Unix `770` traversal restrictions; **the archives remain
+private** through their own ACLs. Do not add container bind mounts or grant media/service-account
+access. No new app user, fixed UID/GID allocation, or automated short-retention cleanup is needed.
+This uses TrueNAS built-in SMB, not Compose, Traefik, a Custom App, or `dccd`.
+
+### Create the Dataset
+
+In **Datasets → archive-pool → Add Dataset**, create `archives` with the **SMB** preset.
+UI labels vary by TrueNAS version; see the official
+[dataset guide](https://www.truenas.com/docs/scale/datasets/managingdatasets/).
+
+| Setting                      | Recommended value                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| Dataset name / mount path    | `archive-pool/archives` / `/mnt/archive-pool/archives`                        |
+| Preset / ACL Type / ACL Mode | SMB / NFSv4 / Restricted; set explicitly unless inherited values are verified |
+| Sync                         | Standard                                                                      |
+| Compression                  | LZ4                                                                           |
+| Enable Atime / Deduplication | Off / Off                                                                     |
+| Case Sensitivity             | Insensitive; immutable after creation                                         |
+| Checksum                     | On                                                                            |
+| Read-only                    | Off, to permit SMB uploads                                                    |
+| Exec                         | Off; prevents host-side execution, not execution on SMB clients               |
+| Snapshot Directory           | Default / Invisible; hides `.zfs` from listings, does not schedule snapshots  |
+| Snapdev                      | Hidden; applies to zvol snapshots, not this filesystem dataset                |
+| Copies                       | 1 data copy per block; independent of the pool's mirror redundancy            |
+| Record Size                  | 128 KiB; no archive-specific tuning needed                                    |
+| Special Small Block Size     | 0                                                                             |
+| Quota                        | Optional, sized to the actual collection and available pool capacity          |
+| Encryption                   | Enable at creation, or inherit only after verifying parent encryption         |
+
+These are recommended settings, not a verified inventory. **Inherit** follows the parent's
+value; verify the effective value or set the property on `archive-pool/archives` explicitly.
+Do not change the whole pool or sibling datasets just to obtain archive-specific properties.
+
+Case sensitivity cannot be changed after creation. Case-insensitive naming is suitable for
+storing original, unextracted archive files. Preserve the internal case of Linux website
+trees inside their original archives rather than extracting them here.
+Keep the dataset encryption key/passphrase independently of the NAS. If the dataset is
+locked after a restart, unlock it before SMB access or Cloud Sync. ZFS encryption protects
+data at rest, **not** against an authorized SMB user reading an unlocked dataset.
+
+<!-- dprint-ignore -->
+!!! warning "Changing ACL type does not migrate permissions"
+    For a **new, empty dataset**, acknowledge the ACL-type warning, select **NFSv4** and
+    **Restricted**, and create the dataset. There are no existing file ACLs to migrate,
+    so no pre-change snapshot or recursive ACL application is needed. Manually define
+    the dataset ACL with file and directory inheritance as described below.
+
+    For an **existing, populated dataset**, take a snapshot **before** changing ACL type.
+    Changing the format does not translate existing permissions. Review the replacement
+    ACL and deliberately reapply it recursively only within the affected dataset if
+    existing files need it; never blanket-reset the pool parent or sibling datasets.
+
+### Restrict Filesystem and Share Access
+
+1. Create or reuse a **personal, non-admin local user** with **SMB Access / Samba
+   Authentication** enabled and a password. Do not log in to SMB as `root` or
+   `truenas_admin`; do not enable guest access or create an app service account.
+2. In **Datasets → archives → Permissions → Edit ACL**, define the new dataset's NFSv4
+   ACL before uploading anything. Retain explicit owner/admin
+   **Full Control**, using the documented administrative owner `truenas_admin` after
+   confirming that account on the host. Grant the personal user **Modify**, with both
+   file and directory inheritance on these entries. A named-user entry avoids adding a
+   shared group. Leave recursive application off while the dataset is empty.
+3. Review every preset/inherited entry: remove general data access for `builtin_users`,
+   domain users, or `everyone@`. Ensure `group@` refers only to intended administrators,
+   or remove its broad grants while retaining explicit admin access. Do not blindly trust
+   the SMB preset or inherited ACL.
+4. If parent traversal blocks access, stop and diagnose it separately. Do not broaden
+   parent permissions or change `archive-pool` or sibling ACLs as part of this setup.
+   **Never recursively reset permissions on the pool or sibling datasets.**
+5. In **Shares → Windows (SMB)**, create a share named `archives` for
+   `/mnt/archive-pool/archives`, using **Default Share** (or the version-equivalent basic
+   SMB purpose). Leave read-only export **off** and guest access **disabled**.
+   Dataset creation might already have created a share: edit it rather than duplicating it.
+6. Restrict the **share ACL** as well as the filesystem ACL: allow the personal user
+   **CHANGE**, and only intended administrators **FULL** if needed; remove default
+   general/Everyone access. Both permission layers must allow the intended access.
+   Enable the SMB service and automatic startup.
+7. Enable **per-share SMB3 encryption** if supported by the installed version and clients.
+   Do not change global settings for unrelated shares. Allow access only over a trusted
+   LAN or VPN; never expose TCP 445 to the WAN.
+
+The official [SMB share guide](https://www.truenas.com/docs/scale/shares/smb/addmanagesmbshares/)
+describes local SMB-enabled users, share presets, and version-dependent UI controls.
+
+### Connect and Import Safely
+
+Connect as the personal SMB user:
+
+- **Windows Explorer:** `\\svlnas\archives`
+- **macOS Finder → Go → Connect to Server:** `smb://svlnas/archives`
+
+First use harmless test files to verify create, read, rename, and delete operations.
+Create a subfolder, disconnect/reconnect, and confirm new files and directories inherit
+the intended permissions. Test with a different ordinary user and confirm access is denied.
+
+Use ordinary folders such as `blog/`, `unifi/`, and `password-manager/`, not child datasets.
+Keep dated original archives intact, with the originating application/version, restore notes,
+and checksums alongside them. Use neutral filenames for sensitive material: the existing
+Cloud Sync configuration encrypts file contents but **not filenames**.
+
+<!-- dprint-ignore -->
+!!! warning "Encrypt sensitive exports before copying"
+    LastPass CSV exports are typically plaintext credentials. Encrypt them on the client
+    with modern authenticated encryption before uploading; keep the recovery key/passphrase
+    independently of the NAS and the export itself. Do not upload a plaintext CSV and then
+    delete it: snapshots can retain it. Apply the same care to sensitive blog or UniFi backups.
+
+**Copy first; do not move or delete the source originals.** Verify checksums against the
+source and read files back, or perform a representative restore into an isolated target.
+Then run and verify the snapshot/off-site steps in
+[Historical Archive Protection](BACKUP.md#historical-archive-protection) before considering
+any deliberate source cleanup.
+
 ## Multi-Server Deployment
 
 This repository supports deploying apps to multiple servers beyond the primary TrueNAS host. Server-app mappings are defined in `servers.yaml` at the repo root.
