@@ -79,6 +79,43 @@ The helper generates a cryptographically secure hexadecimal value only when a re
 
 This helper is only for generate-once bootstrap. Rotate existing values manually with `sops edit`; never use the helper for rotation or run it concurrently against the same file. Never commit `CHANGE_ME` placeholders for generated secrets. Populate user-supplied values separately through SOPS, and output a summary table that identifies each variable as random, user-supplied, or shared without revealing values.
 
+#### Native Windows PowerShell alternative
+
+From a fresh PowerShell terminal, import the module and call its canonical exported function. This path creates and encrypts the target in one operation, so do not create the target file first:
+
+```powershell
+Import-Module .\scripts\SopsSecrets.psm1 -Force
+
+New-SopsEncryptedEnvFile `
+    -TargetPath 'services/<app>/secret.sops.env' `
+    -AgeKeyReference 'op://<vault>/<item>/<field>' `
+    -TemplateValues ([ordered] @{
+        DOMAINNAME = 'example.com'
+        APP_SECRET = 'GENERATE'
+        OPTIONAL_API_KEY = ''
+    }) `
+    -GeneratedSecrets ([ordered] @{
+        APP_SECRET = 36
+    }) `
+    -RequiredVariables @('DOMAINNAME', 'APP_SECRET')
+```
+
+`New-SopsEncryptedEnvFile` is self-contained for a fresh terminal. It resolves SOPS directly or through `mise`, runs idempotent `op signin`, and verifies the authenticated account with `op whoami`. Immediately before every operation that can invoke 1Password, it logs what will happen and why. It never prints the `op://` reference, Age identity, or decrypted or generated values.
+
+The function provides these plaintext and failure-safety guarantees:
+
+- Non-secret/static values and literal `GENERATE` sentinels are written only to a temporary template that is always cleaned up.
+- Generated random values are passed to `sops set --value-stdin`; they are never written to a plaintext file or placed in process arguments.
+- The function refuses to overwrite an existing target, removes a partially created target on failure, and restores prior SOPS environment variables.
+- It validates encryption metadata, decrypts only through an in-memory validation pipeline, checks required variables, and rejects unresolved `GENERATE` or `CHANGE_ME` sentinels.
+
+Use the inputs as follows:
+
+- `TemplateValues` must contain only non-secret configuration, empty placeholders for user-supplied values, and literal `GENERATE` sentinels. Populate issued or user-supplied credentials separately with `sops edit`; never place them in the PowerShell command or terminal history.
+- `GeneratedSecrets` maps variable names to random byte counts from 16 through 1024. Each name must exist in `TemplateValues` with the value `GENERATE`.
+
+The PowerShell function and Bash helper are alternative bootstrap paths. Choose one and never run both against the same target. Both are generate-once workflows and must not rotate existing secrets. The 1Password parameter set shown above is recommended; the `-AgeKeyFile` parameter set exists only for tests or a controlled fallback.
+
 ### Step 3 — Classify persistent state and add a database backup sidecar
 
 For every persistent volume declared in Step 1, classify each path as one of:
