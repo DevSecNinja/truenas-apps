@@ -161,7 +161,18 @@ environment. The web service waits for a healthy Chrome service before
 starting, and both the web and worker services can reach Chrome over the
 internal `karakeep-browser` network. This enables JavaScript-rendered page
 capture, browser-derived content, and screenshots in addition to Karakeep's
-plain HTTP crawling path. See the upstream
+plain HTTP crawling path.
+
+The `karakeep-browser` control network is explicitly IPv4-only because the
+official Chrome image exposes port `9222` through
+`socat TCP4-LISTEN:9222`. When Docker on TrueNAS assigned an IPv6 service
+address, Karakeep selected the AAAA result and repeatedly failed with
+`ECONNREFUSED ...:9222`. Disabling IPv6 only on this internal network aligns
+service discovery with the upstream listener. The separate
+`karakeep-browser-egress` network and Chrome's outbound path are unchanged;
+this is a listener-compatibility fix, not an SSRF mitigation.
+
+See the upstream
 [Docker guide](https://docs.karakeep.app/installation/docker/) and
 [Chrome image migration guide](https://docs.karakeep.app/administration/chrome-image-migration/)
 for the corresponding Karakeep settings and image model.

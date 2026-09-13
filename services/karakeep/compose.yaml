@@ -307,6 +307,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/cache/fontconfig
     healthcheck:
       test:
         - "CMD"
@@ -316,7 +317,20 @@ services:
           exec 3<>/dev/tcp/127.0.0.1/9222;
           printf 'GET /json/version HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3;
           IFS= read -r status <&3;
-          [[ "$${status}" == *" 200 "* ]]
+          content_length=;
+          while IFS= read -r line <&3; do
+            line="$${line%$$'\r'}";
+            case "$${line}" in
+              Content-Length:*) content_length="$${line#Content-Length:}" ;;
+              "") break ;;
+            esac;
+          done;
+          case "$${content_length}" in
+            ""|*[!0-9]*) exit 1 ;;
+          esac;
+          body=;
+          IFS= read -r -N "$${content_length}" body <&3;
+          [[ "$${status}" == *" 200 "* && "$${body}" == *'"webSocketDebuggerUrl"'* ]]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -377,6 +391,7 @@ networks:
   karakeep-browser:
     name: karakeep-browser
     driver: bridge
+    enable_ipv6: false # Upstream socat exposes the DevTools endpoint over TCP4 only
     internal: true
   karakeep-browser-egress:
     name: karakeep-browser-egress
