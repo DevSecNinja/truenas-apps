@@ -400,6 +400,15 @@ exposed through Traefik.
 | `karakeep-browser-egress` | Chrome only; dedicated bridge for outbound page fetches                |
 | `karakeep-frontend`       | Web and workers; Traefik access and their outbound traffic             |
 
+Only `karakeep-browser`, the internal control network, is IPv4-only. The
+official Chrome image exposes port `9222` through
+`socat TCP4-LISTEN:9222`; when Docker on TrueNAS assigned an IPv6 service
+address, Karakeep selected the AAAA result and repeatedly failed with
+`ECONNREFUSED ...:9222`. Disabling IPv6 on the control network aligns service
+discovery with the upstream listener. The separate
+`karakeep-browser-egress` network and Chrome's outbound path are unchanged;
+this is a listener-compatibility fix, not an SSRF mitigation.
+
 Chrome does not join the frontend or backend networks and has no published
 ports or Traefik labels. Over the internal browser network, it can communicate
 only with Karakeep web and workers. Its separate egress bridge retains outbound

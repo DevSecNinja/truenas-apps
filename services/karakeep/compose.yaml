@@ -391,6 +391,7 @@ networks:
   karakeep-browser:
     name: karakeep-browser
     driver: bridge
+    enable_ipv6: false # Upstream socat exposes the DevTools endpoint over TCP4 only
     internal: true
   karakeep-browser-egress:
     name: karakeep-browser-egress
