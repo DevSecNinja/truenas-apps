@@ -33,8 +33,9 @@ its own local account authentication as a second layer.
 
 ## Architecture
 
-- **Active images**: `ghcr.io/karakeep-app/karakeep:0.33.2` and
-  `docker.io/getmeili/meilisearch:v1.41.0`
+- **Active images**: `ghcr.io/karakeep-app/karakeep:0.33.2`,
+  `docker.io/getmeili/meilisearch:v1.41.0`, and
+  `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
   worker, and Meilisearch processes
 - **Reverse proxy**: Traefik with `chain-auth@file`
@@ -52,6 +53,7 @@ starting the server.
 | ---------------------- | --------------------------------------------------------------------- |
 | `karakeep-init`        | Validates required settings and assigns runtime directory ownership   |
 | `karakeep`             | Web UI and API on the internal container port `3000`                  |
+| `karakeep-db-backup`   | One-shot encrypted SQLite backup sidecar                              |
 | `karakeep-workers`     | Background crawling, asset processing, indexing, and optional AI work |
 | `karakeep-meilisearch` | Full-text search engine on the internal port `7700`                   |
 
@@ -93,6 +95,9 @@ To opt in later:
 - `karakeep-init` chowns both runtime directories to `3130:3130`, then exits
   before the runtime services start.
 - The web, worker, and Meilisearch containers run as `3130:3130`.
+- `karakeep-db-backup` uses its root backup identity (`USER_DBBACKUP=0` and
+  `GROUP_DBBACKUP=0`) rather than the Karakeep service account. It has no
+  network and accesses Karakeep data only through a read-only mount.
 - Runtime containers use read-only root filesystems,
   `no-new-privileges=true`, dropped capabilities, PID limits, and memory
   limits.
@@ -103,10 +108,12 @@ To opt in later:
 
 ### Volumes
 
-| Host path            | Container path | Used by      | Purpose                          |
-| -------------------- | -------------- | ------------ | -------------------------------- |
-| `./data/karakeep`    | `/data`        | Web, workers | SQLite database and saved assets |
-| `./data/meilisearch` | `/meili_data`  | Meilisearch  | Full-text search index           |
+| Host path             | Container path           | Used by         | Purpose                                    |
+| --------------------- | ------------------------ | --------------- | ------------------------------------------ |
+| `./data/karakeep`     | `/data`                  | Web, workers    | SQLite database and saved assets           |
+| `./data/karakeep`     | `/karakeep-data` (`:ro`) | Database backup | Read-only source containing `db.db`        |
+| `./data/meilisearch`  | `/meili_data`            | Meilisearch     | Regeneratable full-text search index       |
+| `./backups/db-backup` | `/backup`                | Database backup | Encrypted, compressed SQLite backup output |
 
 ### Networks
 
@@ -122,13 +129,65 @@ and decrypted to `.env` during deployment. Do not commit plaintext values.
 
 | Variable                    | Classification  | Purpose                                                        |
 | --------------------------- | --------------- | -------------------------------------------------------------- |
+| `DB_ENC_PASSPHRASE`         | Required secret | Encrypts the `karakeep-db-backup` SQLite backup                |
 | `DOMAINNAME`                | Required config | Base domain for Traefik routing and NextAuth                   |
 | `KARAKEEP_NEXTAUTH_SECRET`  | Required secret | Random secret used to protect Karakeep authentication sessions |
 | `KARAKEEP_MEILI_MASTER_KEY` | Required secret | Random Meilisearch master key                                  |
 | `KARAKEEP_OPENAI_API_KEY`   | Optional secret | User-supplied OpenAI API key for automatic AI tagging          |
 
+`DB_ENC_PASSPHRASE` is an independent, random, app-owned secret. Generate it
+once and preserve it with the SOPS-encrypted service secrets; backups cannot be
+decrypted without it.
+
 `KARAKEEP_OPENAI_API_KEY` must be populated through SOPS to enable automatic AI
 tagging. Leave it empty to keep automatic AI tagging disabled.
+
+## Database Backup
+
+The `karakeep-db-backup` sidecar (`tiredofit/db-backup`) produces an
+application-consistent SQLite backup independently of the broader dataset
+coverage:
+
+| Property    | Value                                                                                                                                                                                                                                           |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cadence     | One-shot — runs whenever a full `dccd.sh`/`dccd-all` deployment starts it (`MODE=MANUAL`, `MANUAL_RUN_FOREVER=FALSE`, then exits); cadence follows the operator's deployment/cron schedule, documented as every 15 minutes with `-f` on TrueNAS |
+| Source      | `/karakeep-data/db.db` (`./data/karakeep/db.db` on the host, mounted read-only); the result is a binary database copy, not a plain-text SQL dump                                                                                                |
+| Consistency | SQLite Online Backup API while Karakeep remains online in WAL mode (`DB_WAL_MODE=true`)                                                                                                                                                         |
+| Compression | ZSTD                                                                                                                                                                                                                                            |
+| Checksum    | SHA1 sidecar file                                                                                                                                                                                                                               |
+| Encryption  | GPG, via `DB_ENC_PASSPHRASE`                                                                                                                                                                                                                    |
+| Retention   | 2880 minutes (48 hours)                                                                                                                                                                                                                         |
+| Output      | `services/karakeep/backups/db-backup/`                                                                                                                                                                                                          |
+
+The `*-db-backup` container name lets the default `dccd.sh -B` check discover
+the job. `dccd-all` verifies that `karakeep-db-backup` exited successfully and
+finished within the previous 48 hours; see
+[Backup Strategy § Application-Level Database Backups](../BACKUP.md#application-level-database-backups)
+for the full freshness-check mechanics.
+
+The database backup does not include `./data/karakeep/assets`. These saved
+assets are **critical mutable file state** and remain protected by the
+`vm-pool` ZFS snapshot, replication, and off-site layers. The
+`./data/meilisearch` directory is a regeneratable search index and is protected
+by the same storage layers, but it does not need application-level backup.
+
+### Synthetic Backup and Restore Validation
+
+On September 13, 2026, the production Karakeep image, backup image, and
+configuration passed an end-to-end synthetic test with Podman 5.8.6. This was
+not a production deployment or a test on the TrueNAS host.
+
+| Stage    | Evidence                                                                                                                                                                                                                                  |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source   | Karakeep 0.33.2 ran in WAL mode against the real `/data/db.db` schema; `karakeep-backup-sentinel` was inserted into a synthetic `synthetic_restore_probe` table                                                                           |
+| Backup   | The exact pinned `tiredofit/db-backup:4.1.100` image and production settings exited successfully and produced exactly one `sqlite3_db_*.sqlite3.zst.gpg` artifact, its `.sha1` sidecar, and the `latest-sqlite3_db` symlink               |
+| Artifact | SHA1 verification and GPG passphrase decryption passed; ZSTD decompression produced a binary file with the `SQLite format 3` header                                                                                                       |
+| Restore  | The database was restored into a disposable volume with the configured Karakeep service-account ownership, opened with Karakeep's own `better-sqlite3` runtime, and returned `ok` from `PRAGMA integrity_check`; the sentinel row matched |
+
+**Restore guidance:** see
+[Backup Strategy § Restore a Database Dump](../BACKUP.md#restore-a-database-dump)
+for the decrypt, decompress, WAL/SHM cleanup, ownership restore, integrity
+check, and restart procedure.
 
 ## First-Run Setup
 
@@ -147,18 +206,20 @@ tagging. Leave it empty to keep automatic AI tagging disabled.
    directory. The command is safe to rerun and refuses account identity
    collisions or mismatches. See
    [Infrastructure](../INFRASTRUCTURE.md#karakeep-dataset) for storage details.
-2. Generate independent random values for `KARAKEEP_NEXTAUTH_SECRET` and
-   `KARAKEEP_MEILI_MASTER_KEY`, then populate and encrypt
-   `services/karakeep/secret.sops.env` with SOPS.
+2. Generate independent random values for `KARAKEEP_NEXTAUTH_SECRET`,
+   `KARAKEEP_MEILI_MASTER_KEY`, and `DB_ENC_PASSPHRASE`, then populate and
+   encrypt `services/karakeep/secret.sops.env` with SOPS.
 3. Optionally populate `KARAKEEP_OPENAI_API_KEY` through SOPS to enable
    automatic AI tagging; otherwise leave it empty.
-4. Deploy the stack and confirm `karakeep-init` completes successfully,
-   Meilisearch, the web service, and the worker service become healthy, and the
-   web process completes its database migrations.
+4. Run `dccd-all`. It deploys the stack, starts the first one-shot database
+   backup after Karakeep becomes healthy, and runs the default backup freshness
+   check. Confirm `karakeep-init` completes successfully; Meilisearch, the web
+   service, and the worker service become healthy; the web process completes
+   its database migrations; and `karakeep-db-backup` exits successfully.
 5. Open `https://karakeep.${DOMAINNAME}` through Forward Auth and complete the
    Karakeep local account setup.
 
-## Upgrade and Backup Notes
+## Upgrade Notes
 
 - Renovate manages image updates. Review the
   [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
@@ -166,11 +227,10 @@ tagging. Leave it empty to keep automatic AI tagging disabled.
 - The web container applies database migrations before startup and uses a
   stop-first update order so the replacement does not serve traffic before
   migrations finish.
-- Snapshot the complete `vm-pool/apps/services/karakeep` dataset before an
-  upgrade so the SQLite database, assets, and Meilisearch index remain
-  coordinated.
-- For file-level backup of the SQLite data, stop or otherwise quiesce the web
-  and worker processes before copying `./data/karakeep`. Preserve the
-  SOPS-encrypted secrets with the backup.
-- The repository's ZFS snapshot, replication, and off-site strategy covers the
-  child dataset; see [Backup Strategy](../BACKUP.md).
+- Before a major upgrade, confirm a fresh `karakeep-db-backup` artifact exists
+  and snapshot the complete `vm-pool/apps/services/karakeep` dataset so the
+  SQLite database, saved assets, and Meilisearch index have a coordinated
+  rollback point.
+- Preserve the SOPS-encrypted secrets with the backup. The repository's ZFS
+  snapshot, replication, and off-site strategy covers the child dataset; see
+  [Backup Strategy](../BACKUP.md).

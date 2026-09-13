@@ -384,6 +384,11 @@ is not part of the active service or network set. Enabling it requires the
 explicit risk reassessment and configuration changes described in the
 [Karakeep service documentation](services/karakeep.md).
 
+The one-shot `karakeep-db-backup` sidecar is network-isolated. It starts with
+the tiredofit image's root backup identity, reads `db.db` from a read-only
+mount, writes encrypted backup artifacts, and does not use Karakeep's
+`3130:3130` service account.
+
 The web router applies `chain-auth@file`, and Karakeep retains its own local
 user authentication behind that middleware. No API or mobile-client Forward
 Auth bypass is configured.

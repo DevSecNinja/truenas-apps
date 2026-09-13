@@ -43,9 +43,12 @@ services:
         for value in \
           "$${DOMAINNAME:-}" \
           "$${KARAKEEP_NEXTAUTH_SECRET:-}" \
-          "$${KARAKEEP_MEILI_MASTER_KEY:-}"; do
-          if [ -z "$${value}" ] || [ "$${value}" = "CHANGE_ME" ]; then
-            echo "ERROR: Karakeep secrets contain an empty or CHANGE_ME value" >&2
+          "$${KARAKEEP_MEILI_MASTER_KEY:-}" \
+          "$${DB_ENC_PASSPHRASE:-}"; do
+          if [ -z "$${value}" ] ||
+            [ "$${value}" = "CHANGE_ME" ] ||
+            [ "$${value}" = "GENERATE" ]; then
+            echo "ERROR: Karakeep secrets contain an empty or unresolved sentinel value" >&2
             exit 1
           fi
         done
@@ -56,7 +59,7 @@ services:
       - ./data/meilisearch:/meilisearch
 
   karakeep:
-    image: ghcr.io/karakeep-app/karakeep:0.33.2
+    image: ghcr.io/karakeep-app/karakeep:0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
     container_name: karakeep
     depends_on:
       karakeep-init:
@@ -141,7 +144,7 @@ services:
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 
   karakeep-workers:
-    image: ghcr.io/karakeep-app/karakeep:0.33.2
+    image: ghcr.io/karakeep-app/karakeep:0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
     container_name: karakeep-workers
     depends_on:
       karakeep:
@@ -189,6 +192,48 @@ services:
       retries: 5
       start_period: 30s
 
+  # tiredofit/db-backup uses s6-overlay which must start as root.
+  # It handles backup output permissions internally. read_only and cap_drop
+  # are therefore omitted. The SQLite Online Backup API creates a consistent
+  # snapshot while Karakeep keeps its database in WAL mode.
+  karakeep-db-backup:
+    image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
+    container_name: karakeep-db-backup
+    depends_on:
+      karakeep:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      - USER_DBBACKUP=0
+      - GROUP_DBBACKUP=0
+      - CONTAINER_NAME=karakeep-db-backup
+      - CONTAINER_ENABLE_MONITORING=FALSE
+      - CONTAINER_ENABLE_SCHEDULING=FALSE
+      - MODE=MANUAL
+      - MANUAL_RUN_FOREVER=FALSE
+      - ENABLE_NOTIFICATIONS=FALSE
+      - DEFAULT_CHECKSUM=SHA1
+      - DEFAULT_COMPRESSION=ZSTD
+      - DEFAULT_CLEANUP_TIME=2880
+      - DEFAULT_ENCRYPT=TRUE
+      - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      - DB01_TYPE=sqlite3
+      - DB01_HOST=/karakeep-data/db.db
+    restart: "no"
+    network_mode: none
+    mem_limit: ${BACKUP_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    volumes:
+      - ./data/karakeep:/karakeep-data:ro
+      - ./backups/db-backup:/backup
+
   # Headless browser crawling is disabled by default because Chrome processes
   # attacker-controlled pages and the upstream image uses --no-sandbox. To opt
   # in, uncomment this service, add BROWSER_WEB_URL to the shared environment,
@@ -235,7 +280,7 @@ services:
   #     start_period: 15s
 
   karakeep-meilisearch:
-    image: docker.io/getmeili/meilisearch:v1.41.0
+    image: docker.io/getmeili/meilisearch:v1.41.0@sha256:860fa4baed04ae1c235de870edab0c8006227546dea1bbb6411fbfc5e27cf1db
     container_name: karakeep-meilisearch
     depends_on:
       karakeep-init:

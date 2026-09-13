@@ -682,6 +682,7 @@ is not uniform across every path.
 | Gatus          | PostgreSQL | `gatus-db-backup`          | tiredofit v4    | GPG        | `services/gatus/backups/db-backup/`          |
 | Home Assistant | SQLite     | `home-assistant-db-backup` | tiredofit v4    | GPG        | `services/home-assistant/backups/db-backup/` |
 | Immich         | PostgreSQL | `immich-db-backup`         | tiredofit v4    | GPG        | `services/immich/backups/db-backup/`         |
+| Karakeep       | SQLite     | `karakeep-db-backup`       | tiredofit v4    | GPG        | `services/karakeep/backups/db-backup/`       |
 | Memos          | SQLite     | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
 | Outline        | PostgreSQL | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
 | Unifi          | MongoDB    | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
@@ -727,8 +728,16 @@ sidecar maps its internal identity with `USER_DBBACKUP=3128` and
 `GROUP_DBBACKUP=3128`. `ENABLE_NOTIFICATIONS=FALSE` keeps it backend-only;
 Dawarich's remaining `NOTIFICATIONS_EMAIL_*` variables are application-only.
 
-The tiredofit v4 sidecars produce GPG-encrypted backups and continue to send
-success/failure email notifications.
+The tiredofit v4 sidecars produce GPG-encrypted backups. Notification behavior
+is configured per app; Karakeep and Memos disable sidecar notifications and
+rely on the `dccd.sh -B` freshness check.
+
+Karakeep's production image and configuration separately passed a synthetic
+Podman 5.8.6 end-to-end test with the exact pinned
+`tiredofit/db-backup:4.1.100` image: the checksum, decryption, decompression,
+SQLite header, `better-sqlite3` integrity check, and sentinel-row restore all
+passed after applying the configured ownership. This was not a production
+deployment or a test on the TrueNAS host.
 
 <!-- dprint-ignore -->
 !!! note "Why Dawarich remains on the v4 workflow"
@@ -795,8 +804,8 @@ success/failure email notifications.
      --archive=/tmp/restore.archive
    ```
 
-   **SQLite** (Home Assistant, Memos) — binary copy via the SQLite Online
-   Backup API. The `.sqlite3`/`.db` file is a complete database, not a
+   **SQLite** (Home Assistant, Karakeep, Memos) — binary copy via the SQLite
+   Online Backup API. The `.sqlite3`/`.db` file is a complete database, not a
    `.dump`, so it can replace the live DB while the application is stopped:
 
    ```sh
@@ -813,6 +822,47 @@ success/failure email notifications.
      "PRAGMA integrity_check;"
    docker compose -f services/home-assistant/compose.yaml up -d
    ```
+
+   Karakeep runs SQLite in WAL mode. Stop the stack and remove the stale
+   `db.db-wal` and `db.db-shm` files before installing the restored database;
+   those sidecars belong to the previous `db.db`. Restore ownership to
+   `3130:3130` and the init container's restrictive modes across the Karakeep
+   data directory so the non-root processes can write the database and create
+   new WAL/SHM files. The normal `truenas_admin` operator requires elevated
+   privileges for the file operations and integrity check because Karakeep has
+   `admin_group_member=false`, and the restored tree becomes accessible only to
+   `svc-app-karakeep`.
+
+   ```sh
+   # Stop Karakeep so nothing holds the database or WAL open.
+   docker compose -f services/karakeep/compose.yaml down
+
+   # Preserve the current database and remove sidecars from that old database.
+   sudo mv services/karakeep/data/karakeep/db.db{,.bak}
+   sudo rm -f services/karakeep/data/karakeep/db.db-wal \
+     services/karakeep/data/karakeep/db.db-shm
+
+   # Install the decrypted, decompressed database backup.
+   sudo cp /path/to/restored-karakeep-db.db \
+     services/karakeep/data/karakeep/db.db
+
+   # Verify the restored database.
+   sudo sqlite3 services/karakeep/data/karakeep/db.db \
+     "PRAGMA integrity_check;"
+
+   # Match karakeep-init before restart. Directory write access is required
+   # for SQLite to create new WAL/SHM files.
+   sudo chown -R 3130:3130 services/karakeep/data/karakeep
+   sudo chmod -R u=rwX,g=,o= services/karakeep/data/karakeep
+
+   # Restart Karakeep after integrity_check returns "ok".
+   docker compose -f services/karakeep/compose.yaml up -d
+   ```
+
+   This restores only the SQLite database. Restore
+   `services/karakeep/data/karakeep/assets` separately from the corresponding
+   storage-layer recovery point when asset files also need recovery. The
+   Meilisearch index is regeneratable.
 
    Memos follows the same pattern but runs SQLite in WAL mode, so the live
    directory may still contain `memos_prod.db-wal`/`memos_prod.db-shm`
@@ -915,6 +965,8 @@ backs up the named database engine, not arbitrary files on the volume).
 | Home Assistant | `./data/config` (excluding `home-assistant_v2.db`)   | **Critical mutable file state** (`.storage/` entity registry & integration configs, `configuration.yaml`, `secrets.yaml`, custom components) | vm-pool 3-layer               | **Not** included in `home-assistant-db-backup`'s dump — that sidecar only backs up the SQLite recorder database, not the rest of `/config`.                                               |
 | Immich         | `/mnt/archive-pool/private/photos/immich` (`upload`) | External/private media data (the actual photo/video library)                                                                                 | **archive-pool (private)**    | Different coverage than `immich-db-backup` or vm-pool: no hourly snapshots, no cross-pool replication (already on the redundant pool), off-site via Task B, not Task A.                   |
 | Immich         | `./data/model-cache`                                 | Regeneratable cache (ML models)                                                                                                              | vm-pool 3-layer               | Re-downloaded from Hugging Face / ModelScope on demand.                                                                                                                                   |
+| Karakeep       | `./data/karakeep/assets`                             | **Critical mutable file state** (saved assets)                                                                                               | vm-pool 3-layer               | **Not** included in `karakeep-db-backup`; restore it from the snapshot, replication, or off-site layer that matches the required recovery point.                                          |
+| Karakeep       | `./data/meilisearch`                                 | Regeneratable cache (full-text search index)                                                                                                 | vm-pool 3-layer               | **Not** included in `karakeep-db-backup`; the search index can be regenerated.                                                                                                            |
 | Memos          | — (none beyond the covered database)                 | N/A                                                                                                                                          | N/A                           | Memos 0.30 defaults attachment storage to SQLite blobs, so `memos-db-backup` already covers attachments — see the [Memos README](services/memos.md#database-backup).                      |
 | Outline        | `./data/data` (`FILE_STORAGE=local`)                 | **Critical mutable file state** (uploaded document attachments/images)                                                                       | vm-pool 3-layer               | **Not** included in `outline-db-backup`'s PostgreSQL dump — attachments are stored as local files, referenced by URL from the database, not as DB blobs.                                  |
 | Unifi          | `./data/config`                                      | **Critical mutable file state** (controller runtime config, SSH host keys, cert store)                                                       | vm-pool 3-layer               | **Not** included in `unifi-db-backup`'s MongoDB dump.                                                                                                                                     |
@@ -1086,7 +1138,7 @@ All times are local to the TrueNAS host.
 | 05:00 daily                                            | archive-pool/private → Azure `archive-private`      | Cloud Sync (encrypted)   |
 | 06:00 daily                                            | archive-pool/content/media → Azure `archive-media`  | Cloud Sync (encrypted)   |
 | 07:00 daily                                            | archive-pool (catch-all) → Azure `archive-pool`     | Cloud Sync (encrypted)   |
-| Every 15 minutes with the documented `dccd.sh -f` cron | Database dumps (all 8 covered DBs)                  | Database backup sidecars |
+| Every 15 minutes with the documented `dccd.sh -f` cron | Database dumps (all 9 covered DBs)                  | Database backup sidecars |
 | 04:00 weekly (Sat)                                     | Automated tiredofit v4 restore cycle (all DB types) | GitHub Actions           |
 
 Tasks are staggered to avoid overlapping I/O on the NAS. The weekly CI pipeline

@@ -194,6 +194,8 @@ container use this identity.
 The `svc-app-karakeep` account has matching UID and primary GID `3130` and no
 shared-purpose group memberships. The web, worker, and Meilisearch processes
 use this identity; `karakeep-init` assigns their runtime paths to it. The
+`karakeep-db-backup` sidecar is intentionally excluded because it uses the
+tiredofit image's root backup identity internally. The
 commented `karakeep-chrome` opt-in service is not active and is not included in
 this account allocation.
 
@@ -432,10 +434,11 @@ maintained nfrastack image and repository.
 `vm-pool/apps/services/karakeep` is the child dataset containing the
 Compose definition and encrypted secrets alongside Karakeep's persistent data:
 
-| Path                 | Purpose                            |
-| -------------------- | ---------------------------------- |
-| `./data/karakeep`    | SQLite database and saved assets   |
-| `./data/meilisearch` | Meilisearch full-text search index |
+| Path                  | Purpose                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `./backups/db-backup` | ZSTD-compressed, GPG-encrypted SQLite backups with SHA1 sidecars |
+| `./data/karakeep`     | SQLite database and saved assets                                 |
+| `./data/meilisearch`  | Regeneratable Meilisearch full-text search index                 |
 
 Before the first deployment:
 
@@ -457,8 +460,11 @@ Before the first deployment:
 
 On every deployment, `karakeep-init` assigns `./data/karakeep` and
 `./data/meilisearch` to `3130:3130` and restricts them to the service account.
-ZFS snapshots and replication of the child dataset protect the SQLite database,
-saved assets, and search index together.
+The one-shot `karakeep-db-backup` sidecar reads `./data/karakeep/db.db`
+read-only and manages `./backups/db-backup` with its root backup identity; it
+does not use the Karakeep service account. ZFS snapshots, replication, and
+off-site sync protect the full child dataset, including saved assets and the
+regeneratable search index that are outside the SQLite backup.
 
 ## Media Access
 
