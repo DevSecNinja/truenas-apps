@@ -222,11 +222,11 @@ a placeholder database password from initializing PostGIS; the application and
 worker start only after their backends are healthy.
 
 `karakeep-init` uses `docker.io/library/busybox:1.38.0` to validate the required
-domain, NextAuth secret, and Meilisearch master key before assigning
-`./data/karakeep`, `./data/meilisearch`, and the newly created
-`./backups/db-backup` child to `3130:3130`. It mounts `./backups` at `/backups`
-so it can prepare the child without changing the parent mount root. It never
-changes ownership under `./config`.
+domain, NextAuth secret, Meilisearch master key, mobile proxy token, and backup
+passphrase before assigning `./data/karakeep`, `./data/meilisearch`, and the
+newly created `./backups/db-backup` child to `3130:3130`. It mounts
+`./backups` at `/backups` so it can prepare the child without changing the
+parent mount root. It never changes ownership under `./config`.
 
 ---
 
@@ -408,9 +408,80 @@ proved `DAC_OVERRIDE` necessary for s6 to create root-owned runtime paths
 before dropping privileges. The remaining capabilities are the documented s6
 path-preparation and privilege-drop set.
 
-The web router applies `chain-auth@file`, and Karakeep retains its own local
-user authentication behind that middleware. No API or mobile-client Forward
-Auth bypass is configured.
+The standard `karakeep-rtr` web router applies `chain-auth@file`, and Karakeep
+retains its own local user authentication behind that middleware. All
+unspecified web and API requests use this router.
+
+The higher-priority `karakeep-mobile-rtr` permits the official mobile app to
+bypass interactive Forward Auth only when the request supplies
+`X-Karakeep-Proxy-Token: ${KARAKEEP_MOBILE_PROXY_TOKEN}` and its method and
+path are in this exact envelope:
+
+| Method | Path                                                 |
+| ------ | ---------------------------------------------------- |
+| `GET`  | `/api/health`                                        |
+| `GET`  | `/api/version`                                       |
+| `GET`  | `/api/assets/{single-path-segment}`                  |
+| `POST` | `/api/assets`                                        |
+| `GET`  | `/api/trpc/{allowlisted-query-or-query-batch}`       |
+| `POST` | `/api/trpc/{allowlisted-mutation-or-mutation-batch}` |
+
+The GET tRPC allowlist contains `config.clientConfig`;
+`bookmarks.getBookmarks`, `bookmarks.getBookmark`,
+`bookmarks.searchBookmarks`, `bookmarks.getReadingProgress`; `lists.list`,
+`lists.stats`, `lists.get`, `lists.getListsOfBookmark`; `tags.list`,
+`tags.get`; `highlights.getAll`, `highlights.getForBookmark`; and
+`users.whoami`, `users.settings`, `users.stats`.
+
+The POST tRPC allowlist contains `apiKeys.exchange`, `apiKeys.validate`,
+`apiKeys.revoke`; `bookmarks.createBookmark`, `bookmarks.updateBookmark`,
+`bookmarks.deleteBookmark`, `bookmarks.updateTags`,
+`bookmarks.summarizeBookmark`, `bookmarks.updateReadingProgress`;
+`lists.create`, `lists.edit`, `lists.delete`, `lists.addToList`,
+`lists.removeFromList`, `lists.leaveList`; `tags.create`, `tags.update`,
+`tags.delete`; `highlights.create`, `highlights.update`,
+`highlights.delete`; and `users.updateSettings`, `users.deleteAccount`. Each
+tRPC request may name one allowlisted procedure or a comma-separated batch made
+entirely from the corresponding method's list.
+
+After a match, the router applies `chain-no-auth@file` and
+`karakeep-mobile-strip`; the latter removes `X-Karakeep-Proxy-Token` before
+the request reaches Karakeep. A missing or incorrect token, a different
+method, or any unlisted path falls through to `karakeep-rtr` and SSO.
+
+Karakeep's discovery/version/config and `apiKeys.exchange` and
+`apiKeys.validate` procedures are public upstream, but the mobile router
+token-gates them at Traefik. Assets and other user-data routes still require a
+Karakeep API key or session and the applicable scope checks. No dedicated
+mobile sync or push endpoints exist. `/signup` also remains on the standard
+router because the native app opens it in a browser without custom headers.
+
+```mermaid
+flowchart LR
+    Request --> Match{Correct token, method, and allowlisted path?}
+    Match -->|No| SSO[chain-auth]
+    SSO --> Standard[Web UI or unspecified API]
+    Match -->|Yes| Bypass[chain-no-auth]
+    Bypass --> Strip[Strip proxy token]
+    Strip --> App{Karakeep route auth}
+    App -->|Public upstream| Discovery[Discovery or API-key exchange]
+    App -->|Protected| Data[API key/session and scope checks]
+```
+
+The mobile app accepts arbitrary custom header name/value pairs in its Server
+Address form and applies them to tRPC, health/version, upload, and
+Karakeep-local asset requests. Settings are stored in Expo SecureStore, but
+their values are visible in the configuration UI. Configure the server as
+`https://karakeep.${DOMAINNAME}` with header name
+`X-Karakeep-Proxy-Token` and the decrypted
+`KARAKEEP_MOBILE_PROXY_TOKEN` value.
+
+Rotate the token by updating the encrypted variable through the approved
+[SOPS workflow](CONTRIBUTING.md#generating-random-sops-secrets), deploying,
+and then replacing the value on every device. The old token stops working
+immediately when the deployment takes effect. The
+[Karakeep service documentation](services/karakeep.md) provides the operator
+procedure and upstream source references pinned to the audited mobile commit.
 
 ### Dawarich Split Authentication Routers
 
