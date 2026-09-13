@@ -255,7 +255,7 @@ function New-SopsEncryptedEnvFile {
             Write-Information "[1Password $totalOnePasswordSteps/$totalOnePasswordSteps] Retrieving the Age identity for final in-memory validation." -InformationAction Continue
         }
 
-        $required = @{}
+        $required = [Collections.Generic.Dictionary[string, bool]]::new([StringComparer]::Ordinal)
         foreach ($name in $RequiredVariables) {
             $required[$name] = $false
         }
@@ -281,7 +281,7 @@ function New-SopsEncryptedEnvFile {
         }
         $missing = @($required.GetEnumerator() | Where-Object { -not $_.Value })
         if ($missing.Count -gt 0) {
-            throw "Required variables are missing: $($missing.Name -join ', ')"
+            throw "Required variables are missing: $($missing.Key -join ', ')"
         }
 
         Write-Information "Encrypted SOPS dotenv file created and validated: $resolvedTarget" -InformationAction Continue
@@ -435,11 +435,11 @@ function Add-SopsGeneratedEnvSecret {
             $env:SOPS_AGE_KEY_FILE = (Resolve-Path -LiteralPath $AgeKeyFile).Path
         }
 
-        $states = @{}
+        $states = [Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
         foreach ($name in $GeneratedSecrets.Keys) {
             $states[[string] $name] = 'missing'
         }
-        $required = @{}
+        $required = [Collections.Generic.Dictionary[string, bool]]::new([StringComparer]::Ordinal)
         foreach ($name in $RequiredVariables) {
             $required[$name] = $false
         }
@@ -482,7 +482,7 @@ function Add-SopsGeneratedEnvSecret {
         if ($pending.Count -eq 0) {
             $missing = @($required.GetEnumerator() | Where-Object { -not $_.Value })
             if ($missing.Count -gt 0) {
-                throw "Required variables are missing: $($missing.Name -join ', ')"
+                throw "Required variables are missing: $($missing.Key -join ', ')"
             }
             Write-Information "No generated secrets need updating in: $resolvedTarget" -InformationAction Continue
             return
@@ -562,7 +562,7 @@ function Add-SopsGeneratedEnvSecret {
 
         $missing = @($required.GetEnumerator() | Where-Object { -not $_.Value })
         if ($missing.Count -gt 0) {
-            throw "Required variables are missing: $($missing.Name -join ', ')"
+            throw "Required variables are missing: $($missing.Key -join ', ')"
         }
 
         [IO.File]::Move($temporaryTarget, $resolvedTarget, $true)

@@ -175,7 +175,12 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Exceptions — images that manage their own permissions:**
 
-- **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and chown their own directories during their own init phase. They do not need an external init container.
+- **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and
+  chown their own directories during their own init phase, so they generally
+  do not need a dedicated external init container. Karakeep is an exception:
+  its existing app init container pre-owns the `./backups/db-backup` child
+  because the backup image resets the read-write parent mount root to root
+  ownership.
 - **nfrastack/db-backup** manages backup output ownership through its `USER_DBBACKUP` and `GROUP_DBBACKUP` settings. It does not need an external init container.
 - **Database images** (postgres, MongoDB) initialise their own data directories. They do not need an external init container.
 
@@ -194,7 +199,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                  |
 | homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                        |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                |
-| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                                                               |
+| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; creates and chowns `./backups/db-backup`, then chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                |
 | matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                          |
 | memos                | `memos-init`                | `./data` → PUID/PGID `3129:3129`                                                                                                                                                  |
 | metube               | `metube-init`               | `./data/state`                                                                                                                                                                    |
@@ -218,8 +223,10 @@ worker start only after their backends are healthy.
 
 `karakeep-init` uses `docker.io/library/busybox:1.38.0` to validate the required
 domain, NextAuth secret, and Meilisearch master key before assigning
-`./data/karakeep` and `./data/meilisearch` to `3130:3130`. It never changes
-ownership under `./config`.
+`./data/karakeep`, `./data/meilisearch`, and the newly created
+`./backups/db-backup` child to `3130:3130`. It mounts `./backups` at `/backups`
+so it can prepare the child without changing the parent mount root. It never
+changes ownership under `./config`.
 
 ---
 
@@ -249,8 +256,11 @@ image normally starts its web and worker processes as root under s6-overlay.
 This deployment sets `USING_LEGACY_SEPARATE_CONTAINERS=true` and launches the
 split web and worker processes directly as `3130:3130`; the web command applies
 database migrations before serving traffic. Meilisearch also runs as
-`3130:3130`. Active runtime containers use read-only root filesystems, drop all
-capabilities, and enforce resource limits.
+`3130:3130`. The web, worker, and Meilisearch containers use read-only root
+filesystems, drop all capabilities, and enforce resource limits. The
+root-start s6 backup sidecar omits a read-only root filesystem and uses the
+restricted capability set documented in
+[Karakeep Network and Access Model](#karakeep-network-and-access-model).
 
 Headless browser crawling is disabled with `CRAWLER_HEADLESS_BROWSER=false`.
 The complete `karakeep-chrome` service is commented out and does not join the
@@ -385,9 +395,18 @@ explicit risk reassessment and configuration changes described in the
 [Karakeep service documentation](services/karakeep.md).
 
 The one-shot `karakeep-db-backup` sidecar is network-isolated. It starts with
-the tiredofit image's root backup identity, reads `db.db` from a read-only
-mount, writes encrypted backup artifacts, and does not use Karakeep's
-`3130:3130` service account.
+the tiredofit image's s6 supervisor as root, then maps
+`USER_DBBACKUP=3130` and `GROUP_DBBACKUP=3130` to drop the backup process to
+Karakeep's app-owned identity. It reads `db.db` from a read-only mount. The
+sidecar mounts `./backups` at `/backup-data` and writes to the pre-owned
+`/backup-data/db-backup` child because the image resets read-write mount roots
+to root ownership; host output remains `./backups/db-backup`.
+
+The sidecar drops all capabilities and adds only `CHOWN`, `DAC_OVERRIDE`,
+`FOWNER`, `SETGID`, `SETUID`, and `SETPCAP`. Reduced-capability runtime testing
+proved `DAC_OVERRIDE` necessary for s6 to create root-owned runtime paths
+before dropping privileges. The remaining capabilities are the documented s6
+path-preparation and privilege-drop set.
 
 The web router applies `chain-auth@file`, and Karakeep retains its own local
 user authentication behind that middleware. No API or mobile-client Forward

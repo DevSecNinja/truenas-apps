@@ -37,7 +37,7 @@ its own local account authentication as a second layer.
   `docker.io/getmeili/meilisearch:v1.41.0`, and
   `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
-  worker, and Meilisearch processes
+  worker, Meilisearch, and database backup processes
 - **Reverse proxy**: Traefik with `chain-auth@file`
 - **Process model**: split web and worker processes with
   `USING_LEGACY_SEPARATE_CONTAINERS=true`
@@ -92,15 +92,22 @@ To opt in later:
 
 ### Security Model
 
-- `karakeep-init` chowns both runtime directories to `3130:3130`, then exits
-  before the runtime services start.
+- `karakeep-init` creates `./backups/db-backup`, then chowns it and both data
+  directories to `3130:3130` before the runtime services start. It reaches the
+  backup child through the `./backups:/backups` parent mount.
 - The web, worker, and Meilisearch containers run as `3130:3130`.
-- `karakeep-db-backup` uses its root backup identity (`USER_DBBACKUP=0` and
-  `GROUP_DBBACKUP=0`) rather than the Karakeep service account. It has no
-  network and accesses Karakeep data only through a read-only mount.
-- Runtime containers use read-only root filesystems,
+- `karakeep-db-backup` starts s6 as root, then uses `USER_DBBACKUP=3130` and
+  `GROUP_DBBACKUP=3130` to drop the backup process to the app-owned identity.
+  It has no network and accesses Karakeep data only through a read-only mount.
+- The backup sidecar drops all capabilities and adds only `CHOWN`,
+  `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`, and `SETPCAP`.
+  `DAC_OVERRIDE` is runtime-proven necessary for s6 to create root-owned
+  runtime paths before dropping privileges; the others are the documented s6
+  path-preparation and privilege-drop set.
+- The web, worker, and Meilisearch containers use read-only root filesystems,
   `no-new-privileges=true`, dropped capabilities, PID limits, and memory
-  limits.
+  limits. The backup sidecar omits the read-only root filesystem required by
+  s6 but retains the other controls.
 - Only the web container is routed through Traefik. Meilisearch remains on the
   internal backend network.
 
@@ -108,12 +115,13 @@ To opt in later:
 
 ### Volumes
 
-| Host path             | Container path           | Used by         | Purpose                                    |
-| --------------------- | ------------------------ | --------------- | ------------------------------------------ |
-| `./data/karakeep`     | `/data`                  | Web, workers    | SQLite database and saved assets           |
-| `./data/karakeep`     | `/karakeep-data` (`:ro`) | Database backup | Read-only source containing `db.db`        |
-| `./data/meilisearch`  | `/meili_data`            | Meilisearch     | Regeneratable full-text search index       |
-| `./backups/db-backup` | `/backup`                | Database backup | Encrypted, compressed SQLite backup output |
+| Host path            | Container path           | Used by         | Purpose                                                        |
+| -------------------- | ------------------------ | --------------- | -------------------------------------------------------------- |
+| `./backups`          | `/backups`               | Init            | Creates and assigns ownership of the `db-backup` child         |
+| `./backups`          | `/backup-data`           | Database backup | Parent mount; output is written below `/backup-data/db-backup` |
+| `./data/karakeep`    | `/data`                  | Web, workers    | SQLite database and saved assets                               |
+| `./data/karakeep`    | `/karakeep-data` (`:ro`) | Database backup | Read-only source containing `db.db`                            |
+| `./data/meilisearch` | `/meili_data`            | Meilisearch     | Regeneratable full-text search index                           |
 
 ### Networks
 
@@ -135,9 +143,9 @@ and decrypted to `.env` during deployment. Do not commit plaintext values.
 | `KARAKEEP_MEILI_MASTER_KEY` | Required secret | Random Meilisearch master key                                  |
 | `KARAKEEP_OPENAI_API_KEY`   | Optional secret | User-supplied OpenAI API key for automatic AI tagging          |
 
-`DB_ENC_PASSPHRASE` is an independent, random, app-owned secret. Generate it
-once and preserve it with the SOPS-encrypted service secrets; backups cannot be
-decrypted without it.
+The encrypted service secrets are already committed. Do not regenerate or
+replace them during rollout. Preserve `DB_ENC_PASSPHRASE` with the
+SOPS-encrypted service secrets because backups cannot be decrypted without it.
 
 `KARAKEEP_OPENAI_API_KEY` must be populated through SOPS to enable automatic AI
 tagging. Leave it empty to keep automatic AI tagging disabled.
@@ -159,6 +167,12 @@ coverage:
 | Retention   | 2880 minutes (48 hours)                                                                                                                                                                                                                         |
 | Output      | `services/karakeep/backups/db-backup/`                                                                                                                                                                                                          |
 
+The sidecar mounts the parent `./backups` directory at `/backup-data` and sets
+`DEFAULT_FILESYSTEM_PATH=/backup-data/db-backup`. The image resets read-write
+mount roots to root ownership during startup, while the pre-owned child keeps
+the `3130:3130` ownership assigned by `karakeep-init`. Host output therefore
+remains exactly `./backups/db-backup`.
+
 The `*-db-backup` container name lets the default `dccd.sh -B` check discover
 the job. `dccd-all` verifies that `karakeep-db-backup` exited successfully and
 finished within the previous 48 hours; see
@@ -173,16 +187,17 @@ by the same storage layers, but it does not need application-level backup.
 
 ### Synthetic Backup and Restore Validation
 
-On September 13, 2026, the production Karakeep image, backup image, and
-configuration passed an end-to-end synthetic test with Podman 5.8.6. This was
-not a production deployment or a test on the TrueNAS host.
+On September 13, 2026, the production Karakeep image, backup image, reduced
+capability set, and `3130:3130` backup identity passed an end-to-end synthetic
+test with Podman 5.8.6 while the source database remained live in WAL mode.
+This was not a production deployment or a test on the TrueNAS host.
 
-| Stage    | Evidence                                                                                                                                                                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source   | Karakeep 0.33.2 ran in WAL mode against the real `/data/db.db` schema; `karakeep-backup-sentinel` was inserted into a synthetic `synthetic_restore_probe` table                                                                           |
-| Backup   | The exact pinned `tiredofit/db-backup:4.1.100` image and production settings exited successfully and produced exactly one `sqlite3_db_*.sqlite3.zst.gpg` artifact, its `.sha1` sidecar, and the `latest-sqlite3_db` symlink               |
-| Artifact | SHA1 verification and GPG passphrase decryption passed; ZSTD decompression produced a binary file with the `SQLite format 3` header                                                                                                       |
-| Restore  | The database was restored into a disposable volume with the configured Karakeep service-account ownership, opened with Karakeep's own `better-sqlite3` runtime, and returned `ok` from `PRAGMA integrity_check`; the sentinel row matched |
+| Stage    | Evidence                                                                                                                                                                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source   | Karakeep 0.33.2 ran in WAL mode against the real `/data/db.db` schema; `karakeep-backup-sentinel` was inserted into a synthetic `synthetic_restore_probe` table                                                                                                                                   |
+| Backup   | The exact pinned `tiredofit/db-backup:4.1.100` image started s6 as root with the reduced capability set, dropped the backup process to `3130:3130`, and produced exactly one encrypted GPG+ZSTD `sqlite3_db_*.sqlite3.zst.gpg` artifact, its `.sha1` sidecar, and the `latest-sqlite3_db` symlink |
+| Artifact | SHA1 verification and GPG passphrase decryption passed; ZSTD decompression produced a binary file with the `SQLite format 3` header                                                                                                                                                               |
+| Restore  | The database was restored into a disposable volume with the configured Karakeep service-account ownership, opened with Karakeep's own `better-sqlite3` runtime, and returned `ok` from `PRAGMA integrity_check`; the sentinel row matched                                                         |
 
 **Restore guidance:** see
 [Backup Strategy § Restore a Database Dump](../BACKUP.md#restore-a-database-dump)
@@ -191,33 +206,72 @@ check, and restart procedure.
 
 ## First-Run Setup
 
-1. From the repository root on TrueNAS, provision the Karakeep host
+The aliases from `/mnt/vm-pool/apps/scripts/aliases.sh` must already be sourced
+in the current TrueNAS shell. The encrypted service secrets are committed and
+must not be regenerated by the operator.
+
+1. Pull the repository changes and decrypt the committed SOPS secrets with the
+   app-scoped alias:
+
+   ```sh
+   dccd-app karakeep
+   ```
+
+   On this first pass, dccd is expected to report that the `karakeep` TrueNAS
+   Custom App configuration directory is missing and skip deployment. The pull
+   and secret decryption still complete.
+
+   **Do not start with `dccd-all`.** Traefik references the
+   `karakeep-frontend` network before it exists; the Karakeep Custom App must
+   create that network first.
+2. From the updated TrueNAS checkout, provision the Karakeep host
    prerequisites:
 
    ```sh
+   cd /mnt/vm-pool/apps
    sudo bash scripts/truenas-prep-app.sh karakeep
    ```
 
-   The helper creates or verifies the `svc-app-karakeep` group with GID 3130,
-   the `svc-app-karakeep` user with UID 3130 and that primary group, and the
-   `vm-pool/apps/services/karakeep` child dataset. It does not add
-   `truenas_admin` to the service group (`ADMIN_GROUP_MEMBER=false`). When
-   creating the child dataset, it stages and restores the existing service
-   directory. The command is safe to rerun and refuses account identity
-   collisions or mismatches. See
+   The idempotent helper creates or verifies the `truenas-apps.json`-declared
+   `svc-app-karakeep` group and user with the configured matching IDs and
+   primary group. It does not add `truenas_admin` as an auxiliary group member.
+   It creates the `vm-pool/apps/services/karakeep` child dataset, staging and
+   restoring the existing service directory when needed, then sets the app
+   directory ownership and mode. It refuses account identity collisions or
+   mismatches. See
    [Infrastructure](../INFRASTRUCTURE.md#karakeep-dataset) for storage details.
-2. Generate independent random values for `KARAKEEP_NEXTAUTH_SECRET`,
-   `KARAKEEP_MEILI_MASTER_KEY`, and `DB_ENC_PASSPHRASE`, then populate and
-   encrypt `services/karakeep/secret.sops.env` with SOPS.
-3. Optionally populate `KARAKEEP_OPENAI_API_KEY` through SOPS to enable
-   automatic AI tagging; otherwise leave it empty.
-4. Run `dccd-all`. It deploys the stack, starts the first one-shot database
-   backup after Karakeep becomes healthy, and runs the default backup freshness
-   check. Confirm `karakeep-init` completes successfully; Meilisearch, the web
-   service, and the worker service become healthy; the web process completes
-   its database migrations; and `karakeep-db-backup` exits successfully.
-5. Open `https://karakeep.${DOMAINNAME}` through Forward Auth and complete the
-   Karakeep local account setup.
+3. In the TrueNAS UI, create a Custom App named `karakeep` with this standalone
+   YAML:
+
+   ```yaml
+   include:
+     - /mnt/vm-pool/apps/services/karakeep/compose.yaml
+   services: {}
+   ```
+
+4. Run the canonical full deployment:
+
+   ```sh
+   dccd-all
+   ```
+
+   This decrypts the committed secrets, deploys Karakeep and its dependent
+   integrations, runs the first one-shot database backup after Karakeep becomes
+   healthy, and performs the default backup freshness check. Confirm that
+   `karakeep-init` completes successfully and the Meilisearch, web, and worker
+   services become healthy.
+5. Complete the application setup and validation:
+
+   - Open `https://karakeep.${DOMAINNAME}` through Forward Auth and create the
+     first local Karakeep account.
+   - Configure the registration and access policy.
+   - Save a test link and a test note, then verify that full-text search returns
+     them.
+   - Verify that `karakeep-db-backup` exited successfully and that
+     `services/karakeep/backups/db-backup/` contains a fresh backup artifact.
+
+   AI tagging remains disabled until `KARAKEEP_OPENAI_API_KEY` is configured.
+   Browser crawling and screenshots remain disabled.
 
 ## Upgrade Notes
 

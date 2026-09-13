@@ -13,6 +13,8 @@ $target = Join-Path $testRoot 'secret.sops.env'
 $changeMeTarget = Join-Path $testRoot 'change-me.sops.env'
 $mutationFailureTarget = Join-Path $testRoot 'mutation-failure.sops.env'
 $validationFailureTarget = Join-Path $testRoot 'validation-failure.sops.env'
+$caseSensitiveTarget = Join-Path $testRoot 'case-sensitive.sops.env'
+$newCaseFailureTarget = Join-Path $testRoot 'new-case-failure.sops.env'
 $failedTarget = Join-Path $testRoot 'failed.sops.env'
 $mockSopsPath = Join-Path $testRoot 'mock-sops.ps1'
 $mutationMockSopsPath = Join-Path $testRoot $(if ($IsWindows) { 'mutation-mock-sops.cmd' } else { 'mutation-mock-sops.sh' })
@@ -101,6 +103,32 @@ try {
         throw 'The existing target changed during the overwrite check'
     }
 
+    $newCaseFailureObserved = $false
+    try {
+        New-SopsEncryptedEnvFile `
+            -TargetPath $newCaseFailureTarget `
+            -AgeKeyFile $keyFile `
+            -SopsPath $sopsPath `
+            -SopsConfigPath $configFile `
+            -FilenameOverride 'secret.sops.env' `
+            -TemplateValues ([ordered] @{
+                EXACT_NAME = 'present'
+            }) `
+            -RequiredVariables @('exact_name')
+    }
+    catch {
+        if ($_.Exception.Message -notmatch '^Required variables are missing:') {
+            throw
+        }
+        $newCaseFailureObserved = $true
+    }
+    if (-not $newCaseFailureObserved) {
+        throw 'New file validation treated dotenv variable names case-insensitively'
+    }
+    if (Test-Path -LiteralPath $newCaseFailureTarget) {
+        throw 'Failed case-sensitive creation left ciphertext behind'
+    }
+
     $env:SOPS_AGE_KEY_FILE = $keyFile
     $env:SOPS_AGE_KEY = $null
     $env:SOPS_AGE_KEY_CMD = $null
@@ -130,6 +158,34 @@ try {
     }
     if ($decrypted -match 'GENERATE|CHANGE_ME') {
         throw 'An unresolved sentinel remains'
+    }
+
+    Copy-Item -LiteralPath $target -Destination $caseSensitiveTarget
+    '"uppercase-value"' | & $sopsPath set `
+        --input-type dotenv `
+        --output-type dotenv `
+        --value-stdin `
+        $caseSensitiveTarget `
+        '["CASE_SECRET"]' | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Failed to prepare the case-sensitive test fixture'
+    }
+    Add-SopsGeneratedEnvSecret `
+        -TargetPath $caseSensitiveTarget `
+        -AgeKeyFile $keyFile `
+        -SopsPath $sopsPath `
+        -GeneratedSecrets ([ordered] @{
+            case_secret = 16
+        }) `
+        -RequiredVariables @('CASE_SECRET', 'case_secret')
+    $caseSensitiveDecrypted = & $sopsPath decrypt --input-type dotenv --output-type dotenv $caseSensitiveTarget
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Case-sensitive fixture could not be decrypted'
+    }
+    $lowercaseMatches = @($caseSensitiveDecrypted | Where-Object { $_ -match '^case_secret=[0-9a-f]{32}$' })
+    if ($caseSensitiveDecrypted -notcontains 'CASE_SECRET=uppercase-value' -or
+        $lowercaseMatches.Count -ne 1) {
+        throw 'Dotenv variable names were not tracked case-sensitively'
     }
 
     $firstSecretBefore = $values.FIRST_SECRET
@@ -335,6 +391,10 @@ try {
     }
     if ($env:SOPS_EDITOR -ne 'prior-editor-command') {
         throw 'Prior SOPS_EDITOR value was not restored'
+    }
+    $editedDecrypted = & $sopsPath decrypt --input-type dotenv --output-type dotenv $target
+    if ($LASTEXITCODE -ne 0 -or $editedDecrypted -notcontains 'DOMAINNAME=edited.invalid') {
+        throw 'The editor change was not re-encrypted into the target'
     }
 
     [IO.File]::WriteAllLines(

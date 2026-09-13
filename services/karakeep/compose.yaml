@@ -52,9 +52,11 @@ services:
             exit 1
           fi
         done
-        chown -R 3130:3130 /data /meilisearch
-        chmod -R u=rwX,g=,o= /data /meilisearch
+        mkdir -p /backups/db-backup
+        chown -R 3130:3130 /backups/db-backup /data /meilisearch
+        chmod -R u=rwX,g=,o= /backups/db-backup /data /meilisearch
     volumes:
+      - ./backups:/backups
       - ./data/karakeep:/data
       - ./data/meilisearch:/meilisearch
 
@@ -192,10 +194,10 @@ services:
       retries: 5
       start_period: 30s
 
-  # tiredofit/db-backup uses s6-overlay which must start as root.
-  # It handles backup output permissions internally. read_only and cap_drop
-  # are therefore omitted. The SQLite Online Backup API creates a consistent
-  # snapshot while Karakeep keeps its database in WAL mode.
+  # tiredofit/db-backup uses s6-overlay which must start as root, so read_only
+  # is omitted. It retains only the capabilities needed to prepare paths and
+  # drop to the app-owned 3130:3130 backup identity. The SQLite Online Backup
+  # API creates a consistent snapshot while Karakeep remains in WAL mode.
   karakeep-db-backup:
     image: docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab
     container_name: karakeep-db-backup
@@ -209,8 +211,8 @@ services:
     command:
       - "backup-now"
     environment:
-      - USER_DBBACKUP=0
-      - GROUP_DBBACKUP=0
+      - USER_DBBACKUP=3130
+      - GROUP_DBBACKUP=3130
       - CONTAINER_NAME=karakeep-db-backup
       - CONTAINER_ENABLE_MONITORING=FALSE
       - CONTAINER_ENABLE_SCHEDULING=FALSE
@@ -222,6 +224,7 @@ services:
       - DEFAULT_CLEANUP_TIME=2880
       - DEFAULT_ENCRYPT=TRUE
       - DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE}
+      - DEFAULT_FILESYSTEM_PATH=/backup-data/db-backup
       - DB01_TYPE=sqlite3
       - DB01_HOST=/karakeep-data/db.db
     restart: "no"
@@ -230,9 +233,18 @@ services:
     pids_limit: 100
     security_opt:
       - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # s6 prepares runtime paths before starting the backup process
+      - DAC_OVERRIDE # s6 creates root-owned runtime paths before dropping privileges
+      - FOWNER # s6 tightens modes after changing path ownership
+      - SETGID # s6 initializes the configured backup group
+      - SETUID # s6 initializes the configured backup user
+      - SETPCAP # s6 clears its capability bounding set before exec
     volumes:
       - ./data/karakeep:/karakeep-data:ro
-      - ./backups/db-backup:/backup
+      - ./backups:/backup-data
 
   # Headless browser crawling is disabled by default because Chrome processes
   # attacker-controlled pages and the upstream image uses --no-sandbox. To opt

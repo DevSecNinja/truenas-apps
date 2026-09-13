@@ -732,12 +732,23 @@ The tiredofit v4 sidecars produce GPG-encrypted backups. Notification behavior
 is configured per app; Karakeep and Memos disable sidecar notifications and
 rely on the `dccd.sh -B` freshness check.
 
-Karakeep's production image and configuration separately passed a synthetic
-Podman 5.8.6 end-to-end test with the exact pinned
-`tiredofit/db-backup:4.1.100` image: the checksum, decryption, decompression,
-SQLite header, `better-sqlite3` integrity check, and sentinel-row restore all
-passed after applying the configured ownership. This was not a production
-deployment or a test on the TrueNAS host.
+Karakeep's hardened backup configuration separately passed a synthetic Podman
+5.8.6 end-to-end test with a live WAL-mode source and the exact pinned
+`tiredofit/db-backup:4.1.100` image. s6 started as root with all capabilities
+dropped except `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`, and
+`SETPCAP`, then dropped the backup process to the app-owned `3130:3130`
+identity through `USER_DBBACKUP` and `GROUP_DBBACKUP`. `DAC_OVERRIDE` was
+runtime-proven necessary for s6 to create root-owned runtime paths before that
+privilege drop; the remaining capabilities are the documented s6
+path-preparation and privilege-drop set.
+
+The test produced an encrypted GPG+ZSTD artifact and SHA1 sidecar, restored the
+database, returned `ok` from the integrity check, and matched the sentinel row.
+The sidecar used the production parent mount and
+`DEFAULT_FILESYSTEM_PATH=/backup-data/db-backup`; the child retained the
+ownership prepared by `karakeep-init`, and host output remained exactly
+`./backups/db-backup`. This was not a production deployment or a test on the
+TrueNAS host.
 
 <!-- dprint-ignore -->
 !!! note "Why Dawarich remains on the v4 workflow"

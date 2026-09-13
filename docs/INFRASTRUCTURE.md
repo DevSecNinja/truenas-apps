@@ -148,31 +148,31 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user          | Service(s)                                                      | Git-tracked config? |
-| ------- | --------------------- | --------------------------------------------------------------- | ------------------- |
-| 3100    | `svc-app-traefik`     | traefik, traefik-init                                           | Yes (`./config`)    |
-| 3101    | `svc-app-adguard`     | adguard, adguard-init, adguard-unbound-init                     | No (`./data/conf`)  |
-| 3102    | `svc-app-homepage`    | homepage, homepage-init                                         | Yes (`./config`)    |
-| 3103    | `svc-app-gatus`       | gatus, gatus-db-backup                                          | No                  |
-| 3104    | `svc-app-echo`        | echo-server                                                     | No                  |
-| 3105    | `svc-app-tfa`         | traefik-forward-auth, init                                      | No (`./data`)       |
-| 3106    | `svc-app-immich`      | immich-server, immich-ml, immich-init                           | No                  |
-| 3107    | `svc-app-metube`      | metube, metube-init                                             | No                  |
-| 3108    | `svc-app-unifi`       | unifi, unifi-db-backup                                          | No                  |
-| 3109    | `svc-app-dozzle`      | dozzle, dozzle-init                                             | No                  |
-| 3110    | `svc-app-radarr`      | radarr                                                          | No                  |
-| 3118    | `svc-app-tubesync`    | tubesync                                                        | No                  |
-| 3119    | `svc-app-drawio`      | drawio                                                          | No                  |
-| 3120    | `svc-app-outline`     | outline-db-backup†                                              | No                  |
-| 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                                       | Yes (`./config`)    |
-| 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init                                   | Yes (`./config`)    |
-| 3124    | `svc-app-matter`      | matter-server, matter-server-init                               | No                  |
-| 3125    | `svc-app-alloy`       | alloy, alloy-init                                               | Yes (`./config`)    |
-| 3126    | `svc-app-bitwarden`   | bitwarden                                                       | No                  |
-| 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                                         | No                  |
-| 3128    | `svc-app-dawarich`    | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup   | No                  |
-| 3129    | `svc-app-memos`       | memos, memos-init                                               | No                  |
-| 3130    | `svc-app-karakeep`    | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init | No                  |
+| UID/GID | TrueNAS user          | Service(s)                                                                          | Git-tracked config? |
+| ------- | --------------------- | ----------------------------------------------------------------------------------- | ------------------- |
+| 3100    | `svc-app-traefik`     | traefik, traefik-init                                                               | Yes (`./config`)    |
+| 3101    | `svc-app-adguard`     | adguard, adguard-init, adguard-unbound-init                                         | No (`./data/conf`)  |
+| 3102    | `svc-app-homepage`    | homepage, homepage-init                                                             | Yes (`./config`)    |
+| 3103    | `svc-app-gatus`       | gatus, gatus-db-backup                                                              | No                  |
+| 3104    | `svc-app-echo`        | echo-server                                                                         | No                  |
+| 3105    | `svc-app-tfa`         | traefik-forward-auth, init                                                          | No (`./data`)       |
+| 3106    | `svc-app-immich`      | immich-server, immich-ml, immich-init                                               | No                  |
+| 3107    | `svc-app-metube`      | metube, metube-init                                                                 | No                  |
+| 3108    | `svc-app-unifi`       | unifi, unifi-db-backup                                                              | No                  |
+| 3109    | `svc-app-dozzle`      | dozzle, dozzle-init                                                                 | No                  |
+| 3110    | `svc-app-radarr`      | radarr                                                                              | No                  |
+| 3118    | `svc-app-tubesync`    | tubesync                                                                            | No                  |
+| 3119    | `svc-app-drawio`      | drawio                                                                              | No                  |
+| 3120    | `svc-app-outline`     | outline-db-backup†                                                                  | No                  |
+| 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                                                           | Yes (`./config`)    |
+| 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init                                                       | Yes (`./config`)    |
+| 3124    | `svc-app-matter`      | matter-server, matter-server-init                                                   | No                  |
+| 3125    | `svc-app-alloy`       | alloy, alloy-init                                                                   | Yes (`./config`)    |
+| 3126    | `svc-app-bitwarden`   | bitwarden                                                                           | No                  |
+| 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                                                             | No                  |
+| 3128    | `svc-app-dawarich`    | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                       | No                  |
+| 3129    | `svc-app-memos`       | memos, memos-init                                                                   | No                  |
+| 3130    | `svc-app-karakeep`    | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup | No                  |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -193,11 +193,11 @@ container use this identity.
 
 The `svc-app-karakeep` account has matching UID and primary GID `3130` and no
 shared-purpose group memberships. The web, worker, and Meilisearch processes
-use this identity; `karakeep-init` assigns their runtime paths to it. The
-`karakeep-db-backup` sidecar is intentionally excluded because it uses the
-tiredofit image's root backup identity internally. The
-commented `karakeep-chrome` opt-in service is not active and is not included in
-this account allocation.
+use this identity; `karakeep-init` assigns their runtime paths and the database
+backup output child to it. The `karakeep-db-backup` s6 supervisor starts as
+root, then maps `USER_DBBACKUP` and `GROUP_DBBACKUP` to `3130` so the backup
+process uses this identity. The commented `karakeep-chrome` opt-in service is
+not active and is not included in this account allocation.
 
 ### Shared Purpose Groups
 
@@ -458,13 +458,18 @@ Before the first deployment:
    collisions or mismatches.
 2. Populate the required Karakeep secrets through SOPS before deploying.
 
-On every deployment, `karakeep-init` assigns `./data/karakeep` and
-`./data/meilisearch` to `3130:3130` and restricts them to the service account.
-The one-shot `karakeep-db-backup` sidecar reads `./data/karakeep/db.db`
-read-only and manages `./backups/db-backup` with its root backup identity; it
-does not use the Karakeep service account. ZFS snapshots, replication, and
-off-site sync protect the full child dataset, including saved assets and the
-regeneratable search index that are outside the SQLite backup.
+On every deployment, `karakeep-init` creates `./backups/db-backup` through its
+`./backups:/backups` parent mount, assigns it and `./data/karakeep` and
+`./data/meilisearch` to `3130:3130`, and restricts them to the service account.
+The one-shot `karakeep-db-backup` sidecar reads
+`./data/karakeep/db.db` read-only. Its s6 supervisor starts as root, then drops
+the backup process to `3130:3130` through `USER_DBBACKUP` and
+`GROUP_DBBACKUP`. The sidecar mounts the parent `./backups` directory at
+`/backup-data` and writes to `/backup-data/db-backup`; this preserves the
+pre-owned child when the image resets the read-write mount root to root
+ownership, so host output remains exactly `./backups/db-backup`. ZFS snapshots,
+replication, and off-site sync protect the full child dataset, including saved
+assets and the regeneratable search index that are outside the SQLite backup.
 
 ## Media Access
 
