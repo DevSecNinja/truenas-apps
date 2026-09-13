@@ -7,8 +7,9 @@ notes, and images, with full-text search and optional AI tagging.
 
 Karakeep keeps saved content and its search index on locally managed storage.
 The split web, worker, and search services isolate background crawling and
-indexing from the user-facing application. Headless browser support remains
-available only as an explicit opt-in reference.
+indexing from the user-facing application. The enabled Chrome service renders
+JavaScript-driven pages and supports screenshots without exposing its DevTools
+endpoint through the host or Traefik.
 
 ## Compose File
 
@@ -34,6 +35,7 @@ its own local account authentication as a second layer.
 ## Architecture
 
 - **Active images**: `ghcr.io/karakeep-app/karakeep:0.33.2`,
+  `ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1`,
   `docker.io/getmeili/meilisearch:v1.41.0`, and
   `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
@@ -51,44 +53,105 @@ starting the server.
 
 | Container              | Role                                                                  |
 | ---------------------- | --------------------------------------------------------------------- |
+| `karakeep-chrome`      | Headless Chromium for browser-rendered crawling and screenshots       |
 | `karakeep-init`        | Validates required settings and assigns runtime directory ownership   |
 | `karakeep`             | Web UI and API on the internal container port `3000`                  |
 | `karakeep-db-backup`   | One-shot encrypted SQLite backup sidecar                              |
 | `karakeep-workers`     | Background crawling, asset processing, indexing, and optional AI work |
 | `karakeep-meilisearch` | Full-text search engine on the internal port `7700`                   |
 
-### Optional Browser Crawling
+### Browser Rendering and Screenshots
 
-`CRAWLER_HEADLESS_BROWSER=false` is the default, and the complete
-`karakeep-chrome` Compose service remains commented out as an opt-in reference.
-The browser container is not created and does not join either Karakeep network
-during a normal deployment.
+Browser crawling is enabled through `CRAWLER_HEADLESS_BROWSER=true` and
+`BROWSER_WEB_URL=http://karakeep-chrome:9222` in the shared Karakeep
+environment. The web service waits for a healthy Chrome service before
+starting, and both the web and worker services can reach Chrome over the
+internal `karakeep-browser` network. This enables JavaScript-rendered page
+capture, browser-derived content, and screenshots in addition to Karakeep's
+plain HTTP crawling path. See the upstream
+[Docker guide](https://docs.karakeep.app/installation/docker/) and
+[Chrome image migration guide](https://docs.karakeep.app/administration/chrome-image-migration/)
+for the corresponding Karakeep settings and image model.
 
-Without Chrome, links, notes, images and other assets, SQLite persistence,
-Meilisearch full-text search, and optional AI tagging continue to work.
-Browser-rendered crawling, screenshots, and full-page browser captures are
-unavailable.
+| Property         | Active configuration                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Image            | `ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1@sha256:5b19bbb160e9ff60681a3abd97e1c4ec9f64212301410de658c3900ab7ef31e7` |
+| Architectures    | `linux/amd64`, `linux/arm64`                                                                                                    |
+| Runtime identity | `65534:65534` (upstream non-root `nobody`)                                                                                      |
+| Browser endpoint | `http://karakeep-chrome:9222` on the internal browser network only                                                              |
+| Readiness check  | HTTP `GET /json/version` on `127.0.0.1:9222`                                                                                    |
+| Memory           | `${CHROME_MEM_LIMIT:-2048m}`                                                                                                    |
+| PID limit        | `100`                                                                                                                           |
 
-The optional image reference is
-`ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1`.
+The image entrypoint supplies Chromium's `--no-sandbox` option and publishes
+the browser through socat from `0.0.0.0:9222` to Chrome on
+`127.0.0.1:9223`. The Compose command retains these upstream browser flags
+exactly:
+
+- `--disable-gpu`
+- `--disable-dev-shm-usage`
+- `--hide-scrollbars`
+- `--disable-blink-features=AutomationControlled`
+- `--window-size=1440,900`
+
+No Compose-level remote-debugging override is added. Chrome has no published
+ports or Traefik labels and does not join `karakeep-frontend` or
+`karakeep-backend`.
+
+Enabling Chrome adds a default 2 GiB memory allowance and capacity for up to
+100 additional PIDs. Size the host for that extra headroom on top of the web,
+worker, Meilisearch, init, and backup containers. Override the Chrome memory
+limit with `CHROME_MEM_LIMIT` when the host needs a different bound.
+
+#### Browser Threat Model
 
 <!-- dprint-ignore -->
-!!! warning "Explicit risk acceptance required"
-    The browser processes attacker-controlled pages, and Karakeep's upstream
-    Chrome image starts Chromium with `--no-sandbox`. Running it as non-root
-    with a read-only root filesystem, dropped capabilities, no published
-    ports, and resource limits reduces exposure but does not make that
-    additional attack surface acceptable by default.
+!!! warning "Chromium runs without its browser sandbox"
+    Saved URLs can cause Chrome to process attacker-controlled HTML,
+    JavaScript, media, and browser subresources. The upstream entrypoint's
+    `--no-sandbox` option is an explicit residual browser-engine risk, not a
+    safe operating mode. A Chromium compromise or an SSRF flaw may still reach
+    destinations available through the container's egress path.
 
-To opt in later:
+Chrome runs under an explicit non-root identity with `init: true`, a read-only
+root filesystem, `no-new-privileges=true`, all capabilities dropped, a
+`/tmp` tmpfs, a 2 GiB default memory limit, and a 100-PID limit. Network
+isolation prevents direct attachment to the frontend and backend application
+networks, while an internal browser link exposes DevTools only to Karakeep web
+and workers. These controls reduce blast radius; they do not eliminate browser
+exploitation or SSRF risk.
 
-1. Explicitly reassess and accept the browser risk.
-2. Uncomment the complete `karakeep-chrome` service definition in
-   `compose.yaml`.
-3. Add `BROWSER_WEB_URL: http://karakeep-chrome:9222` to the shared Karakeep
-   environment.
-4. Restore the `karakeep` web service's `service_healthy` dependency on
-   `karakeep-chrome`.
+Karakeep validates HTTP(S) URLs, resolved A/AAAA addresses, redirects, and
+browser subrequests against private and reserved address ranges. No internal
+hostname allowlists are configured in this deployment. The plain HTTP crawling
+path pins the validated DNS result, but Playwright and Chrome resolve
+hostnames independently after validation. DNS-rebinding and other
+time-of-check/time-of-use protection is therefore not established for the
+browser path.
+
+The dedicated `karakeep-browser-egress` bridge supplies outbound routing; it is
+not an RFC1918, link-local, or host-destination firewall. The internal browser
+network limits Chrome's Docker service-to-service path to Karakeep web and
+workers, but the egress bridge does not by itself prevent requests to private
+destinations reachable through host routing. Review the upstream
+[security considerations](https://docs.karakeep.app/administration/security-considerations/)
+and the
+[source revision reviewed for this deployment](https://github.com/karakeep-app/karakeep/tree/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175)
+when changing crawler or network controls.
+
+#### Roll Back to Plain HTTP Crawling
+
+To disable browser rendering and restore plain HTTP crawling:
+
+1. Set `CRAWLER_HEADLESS_BROWSER=false`.
+2. Remove `BROWSER_WEB_URL` from the shared Karakeep environment.
+3. Remove the web service's `karakeep-chrome` dependency.
+4. Remove the web and worker services from `karakeep-browser`.
+5. Remove or disable the `karakeep-chrome` service and remove
+   `karakeep-browser` and `karakeep-browser-egress`.
+
+Links can still be fetched through the plain HTTP crawler, but JavaScript
+rendering and screenshots are unavailable after this rollback.
 
 ### Security Model
 
@@ -108,8 +171,13 @@ To opt in later:
   `no-new-privileges=true`, dropped capabilities, PID limits, and memory
   limits. The backup sidecar omits the read-only root filesystem required by
   s6 but retains the other controls.
+- Chrome uses its upstream non-root identity, a read-only root filesystem,
+  `no-new-privileges=true`, dropped capabilities, `init: true`, a `/tmp`
+  tmpfs, and explicit memory and PID limits. Its `/json/version` health check
+  gates web startup.
 - Only the web container is routed through Traefik. Meilisearch remains on the
-  internal backend network.
+  internal backend network, and Chrome remains on its isolated browser and
+  egress networks.
 
 ## Volumes and Networks
 
@@ -125,10 +193,12 @@ To opt in later:
 
 ### Networks
 
-| Network             | Members and purpose                                                          |
-| ------------------- | ---------------------------------------------------------------------------- |
-| `karakeep-frontend` | Web and workers; Traefik access plus outbound crawling and optional AI calls |
-| `karakeep-backend`  | Internal communication between web, workers, and Meilisearch                 |
+| Network                   | Members and purpose                                                          |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `karakeep-backend`        | Web, workers, and Meilisearch; internal application and search traffic       |
+| `karakeep-browser`        | Web, workers, and Chrome; internal browser-control traffic only              |
+| `karakeep-browser-egress` | Chrome only; outbound page fetches through a dedicated bridge                |
+| `karakeep-frontend`       | Web and workers; Traefik access plus outbound crawling and optional AI calls |
 
 ## Secrets
 
@@ -258,26 +328,29 @@ must not be regenerated by the operator.
    This decrypts the committed secrets, deploys Karakeep and its dependent
    integrations, runs the first one-shot database backup after Karakeep becomes
    healthy, and performs the default backup freshness check. Confirm that
-   `karakeep-init` completes successfully and the Meilisearch, web, and worker
-   services become healthy.
+   `karakeep-init` completes successfully and the Chrome, Meilisearch, web, and
+   worker services become healthy.
 5. Complete the application setup and validation:
 
    - Open `https://karakeep.${DOMAINNAME}` through Forward Auth and create the
      first local Karakeep account.
    - Configure the registration and access policy.
-   - Save a test link and a test note, then verify that full-text search returns
-     them.
+   - Save a bookmark for a public JavaScript-rendered page, then verify its
+     browser-rendered content and screenshot. Do not use a private or internal
+     URL as a crawler test.
+   - Save a test note, then verify that full-text search returns the bookmark
+     and note.
    - Verify that `karakeep-db-backup` exited successfully and that
      `services/karakeep/backups/db-backup/` contains a fresh backup artifact.
 
    AI tagging remains disabled until `KARAKEEP_OPENAI_API_KEY` is configured.
-   Browser crawling and screenshots remain disabled.
 
 ## Upgrade Notes
 
 - Renovate manages image updates. Review the
   [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
-  major upgrades.
+  major upgrades. For Chrome image changes, also review the upstream
+  [Chrome image migration guide](https://docs.karakeep.app/administration/chrome-image-migration/).
 - The web container applies database migrations before startup and uses a
   stop-first update order so the replacement does not serve traffic before
   migrations finish.

@@ -262,21 +262,25 @@ root-start s6 backup sidecar omits a read-only root filesystem and uses the
 restricted capability set documented in
 [Karakeep Network and Access Model](#karakeep-network-and-access-model).
 
-Headless browser crawling is disabled with `CRAWLER_HEADLESS_BROWSER=false`.
-The complete `karakeep-chrome` service is commented out and does not join the
-active networks. It would process attacker-controlled pages with an upstream
-image that starts Chromium using `--no-sandbox`; non-root execution, a
-read-only root filesystem, dropped capabilities, no published ports, and
-resource limits do not make that additional attack surface acceptable by
-default.
+Headless browser crawling is enabled with `CRAWLER_HEADLESS_BROWSER=true` and
+`BROWSER_WEB_URL=http://karakeep-chrome:9222`. The web service waits for a
+healthy `karakeep-chrome`, and web and workers share the internal
+`karakeep-browser` network with it. This enables JavaScript-rendered crawling,
+browser-derived content, and screenshots alongside the plain HTTP crawler.
 
-Links, notes, images and other assets, SQLite persistence, Meilisearch
-full-text search, and optional AI tagging remain available. Browser-rendered
-crawling, screenshots, and full-page browser captures are unavailable. Opting
-in requires an explicit risk reassessment, uncommenting the Chrome service,
-adding `BROWSER_WEB_URL: http://karakeep-chrome:9222` to the shared Karakeep
-environment, and restoring the web service's `service_healthy` dependency on
-`karakeep-chrome`.
+The official immutable Chrome image supports amd64 and arm64 and runs under
+its explicit upstream non-root identity. It uses `init: true`, a read-only root
+filesystem, `no-new-privileges=true`, dropped capabilities, a `/tmp` tmpfs, a
+100-PID limit, and a `${CHROME_MEM_LIMIT:-2048m}` memory limit. Its HTTP
+readiness check requests `/json/version` on `127.0.0.1:9222`; web startup is
+gated on that check. Enabling the browser therefore adds a default 2 GiB
+allowance and up to 100 PIDs to the full stack's resource requirements.
+
+The upstream entrypoint supplies `--no-sandbox` and exposes socat on
+`0.0.0.0:9222`, forwarding to Chrome on `127.0.0.1:9223`. Compose retains the
+upstream `--disable-gpu`, `--disable-dev-shm-usage`, `--hide-scrollbars`,
+`--disable-blink-features=AutomationControlled`, and
+`--window-size=1440,900` flags without adding a remote-debugging override.
 
 **Exceptions — s6-overlay and root-start containers:**
 
@@ -389,9 +393,42 @@ outbound worker crawling and optional AI calls. The internal
 Meilisearch containers. Meilisearch is backend-only; only the web container is
 exposed through Traefik.
 
-The commented `karakeep-chrome` opt-in service would join both networks, but it
-is not part of the active service or network set. Enabling it requires the
-explicit risk reassessment and configuration changes described in the
+| Network                   | Members and access                                                     |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `karakeep-backend`        | Web, workers, and Meilisearch; internal application and search traffic |
+| `karakeep-browser`        | Web, workers, and Chrome; internal browser-control traffic             |
+| `karakeep-browser-egress` | Chrome only; dedicated bridge for outbound page fetches                |
+| `karakeep-frontend`       | Web and workers; Traefik access and their outbound traffic             |
+
+Chrome does not join the frontend or backend networks and has no published
+ports or Traefik labels. Over the internal browser network, it can communicate
+only with Karakeep web and workers. Its separate egress bridge retains outbound
+access for public-page fetches without placing its DevTools listener on an
+application or proxy network.
+
+<!-- dprint-ignore -->
+!!! warning "Residual browser and SSRF risk"
+    Chrome processes attacker-controlled pages, and the upstream entrypoint
+    starts Chromium with `--no-sandbox`. This is an explicit residual
+    browser-engine risk, not a safe mode. Non-root execution, container
+    hardening, resource limits, and network separation reduce blast radius;
+    they do not eliminate browser exploitation or SSRF risk.
+
+Karakeep validates HTTP(S) URLs, resolved A/AAAA addresses, redirects, and
+browser subrequests against private and reserved ranges. This deployment does
+not configure internal hostname allowlists. The plain HTTP crawler pins its
+validated DNS result, while Playwright and Chrome independently resolve the
+hostname after validation. DNS-rebinding and other time-of-check/time-of-use
+protection is therefore not established for the browser path.
+
+The dedicated egress bridge provides routing rather than destination
+filtering: it does not itself block RFC1918, link-local, or host destinations.
+Review the upstream
+[security considerations](https://docs.karakeep.app/administration/security-considerations/)
+and
+[reviewed source revision](https://github.com/karakeep-app/karakeep/tree/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175)
+before changing these controls. Operational details and the plain HTTP rollback
+procedure are in the
 [Karakeep service documentation](services/karakeep.md).
 
 The one-shot `karakeep-db-backup` sidecar is network-isolated. It starts with
