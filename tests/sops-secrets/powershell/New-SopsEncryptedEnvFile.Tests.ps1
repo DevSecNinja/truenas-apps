@@ -10,12 +10,19 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('sops-powershell-test-' + [gui
 $keyFile = Join-Path $testRoot 'age.key'
 $configFile = Join-Path $testRoot '.sops.yaml'
 $target = Join-Path $testRoot 'secret.sops.env'
+$changeMeTarget = Join-Path $testRoot 'change-me.sops.env'
+$mutationFailureTarget = Join-Path $testRoot 'mutation-failure.sops.env'
+$validationFailureTarget = Join-Path $testRoot 'validation-failure.sops.env'
 $failedTarget = Join-Path $testRoot 'failed.sops.env'
 $mockSopsPath = Join-Path $testRoot 'mock-sops.ps1'
+$mutationMockSopsPath = Join-Path $testRoot 'mutation-mock-sops.cmd'
+$mockEditorPath = Join-Path $testRoot 'mock-editor.ps1'
+$editorLog = Join-Path $testRoot 'editor.log'
 $templatePathLog = Join-Path $testRoot 'template-path.log'
 $oldAgeKey = $env:SOPS_AGE_KEY
 $oldAgeKeyCommand = $env:SOPS_AGE_KEY_CMD
 $oldAgeKeyFile = $env:SOPS_AGE_KEY_FILE
+$oldSopsEditor = $env:SOPS_EDITOR
 $oldTemplatePathLog = $env:SOPS_TEST_TEMPLATE_PATH_LOG
 
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -125,6 +132,204 @@ try {
         throw 'An unresolved sentinel remains'
     }
 
+    $firstSecretBefore = $values.FIRST_SECRET
+    $secondSecretBefore = $values.SECOND_SECRET
+    Add-SopsGeneratedEnvSecret `
+        -TargetPath $target `
+        -AgeKeyFile $keyFile `
+        -SopsPath $sopsPath `
+        -GeneratedSecrets ([ordered] @{
+            THIRD_SECRET = 24
+        }) `
+        -RequiredVariables @('DOMAINNAME', 'FIRST_SECRET', 'SECOND_SECRET', 'THIRD_SECRET')
+
+    $decrypted = & $sopsPath decrypt --input-type dotenv --output-type dotenv $target
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Updated disposable encrypted file could not be decrypted'
+    }
+    $values = @{}
+    foreach ($line in $decrypted) {
+        if ($line -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            $values[$Matches[1]] = $Matches[2]
+        }
+    }
+    if ($values.FIRST_SECRET -ne $firstSecretBefore -or
+        $values.SECOND_SECRET -ne $secondSecretBefore) {
+        throw 'Updating the encrypted file rotated an existing secret'
+    }
+    if ($values.THIRD_SECRET -notmatch '^[0-9a-f]{48}$') {
+        throw 'THIRD_SECRET does not contain 24 random bytes as hexadecimal'
+    }
+
+    $updatedHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+    Add-SopsGeneratedEnvSecret `
+        -TargetPath $target `
+        -AgeKeyFile $keyFile `
+        -SopsPath $sopsPath `
+        -GeneratedSecrets ([ordered] @{
+            THIRD_SECRET = 24
+        }) `
+        -RequiredVariables @('DOMAINNAME', 'FIRST_SECRET', 'SECOND_SECRET', 'THIRD_SECRET')
+    if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $updatedHash) {
+        throw 'Idempotent update rewrote the encrypted file'
+    }
+
+    Copy-Item -LiteralPath $target -Destination $changeMeTarget
+    '"CHANGE_ME"' | & $sopsPath set `
+        --input-type dotenv `
+        --output-type dotenv `
+        --value-stdin `
+        $changeMeTarget `
+        '["BAD_SECRET"]' | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Failed to prepare the CHANGE_ME test fixture'
+    }
+    $changeMeHash = (Get-FileHash -LiteralPath $changeMeTarget -Algorithm SHA256).Hash
+    $changeMeRejected = $false
+    try {
+        Add-SopsGeneratedEnvSecret `
+            -TargetPath $changeMeTarget `
+            -AgeKeyFile $keyFile `
+            -SopsPath $sopsPath `
+            -GeneratedSecrets ([ordered] @{
+                BAD_SECRET = 16
+            }) `
+            -RequiredVariables @('DOMAINNAME', 'BAD_SECRET')
+    }
+    catch {
+        if ($_.Exception.Message -notmatch '^Requested generated secret contains the CHANGE_ME sentinel:') {
+            throw
+        }
+        $changeMeRejected = $true
+    }
+    if (-not $changeMeRejected) {
+        throw 'A requested CHANGE_ME sentinel was not rejected'
+    }
+    if ((Get-FileHash -LiteralPath $changeMeTarget -Algorithm SHA256).Hash -ne $changeMeHash) {
+        throw 'The CHANGE_ME fixture changed during the rejected update'
+    }
+
+    Copy-Item -LiteralPath $target -Destination $mutationFailureTarget
+    [IO.File]::WriteAllLines(
+        $mutationMockSopsPath,
+        @(
+            '@echo off'
+            'if "%~1"=="set" ('
+            '    echo corrupted>"%~7"'
+            '    exit /b 91'
+            ')'
+            '"%SOPS_TEST_REAL_SOPS%" %*'
+            'exit /b %ERRORLEVEL%'
+        ),
+        [Text.ASCIIEncoding]::new()
+    )
+    $env:SOPS_TEST_REAL_SOPS = $sopsPath
+    $mutationFailureHash = (Get-FileHash -LiteralPath $mutationFailureTarget -Algorithm SHA256).Hash
+    $mutationFailureObserved = $false
+    try {
+        Add-SopsGeneratedEnvSecret `
+            -TargetPath $mutationFailureTarget `
+            -AgeKeyFile $keyFile `
+            -SopsPath $mutationMockSopsPath `
+            -GeneratedSecrets ([ordered] @{
+                FOURTH_SECRET = 16
+            }) `
+            -RequiredVariables @('DOMAINNAME', 'FOURTH_SECRET')
+    }
+    catch {
+        if ($_.Exception.Message -notmatch '^SOPS failed to add the GENERATE sentinel for FOURTH_SECRET') {
+            throw
+        }
+        $mutationFailureObserved = $true
+    }
+    if (-not $mutationFailureObserved) {
+        throw 'A failed SOPS mutation was not rejected'
+    }
+    if ((Get-FileHash -LiteralPath $mutationFailureTarget -Algorithm SHA256).Hash -ne $mutationFailureHash) {
+        throw 'A failed encrypted mutation changed the original ciphertext'
+    }
+    $temporaryMutationFiles = @(Get-ChildItem -LiteralPath $testRoot -Filter 'mutation-failure.sops.env.generated.*')
+    if ($temporaryMutationFiles.Count -ne 0) {
+        throw 'A failed encrypted mutation left temporary ciphertext behind'
+    }
+    if ($null -ne $env:SOPS_AGE_KEY -or
+        $null -ne $env:SOPS_AGE_KEY_CMD -or
+        $env:SOPS_AGE_KEY_FILE -ne $keyFile) {
+        throw 'Prior SOPS environment variables were not restored after encrypted mutation failed'
+    }
+
+    Copy-Item -LiteralPath $target -Destination $validationFailureTarget
+    $validationFailureHash = (Get-FileHash -LiteralPath $validationFailureTarget -Algorithm SHA256).Hash
+    $validationFailureObserved = $false
+    try {
+        Add-SopsGeneratedEnvSecret `
+            -TargetPath $validationFailureTarget `
+            -AgeKeyFile $keyFile `
+            -SopsPath $sopsPath `
+            -GeneratedSecrets ([ordered] @{
+                FIFTH_SECRET = 16
+            }) `
+            -RequiredVariables @('DOMAINNAME', 'MISSING_REQUIRED', 'FIFTH_SECRET')
+    }
+    catch {
+        if ($_.Exception.Message -notmatch '^Required variables are missing:') {
+            throw
+        }
+        $validationFailureObserved = $true
+    }
+    if (-not $validationFailureObserved) {
+        throw 'A missing required variable in final validation was not rejected'
+    }
+    if ((Get-FileHash -LiteralPath $validationFailureTarget -Algorithm SHA256).Hash -ne $validationFailureHash) {
+        throw 'A final validation failure changed the original ciphertext'
+    }
+    $temporaryValidationFiles = @(Get-ChildItem -LiteralPath $testRoot -Filter 'validation-failure.sops.env.generated.*')
+    if ($temporaryValidationFiles.Count -ne 0) {
+        throw 'A final validation failure left temporary ciphertext behind'
+    }
+
+    [IO.File]::WriteAllLines(
+        $mockEditorPath,
+        @(
+            'param([Parameter(Mandatory)] [string] $Path)'
+            '[IO.File]::WriteAllText($env:SOPS_TEST_EDITOR_LOG, $Path)'
+            '$content = [IO.File]::ReadAllText($Path)'
+            '[IO.File]::WriteAllText($Path, $content.Replace(''DOMAINNAME=example.invalid'', ''DOMAINNAME=edited.invalid''))'
+        ),
+        [Text.UTF8Encoding]::new($false)
+    )
+    $env:SOPS_TEST_EDITOR_LOG = $editorLog
+    $env:SOPS_EDITOR = 'prior-editor-command'
+    $mockEditorCommandPath = $mockEditorPath.Replace('\', '/')
+    Open-SopsEncryptedFile `
+        -TargetPath $target `
+        -AgeKeyFile $keyFile `
+        -SopsPath $sopsPath `
+        -EditorCommand "powershell.exe -NoProfile -File `"$mockEditorCommandPath`""
+    if (-not (Test-Path -LiteralPath $editorLog)) {
+        throw 'SOPS did not invoke the configured editor'
+    }
+    if ([string]::IsNullOrWhiteSpace([IO.File]::ReadAllText($editorLog))) {
+        throw 'The configured editor did not receive a temporary plaintext path'
+    }
+    if ($env:SOPS_EDITOR -ne 'prior-editor-command') {
+        throw 'Prior SOPS_EDITOR value was not restored'
+    }
+
+    [IO.File]::WriteAllLines(
+        $mockEditorPath,
+        @(
+            'param([Parameter(Mandatory)] [string] $Path)'
+            '[IO.File]::WriteAllText($env:SOPS_TEST_EDITOR_LOG, $Path)'
+        ),
+        [Text.UTF8Encoding]::new($false)
+    )
+    Open-SopsEncryptedFile `
+        -TargetPath $target `
+        -AgeKeyFile $keyFile `
+        -SopsPath $sopsPath `
+        -EditorCommand "powershell.exe -NoProfile -File `"$mockEditorCommandPath`""
+
     [IO.File]::WriteAllLines(
         $mockSopsPath,
         @(
@@ -177,6 +382,9 @@ finally {
     $env:SOPS_AGE_KEY = $oldAgeKey
     $env:SOPS_AGE_KEY_CMD = $oldAgeKeyCommand
     $env:SOPS_AGE_KEY_FILE = $oldAgeKeyFile
+    $env:SOPS_EDITOR = $oldSopsEditor
+    Remove-Item Env:SOPS_TEST_EDITOR_LOG -ErrorAction SilentlyContinue
+    Remove-Item Env:SOPS_TEST_REAL_SOPS -ErrorAction SilentlyContinue
     $env:SOPS_TEST_TEMPLATE_PATH_LOG = $oldTemplatePathLog
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force

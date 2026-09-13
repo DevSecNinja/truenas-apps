@@ -15,6 +15,32 @@ concurrency:
 permissions: {}
 
 jobs:
+  powershell-sops:
+    name: PowerShell SOPS Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: true
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: "2026.8.14"
+
+      - name: Run PowerShell SOPS tests
+        shell: pwsh
+        run: ./tests/sops-secrets/powershell/New-SopsEncryptedEnvFile.Tests.ps1
+
   unit-integration:
     # uses: DevSecNinja/.github/.github/workflows/bats.yml@  # after extraction
     uses: ./.github/workflows/bats.yml
