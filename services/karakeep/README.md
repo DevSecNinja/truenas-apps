@@ -17,20 +17,112 @@ endpoint through the host or Traefik.
 
 ## Access and Authentication
 
-| URL                              | Authentication                                      |
-| -------------------------------- | --------------------------------------------------- |
-| `https://karakeep.${DOMAINNAME}` | Traefik Forward Auth, then Karakeep local user auth |
+| Access path                      | Traefik authentication                                       | Karakeep authentication                               |
+| -------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------- |
+| Web UI and all unspecified APIs  | `chain-auth@file`                                            | Local user session                                    |
+| Allowlisted official mobile APIs | Proxy token header, then `chain-no-auth@file` after matching | Public discovery/exchange or API key/session for data |
 
-The Traefik router applies `chain-auth@file` to every request. Karakeep keeps
-its own local account authentication as a second layer.
+The standard `karakeep-rtr` router remains behind `chain-auth@file`. The
+higher-priority `karakeep-mobile-rtr` matches only the exact mobile route
+envelope below when the request includes
+`X-Karakeep-Proxy-Token: ${KARAKEEP_MOBILE_PROXY_TOKEN}`. It applies
+`chain-no-auth@file`, strips the proxy token header, and then forwards the
+request to Karakeep. A missing or incorrect token, a different method, or any
+other path falls through to the standard SSO-protected router.
 
 <!-- dprint-ignore -->
-!!! warning "API and mobile client limitation"
-    No API or mobile-client Forward Auth bypass is configured. Clients that
-    cannot complete the interactive Forward Auth flow or reuse its browser
-    session may not work with this deployment. Do not switch clients to an
-    unprotected endpoint; add a narrowly scoped authenticated bypass only
-    after reviewing the exposed API surface.
+!!! warning "The proxy token is not Karakeep user authentication"
+    The header only permits an allowlisted request to bypass interactive
+    Forward Auth. Karakeep still authenticates user-data operations with the
+    user's API key or session and applies its normal scope checks. Treat the
+    proxy token as a secret because discovery and API-key exchange routes are
+    public upstream.
+
+### Mobile Route Envelope
+
+The bypass, audited against official mobile app 1.11.1 at the pinned upstream
+commit below, accepts only:
+
+| Method | Path                                                 |
+| ------ | ---------------------------------------------------- |
+| `GET`  | `/api/health`                                        |
+| `GET`  | `/api/version`                                       |
+| `GET`  | `/api/assets/{single-path-segment}`                  |
+| `POST` | `/api/assets`                                        |
+| `GET`  | `/api/trpc/{allowlisted-query-or-query-batch}`       |
+| `POST` | `/api/trpc/{allowlisted-mutation-or-mutation-batch}` |
+
+The tRPC path must contain one of the following procedures or a
+comma-separated batch made entirely from the corresponding method's list:
+
+- **GET:** `config.clientConfig`; `bookmarks.getBookmarks`,
+  `bookmarks.getBookmark`, `bookmarks.searchBookmarks`,
+  `bookmarks.getReadingProgress`; `lists.list`, `lists.stats`, `lists.get`,
+  `lists.getListsOfBookmark`; `tags.list`, `tags.get`; `highlights.getAll`,
+  `highlights.getForBookmark`; `users.whoami`, `users.settings`, `users.stats`
+- **POST:** `apiKeys.exchange`, `apiKeys.validate`, `apiKeys.revoke`;
+  `bookmarks.createBookmark`, `bookmarks.updateBookmark`,
+  `bookmarks.deleteBookmark`, `bookmarks.updateTags`,
+  `bookmarks.summarizeBookmark`, `bookmarks.updateReadingProgress`;
+  `lists.create`, `lists.edit`, `lists.delete`, `lists.addToList`,
+  `lists.removeFromList`, `lists.leaveList`; `tags.create`, `tags.update`,
+  `tags.delete`; `highlights.create`, `highlights.update`,
+  `highlights.delete`; `users.updateSettings`, `users.deleteAccount`
+
+`/api/health`, `/api/version`, `config.clientConfig`, `apiKeys.exchange`, and
+`apiKeys.validate` are public in Karakeep itself, so the Traefik proxy token is
+their authentication boundary in this deployment. Asset and other user-data
+routes continue to require Karakeep API-key/session authentication and scope
+checks. There are no separate mobile sync or push endpoints.
+
+`/signup` is deliberately excluded. The native app opens that route in a
+browser without custom headers, so registration remains behind SSO.
+
+### Configure the Official Mobile App
+
+In the mobile app's **Server Address** form, configure:
+
+| Field               | Value                                   |
+| ------------------- | --------------------------------------- |
+| Server URL          | `https://karakeep.${DOMAINNAME}`        |
+| Custom header name  | `X-Karakeep-Proxy-Token`                |
+| Custom header value | Decrypted `KARAKEEP_MOBILE_PROXY_TOKEN` |
+
+The app accepts arbitrary custom header name/value pairs and applies them to
+tRPC requests, health and version checks, uploads, and Karakeep-local asset
+requests. It stores the settings in Expo SecureStore, but the values remain
+visible in the configuration UI to anyone with access to the unlocked device.
+
+Complete account creation through the SSO-protected web flow before signing in
+from the native app. Do not enable the optional Chrome service for mobile
+access; it is unrelated to the authentication route.
+
+### Rotate the Mobile Proxy Token
+
+1. Replace `KARAKEEP_MOBILE_PROXY_TOKEN` in `secret.sops.env` through the
+   approved
+   [SOPS editing workflow](../CONTRIBUTING.md#generating-random-sops-secrets).
+2. Deploy the updated encrypted configuration.
+3. Replace the custom header value on every configured mobile device.
+
+The old token stops working immediately when the deployment takes effect.
+Plan for mobile access to remain unavailable on each device until its stored
+value is replaced.
+
+### Upstream Mobile Authentication Evidence
+
+These links are pinned to upstream commit
+`a1a887d5a0c311aacfbe13fcc080b1ddef5b8175`:
+
+- [Server Address custom-header configuration](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/apps/mobile/app/server-address.tsx#L113-L218)
+- [tRPC custom-header injection](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/packages/shared-react/providers/trpc-provider.tsx#L42-L93)
+- [Health, version, and local-asset requests](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/apps/mobile/lib/utils.ts#L46-L58)
+- [Upload custom headers](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/apps/mobile/lib/upload.ts#L40-L71)
+- [Asset authentication and scope checks](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/packages/api/routes/assets.ts#L15-L71)
+- [tRPC authentication and public procedures](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/packages/trpc/index.ts#L136-L199)
+- [API-key exchange and validation](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/packages/trpc/routers/apiKeys.ts#L132-L214)
+- [Native sign-in flow](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/apps/mobile/app/signin.tsx#L67-L147)
+- [Browser signup behavior](https://github.com/karakeep-app/karakeep/blob/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175/apps/mobile/app/signin.tsx#L255-L279)
 
 ## Architecture
 
@@ -40,7 +132,8 @@ its own local account authentication as a second layer.
   `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
   worker, Meilisearch, and database backup processes
-- **Reverse proxy**: Traefik with `chain-auth@file`
+- **Reverse proxy**: Traefik with `chain-auth@file` by default and a
+  token-gated mobile route allowlist
 - **Process model**: split web and worker processes with
   `USING_LEGACY_SEPARATE_CONTAINERS=true`
 
@@ -205,17 +298,22 @@ rendering and screenshots are unavailable after this rollback.
 Store these values in `secret.sops.env`, committed only in SOPS-encrypted form
 and decrypted to `.env` during deployment. Do not commit plaintext values.
 
-| Variable                    | Classification  | Purpose                                                        |
-| --------------------------- | --------------- | -------------------------------------------------------------- |
-| `DB_ENC_PASSPHRASE`         | Required secret | Encrypts the `karakeep-db-backup` SQLite backup                |
-| `DOMAINNAME`                | Required config | Base domain for Traefik routing and NextAuth                   |
-| `KARAKEEP_NEXTAUTH_SECRET`  | Required secret | Random secret used to protect Karakeep authentication sessions |
-| `KARAKEEP_MEILI_MASTER_KEY` | Required secret | Random Meilisearch master key                                  |
-| `KARAKEEP_OPENAI_API_KEY`   | Optional secret | User-supplied OpenAI API key for automatic AI tagging          |
+| Variable                      | Classification  | Purpose                                                        |
+| ----------------------------- | --------------- | -------------------------------------------------------------- |
+| `DB_ENC_PASSPHRASE`           | Required secret | Encrypts the `karakeep-db-backup` SQLite backup                |
+| `DOMAINNAME`                  | Required config | Base domain for Traefik routing and NextAuth                   |
+| `KARAKEEP_NEXTAUTH_SECRET`    | Required secret | Random secret used to protect Karakeep authentication sessions |
+| `KARAKEEP_MEILI_MASTER_KEY`   | Required secret | Random Meilisearch master key                                  |
+| `KARAKEEP_MOBILE_PROXY_TOKEN` | Required secret | Authenticates the official mobile client's Traefik bypass      |
+| `KARAKEEP_OPENAI_API_KEY`     | Optional secret | User-supplied OpenAI API key for automatic AI tagging          |
 
-The encrypted service secrets are already committed. Do not regenerate or
-replace them during rollout. Preserve `DB_ENC_PASSPHRASE` with the
-SOPS-encrypted service secrets because backups cannot be decrypted without it.
+Before rollout, ensure every required variable above exists in the
+SOPS-encrypted service file. Add or rotate `KARAKEEP_MOBILE_PROXY_TOKEN` only
+through the approved
+[SOPS editing workflow](../CONTRIBUTING.md#generating-random-sops-secrets).
+Do not regenerate or replace the other values during rollout. Preserve
+`DB_ENC_PASSPHRASE` with the SOPS-encrypted service secrets because backups
+cannot be decrypted without it.
 
 `KARAKEEP_OPENAI_API_KEY` must be populated through SOPS to enable automatic AI
 tagging. Leave it empty to keep automatic AI tagging disabled.
@@ -277,8 +375,9 @@ check, and restart procedure.
 ## First-Run Setup
 
 The aliases from `/mnt/vm-pool/apps/scripts/aliases.sh` must already be sourced
-in the current TrueNAS shell. The encrypted service secrets are committed and
-must not be regenerated by the operator.
+in the current TrueNAS shell. The SOPS-encrypted service file must contain all
+required values from [Secrets](#secrets). Preserve existing values when
+provisioning the mobile proxy token.
 
 1. Pull the repository changes and decrypt the committed SOPS secrets with the
    app-scoped alias:
@@ -344,6 +443,9 @@ must not be regenerated by the operator.
      `services/karakeep/backups/db-backup/` contains a fresh backup artifact.
 
    AI tagging remains disabled until `KARAKEEP_OPENAI_API_KEY` is configured.
+6. Configure every official mobile client as described in
+   [Configure the Official Mobile App](#configure-the-official-mobile-app),
+   then verify sign-in, bookmark retrieval, and an asset upload.
 
 ## Upgrade Notes
 

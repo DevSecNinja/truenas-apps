@@ -45,6 +45,7 @@ services:
           "$${DOMAINNAME:-}" \
           "$${KARAKEEP_NEXTAUTH_SECRET:-}" \
           "$${KARAKEEP_MEILI_MASTER_KEY:-}" \
+          "$${KARAKEEP_MOBILE_PROXY_TOKEN:-}" \
           "$${DB_ENC_PASSPHRASE:-}"; do
           if [ -z "$${value}" ] ||
             [ "$${value}" = "CHANGE_ME" ] ||
@@ -138,6 +139,28 @@ services:
       ## HTTP Services
       - "traefik.http.routers.karakeep-rtr.service=karakeep-svc"
       - "traefik.http.services.karakeep-svc.loadbalancer.server.port=3000"
+      ## Karakeep mobile 1.11.1 uses only these routes at upstream commit
+      ## a1a887d5. The tRPC regexes accept batches of allowlisted procedures.
+      ## Karakeep API-key auth still protects user data; public discovery and
+      ## login procedures require the proxy token. All other routes keep SSO.
+      - >-
+        traefik.http.routers.karakeep-mobile-rtr.rule=Host(`karakeep.${DOMAINNAME}`) &&
+        Header(`X-Karakeep-Proxy-Token`, `${KARAKEEP_MOBILE_PROXY_TOKEN}`) &&
+        (((Method(`GET`) &&
+        (Path(`/api/health`) ||
+        Path(`/api/version`) ||
+        PathRegexp(`^/api/assets/[^/]+$`) ||
+        PathRegexp(`^/api/trpc/(config\.clientConfig|bookmarks\.(getBookmarks|getBookmark|searchBookmarks|getReadingProgress)|lists\.(list|stats|get|getListsOfBookmark)|tags\.(list|get)|highlights\.(getAll|getForBookmark)|users\.(whoami|settings|stats))(,(config\.clientConfig|bookmarks\.(getBookmarks|getBookmark|searchBookmarks|getReadingProgress)|lists\.(list|stats|get|getListsOfBookmark)|tags\.(list|get)|highlights\.(getAll|getForBookmark)|users\.(whoami|settings|stats)))*$`)))
+        ||
+        (Method(`POST`) &&
+        (Path(`/api/assets`) ||
+        PathRegexp(`^/api/trpc/(apiKeys\.(exchange|validate|revoke)|bookmarks\.(createBookmark|updateBookmark|deleteBookmark|updateTags|summarizeBookmark|updateReadingProgress)|lists\.(create|edit|delete|addToList|removeFromList|leaveList)|tags\.(create|update|delete)|highlights\.(create|update|delete)|users\.(updateSettings|deleteAccount))(,(apiKeys\.(exchange|validate|revoke)|bookmarks\.(createBookmark|updateBookmark|deleteBookmark|updateTags|summarizeBookmark|updateReadingProgress)|lists\.(create|edit|delete|addToList|removeFromList|leaveList)|tags\.(create|update|delete)|highlights\.(create|update|delete)|users\.(updateSettings|deleteAccount)))*$`)))))
+      - "traefik.http.routers.karakeep-mobile-rtr.entrypoints=https"
+      - "traefik.http.routers.karakeep-mobile-rtr.priority=110"
+      - "traefik.http.routers.karakeep-mobile-rtr.middlewares=chain-no-auth@file,karakeep-mobile-strip"
+      - "traefik.http.routers.karakeep-mobile-rtr.service=karakeep-svc"
+      ## Remove the proxy token before forwarding to Karakeep.
+      - "traefik.http.middlewares.karakeep-mobile-strip.headers.customrequestheaders.X-Karakeep-Proxy-Token="
       ## Monitoring (Gatus — no auth, internal entrypoint only)
       - "traefik.http.routers.karakeep-monitor.rule=Host(`karakeep.${DOMAINNAME}`)"
       - "traefik.http.routers.karakeep-monitor.entrypoints=monitoring"
