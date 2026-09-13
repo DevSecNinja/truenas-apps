@@ -15,7 +15,7 @@ $mutationFailureTarget = Join-Path $testRoot 'mutation-failure.sops.env'
 $validationFailureTarget = Join-Path $testRoot 'validation-failure.sops.env'
 $failedTarget = Join-Path $testRoot 'failed.sops.env'
 $mockSopsPath = Join-Path $testRoot 'mock-sops.ps1'
-$mutationMockSopsPath = Join-Path $testRoot 'mutation-mock-sops.cmd'
+$mutationMockSopsPath = Join-Path $testRoot $(if ($IsWindows) { 'mutation-mock-sops.cmd' } else { 'mutation-mock-sops.sh' })
 $mockEditorPath = Join-Path $testRoot 'mock-editor.ps1'
 $editorLog = Join-Path $testRoot 'editor.log'
 $templatePathLog = Join-Path $testRoot 'template-path.log'
@@ -210,19 +210,39 @@ try {
     }
 
     Copy-Item -LiteralPath $target -Destination $mutationFailureTarget
-    [IO.File]::WriteAllLines(
-        $mutationMockSopsPath,
-        @(
-            '@echo off'
-            'if "%~1"=="set" ('
-            '    echo corrupted>"%~7"'
-            '    exit /b 91'
-            ')'
-            '"%SOPS_TEST_REAL_SOPS%" %*'
-            'exit /b %ERRORLEVEL%'
-        ),
-        [Text.ASCIIEncoding]::new()
-    )
+    if ($IsWindows) {
+        [IO.File]::WriteAllLines(
+            $mutationMockSopsPath,
+            @(
+                '@echo off'
+                'if "%~1"=="set" ('
+                '    echo corrupted>"%~7"'
+                '    exit /b 91'
+                ')'
+                '"%SOPS_TEST_REAL_SOPS%" %*'
+                'exit /b %ERRORLEVEL%'
+            ),
+            [Text.ASCIIEncoding]::new()
+        )
+    }
+    else {
+        [IO.File]::WriteAllLines(
+            $mutationMockSopsPath,
+            @(
+                '#!/bin/sh'
+                'if [ "$1" = "set" ]; then'
+                '    printf "%s\n" corrupted >"$7"'
+                '    exit 91'
+                'fi'
+                'exec "$SOPS_TEST_REAL_SOPS" "$@"'
+            ),
+            [Text.UTF8Encoding]::new($false)
+        )
+        & chmod +x $mutationMockSopsPath
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to make the mutation SOPS mock executable'
+        }
+    }
     $env:SOPS_TEST_REAL_SOPS = $sopsPath
     $mutationFailureHash = (Get-FileHash -LiteralPath $mutationFailureTarget -Algorithm SHA256).Hash
     $mutationFailureObserved = $false
@@ -301,11 +321,12 @@ try {
     $env:SOPS_TEST_EDITOR_LOG = $editorLog
     $env:SOPS_EDITOR = 'prior-editor-command'
     $mockEditorCommandPath = $mockEditorPath.Replace('\', '/')
+    $editorExecutable = if ($IsWindows) { 'powershell.exe' } else { 'pwsh' }
     Open-SopsEncryptedFile `
         -TargetPath $target `
         -AgeKeyFile $keyFile `
         -SopsPath $sopsPath `
-        -EditorCommand "powershell.exe -NoProfile -File `"$mockEditorCommandPath`""
+        -EditorCommand "$editorExecutable -NoProfile -File `"$mockEditorCommandPath`""
     if (-not (Test-Path -LiteralPath $editorLog)) {
         throw 'SOPS did not invoke the configured editor'
     }
@@ -328,7 +349,7 @@ try {
         -TargetPath $target `
         -AgeKeyFile $keyFile `
         -SopsPath $sopsPath `
-        -EditorCommand "powershell.exe -NoProfile -File `"$mockEditorCommandPath`""
+        -EditorCommand "$editorExecutable -NoProfile -File `"$mockEditorCommandPath`""
 
     [IO.File]::WriteAllLines(
         $mockSopsPath,
