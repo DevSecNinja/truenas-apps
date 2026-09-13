@@ -573,7 +573,14 @@ Full media library. No WORM retention — old versions cleaned up by lifecycle r
 
 **Advanced Remote Options:** _(same as Task A)_
 
-Catch-all for everything on `archive-pool` not captured by Tasks B and C. Excludes: `replication/` (ZFS replication target), `content/media/` (Task C), `private/` (Task B), `content/downloads/` (transient), `TimeMachine/` (already a Mac backup). No WORM retention — blob versioning + soft delete provide sufficient protection.
+Catch-all for everything on `archive-pool` not captured by Tasks B and C, including the
+operator-created `archives/` dataset when unlocked.
+Excludes: `replication/` (ZFS replication target), `content/media/` (Task C), `private/`
+(Task B), `content/downloads/` (transient), `TimeMachine/` (already a Mac backup), and
+`.zfs/` (snapshot directories). The documented exclusions do not name `archives/`;
+confirm the actual host filters and follow [Historical Archive Protection](#historical-archive-protection).
+No WORM retention is active — versioning and soft delete offer limited recovery, not
+permanent or immutable archive retention.
 
 ---
 
@@ -581,7 +588,7 @@ Catch-all for everything on `archive-pool` not captured by Tasks B and C. Exclud
 
 **Exclude trailing slashes**: Every exclude entry must end with `/` (e.g. `.zfs/`, not `.zfs`). In rclone, the trailing slash marks it as a directory filter — without it, rclone may still recurse into the directory. The ↵ symbol above means press Enter between each exclude entry in the TrueNAS UI.
 
-**Encryption**: Use the same password and salt across all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal with no security downside (content is still fully encrypted).
+**Encryption**: Use the same password and salt across all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal, but names remain visible even though content is encrypted. Use neutral filenames for sensitive exports.
 
 **Use Snapshot**: Disabled on all tasks. TrueNAS only supports this on leaf datasets with no child datasets. Pool-level paths have nested children, producing the error _"This option is only available for datasets that have no further nesting."_ The consistency risk is minimal — db-backup sidecars produce application-consistent dumps before Cloud Sync runs, and media/config files are rarely written mid-sync.
 
@@ -656,6 +663,53 @@ rclone copy azure-crypt:vm-pool/apps/services/outline/backups/ /mnt/vm-pool/apps
 This requires configuring an rclone remote with the crypt wrapper and appropriate credentials. See the [rclone crypt documentation](https://rclone.org/crypt/).
 
 For the `archive-media` container, blobs move from Cool to Cold tier after 7 days via lifecycle policy. Cold tier is still online — blobs can be downloaded directly without rehydration, just like Cool tier blobs.
+
+---
+
+## Historical Archive Protection
+
+The operator confirmed creation and ACL setup of `archive-pool/archives` on **2026-09-13**;
+backup coverage has not yet been verified. See
+[Historical Archives over SMB](INFRASTRUCTURE.md#historical-archives-over-smb)
+for setup status, private ACLs, and safe imports. Classify these imported exports as
+**critical retained file state / external historical archives**: they are original backup
+files, not running databases. No live-database backup sidecar is required.
+
+Expected coverage under the documented configuration:
+
+- **Local snapshots:** the recursive `archive-pool` tasks exclude only `replication`,
+  so they include `archives`. Retention is daily for **1 month**, weekly
+  for **2 months**, and monthly for **3 months**; there are no hourly snapshots.
+- **Off-site:** [Task D — `archive-pool-to-azure`](#task-d-archive-pool-to-azure)
+  runs daily at **07:00**, in **SYNC** mode to the Azure `archive-pool` container.
+  Contents are client-side encrypted; **filename encryption is off**, so use neutral
+  filenames for sensitive files. No new Azure task is needed if the actual filters
+  match the documented configuration.
+- **Limits:** the mirror is hardware redundancy, not an independent backup, and snapshots
+  share the pool's failure domain. Layer 2 only replicates `vm-pool` to `archive-pool`;
+  it does **not** replicate `archives` back to `vm-pool`. SYNC mirrors deletions;
+  Azure versioning/soft delete are limited recovery mechanisms, not immutable retention.
+
+Retain imported archive files until deliberate manual cleanup; do not apply the sidecars'
+48-hour dump cleanup policy to this dataset. Snapshot expiry is separate from file retention.
+
+After each ingest, before declaring the files protected or deleting source originals:
+
+1. Confirm the dataset is unlocked and the host's recursive snapshot tasks and Task D are
+   enabled. Check their actual source, exclusions, and any additional filters include
+   `archives`; this guide alone is not evidence of host configuration.
+2. Finish copying, verify source/destination hashes or representative readback/restore,
+   then run an archive-pool snapshot task and Task D. Confirm a snapshot exists for
+   `archive-pool/archives`, Cloud Sync succeeds, and the expected off-site files are present.
+3. Restore a sample from the Azure `archive-pool` container's `archives/` directory to an
+   **isolated target** using [Restore from Azure Blob](#restore-from-azure-blob).
+   Decrypt with the Cloud Sync password/salt, then the independent client encryption
+   key if used. Verify hashes and a representative application restore before source cleanup.
+
+For local recovery, copy individual files from
+`/mnt/archive-pool/archives/.zfs/snapshot/<snapshot-name>/` into an isolated restore target,
+or use the Azure procedure above. Verify the recovered files before copying selected files
+back over SMB. **Do not roll back the entire archive dataset** to recover a single archive.
 
 ---
 
