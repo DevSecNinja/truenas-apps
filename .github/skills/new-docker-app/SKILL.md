@@ -79,6 +79,87 @@ The helper generates a cryptographically secure hexadecimal value only when a re
 
 This helper is only for generate-once bootstrap. Rotate existing values manually with `sops edit`; never use the helper for rotation or run it concurrently against the same file. Never commit `CHANGE_ME` placeholders for generated secrets. Populate user-supplied values separately through SOPS, and output a summary table that identifies each variable as random, user-supplied, or shared without revealing values.
 
+#### Native Windows PowerShell alternative
+
+From a fresh PowerShell terminal, import the module and call its canonical exported function. This path creates and encrypts the target in one operation, so do not create the target file first:
+
+```powershell
+Import-Module .\scripts\SopsSecrets.psm1 -Force
+
+New-SopsEncryptedEnvFile `
+    -TargetPath 'services/<app>/secret.sops.env' `
+    -AgeKeyReference 'op://<vault>/<item>/<field>' `
+    -TemplateValues ([ordered] @{
+        DOMAINNAME = 'example.com'
+        APP_SECRET = 'GENERATE'
+        OPTIONAL_API_KEY = ''
+    }) `
+    -GeneratedSecrets ([ordered] @{
+        APP_SECRET = 36
+    }) `
+    -RequiredVariables @('DOMAINNAME', 'APP_SECRET')
+```
+
+`New-SopsEncryptedEnvFile` is self-contained for a fresh terminal. It resolves SOPS directly or through `mise`, runs idempotent `op signin`, and verifies the authenticated account with `op whoami`. Immediately before every operation that can invoke 1Password, it logs what will happen and why. It never prints the `op://` reference, Age identity, or decrypted or generated values.
+
+The function provides these plaintext and failure-safety guarantees:
+
+- Non-secret/static values and literal `GENERATE` sentinels are written only to a temporary template that is always cleaned up.
+- Generated random values are passed to `sops set --value-stdin`; they are never written to a plaintext file or placed in process arguments.
+- The function refuses to overwrite an existing target, removes a partially created target on failure, and restores prior SOPS environment variables.
+- It validates encryption metadata, decrypts only through an in-memory validation pipeline, checks required variables, and rejects unresolved `GENERATE` or `CHANGE_ME` sentinels.
+
+Use the inputs as follows:
+
+- `TemplateValues` must contain only non-secret configuration, empty placeholders for user-supplied values, and literal `GENERATE` sentinels. Populate issued or user-supplied credentials separately with `sops edit`; never place them in the PowerShell command or terminal history.
+- `GeneratedSecrets` maps variable names to random byte counts from 16 through 1024. Each name must exist in `TemplateValues` with the value `GENERATE`.
+
+The PowerShell function and Bash helper are alternative bootstrap paths. Choose one and never run both against the same target. Both are generate-once workflows and must not rotate existing secrets. The 1Password parameter set shown above is recommended; the `-AgeKeyFile` parameter set exists only for tests or a controlled fallback.
+
+#### Edit an existing encrypted file
+
+Use `Open-SopsEncryptedFile` from a fresh PowerShell terminal to edit an existing SOPS-encrypted file safely:
+
+```powershell
+Import-Module .\scripts\SopsSecrets.psm1 -Force
+
+Open-SopsEncryptedFile `
+    -TargetPath 'services/<app>/secret.sops.env' `
+    -AgeKeyReference 'op://<vault>/<item>/<field>'
+```
+
+The function resolves SOPS, runs idempotent `op signin`, verifies the authenticated account with `op whoami`, and logs before every operation that can invoke 1Password and why. It never prints the key reference or decrypted values.
+
+By default, it sets `SOPS_EDITOR='code --wait'`. SOPS opens a temporary decrypted buffer in VS Code, waits for it to be saved and closed, and then re-encrypts the target. Save and close the temporary VS Code tab or window to let SOPS finish; do not edit the ciphertext file directly. Plaintext is not written to the repository.
+
+The function verifies encryption metadata before and after editing, restores the previous SOPS and editor environment variables, and supports `-WhatIf`. Use `-EditorCommand` to override VS Code when necessary. The `-AgeKeyFile` parameter set is available only for tests or a controlled fallback; 1Password and VS Code are recommended.
+
+#### Add generated values to an existing encrypted file
+
+Use `Add-SopsGeneratedEnvSecret` when an already-encrypted app secret file needs one or more missing generated values added later, such as `DB_ENC_PASSPHRASE` after adding a backup sidecar:
+
+```powershell
+Import-Module .\scripts\SopsSecrets.psm1 -Force
+
+Add-SopsGeneratedEnvSecret `
+    -TargetPath 'services/<app>/secret.sops.env' `
+    -AgeKeyReference 'op://<vault>/<item>/<field>' `
+    -GeneratedSecrets ([ordered] @{
+        DB_ENC_PASSPHRASE = 36
+    }) `
+    -RequiredVariables @('DOMAINNAME', 'DB_ENC_PASSPHRASE')
+```
+
+Despite the singular cmdlet noun, `GeneratedSecrets` is an ordered map and can contain multiple variables. Its values are random byte counts from 16 through 1024. The target must already be SOPS-encrypted. Use the recommended `AgeKeyReference` parameter set; use `-AgeKeyFile` only for tests or a controlled fallback.
+
+The function:
+
+- Performs the 1Password fresh-terminal preflight and logs why each key access occurs.
+- Decrypts only in memory, copies the ciphertext to a temporary encrypted working file, adds an encrypted `GENERATE` sentinel for each missing key, fills it through `sops set --value-stdin`, validates the result, and atomically replaces the original.
+- Preserves existing non-sentinel values and refuses rotation: requested existing values are not changed. An idempotent rerun does not rewrite ciphertext.
+- Restores prior SOPS environment variables and deletes temporary ciphertext, including on failure.
+- Never prints key references or decrypted or generated values.
+
 ### Step 3 — Classify persistent state and add a database backup sidecar
 
 For every persistent volume declared in Step 1, classify each path as one of:
@@ -109,7 +190,7 @@ When a sidecar is required:
 1. Confirm the 1Password CLI integration is enabled and the vault is unlocked (e.g. `op whoami` succeeds), or confirm the equivalent for whatever identity is configured.
 2. Configure `SOPS_AGE_KEY_CMD` (preferred) — e.g. `export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'` — or another valid SOPS identity (`SOPS_AGE_KEY_FILE` or a standard key-file location) if 1Password is not used.
 3. Prove decryption works before editing anything, e.g. `sops -d services/<app>/secret.sops.env >/dev/null` (or decrypt an existing app's file as a smoke test) must succeed.
-4. Set `DB_ENC_PASSPHRASE=GENERATE` in the encrypted file, then run `bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env DB_ENC_PASSPHRASE=<byte_count>` to fill it in. Never hand-type a passphrase or commit a `CHANGE_ME`/plaintext value.
+4. Generate `DB_ENC_PASSPHRASE` through an encrypted `GENERATE` sentinel. On Bash, set `DB_ENC_PASSPHRASE=GENERATE` in the encrypted file, then run `bash scripts/generate-sops-secrets.sh services/<app>/secret.sops.env DB_ENC_PASSPHRASE=<byte_count>`. On native Windows, use `Add-SopsGeneratedEnvSecret` from a fresh PowerShell terminal against the already-encrypted target; it adds the encrypted sentinel when the key is missing and fills it through `sops set --value-stdin`. Both paths require the same identity preflight and successful decryption check, and neither may expose plaintext. Never hand-type a passphrase or commit a `CHANGE_ME`/plaintext value.
 5. **Stop and report the blocker** if SOPS cannot access a usable key or decrypt the template — do not fall back to an unencrypted secret, a hardcoded value, or skip encryption "temporarily."
 
 ### Step 4 — Register the network in Traefik
@@ -342,7 +423,7 @@ Use this as a final review before committing:
 - [ ] `./config` volumes are mounted `:ro`
 - [ ] Image is digest-pinned with explicit registry prefix
 - [ ] `secret.sops.env` is encrypted
-- [ ] Random variables used encrypted literal `GENERATE` sentinels before the helper ran
+- [ ] Random variables used encrypted literal `GENERATE` sentinels as part of the selected Bash or PowerShell workflow
 - [ ] Random secrets were generated once; no generated value uses a `CHANGE_ME` placeholder
 - [ ] User-supplied and shared values were excluded from helper arguments
 - [ ] Existing secrets were not rotated by the helper
@@ -350,7 +431,7 @@ Use this as a final review before committing:
 - [ ] Every embedded database has an application-consistent backup sidecar, or a documented, reviewed exception in the service README and `docs/BACKUP.md`
 - [ ] Backup sidecar writes encrypted, ZSTD-compressed, SHA1-checksummed dumps to `./backups/db-backup` (never `./data`/`./config`) with 48-hour retention
 - [ ] Backup sidecar container is named `<app>-db-backup` for the `dccd.sh -B` freshness check
-- [ ] `DB_ENC_PASSPHRASE` (or equivalent) was generated via the SOPS/1Password preflight — 1Password CLI authenticated/unlocked, a valid SOPS identity confirmed, decryption proven before editing, `GENERATE` + `scripts/generate-sops-secrets.sh` used, never plaintext or a placeholder
+- [ ] `DB_ENC_PASSPHRASE` (or equivalent) was generated via the SOPS/1Password preflight — 1Password CLI authenticated/unlocked, a valid SOPS identity confirmed, decryption proven before editing, and the encrypted `GENERATE` workflow completed with `scripts/generate-sops-secrets.sh` or `Add-SopsGeneratedEnvSecret`, never plaintext or a placeholder
 - [ ] `docs/BACKUP.md` Covered Databases table and Restore a Database Dump section are updated (or the Persistent State Inventory records the reviewed exception)
 - [ ] A representative synthetic backup/restore test was performed and confirmed before merge
 - [ ] Final response reports the backup sidecar's implemented behavior, synthetic restore evidence, required post-merge deployment/run steps, and restore-doc link — without claiming production deployment or a successful run unless actual host evidence exists

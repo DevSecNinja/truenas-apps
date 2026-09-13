@@ -35,6 +35,13 @@ teardown() {
   assert_output "memos|svc-app-memos|3129|false"
 }
 
+@test "load_app_config: loads the Karakeep account from the registry" {
+  run load_app_config_values "karakeep"
+
+  assert_success
+  assert_output "karakeep|svc-app-karakeep|3130|false"
+}
+
 @test "load_app_config: rejects an unsupported app" {
   run load_app_config "not-registered"
 
@@ -89,10 +96,11 @@ teardown() {
     "Invalid admin_group_member for memos: expected true or false"
 }
 
-@test "list_supported_apps: lists both registry keys" {
+@test "list_supported_apps: lists every registry key" {
   run list_supported_apps
 
   assert_success
   assert_line "  dawarich"
+  assert_line "  karakeep"
   assert_line "  memos"
 }

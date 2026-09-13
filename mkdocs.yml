@@ -86,6 +86,7 @@ nav:
       - Home Assistant: services/home-assistant.md
       - Homepage: services/homepage.md
       - Immich: services/immich.md
+      - Karakeep: services/karakeep.md
       - Lidarr: services/lidarr.md
       - Matter Server: services/matter-server.md
       - Memos: services/memos.md

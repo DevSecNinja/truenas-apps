@@ -175,7 +175,12 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Exceptions — images that manage their own permissions:**
 
-- **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and chown their own directories during their own init phase. They do not need an external init container.
+- **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and
+  chown their own directories during their own init phase, so they generally
+  do not need a dedicated external init container. Karakeep is an exception:
+  its existing app init container pre-owns the `./backups/db-backup` child
+  because the backup image resets the read-write parent mount root to root
+  ownership.
 - **nfrastack/db-backup** manages backup output ownership through its `USER_DBBACKUP` and `GROUP_DBBACKUP` settings. It does not need an external init container.
 - **Database images** (postgres, MongoDB) initialise their own data directories. They do not need an external init container.
 
@@ -194,6 +199,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                  |
 | homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                        |
 | immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                |
+| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; creates and chowns `./backups/db-backup`, then chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                |
 | matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                          |
 | memos                | `memos-init`                | `./data` → PUID/PGID `3129:3129`                                                                                                                                                  |
 | metube               | `metube-init`               | `./data/state`                                                                                                                                                                    |
@@ -214,6 +220,13 @@ permissions, it rejects any required decrypted value that is empty or equals
 deployments. PostGIS and Redis depend on successful init completion, preventing
 a placeholder database password from initializing PostGIS; the application and
 worker start only after their backends are healthy.
+
+`karakeep-init` uses `docker.io/library/busybox:1.38.0` to validate the required
+domain, NextAuth secret, and Meilisearch master key before assigning
+`./data/karakeep`, `./data/meilisearch`, and the newly created
+`./backups/db-backup` child to `3130:3130`. It mounts `./backups` at `/backups`
+so it can prepare the child without changing the parent mount root. It never
+changes ownership under `./config`.
 
 ---
 
@@ -237,6 +250,33 @@ health response. The Sidekiq health check invokes the image's Ruby interpreter
 to inspect `/proc/1/cmdline` and verify that PID 1 contains `sidekiq`. The image
 does not include `pgrep`/procps, so the check does not depend on those
 utilities.
+
+Karakeep follows a similar direct-process pattern. The published all-in-one
+image normally starts its web and worker processes as root under s6-overlay.
+This deployment sets `USING_LEGACY_SEPARATE_CONTAINERS=true` and launches the
+split web and worker processes directly as `3130:3130`; the web command applies
+database migrations before serving traffic. Meilisearch also runs as
+`3130:3130`. The web, worker, and Meilisearch containers use read-only root
+filesystems, drop all capabilities, and enforce resource limits. The
+root-start s6 backup sidecar omits a read-only root filesystem and uses the
+restricted capability set documented in
+[Karakeep Network and Access Model](#karakeep-network-and-access-model).
+
+Headless browser crawling is disabled with `CRAWLER_HEADLESS_BROWSER=false`.
+The complete `karakeep-chrome` service is commented out and does not join the
+active networks. It would process attacker-controlled pages with an upstream
+image that starts Chromium using `--no-sandbox`; non-root execution, a
+read-only root filesystem, dropped capabilities, no published ports, and
+resource limits do not make that additional attack surface acceptable by
+default.
+
+Links, notes, images and other assets, SQLite persistence, Meilisearch
+full-text search, and optional AI tagging remain available. Browser-rendered
+crawling, screenshots, and full-page browser captures are unavailable. Opting
+in requires an explicit risk reassessment, uncommenting the Chrome service,
+adding `BROWSER_WEB_URL: http://karakeep-chrome:9222` to the shared Karakeep
+environment, and restoring the web service's `service_healthy` dependency on
+`karakeep-chrome`.
 
 **Exceptions — s6-overlay and root-start containers:**
 
@@ -340,6 +380,37 @@ workflow while using the maintained nfrastack image and repository.
 ### Exception: iot-backend
 
 The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares a single `iot-backend` internal bridge network so the services can communicate directly. For example, wmbusmeters publishes MQTT messages to Mosquitto, Home Assistant subscribes to MQTT topics, and Frigate sends events via MQTT. This network is created by the `_bootstrap` service and referenced as `external: true` by each IoT app. The backend bridge is `internal: true` and carries no internet route. Matter Server is excluded — it uses `network_mode: host` for mDNS device discovery and Thread border router communication.
+
+### Karakeep Network and Access Model
+
+Karakeep uses `karakeep-frontend` for Traefik access to the web container and
+outbound worker crawling and optional AI calls. The internal
+`karakeep-backend` network carries communication between the web, worker, and
+Meilisearch containers. Meilisearch is backend-only; only the web container is
+exposed through Traefik.
+
+The commented `karakeep-chrome` opt-in service would join both networks, but it
+is not part of the active service or network set. Enabling it requires the
+explicit risk reassessment and configuration changes described in the
+[Karakeep service documentation](services/karakeep.md).
+
+The one-shot `karakeep-db-backup` sidecar is network-isolated. It starts with
+the tiredofit image's s6 supervisor as root, then maps
+`USER_DBBACKUP=3130` and `GROUP_DBBACKUP=3130` to drop the backup process to
+Karakeep's app-owned identity. It reads `db.db` from a read-only mount. The
+sidecar mounts `./backups` at `/backup-data` and writes to the pre-owned
+`/backup-data/db-backup` child because the image resets read-write mount roots
+to root ownership; host output remains `./backups/db-backup`.
+
+The sidecar drops all capabilities and adds only `CHOWN`, `DAC_OVERRIDE`,
+`FOWNER`, `SETGID`, `SETUID`, and `SETPCAP`. Reduced-capability runtime testing
+proved `DAC_OVERRIDE` necessary for s6 to create root-owned runtime paths
+before dropping privileges. The remaining capabilities are the documented s6
+path-preparation and privilege-drop set.
+
+The web router applies `chain-auth@file`, and Karakeep retains its own local
+user authentication behind that middleware. No API or mobile-client Forward
+Auth bypass is configured.
 
 ### Dawarich Split Authentication Routers
 
