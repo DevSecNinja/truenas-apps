@@ -16,6 +16,7 @@ prep_common_setup() {
   REAL_JQ="$(command -v jq)"
   mkdir -p "${MOCK_BIN}" "${MOCK_LOG}" "${MOCK_STATE}" \
     "${TEST_REPO_ROOT}/services/dawarich" \
+    "${TEST_REPO_ROOT}/services/karakeep" \
     "${TEST_REPO_ROOT}/services/memos"
   cp "${TEST_PROJECT_ROOT}/truenas-apps.json" \
     "${TEST_REPO_ROOT}/truenas-apps.json"
@@ -133,6 +134,10 @@ provision_app() {
 
 provision_dawarich() {
   provision_app "dawarich"
+}
+
+provision_karakeep() {
+  provision_app "karakeep"
 }
 
 provision_memos() {

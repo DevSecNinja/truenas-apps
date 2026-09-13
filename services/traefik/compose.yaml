@@ -80,6 +80,7 @@ services:
       metube-frontend:
       memos-frontend:
       immich-frontend:
+      karakeep-frontend:
       bazarr-frontend:
       dozzle-frontend:
       lidarr-frontend:
@@ -253,6 +254,9 @@ networks:
     external: true
   immich-frontend:
     name: immich-frontend
+    external: true
+  karakeep-frontend:
+    name: karakeep-frontend
     external: true
   dozzle-frontend:
     name: dozzle-frontend

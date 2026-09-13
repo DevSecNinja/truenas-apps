@@ -1,0 +1,288 @@
+---
+x-karakeep-environment: &karakeep-environment
+  API_URL: http://karakeep:3000
+  CRAWLER_HEADLESS_BROWSER: "false"
+  DATA_DIR: /data
+  DB_WAL_MODE: "true"
+  DISABLE_NEW_RELEASE_CHECK: "true"
+  LOG_LEVEL: info
+  MEILI_ADDR: http://karakeep-meilisearch:7700
+  MEILI_MASTER_KEY: ${KARAKEEP_MEILI_MASTER_KEY}
+  NEXTAUTH_SECRET: ${KARAKEEP_NEXTAUTH_SECRET}
+  NEXTAUTH_URL: https://karakeep.${DOMAINNAME}
+  OPENAI_API_KEY: ${KARAKEEP_OPENAI_API_KEY:-}
+  USING_LEGACY_SEPARATE_CONTAINERS: "true"
+
+services:
+  # The published all-in-one image supervises both Node.js processes as root
+  # under s6-overlay. This stack starts the web and worker processes directly
+  # so they can use the dedicated non-root TrueNAS service account instead.
+  karakeep-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: karakeep-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Required to assign runtime paths to svc-app-karakeep
+      - FOWNER # Required to tighten permissions after ownership changes
+      - DAC_OVERRIDE # Required to traverse mode 700 paths on repeat deployments
+    read_only: true
+    command:
+      - "sh"
+      - "-ec"
+      - |-
+        for value in \
+          "$${DOMAINNAME:-}" \
+          "$${KARAKEEP_NEXTAUTH_SECRET:-}" \
+          "$${KARAKEEP_MEILI_MASTER_KEY:-}"; do
+          if [ -z "$${value}" ] || [ "$${value}" = "CHANGE_ME" ]; then
+            echo "ERROR: Karakeep secrets contain an empty or CHANGE_ME value" >&2
+            exit 1
+          fi
+        done
+        chown -R 3130:3130 /data /meilisearch
+        chmod -R u=rwX,g=,o= /data /meilisearch
+    volumes:
+      - ./data/karakeep:/data
+      - ./data/meilisearch:/meilisearch
+
+  karakeep:
+    image: ghcr.io/karakeep-app/karakeep:0.33.2
+    container_name: karakeep
+    depends_on:
+      karakeep-init:
+        condition: service_completed_successfully
+      karakeep-meilisearch:
+        condition: service_healthy
+    entrypoint:
+      - "/bin/sh"
+      - "-ec"
+    command:
+      - |-
+        cd /db_migrations
+        node /db_migrations/index.js
+        cd /app/apps/web
+        exec node server.js
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      <<: *karakeep-environment
+    user: "3130:3130" # svc-app-karakeep
+    deploy:
+      update_config:
+        order: stop-first # SQLite migrations must complete before the replacement serves traffic
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - karakeep-frontend
+      - karakeep-backend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /app/apps/web/.next/cache
+      - /tmp
+    volumes:
+      - ./data/karakeep:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      # Homepage
+      - homepage.group=Productivity
+      - homepage.name=Karakeep
+      - homepage.icon=karakeep
+      - homepage.href=https://karakeep.${DOMAINNAME}
+      - homepage.description=Bookmark Manager
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.docker.network=karakeep-frontend"
+      ## HTTP Routers
+      - "traefik.http.routers.karakeep-rtr.rule=Host(`karakeep.${DOMAINNAME}`)"
+      - "traefik.http.routers.karakeep-rtr.entrypoints=https"
+      - "traefik.http.routers.karakeep-rtr.middlewares=chain-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.karakeep-rtr.service=karakeep-svc"
+      - "traefik.http.services.karakeep-svc.loadbalancer.server.port=3000"
+      ## Monitoring (Gatus — no auth, internal entrypoint only)
+      - "traefik.http.routers.karakeep-monitor.rule=Host(`karakeep.${DOMAINNAME}`)"
+      - "traefik.http.routers.karakeep-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.karakeep-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.karakeep-monitor.service=karakeep-svc"
+      ## Gatus
+      - "gatus.url=http://172.30.100.6:8444/api/health"
+      - "gatus.headers.Host=karakeep.${DOMAINNAME}"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 2000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+  karakeep-workers:
+    image: ghcr.io/karakeep-app/karakeep:0.33.2
+    container_name: karakeep-workers
+    depends_on:
+      karakeep:
+        condition: service_healthy
+    entrypoint:
+      - "node"
+    command:
+      - "dist/index.js"
+    working_dir: /app/apps/workers
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      <<: *karakeep-environment
+    user: "3130:3130" # svc-app-karakeep
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    stop_grace_period: 60s
+    networks:
+      - karakeep-frontend # Outbound access for crawling and optional AI inference
+      - karakeep-backend
+    mem_limit: ${WORKERS_MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/karakeep:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "process.exit(require('fs').readFileSync('/proc/1/cmdline').includes('dist/index.js')?0:1)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Headless browser crawling is disabled by default because Chrome processes
+  # attacker-controlled pages and the upstream image uses --no-sandbox. To opt
+  # in, uncomment this service, add BROWSER_WEB_URL to the shared environment,
+  # and restore karakeep's service_healthy dependency on karakeep-chrome.
+  #
+  # karakeep-chrome:
+  #   image: ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1
+  #   container_name: karakeep-chrome
+  #   init: true
+  #   command:
+  #     - --disable-gpu
+  #     - --disable-dev-shm-usage
+  #     - --hide-scrollbars
+  #     - --disable-blink-features=AutomationControlled
+  #     - --window-size=1440,900
+  #   env_file:
+  #     - path: ../shared/env/tz.env
+  #   deploy:
+  #     restart_policy:
+  #       condition: on-failure
+  #       max_attempts: 3
+  #       window: 120s
+  #   networks:
+  #     - karakeep-frontend
+  #     - karakeep-backend
+  #   mem_limit: ${CHROME_MEM_LIMIT:-1024m}
+  #   pids_limit: 100
+  #   security_opt:
+  #     - no-new-privileges=true
+  #   cap_drop:
+  #     - ALL
+  #   read_only: true
+  #   tmpfs:
+  #     - /tmp
+  #   healthcheck:
+  #     test:
+  #       - "CMD"
+  #       - "bash"
+  #       - "-c"
+  #       - "exec 3<>/dev/tcp/127.0.0.1/9222"
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 15s
+
+  karakeep-meilisearch:
+    image: docker.io/getmeili/meilisearch:v1.41.0
+    container_name: karakeep-meilisearch
+    depends_on:
+      karakeep-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${KARAKEEP_MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    user: "3130:3130" # svc-app-karakeep
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - karakeep-backend
+    mem_limit: ${MEILI_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/meilisearch:/meili_data
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "--fail"
+        - "--silent"
+        - "http://127.0.0.1:7700/health"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  karakeep-frontend:
+    name: karakeep-frontend
+    driver: bridge
+  karakeep-backend:
+    name: karakeep-backend
+    internal: true
