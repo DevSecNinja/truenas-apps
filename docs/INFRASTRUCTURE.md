@@ -196,8 +196,9 @@ shared-purpose group memberships. The web, worker, and Meilisearch processes
 use this identity; `karakeep-init` assigns their runtime paths and the database
 backup output child to it. The `karakeep-db-backup` s6 supervisor starts as
 root, then maps `USER_DBBACKUP` and `GROUP_DBBACKUP` to `3130` so the backup
-process uses this identity. The commented `karakeep-chrome` opt-in service is
-not active and is not included in this account allocation.
+process uses this identity. The active `karakeep-chrome` service does not use
+the TrueNAS account allocation; Compose explicitly runs it with the upstream
+image's non-root `nobody` identity.
 
 ### Shared Purpose Groups
 

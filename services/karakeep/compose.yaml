@@ -1,7 +1,8 @@
 ---
 x-karakeep-environment: &karakeep-environment
   API_URL: http://karakeep:3000
-  CRAWLER_HEADLESS_BROWSER: "false"
+  BROWSER_WEB_URL: http://karakeep-chrome:9222
+  CRAWLER_HEADLESS_BROWSER: "true"
   DATA_DIR: /data
   DB_WAL_MODE: "true"
   DISABLE_NEW_RELEASE_CHECK: "true"
@@ -65,6 +66,8 @@ services:
     image: ghcr.io/karakeep-app/karakeep:0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
     container_name: karakeep
     depends_on:
+      karakeep-chrome:
+        condition: service_healthy
       karakeep-init:
         condition: service_completed_successfully
       karakeep-meilisearch:
@@ -96,6 +99,7 @@ services:
     networks:
       - karakeep-frontend
       - karakeep-backend
+      - karakeep-browser
     mem_limit: ${MEM_LIMIT:-1024m}
     pids_limit: 100
     security_opt:
@@ -195,6 +199,7 @@ services:
     networks:
       - karakeep-frontend # Outbound access for crawling and optional AI inference
       - karakeep-backend
+      - karakeep-browser
     mem_limit: ${WORKERS_MEM_LIMIT:-2048m}
     pids_limit: 100
     security_opt:
@@ -269,50 +274,53 @@ services:
       - ./data/karakeep:/karakeep-data:ro
       - ./backups:/backup-data
 
-  # Headless browser crawling is disabled by default because Chrome processes
-  # attacker-controlled pages and the upstream image uses --no-sandbox. To opt
-  # in, uncomment this service, add BROWSER_WEB_URL to the shared environment,
-  # and restore karakeep's service_healthy dependency on karakeep-chrome.
-  #
-  # karakeep-chrome:
-  #   image: ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1
-  #   container_name: karakeep-chrome
-  #   init: true
-  #   command:
-  #     - --disable-gpu
-  #     - --disable-dev-shm-usage
-  #     - --hide-scrollbars
-  #     - --disable-blink-features=AutomationControlled
-  #     - --window-size=1440,900
-  #   env_file:
-  #     - path: ../shared/env/tz.env
-  #   deploy:
-  #     restart_policy:
-  #       condition: on-failure
-  #       max_attempts: 3
-  #       window: 120s
-  #   networks:
-  #     - karakeep-frontend
-  #     - karakeep-backend
-  #   mem_limit: ${CHROME_MEM_LIMIT:-1024m}
-  #   pids_limit: 100
-  #   security_opt:
-  #     - no-new-privileges=true
-  #   cap_drop:
-  #     - ALL
-  #   read_only: true
-  #   tmpfs:
-  #     - /tmp
-  #   healthcheck:
-  #     test:
-  #       - "CMD"
-  #       - "bash"
-  #       - "-c"
-  #       - "exec 3<>/dev/tcp/127.0.0.1/9222"
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 15s
+  # Chrome processes attacker-controlled pages without its browser sandbox.
+  # Keep its DevTools listener on a dedicated internal network and give only
+  # Chrome a separate egress bridge for public-page fetches.
+  karakeep-chrome:
+    image: ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1@sha256:5b19bbb160e9ff60681a3abd97e1c4ec9f64212301410de658c3900ab7ef31e7
+    container_name: karakeep-chrome
+    init: true
+    command:
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --hide-scrollbars
+      - --disable-blink-features=AutomationControlled
+      - --window-size=1440,900
+    env_file:
+      - path: ../shared/env/tz.env
+    user: "65534:65534" # Upstream image's non-root nobody identity
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - karakeep-browser-egress
+      - karakeep-browser
+    mem_limit: ${CHROME_MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - "CMD"
+        - "bash"
+        - "-ec"
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9222;
+          printf 'GET /json/version HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3;
+          IFS= read -r status <&3;
+          [[ "$${status}" == *" 200 "* ]]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   karakeep-meilisearch:
     image: docker.io/getmeili/meilisearch:v1.41.0@sha256:860fa4baed04ae1c235de870edab0c8006227546dea1bbb6411fbfc5e27cf1db
@@ -366,3 +374,10 @@ networks:
   karakeep-backend:
     name: karakeep-backend
     internal: true
+  karakeep-browser:
+    name: karakeep-browser
+    driver: bridge
+    internal: true
+  karakeep-browser-egress:
+    name: karakeep-browser-egress
+    driver: bridge
