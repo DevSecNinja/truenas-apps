@@ -12,6 +12,8 @@ argument-hint: 'Describe the encrypted secret file and variables to create or re
 ## Hard Safety Rules
 
 - Never print an Age private key or decrypted secret value.
+- Never print the configured `op://` reference or the value of `SOPS_AGE_KEY_CMD`; use a redacted command in notices.
+- Before every operation that may access 1Password, provide the [advance disclosure](#before-every-1password-operation), including indirect access through SOPS or helpers.
 - Never redirect decrypted SOPS output to a plaintext file.
 - Never commit plaintext `.env`, key, editor backup, or temporary generated files.
 - Keep `secret.sops.env` encrypted before and after every operation.
@@ -20,6 +22,71 @@ argument-hint: 'Describe the encrypted secret file and variables to create or re
 - Use only `VARIABLE=BYTE_COUNT` arguments for random values. Do not pass user-supplied credentials or shared values.
 - Use disposable Age identities in tests. Never use a production key in CI or test fixtures.
 - `SOPS_BIN`, when set, is a non-secret executable path or command name — never put a key, passphrase, or other secret value in it.
+
+## Before Every 1Password Operation
+
+Provide a **user-visible preamble followed by the commands** before invoking
+anything that may access 1Password. This applies even when already
+authenticated: account checks, sign-in, SOPS-triggered key reads, generation,
+editing, validation, troubleshooting, and retries all need advance disclosure.
+Include:
+
+1. **Exact commands:** Show the command(s) about to run, including helper
+   arguments and underlying key-access commands. Resolve non-secret inputs
+   such as target paths, variable names, and byte counts. Redact the key
+   reference as `op read "<reference withheld>"` or
+   `-AgeKeyReference '<reference withheld>'`; never print the configured
+   reference to explain it. A redacted command is a preview, not a command
+   to paste unchanged. Describe `op read` as SOPS-triggered, not a standalone
+   preflight to execute.
+2. **Purpose:** Explain what each command or phase will do and why it needs
+   1Password, rather than saying only "checking secrets" or "running setup."
+3. **Read/write scope:** State that the planned 1Password data access is
+   **read-only**; no vault items will be created or changed. Identify
+   authentication/session changes separately. Name every local encrypted
+   file to be created or changed, or explicitly say none. Include temporary
+   ciphertext and conditional replacement or failure cleanup when applicable.
+4. **Privacy:** Explain how the Age key reaches SOPS without being printed,
+   how decrypted data is discarded or consumed in memory, and how generated
+   values travel through stdin without appearing in arguments, history, logs,
+   or plaintext files. For `sops edit`, explicitly disclose the SOPS-owned
+   temporary plaintext editor file outside the repository; do not claim that
+   editing is entirely in-memory.
+5. **Authorization scope:** Tell the user that the 1Password prompt grants
+   CLI access broadly, even though the planned commands are narrow and
+   read-only. The plan is a commitment about intended use, **not** a
+   technically enforced least-privilege, per-command grant.
+
+For an automated helper, one upfront notice may cover a batch **only if it
+explicitly enumerates every possible key-access operation**, with exact
+commands, individual phases, generation count (or conditional maximum),
+variable names, byte counts, and branch conditions. Read the helper first;
+expand loops and conditional accesses in the plan rather than hiding them
+behind a single helper command or vague log message. Identify generated
+temporary paths by their naming pattern when their random suffix is not yet
+known. If the plan changes, stop and show a new notice before proceeding.
+
+Use this phase checklist to build the numbered command plan; it is not a
+substitute for showing the actual commands and inputs:
+
+| Workflow                     | Phases to announce individually before invocation                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native PowerShell preflight  | `op signin` to authenticate, then `op whoami` to verify the account; both discard output.                                                                                                                                                                                                                                                                                                                                                               |
+| `New-SopsEncryptedEnvFile`   | Perform the native preflight; encrypt the non-secret template; generate the stated number of values with one `sops set --value-stdin` per variable; check encryption metadata; decrypt for final in-memory validation. Each set and validation decrypt can trigger `op read`.                                                                                                                                                                           |
+| `Add-SopsGeneratedEnvSecret` | Check metadata; perform the native preflight; decrypt to inspect state in memory; for each requested variable, conditionally add a missing encrypted sentinel and then generate its value through separate `sops set --value-stdin` calls; decrypt the encrypted working copy for final validation before replacement. Enumerate both possible sets per variable and the no-op branch for preserved values. Each decrypt and set can trigger `op read`. |
+| `Open-SopsEncryptedFile`     | Check metadata; perform the native preflight; run `sops edit`, which can trigger `op read`, and re-encrypt after the editor closes; check saved encryption metadata.                                                                                                                                                                                                                                                                                    |
+| Bash generator and validator | Generator: decrypt once per requested variable, conditionally set each remaining sentinel, then decrypt the encrypted working copy before replacement if changes were made. Validator: structural checks followed by a separate validation decrypt. Each decrypt and set can trigger `op read`.                                                                                                                                                         |
+
+Metadata/structural checks do not need key access. Counts of
+potential key-access phases are not promises about the number of prompts.
+The native module emits progress logs, but those logs **do not replace the
+agent's advance disclosure** before invoking an automated sequence.
+
+After a timeout, denial, or failure, do not retry automatically. Explain the
+failure without exposing sensitive output, show the **new exact retry plan**
+(including repeated sign-in, account checks, and key reads), ask whether the
+user is ready, and wait for their response before retrying. An earlier batch
+notice or authorization does not cover a retry.
 
 ## Implementation Contract
 
@@ -126,7 +193,8 @@ hand-rolling a decrypt-and-grep pipeline.
 
 ## Safely Review and Edit
 
-Use VS Code as the SOPS editor so plaintext remains only in the editor-managed temporary buffer:
+Use VS Code as the SOPS editor. Disclose that SOPS uses a temporary plaintext
+editor file outside the repository; this is not an entirely in-memory operation:
 
 ```sh
 target='services/<app>/secret.sops.env'
@@ -230,7 +298,7 @@ Assumptions and rules for this invocation:
 ## Troubleshooting
 
 - **`op` unavailable:** Install the 1Password CLI and verify `command -v op` succeeds.
-- **`op` unauthenticated or nonzero:** Unlock 1Password Desktop, approve CLI integration, and rerun `op whoami >/dev/null`.
+- **`op` unauthenticated or nonzero:** Ask the user to unlock 1Password Desktop and enable CLI integration. Before retrying `op whoami >/dev/null` or any helper, show the new exact retry plan and wait for the user to confirm readiness.
 - **No standalone identity line:** Store one supported Age identity in the referenced field.
 - **One comment-prefixed flattened line:** Store only the `AGE-SECRET-KEY-...` value or restore the Secure Note's real newlines.
 - **SOPS cannot decrypt:** Confirm the selected identity matches a recipient on the target before editing or generating.
