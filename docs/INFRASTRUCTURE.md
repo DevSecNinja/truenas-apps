@@ -148,39 +148,49 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user              | Service(s)                                                                          | Git-tracked config? |
-| ------- | ------------------------- | ----------------------------------------------------------------------------------- | ------------------- |
-| 3101    | `svc-app-adguard`         | adguard, adguard-init, adguard-unbound-init                                         | No (`./data/conf`)  |
-| 3125    | `svc-app-alloy`           | alloy, alloy-init                                                                   | Yes (`./config`)    |
-| 3126    | `svc-app-bitwarden`       | bitwarden                                                                           | No                  |
-| 3131    | `svc-app-changedetection` | changedetection; changedetection-init ownership target                              | No (`./data`)       |
-| 3128    | `svc-app-dawarich`        | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                       | No                  |
-| 3109    | `svc-app-dozzle`          | dozzle, dozzle-init                                                                 | No                  |
-| 3119    | `svc-app-drawio`          | drawio                                                                              | No                  |
-| 3104    | `svc-app-echo`            | echo-server                                                                         | No                  |
-| 3103    | `svc-app-gatus`           | gatus, gatus-db-backup                                                              | No                  |
-| 3102    | `svc-app-homepage`        | homepage, homepage-init                                                             | Yes (`./config`)    |
-| 3106    | `svc-app-immich`          | immich-server, immich-ml, immich-init                                               | No                  |
-| 3130    | `svc-app-karakeep`        | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup | No                  |
-| 3124    | `svc-app-matter`          | matter-server, matter-server-init                                                   | No                  |
-| 3129    | `svc-app-memos`           | memos, memos-init                                                                   | No                  |
-| 3107    | `svc-app-metube`          | metube, metube-init                                                                 | No                  |
-| 3122    | `svc-app-mosquitto`       | mosquitto, mosquitto-init                                                           | Yes (`./config`)    |
-| 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                             | No                  |
-| 3120    | `svc-app-outline`         | outline-db-backup†                                                                  | No                  |
-| 3110    | `svc-app-radarr`          | radarr                                                                              | No                  |
-| 3100    | `svc-app-traefik`         | traefik, traefik-init                                                               | Yes (`./config`)    |
-| 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                          | No (`./data`)       |
-| 3118    | `svc-app-tubesync`        | tubesync                                                                            | No                  |
-| 3108    | `svc-app-unifi`           | unifi, unifi-db-backup                                                              | No                  |
-| 3123    | `svc-app-wmbusmeters`     | wmbusmeters, wmbusmeters-init                                                       | Yes (`./config`)    |
+| UID/GID | TrueNAS user              | Service(s)                                                                          | Git-tracked config?  |
+| ------- | ------------------------- | ----------------------------------------------------------------------------------- | -------------------- |
+| 3101    | `svc-app-adguard`         | adguard, adguard-init, adguard-unbound-init                                         | No (`./data/conf`)   |
+| 3125    | `svc-app-alloy`           | alloy, alloy-init                                                                   | Yes (`./config`)     |
+| 3126    | `svc-app-bitwarden`       | bitwarden                                                                           | No                   |
+| 3131    | `svc-app-changedetection` | changedetection; changedetection-init ownership target                              | No (`./data`)        |
+| 3128    | `svc-app-dawarich`        | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                       | No                   |
+| 3109    | `svc-app-dozzle`          | dozzle, dozzle-init                                                                 | No                   |
+| 3119    | `svc-app-drawio`          | drawio                                                                              | No                   |
+| 3104    | `svc-app-echo`            | echo-server                                                                         | No                   |
+| 3103    | `svc-app-gatus`           | gatus, gatus-db-backup                                                              | No                   |
+| 3102    | `svc-app-homepage`        | homepage, homepage-init                                                             | Yes (`./config`)     |
+| 3106    | `svc-app-immich`          | immich-server, immich-ml, immich-init                                               | No                   |
+| 3130    | `svc-app-karakeep`        | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup | No                   |
+| 3124    | `svc-app-matter`          | matter-server, matter-server-init                                                   | No                   |
+| 3129    | `svc-app-memos`           | memos, memos-init                                                                   | No                   |
+| 3107    | `svc-app-metube`          | metube, metube-init                                                                 | No                   |
+| 3122    | `svc-app-mosquitto`       | mosquitto, mosquitto-init                                                           | Yes (`./config`)     |
+| 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                             | No                   |
+| 3120    | `svc-app-outline`         | outline-db-backup†                                                                  | No                   |
+| 3113    | `svc-app-prowlarr`        | prowlarr                                                                            | No (`./data/config`) |
+| 3110    | `svc-app-radarr`          | radarr                                                                              | No                   |
+| 3117    | `svc-app-spottarr`        | spottarr; spottarr-chown ownership target                                           | No (`./data`)        |
+| 3100    | `svc-app-traefik`         | traefik, traefik-init                                                               | Yes (`./config`)     |
+| 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                          | No (`./data`)        |
+| 3118    | `svc-app-tubesync`        | tubesync                                                                            | No                   |
+| 3108    | `svc-app-unifi`           | unifi, unifi-db-backup                                                              | No                   |
+| 3123    | `svc-app-wmbusmeters`     | wmbusmeters, wmbusmeters-init                                                       | Yes (`./config`)     |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
-image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
-db-backup sidecar. The Outline server itself runs without a `user:` directive;
-an `outline-init` container pre-chowns `./data/data` to UID 1000 so the node
-process can write to the bind-mount path. See:
+image-internal `node` user, explicitly selected by `user: "1000:1000"`.
+The registry's `svc-app-outline` account has UID and primary GID `3120`,
+used by `outline-db-backup` through `USER_DBBACKUP` and `GROUP_DBBACKUP`.
+It does not replace the main application's image-internal identity:
+`outline-init` still uses `docker.io/library/busybox:1.38.0` to chown
+`./data/data` to `1000:1000`. See:
 https://github.com/outline/outline/discussions/9452
+
+Prowlarr and Spottarr use their listed UID as the matching primary GID, with
+no shared-purpose group memberships. Prowlarr selects the dedicated account
+through `PUID`/`PGID`; Spottarr uses `user:`. Its `spottarr-chown` init runs
+`docker.io/library/busybox:1.38.0` as root and assigns `./data` ownership to
+the app's `3117:3117` identity.
 
 The `svc-app-changedetection` account has UID `3131`, primary group
 `svc-app-changedetection` (GID `3131`), and no shared-purpose group memberships.
@@ -279,6 +289,37 @@ administrative user needs auxiliary app-group membership.
 `truenas-apps.schema.json`, CI, and Lefthook validate the registry fields and
 service directory references. The helper requires `jq` on `PATH` to read the
 JSON registry and construct TrueNAS API payloads.
+
+#### Registry Coverage
+
+The registry currently enrolls **19 app stacks** using the existing dedicated
+account model: `adguard`, `alloy`, `bitwarden`, `changedetection`, `dawarich`,
+`dozzle`, `drawio`, `gatus`, `homepage`, `karakeep`, `memos`, `mosquitto`,
+`openclaw`, `outline`, `prowlarr`, `spottarr`, `traefik`, `unifi`, and
+`wmbusmeters`.
+
+Each uses the exact `svc-app-<key>` account/group name and a matching UID and
+primary GID from the registry. `admin_group_member` is `false` for every
+enrolled app except Dawarich, whose existing administrative-access requirement
+remains enabled. Enrollment does not change Compose runtime identities or
+make every container use the host account.
+
+A registry key identifies an app stack under `services/`, not an individual
+init, browser, database, or backup container. Outline is enrolled because its
+dedicated host account is used by the backup sidecar; the main application's
+image-internal identity remains managed separately as described above.
+
+Advanced provisioning remains deferred to
+[issue #772](https://github.com/DevSecNinja/truenas-apps/issues/772):
+
+- Legacy account-name aliases: `echo-server`, `matter-server`, and
+  `traefik-forward-auth`.
+- Shared media/photo primary groups and [Plex's fixed identity](#plex-exception).
+- Apps requiring no host account or dataset-only provisioning.
+
+Do not treat these deferred cases as helper-supported or allocate replacement
+identities to force them into the current model. The registry and the helper's
+generated usage output remain the authoritative supported-key list.
 
 #### TrueNAS Script Dependency Policy
 
