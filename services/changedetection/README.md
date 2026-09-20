@@ -1,14 +1,15 @@
 # changedetection.io
 
 [changedetection.io](https://changedetection.io/) monitors websites for changes,
-retains diffs, and sends notifications. This deployment currently uses Basic
-HTTP only; JavaScript rendering, new screenshots, and browser steps are disabled.
+retains diffs and screenshots, and sends notifications. Browser fetching is
+enabled by default in Compose under an explicit unpatched-version risk exception.
 
 ## Why
 
 Keep watch definitions and history on locally managed storage behind the
-existing SSO boundary. A DHI browser and filtering proxy are staged but
-disabled pending a verified patched browser image.
+existing SSO boundary. A dedicated DHI browser uses a public-website-only
+filtering proxy. The operator has explicitly accepted the current browser's
+unpatched-version risk pending a verified replacement.
 
 ## Compose File
 
@@ -40,8 +41,8 @@ No smaller or DHI alternative has been adopted for the application itself.
 | Container                       | Role                                                                                                                                                  |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `changedetection`               | Web UI, API, and fetch workers; writes only persistent `/datastore` and temporary paths                                                               |
-| `changedetection-browser-proxy` | Staged stateless Squid proxy; disabled by default                                                                                                     |
-| `changedetection-chrome`        | Staged DHI browser; disabled by default and blocked by a minimum-version gate                                                                         |
+| `changedetection-browser-proxy` | Stateless Squid proxy; filters browser HTTP(S) to public websites                                                                                     |
+| `changedetection-chrome`        | DHI browser with an explicit, exact-version risk exception                                                                                            |
 | `changedetection-init`          | `docker.io/library/busybox:1.38.0`; validates `DOMAINNAME`, chowns `./data` mounted at `/datastore` to UID/GID `3131:3131`, and applies `u=rwX,g=,o=` |
 
 The app runs as `svc-app-changedetection` with matching UID and primary GID
@@ -50,35 +51,38 @@ shared groups, and `admin_group_member=false`. Init runs as root with only
 `CHOWN`, `FOWNER`, and `DAC_OVERRIDE` added back, no network, and a read-only
 root filesystem. It never changes `./config`.
 
-The app waits only for successful init completion, not Chrome. The staged
-Chrome definition still depends on a healthy browser proxy.
+The app waits for successful init completion and healthy Chrome. Chrome
+depends on a healthy browser proxy.
 Only one application instance may write the datastore: Compose specifies
 stop-first updates and a 60-second graceful-stop period.
 
 ### Browser and Networks
 
-**Current mode: Basic HTTP only.** `DEFAULT_FETCH_BACKEND=html_requests` and
-an empty `PLAYWRIGHT_DRIVER_URL` disable browser fetching. Chrome and Squid
-both belong to `browser-pending-security-update`, which is off by default.
-Existing browser-backed watches must be manually changed to **Basic HTTP**;
-the deployment does not silently migrate persisted watch settings.
+**Browser fetching is enabled by default:** `DEFAULT_FETCH_BACKEND=html_webdriver`
+and `PLAYWRIGHT_DRIVER_URL=http://172.30.100.22:9222`. Chrome and Squid have
+no profiles and participate in normal deployment. Existing Basic HTTP watch
+settings are not automatically migrated; explicitly select the browser
+fetcher on watches where JavaScript rendering is wanted.
 
-Both apps stage `dhi.io/playwright:1.63.0-debian13` as separate browser
+Both apps use `dhi.io/playwright:1.63.0-debian13` as separate browser
 instances. Initial DHI adoption is tag-only; Renovate will add the digest pin.
 The inspected image contains vulnerable Chromium `153.0.8010.47-2~deb13u1`,
-below the launcher's `153.0.8010.52` minimum. It is **not ready to enable**.
-See the [security gate and future enablement requirements](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
+below the launcher's normal `153.0.8010.52` minimum. Both browser definitions
+set `BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47`: only that exact older
+version may start under this explicit exception, with a `WARNING` log.
+Other versions below the minimum remain blocked; versions at or above it
+use normal startup.
 
 <!-- dprint-ignore -->
-!!! warning "An inactive profile does not stop an old browser"
-    If already deployed, explicitly stop the old `changedetection-chrome`
-    container and its browser proxy if present, then verify they are stopped.
-    Do not assume dccd or the inactive profile removes running containers.
-    Keep the browser profile off; enabling `COMPOSE_PROFILES` alone would not
-    configure the app's fetcher and must not be used with the vulnerable image.
+!!! warning "Accepted risk is not a browser patch"
+    The operator approved this exact-version exception despite the confirmed
+    high-severity Linux V8 issue CVE-2026-93377. Squid and container hardening
+    do not fix V8. Synthetic runtime validation does not establish a patched
+    image or a successful or safe production TrueNAS deployment.
 
-Browser/proxy memberships below describe the staged definitions, not running
-services in the default HTTP-only deployment.
+See [risk scope and patch follow-up](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
+Normal deployment recreates changed browser definitions; no profile activation
+or profile-related manual shutdown is required for this transition.
 
 | Network                          | Members and purpose                                                                     |
 | -------------------------------- | --------------------------------------------------------------------------------------- |
@@ -86,30 +90,29 @@ services in the default HTTP-only deployment.
 | `changedetection-browser-egress` | Browser proxy only; outbound connections to permitted public websites                   |
 | `changedetection-frontend`       | App and Traefik; UI/API traffic and app egress                                          |
 
-The reserved CDP relay endpoint is `http://172.30.100.22:9222`; it is **not**
-currently assigned to `PLAYWRIGHT_DRIVER_URL`. The read-only
-`../shared/config/browser/launch.mjs` checks the Chromium version before
-launch and, only after that check passes, relays port `9222` to Chromium on
-loopback port `9223`. This stages a stable HTTP discovery endpoint without
-claiming that the DHI browser integration has passed.
+The HTTP CDP endpoint uses the reserved Chrome address. The read-only
+`../shared/config/browser/launch.mjs` checks the version or exact exception
+before launch, then relays port `9222` to Chromium on loopback port `9223`.
+HTTP discovery obtains the current WebSocket endpoint on each connection;
+it does not pin a transient WebSocket ID.
 
 The control subnet is `172.30.100.16/29`, with dynamic allocation limited to
 `172.30.100.16/30`; Chrome's `172.30.100.22` reservation is outside that
-dynamic range. Keep IPAM and `ipv4_address` coordinated; any future driver URL
-requires review and integration testing.
+dynamic range. Keep IPAM, `ipv4_address`, and `PLAYWRIGHT_DRIVER_URL`
+coordinated when changing the reservation.
 See the [network and access model](../ARCHITECTURE.md#changedetectionio-network-and-access-model).
 
-| Setting                   | Default and purpose                                           |
-| ------------------------- | ------------------------------------------------------------- |
-| `DEFAULT_FETCH_BACKEND`   | `html_requests`; Basic HTTP only                              |
-| `PLAYWRIGHT_DRIVER_URL`   | Empty; browser fetching disabled                              |
-| `FETCH_WORKERS`           | `${FETCH_WORKERS:-2}`; adjustable concurrency                 |
-| `MEM_LIMIT`               | `${MEM_LIMIT:-1024m}`; application memory bound               |
-| `CHROME_MEM_LIMIT`        | `${CHROME_MEM_LIMIT:-2048m}`; staged browser memory bound     |
-| `BROWSER_PROXY_MEM_LIMIT` | `${BROWSER_PROXY_MEM_LIMIT:-256m}`; staged proxy memory bound |
-| `TZ`                      | Supplied to all four containers by `../shared/env/tz.env`     |
+| Setting                   | Default and purpose                                       |
+| ------------------------- | --------------------------------------------------------- |
+| `DEFAULT_FETCH_BACKEND`   | `html_webdriver`; browser fetching by default             |
+| `PLAYWRIGHT_DRIVER_URL`   | `http://172.30.100.22:9222`; HTTP CDP discovery           |
+| `FETCH_WORKERS`           | `${FETCH_WORKERS:-2}`; adjustable concurrency             |
+| `MEM_LIMIT`               | `${MEM_LIMIT:-1024m}`; application memory bound           |
+| `CHROME_MEM_LIMIT`        | `${CHROME_MEM_LIMIT:-2048m}`; browser memory bound        |
+| `BROWSER_PROXY_MEM_LIMIT` | `${BROWSER_PROXY_MEM_LIMIT:-256m}`; proxy memory bound    |
+| `TZ`                      | Supplied to all four containers by `../shared/env/tz.env` |
 
-The staged Chrome definition uses DHI's non-root identity (`65532:65532`), with
+Chrome uses DHI's non-root identity (`65532:65532`), with
 `init: true`, `cap_drop: ALL`, `no-new-privileges`, a read-only root filesystem,
 temporary filesystems, and a 100-PID limit. The app also drops all capabilities,
 has a read-only root filesystem, and uses a 100-PID limit. Chrome has no
@@ -117,7 +120,7 @@ published ports, no Traefik labels, and no frontend network membership.
 
 #### Public-Website-Only Browser Egress
 
-If approved for future use, the staged Chrome definition joins **only**
+Chrome joins **only**
 `changedetection-browser`, with no direct internet route. Its command sets:
 
 - `--proxy-server=http://changedetection-browser-proxy:3128`
@@ -136,10 +139,9 @@ The proxy runs as `65534:65534`, with a read-only root, `cap_drop: ALL`,
 `no-new-privileges`, a 100-PID limit, and only `/tmp` as writable scratch.
 It has no published ports, persistent state, disk cache, or URL access log.
 The bundled Perl health check requires an actual HTTP `403` for a loopback
-destination. Both staged services watch `../shared/config/browser` through
+destination. Both services watch `../shared/config/browser` through
 `config.watch` and `config.sha256`, covering the launcher and Squid policy
-together. Config-change recreation applies when services are enabled; it does
-not activate the profile. No custom image publication is needed.
+together for recreation on deployment. No custom image publication is needed.
 
 <!-- dprint-ignore -->
 !!! warning "Public websites only; residual browser risk remains"
@@ -147,10 +149,11 @@ not activate the profile. No custom image publication is needed.
     `DIRECT` fallbacks, bypass rules, extra Chrome egress networks, or
     unreviewed per-watch proxy overrides to work around denials. The policy
     targets browser HTTP(S) redirect/subresource SSRF, not every app fetch
-    path or arbitrary watch proxy override. The staged launcher uses
+    path or arbitrary watch proxy override. The launcher uses
     `--no-sandbox`; a native-code compromise could reach its app and proxy
     peers on the shared internal control network. This is not full
     native-code compromise containment or protection against browser zero-days.
+    Complete DNS-rebinding protection has not been established.
 
 ## Secrets
 
@@ -172,8 +175,8 @@ configuration changes. Never commit decrypted `.env` or datastore contents.
 | --------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
 | `./data`  | `/datastore`   | **Critical mutable file state**: global/watch/tag JSON files, `secret.txt`, history snapshots, and screenshots |
 
-Retain existing screenshots/history when switching to HTTP-only operation;
-disabling browser execution does not remove stored files or rewrite watches.
+Changing the default fetcher does not remove existing screenshots/history or
+rewrite persisted watch settings.
 
 This is **not SQLite or another formal database**. There is no database backup
 sidecar and no encrypted database dump. The entire directory belongs to
@@ -199,8 +202,8 @@ for safe recovery steps and version-pinned upstream storage references.
 Before the browser-egress remediation, a three-container baseline test used
 the exact app, Chrome, and init image digests then configured on **Linux
 amd64**, with **rootless Podman 5.8.3** and **Compose 5.4.0**. The results below
-are historical baseline evidence, not proof that the staged DHI browser
-works, is patched, or is safe to enable.
+are historical baseline evidence, not proof that the current DHI browser
+works, is patched, or is safe.
 
 | Check                    | Observed result                                                                                                                   |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -231,11 +234,10 @@ HTTPS tests and controlled denial tests for private literals/hostnames,
 IPv4-mapped IPv6, NAT64, 6to4, forbidden ports, and disallowed `CONNECT`.
 Those tests used only the controlled proxy, not connections to real LAN
 services. Those results do not validate the DHI browser. **The current
-mitigation is to disable browser execution**, not to restore active JavaScript
-features. Future enablement requires a verified patched DHI image, browser
-integration tests, and reviewed app environment/dependency changes. See
-[proxy validation and limits](../ARCHITECTURE.md#browser-egress-policy-public-websites-only)
-and the [rootful test-runtime requirement](../INFRASTRUCTURE.md#stateless-browser-proxies).
+configuration enables browser execution under an accepted risk exception.**
+Completed synthetic DHI checks and remaining production/workflow checks are
+recorded in [Browser Runtime Validation](../ARCHITECTURE.md#browser-runtime-validation).
+They do not make the image patched or supersede the historical restore evidence.
 
 ## First-Run Setup
 
@@ -283,18 +285,18 @@ source /mnt/vm-pool/apps/scripts/aliases.sh
    file-state backups.
 5. Sign in through SSO at `https://changedetection.${DOMAINNAME}`:
    - Remove the demo watches.
-   - Set the check interval, confirm the timezone, and select **Basic HTTP**.
-   - Add a public-website HTTP watch whose content does not require JavaScript;
-     verify fetched content and a diff after a change.
-   - If any existing watch uses a browser fetcher, manually select **Basic
-     HTTP** for that watch. Do not silently rewrite stored watch settings.
+   - Set the check interval, confirm the timezone, and select the browser fetcher.
+   - Add a real public-website JavaScript watch; verify rendered content, a
+     screenshot, and a diff after a change.
+   - Explicitly select the browser fetcher for existing Basic HTTP watches
+     where wanted; do not silently rewrite stored watch settings.
    - Configure a notification destination and send a test notification.
    - Optionally set an application password under **Settings**; do not look
      for a new-user account flow.
-6. Verify init completed, the app is healthy, and unauthenticated UI/API
-   requests remain behind SSO. Confirm old browser containers are stopped and
-   the browser profile remains inactive. Do not expect JavaScript rendering,
-   new screenshots, browser steps, or the visual selector in HTTP-only mode.
+6. Verify init completed, proxy/Chrome/app health checks pass, and
+   unauthenticated UI/API requests remain behind SSO. Check the browser's
+   actual version and expected exception warning. Browser-step and
+   visual-selector integration remain pending verification.
 
 ## Upgrade Notes
 
@@ -302,9 +304,14 @@ source /mnt/vm-pool/apps/scripts/aliases.sh
 - Gracefully stop the app and capture a complete datastore recovery point
   before an upgrade that may change stored files.
 - Do not run old and new app instances against the same datastore.
-- Recheck Basic HTTP fetching, diffs, and notifications after upgrades. Keep
-  browsers disabled during upgrades and restores until the patched-image
-  and integration requirements have been met; do not lower the version gate.
+- Recheck JavaScript fetching, screenshots/diffs, browser reconnection, and
+  notifications after upgrades.
+- The publisher's patch date is unknown. Select a reviewed patched DHI build,
+  pull/redeploy through `dccd-all`, and verify the actual Chromium version
+  in both browsers. After patched-image verification, remove
+  `BROWSER_ALLOW_UNPATCHED_VERSION` from **both** apps' Compose files and
+  redeploy again. Do not assume the Playwright tag or a future automatic
+  update proves the browser is patched.
 - If rollback requires older file formats, restore the matching complete
   pre-upgrade state with the corresponding image version. Keep the failed
   tree until recovery is verified.

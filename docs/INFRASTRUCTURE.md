@@ -197,8 +197,8 @@ The `svc-app-changedetection` account has UID `3131`, primary group
 The app uses this identity; `changedetection-init` runs as root and assigns
 the datastore to it. Registry key `changedetection` sets
 `admin_group_member=false`, so the helper does not add the administrator to
-the service group. The disabled `changedetection-chrome` definition uses
-DHI's `65532:65532`; its disabled browser proxy uses `65534:65534`.
+the service group. `changedetection-chrome` uses DHI's `65532:65532`;
+its browser proxy uses `65534:65534`.
 Neither uses the TrueNAS app allocation.
 
 The `svc-app-dawarich` user has UID 3128, primary group
@@ -216,42 +216,46 @@ shared-purpose group memberships. The web, worker, and Meilisearch processes
 use this identity; `karakeep-init` assigns their runtime paths and the database
 backup output child to it. The `karakeep-db-backup` s6 supervisor starts as
 root, then maps `USER_DBBACKUP` and `GROUP_DBBACKUP` to `3130` so the backup
-process uses this identity. The disabled `karakeep-chrome` definition uses
-DHI's `65532:65532`, while its disabled proxy uses `65534:65534`.
+process uses this identity. `karakeep-chrome` uses DHI's `65532:65532`,
+while its proxy uses `65534:65534`.
 Neither needs a new TrueNAS account or shared-group membership.
 
 ### Stateless Browser Proxies
 
-changedetection.io and Karakeep each stage a dedicated Canonical Squid
+changedetection.io and Karakeep each use a dedicated Canonical Squid
 `7.2-26.04_edge` proxy using the same approved digest and shared read-only
 `services/shared/config/browser/squid.conf`. Both browser and proxy services
-belong to the default-off `browser-pending-security-update` profile.
-Neither proxy needs a
+are active by default in Compose, without profiles. Neither proxy needs a
 dataset, host service account, ownership init, new secret, or database backup.
 Each uses only `/tmp` scratch, a read-only root filesystem, dropped
 capabilities, `${BROWSER_PROXY_MEM_LIMIT:-256m}`, and a 100-PID limit.
 
-In the staged definitions, only each proxy joins its app's browser-egress
-bridge. Chrome is attached
+Only each proxy joins its app's browser-egress bridge. Chrome is attached
 only to the internal browser network, which it shares with app clients and
 the proxy. There are no host-published proxy ports or new host firewall or
 dependency requirements. Internal-site crawling/monitoring is intentionally
 unsupported by the [public-website-only policy](ARCHITECTURE.md#browser-egress-policy-public-websites-only);
 do not add direct fallbacks, bypass rules, or Chrome egress networks.
-Current Basic HTTP app traffic is not filtered through the disabled proxy.
+Non-browser Basic HTTP app traffic is not filtered through this proxy.
 
-The staged DHI browser mounts `services/shared/config/browser/launch.mjs`
-read-only. The launcher rejects Chromium below `153.0.8010.52`; the inspected
-image's `153.0.8010.47-2~deb13u1` remains vulnerable. Both services watch the
+The DHI browser mounts `services/shared/config/browser/launch.mjs`
+read-only. The normal minimum remains `153.0.8010.52`, but both browser
+definitions set `BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47` under explicit
+operator risk acceptance. Only that exact older version may start with the
+matching value and a `WARNING`; other below-minimum versions remain blocked.
+The inspected `153.0.8010.47-2~deb13u1` build remains vulnerable. Both services watch the
 shared `browser` directory for config changes. Initial DHI adoption is
 tag-only, with Renovate digest pinning to follow; no custom image publication
 or new persistent storage is required.
 
-Before relying on disabled browser execution, existing operators must
-explicitly stop `karakeep-chrome` and, if deployed, `changedetection-chrome`,
-plus their old proxies, and verify they are stopped. Profile deactivation is
-not a shutdown guarantee. Keep the profile off until patched-image
-verification, integration tests, and app environment/dependency review pass.
+Normal deployment recreates changed browser definitions; no profile-related
+shutdown is required for this transition. The publisher's patch date is
+unknown. Pull/redeploy a reviewed patched build through `dccd-all`, verify
+the actual Chromium version in both containers, then remove
+`BROWSER_ALLOW_UNPATCHED_VERSION` from both Compose files and redeploy again.
+See [Browser Runtime Validation](ARCHITECTURE.md#browser-runtime-validation)
+for completed synthetic checks and remaining production-host checks; the
+tests do not establish that the image is patched.
 
 **Test runtime:** use rootful Podman on the test VM. The Canonical image
 contains layer file ownership outside that VM's default rootless subordinate
@@ -497,21 +501,19 @@ permissions or granting shared-group access.
 
 #### Static Browser Subnet Reservation
 
-| Reservation                | Value                                                           |
-| -------------------------- | --------------------------------------------------------------- |
-| Internal IPv4-only network | `changedetection-browser`                                       |
-| Subnet                     | `172.30.100.16/29`                                              |
-| Dynamic allocation range   | `172.30.100.16/30`                                              |
-| Chrome static address      | `172.30.100.22`                                                 |
-| Reserved CDP relay         | `http://172.30.100.22:9222` (staged, not an active app setting) |
+| Reservation                | Value                                             |
+| -------------------------- | ------------------------------------------------- |
+| Internal IPv4-only network | `changedetection-browser`                         |
+| Subnet                     | `172.30.100.16/29`                                |
+| Dynamic allocation range   | `172.30.100.16/30`                                |
+| Chrome static address      | `172.30.100.22`                                   |
+| CDP endpoint               | `PLAYWRIGHT_DRIVER_URL=http://172.30.100.22:9222` |
 
 Reserve this subnet against overlap with Docker, LAN, and VPN networks.
 Chrome's address is outside the dynamic allocation range. If relocating the
-subnet, update IPAM and Chrome's `ipv4_address` together. The app currently
-sets `PLAYWRIGHT_DRIVER_URL` empty; the IP-based HTTP discovery endpoint is
-reserved for future reviewed integration, not enabled by this reservation.
-The app retains its control-network membership; Chrome and proxy memberships
-are staged in the inactive profile. Only the staged proxy joins
+subnet, update IPAM, Chrome's `ipv4_address`, and `PLAYWRIGHT_DRIVER_URL`
+together. The app uses the IP-based HTTP discovery endpoint on each
+connection. App, Chrome, and proxy share the control network. Only the proxy joins
 `changedetection-browser-egress`. Chrome remains internal-network-only, with
 no published ports or frontend membership. See the
 [network and access model](ARCHITECTURE.md#changedetectionio-network-and-access-model).

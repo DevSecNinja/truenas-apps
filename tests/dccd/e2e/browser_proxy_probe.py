@@ -194,6 +194,9 @@ def launcher(version, args=(), **fake_environment):
     assert node.is_file(), f"Bundled Node not found: {node}"
     assert_cdp_closed()
     environment = dict(os.environ)
+    # Default gate tests must not inherit an operator exception from the runner.
+    # Individual cases supply it explicitly through fake_environment.
+    environment.pop("BROWSER_ALLOW_UNPATCHED_VERSION", None)
     environment.update(
         FAKE_CHROMIUM_VERSION=version,
         FAKE_EXPECTED_ARGS=json.dumps([
@@ -231,6 +234,17 @@ def assert_fake_reaped(output):
     raise AssertionError(f"Fake Chromium survived its supervisor:\n{output}")
 
 
+def assert_launcher_rejected(version, diagnostic, **environment):
+    with launcher(version, **environment) as process:
+        output, _ = process.communicate(timeout=15)
+        detail = f"{version}, test environment={environment}:\n{output}"
+        assert process.returncode == 1, detail
+        assert diagnostic in output, detail
+        assert "FAKE_CHROMIUM_STARTED" not in output, detail
+        assert "WARNING:" not in output, detail
+        assert_cdp_closed()
+
+
 def launcher_reject():
     cases = (
         ("Chromium 153.0.8010.52", "9", "Unable to verify Chromium version", "failed version probe"),
@@ -239,13 +253,29 @@ def launcher_reject():
         ("Chromium 153.0.8010.51", "0", "below the security minimum 153.0.8010.52", "Chromium 153.0.8010.51"),
     )
     for version, exit_code, diagnostic, description in cases:
-        with launcher(version, FAKE_VERSION_EXIT=exit_code) as process:
-            output, _ = process.communicate(timeout=15)
-            assert process.returncode == 1, output
-            assert diagnostic in output, output
-            assert "FAKE_CHROMIUM_STARTED" not in output, output
-            assert_cdp_closed()
+        assert_launcher_rejected(version, diagnostic, FAKE_VERSION_EXIT=exit_code)
         print(f"launcher: {description} rejected before spawn")
+
+
+def launcher_reject_override():
+    cases = (
+        ("153.0.8010.47", ""),
+        ("153.0.8010.47", "true"),
+        ("153.0.8010.47", "153.0.8010.51"),
+        ("153.0.8010.47", "153.0.8010.47 "),
+        ("153.0.8010.46", "153.0.8010.47"),
+        ("153.0.8010.51", "153.0.8010.47"),
+        # Matching the binary is insufficient: this version is not hardcoded
+        # as the accepted exception, even though it is closer to the floor.
+        ("153.0.8010.51", "153.0.8010.51"),
+    )
+    for version, override in cases:
+        assert_launcher_rejected(
+            f"Chromium {version}",
+            "below the security minimum 153.0.8010.52",
+            BROWSER_ALLOW_UNPATCHED_VERSION=override,
+        )
+    print(f"launcher: {len(cases)} mismatched or unsupported overrides rejected before spawn")
 
 
 def connect_synthetic_cdp(process):
@@ -275,10 +305,9 @@ def connect_synthetic_cdp(process):
     raise AssertionError("Synthetic CDP relay did not become ready within 10s")
 
 
-def launcher_minimum(args):
-    with launcher("Chromium 153.0.8010.52", args) as process:
+def assert_launcher_supervised(version, args, **environment):
+    with launcher(version, args, **environment) as process:
         with connect_synthetic_cdp(process) as connection:
-            print("launcher: exact minimum accepted; source flags forwarded; CDP relay verified")
             process.send_signal(signal.SIGTERM)
             output, _ = process.communicate(timeout=12)
             assert process.returncode == 0, output
@@ -289,6 +318,41 @@ def launcher_minimum(args):
             except ConnectionResetError:
                 pass  # Reset, like EOF, proves the held relay socket was closed.
             assert_cdp_closed()
+    return output
+
+
+def launcher_exception(args):
+    output = assert_launcher_supervised(
+        "Chromium 153.0.8010.47", args,
+        BROWSER_ALLOW_UNPATCHED_VERSION="153.0.8010.47",
+    )
+    warning = (
+        "WARNING: Running known-vulnerable Chromium 153.0.8010.47 under the "
+        "explicit operator exception. Upgrade to at least 153.0.8010.52 "
+        "and remove BROWSER_ALLOW_UNPATCHED_VERSION."
+    )
+    assert output.splitlines().count(warning) == 1, output
+    assert output.index(warning) < output.index("FAKE_CHROMIUM_STARTED"), output
+    print("launcher: exact 153.0.8010.47 exception warned before spawn and relayed CDP")
+    print("launcher: SIGTERM reaped fake Chromium and closed CDP sockets")
+
+
+def launcher_patched(args):
+    cases = (
+        ("153.0.8010.52", False),
+        ("153.0.8010.52", True),
+        ("153.0.8010.53", True),
+        ("154.0.0.0", True),
+    )
+    for version, stale_exception in cases:
+        environment = (
+            {"BROWSER_ALLOW_UNPATCHED_VERSION": "153.0.8010.47"}
+            if stale_exception else {}
+        )
+        output = assert_launcher_supervised(f"Chromium {version}", args, **environment)
+        assert "WARNING:" not in output, output
+        setting = "stale exception set" if stale_exception else "exception unset"
+        print(f"launcher: Chromium {version} relayed without warning ({setting})")
     print("launcher: SIGTERM reaped fake Chromium and closed CDP sockets")
 
 
@@ -322,8 +386,12 @@ if __name__ == "__main__":
         public()
     elif mode == "launcher-reject":
         launcher_reject()
-    elif mode == "launcher-minimum":
-        launcher_minimum(sys.argv[2:])
+    elif mode == "launcher-reject-override":
+        launcher_reject_override()
+    elif mode == "launcher-exception":
+        launcher_exception(sys.argv[2:])
+    elif mode == "launcher-patched":
+        launcher_patched(sys.argv[2:])
     elif mode == "launcher-exit":
         launcher_exit()
     else:

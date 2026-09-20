@@ -50,6 +50,8 @@ services:
     depends_on:
       changedetection-init:
         condition: service_completed_successfully
+      changedetection-chrome:
+        condition: service_healthy
     env_file:
       - path: .env # Decrypted from secret.sops.env
         required: false
@@ -57,9 +59,11 @@ services:
     environment:
       BASE_URL: https://changedetection.${DOMAINNAME}
       USE_X_SETTINGS: "1"
-      DEFAULT_FETCH_BACKEND: html_requests
+      DEFAULT_FETCH_BACKEND: html_webdriver
       FETCH_WORKERS: ${FETCH_WORKERS:-2}
-      PLAYWRIGHT_DRIVER_URL: "" # Browser fetching stays disabled pending a patched DHI image
+      PLAYWRIGHT_DRIVER_URL: http://172.30.100.22:9222
+      PLAYWRIGHT_BROWSER_TYPE: chromium
+      FAST_PUPPETEER_CHROME_FETCHER: "false"
       DISABLE_VERSION_CHECK: "true"
       PYTHONDONTWRITEBYTECODE: "1"
       HOME: /tmp
@@ -105,7 +109,7 @@ services:
       - homepage.name=changedetection.io
       - homepage.icon=changedetection.svg
       - homepage.href=https://changedetection.${DOMAINNAME}
-      - homepage.description=Website Change Monitoring (HTTP)
+      - homepage.description=Website Change Monitoring
       - "traefik.enable=true"
       - "traefik.docker.network=changedetection-frontend"
       - "traefik.http.routers.changedetection-rtr.rule=Host(`changedetection.${DOMAINNAME}`)"
@@ -114,14 +118,11 @@ services:
       - "traefik.http.routers.changedetection-rtr.service=changedetection-svc"
       - "traefik.http.services.changedetection-svc.loadbalancer.server.port=5000"
 
-  # Staged only: the current DHI Chromium build fails the launcher version gate.
-  # Do not enable this profile until a patched image and browser checks pass.
+  # Public-only browser with an explicitly accepted, version-specific patch gap.
   changedetection-chrome:
     # Initial DHI adoption is tag-only; Renovate adds the multi-arch digest.
     image: dhi.io/playwright:1.63.0-debian13
     container_name: changedetection-chrome
-    profiles:
-      - "browser-pending-security-update"
     init: true
     entrypoint:
       - "node"
@@ -143,6 +144,7 @@ services:
     env_file:
       - path: ../shared/env/tz.env
     environment:
+      BROWSER_ALLOW_UNPATCHED_VERSION: "153.0.8010.47" # Remove after upgrading to a patched build
       HOME: /tmp
       LANG: C
       LC_ALL: C
@@ -188,8 +190,6 @@ services:
   changedetection-browser-proxy:
     image: docker.io/ubuntu/squid:7.2-26.04_edge@sha256:77585a8f42b57872b96c6c10de8d0199642256b9390beeb6e99afa5de8a71e1c
     container_name: changedetection-browser-proxy
-    profiles:
-      - "browser-pending-security-update"
     entrypoint:
       - "/usr/sbin/squid-gnutls"
     command:
@@ -246,7 +246,7 @@ networks:
   changedetection-browser:
     name: changedetection-browser
     driver: bridge
-    enable_ipv6: false # The image's socat listener forwards TCP4 only
+    enable_ipv6: false # The CDP relay listens on IPv4 only
     internal: true
     ipam:
       config:

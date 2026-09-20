@@ -23,7 +23,7 @@ setup_file() {
     export POLICY_PROXY_IMAGE POLICY_CLIENT_IMAGE
     POLICY_PROXY_IMAGE="$(yq -r '.services."changedetection-browser-proxy".image' "${POLICY_COMPOSE}")"
     POLICY_CLIENT_IMAGE="$(yq -r '.services.changedetection.image' "${POLICY_COMPOSE}")"
-    # The inactive DHI image is deliberately not inspected, pulled or run.
+    # CI deliberately does not inspect, pull or run the auth-protected DHI image.
     # Fail rather than accessing any other registry if these source refs change.
     for image in "${POLICY_PROXY_IMAGE}" "${POLICY_CLIENT_IMAGE}"; do
         case "${image}" in
@@ -152,21 +152,24 @@ check_source_browser_policy() {
       def networks: if type == "array" then . else keys end;
       .services[$app + "-chrome"] as $browser |
       .services[$app + "-browser-proxy"] as $proxy |
-      ($browser.profiles == ["browser-pending-security-update"]) and
-      ($proxy.profiles == ["browser-pending-security-update"]) and
+      (($browser.profiles // []) | length == 0) and
+      (($proxy.profiles // []) | length == 0) and
       ((.services[$app].profiles // []) | length == 0) and
-      (all(.services[] | select(((.profiles // []) | length) == 0);
-        ((.depends_on // {} | networks) |
-          (index($app + "-chrome") == null) and
-          (index($app + "-browser-proxy") == null)))) and
+      (.services[$app].depends_on[$app + "-chrome"].condition == "service_healthy") and
       (if $app == "changedetection" then
-        (.services.changedetection.environment.DEFAULT_FETCH_BACKEND == "html_requests") and
-        (.services.changedetection.environment.PLAYWRIGHT_DRIVER_URL == "")
+        (.services.changedetection.environment.DEFAULT_FETCH_BACKEND == "html_webdriver") and
+        (.services.changedetection.environment.PLAYWRIGHT_DRIVER_URL == "http://172.30.100.22:9222") and
+        ($browser.networks."changedetection-browser".ipv4_address == "172.30.100.22") and
+        (.services.changedetection.environment.PLAYWRIGHT_BROWSER_TYPE == "chromium") and
+        (.services.changedetection.environment.FAST_PUPPETEER_CHROME_FETCHER == "false")
       else
+        ((.services."karakeep-workers".profiles // []) | length == 0) and
+        (.services."karakeep-workers".depends_on.karakeep.condition == "service_healthy") and
         (all((.services.karakeep, .services."karakeep-workers");
-          (.environment.CRAWLER_HEADLESS_BROWSER == "false") and
-          (.environment | has("BROWSER_WEB_URL") | not)))
+          (.environment.CRAWLER_HEADLESS_BROWSER == "true") and
+          (.environment.BROWSER_WEB_URL == "http://karakeep-chrome:9222")))
       end) and
+      ($browser.environment.BROWSER_ALLOW_UNPATCHED_VERSION == "153.0.8010.47") and
       ($browser.image | test("^dhi\\.io/playwright:[^@]+(@sha256:[a-f0-9]{64})?$")) and
       ($browser.user == "65532:65532") and
       ($browser.entrypoint == ["node", "/opt/browser/launch.mjs"]) and
@@ -198,7 +201,7 @@ check_source_browser_policy() {
     '
 }
 
-@test "browser_proxy: both apps default to HTTP with browsers profiled off and mandatory proxy isolation staged" {
+@test "browser_proxy: both apps enable healthy DHI browsers with the exact exception and mandatory proxy isolation" {
     policy_e2e_enabled || skip "E2E tests require DCCD_E2E=1"
     local app
     for app in changedetection karakeep; do
@@ -262,7 +265,7 @@ start_launcher_fixture() {
     POLICY_LAUNCHER_CLIENT="${POLICY_LAST_CONTAINER}"
 }
 
-@test "browser_launcher: failed, malformed and below-minimum versions fail closed without starting Chromium" {
+@test "browser_launcher: failed, malformed and below-minimum versions fail closed by default" {
     policy_e2e_enabled || skip "E2E tests require DCCD_E2E=1"
     start_launcher_fixture
     run docker exec "${POLICY_LAUNCHER_CLIENT}" python /probe.py launcher-reject
@@ -273,16 +276,40 @@ start_launcher_fixture() {
     assert_line "launcher: Chromium 153.0.8010.51 rejected before spawn"
 }
 
-@test "browser_launcher: exact minimum forwards source flags and relays CDP until supervised SIGTERM" {
+@test "browser_launcher: mismatched and unsupported overrides cannot bypass the version floor" {
+    policy_e2e_enabled || skip "E2E tests require DCCD_E2E=1"
+    start_launcher_fixture
+    run docker exec "${POLICY_LAUNCHER_CLIENT}" python /probe.py launcher-reject-override
+    assert_success
+    assert_output "launcher: 7 mismatched or unsupported overrides rejected before spawn"
+}
+
+@test "browser_launcher: only the exact 153.0.8010.47 exception warns and relays until supervised SIGTERM" {
     policy_e2e_enabled || skip "E2E tests require DCCD_E2E=1"
     start_launcher_fixture
     local -a browser_args
     run yq -r '.services."changedetection-chrome".command[]' "${POLICY_COMPOSE}"
     assert_success
     mapfile -t browser_args <<<"${output}"
-    run docker exec "${POLICY_LAUNCHER_CLIENT}" python /probe.py launcher-minimum "${browser_args[@]}"
+    run docker exec "${POLICY_LAUNCHER_CLIENT}" python /probe.py launcher-exception "${browser_args[@]}"
     assert_success
-    assert_line "launcher: exact minimum accepted; source flags forwarded; CDP relay verified"
+    assert_line "launcher: exact 153.0.8010.47 exception warned before spawn and relayed CDP"
+    assert_line "launcher: SIGTERM reaped fake Chromium and closed CDP sockets"
+}
+
+@test "browser_launcher: patched versions relay without warnings even with the stale exception" {
+    policy_e2e_enabled || skip "E2E tests require DCCD_E2E=1"
+    start_launcher_fixture
+    local -a browser_args
+    run yq -r '.services."changedetection-chrome".command[]' "${POLICY_COMPOSE}"
+    assert_success
+    mapfile -t browser_args <<<"${output}"
+    run docker exec "${POLICY_LAUNCHER_CLIENT}" python /probe.py launcher-patched "${browser_args[@]}"
+    assert_success
+    assert_line "launcher: Chromium 153.0.8010.52 relayed without warning (exception unset)"
+    assert_line "launcher: Chromium 153.0.8010.52 relayed without warning (stale exception set)"
+    assert_line "launcher: Chromium 153.0.8010.53 relayed without warning (stale exception set)"
+    assert_line "launcher: Chromium 154.0.0.0 relayed without warning (stale exception set)"
     assert_line "launcher: SIGTERM reaped fake Chromium and closed CDP sockets"
 }
 

@@ -1,7 +1,8 @@
 ---
 x-karakeep-environment: &karakeep-environment
   API_URL: http://karakeep:3000
-  CRAWLER_HEADLESS_BROWSER: "false"
+  BROWSER_WEB_URL: http://karakeep-chrome:9222
+  CRAWLER_HEADLESS_BROWSER: "true"
   DATA_DIR: /data
   DB_WAL_MODE: "true"
   DISABLE_NEW_RELEASE_CHECK: "true"
@@ -65,6 +66,8 @@ services:
     image: ghcr.io/karakeep-app/karakeep:0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
     container_name: karakeep
     depends_on:
+      karakeep-chrome:
+        condition: service_healthy
       karakeep-init:
         condition: service_completed_successfully
       karakeep-meilisearch:
@@ -271,14 +274,11 @@ services:
       - ./data/karakeep:/karakeep-data:ro
       - ./backups:/backup-data
 
-  # Staged only: the current DHI Chromium build fails the launcher version gate.
-  # Browser rendering stays disabled until a patched image and browser checks pass.
+  # Public-only browser with an explicitly accepted, version-specific patch gap.
   karakeep-chrome:
     # Initial DHI adoption is tag-only; Renovate adds the multi-arch digest.
     image: dhi.io/playwright:1.63.0-debian13
     container_name: karakeep-chrome
-    profiles:
-      - "browser-pending-security-update"
     init: true
     entrypoint:
       - "node"
@@ -300,6 +300,7 @@ services:
     env_file:
       - path: ../shared/env/tz.env
     environment:
+      BROWSER_ALLOW_UNPATCHED_VERSION: "153.0.8010.47" # Remove after upgrading to a patched build
       HOME: /tmp
       LANG: C
       LC_ALL: C
@@ -344,8 +345,6 @@ services:
   karakeep-browser-proxy:
     image: docker.io/ubuntu/squid:7.2-26.04_edge@sha256:77585a8f42b57872b96c6c10de8d0199642256b9390beeb6e99afa5de8a71e1c
     container_name: karakeep-browser-proxy
-    profiles:
-      - "browser-pending-security-update"
     entrypoint:
       - "/usr/sbin/squid-gnutls"
     command:
@@ -450,7 +449,7 @@ networks:
   karakeep-browser:
     name: karakeep-browser
     driver: bridge
-    enable_ipv6: false # Upstream socat exposes the DevTools endpoint over TCP4 only
+    enable_ipv6: false # The CDP relay listens on IPv4 only
     internal: true
   karakeep-browser-egress:
     name: karakeep-browser-egress

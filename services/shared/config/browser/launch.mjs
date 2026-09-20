@@ -3,6 +3,7 @@ import { createServer, createConnection } from "node:net";
 
 const binary = "/usr/lib/chromium/chromium-headless-shell";
 const minimumVersion = [153, 0, 8010, 52];
+const acceptedUnpatchedVersion = "153.0.8010.47";
 
 let reportedVersion;
 try {
@@ -24,10 +25,19 @@ if (!match) {
 const version = match.slice(1).map(Number);
 const difference = version.findIndex((value, index) => value !== minimumVersion[index]);
 if (difference !== -1 && version[difference] < minimumVersion[difference]) {
-  console.error(
-    `Browser disabled: ${reportedVersion} is below the security minimum ${minimumVersion.join(".")}. Update the DHI image before enabling browser features.`,
-  );
-  process.exit(1);
+  if (
+    version.join(".") === acceptedUnpatchedVersion &&
+    process.env.BROWSER_ALLOW_UNPATCHED_VERSION === acceptedUnpatchedVersion
+  ) {
+    console.warn(
+      `WARNING: Running known-vulnerable ${reportedVersion} under the explicit operator exception. Upgrade to at least ${minimumVersion.join(".")} and remove BROWSER_ALLOW_UNPATCHED_VERSION.`,
+    );
+  } else {
+    console.error(
+      `Browser disabled: ${reportedVersion} is below the security minimum ${minimumVersion.join(".")}. Update the DHI image before enabling browser features.`,
+    );
+    process.exit(1);
+  }
 }
 
 const sockets = new Set();
