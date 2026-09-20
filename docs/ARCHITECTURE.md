@@ -192,6 +192,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                      |
 | adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                      |
 | alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                            |
+| changedetection      | `changedetection-init`      | `docker.io/library/busybox:1.38.0`; chowns `./data` mounted at `/datastore` → PUID/PGID `3131:3131`, then applies `u=rwX,g=,o=`                                                   |
 | dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999` |
 | dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                          |
 | frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                          |
@@ -210,6 +211,13 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                     |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                          |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                     |
+
+`changedetection-init` validates that `DOMAINNAME` is populated and is neither
+`CHANGE_ME` nor `GENERATE` before touching permissions. It runs without a
+network and retains only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE` for ownership,
+permission tightening, and traversal of private paths on repeat deployments.
+It only changes `./data`, never `./config`. The app uses a direct `user:`
+identity rather than PUID/PGID environment variables.
 
 `dawarich-init` uses `docker.io/library/busybox:1.38.0`. Its container mount
 targets are `/public`, `/storage`, `/watched`, `/app-tmp`, `/sidekiq-tmp`, and
@@ -262,25 +270,21 @@ root-start s6 backup sidecar omits a read-only root filesystem and uses the
 restricted capability set documented in
 [Karakeep Network and Access Model](#karakeep-network-and-access-model).
 
-Headless browser crawling is enabled with `CRAWLER_HEADLESS_BROWSER=true` and
-`BROWSER_WEB_URL=http://karakeep-chrome:9222`. The web service waits for a
-healthy `karakeep-chrome`, and web and workers share the internal
-`karakeep-browser` network with it. This enables JavaScript-rendered crawling,
-browser-derived content, and screenshots alongside the plain HTTP crawler.
+Karakeep enables browser crawling with `CRAWLER_HEADLESS_BROWSER=true` and
+`BROWSER_WEB_URL=http://karakeep-chrome:9222`. changedetection.io defaults to
+`html_webdriver` with `PLAYWRIGHT_DRIVER_URL=http://172.30.100.22:9222`.
+Both applications wait for healthy Chrome; Chrome waits for its healthy proxy.
 
-The official immutable Chrome image supports amd64 and arm64 and runs under
-its explicit upstream non-root identity. It uses `init: true`, a read-only root
-filesystem, `no-new-privileges=true`, dropped capabilities, a `/tmp` tmpfs, a
-100-PID limit, and a `${CHROME_MEM_LIMIT:-2048m}` memory limit. Its HTTP
-readiness check requests `/json/version` on `127.0.0.1:9222`; web startup is
-gated on that check. Enabling the browser therefore adds a default 2 GiB
-allowance and up to 100 PIDs to the full stack's resource requirements.
-
-The upstream entrypoint supplies `--no-sandbox` and exposes socat on
-`0.0.0.0:9222`, forwarding to Chrome on `127.0.0.1:9223`. Compose retains the
-upstream `--disable-gpu`, `--disable-dev-shm-usage`, `--hide-scrollbars`,
-`--disable-blink-features=AutomationControlled`, and
-`--window-size=1440,900` flags without adding a remote-debugging override.
+Both browser definitions use `dhi.io/playwright:1.63.0-debian13` and are active
+by default, without profiles, under an explicit unpatched-version exception.
+The browser runs as
+`65532:65532` with a read-only root, `init: true`, dropped capabilities,
+`no-new-privileges`, tmpfs scratch, a 100-PID limit, and
+`${CHROME_MEM_LIMIT:-2048m}`. Its Squid proxy adds
+`${BROWSER_PROXY_MEM_LIMIT:-256m}` and a separate 100-PID limit.
+The shared launcher checks Chromium's version or exact exception before launch and provides an
+IPv4 CDP relay on port `9222` to loopback port `9223`. See
+[Browser Egress Policy](#browser-egress-policy-public-websites-only).
 
 **Exceptions — s6-overlay and root-start containers:**
 
@@ -385,6 +389,200 @@ workflow while using the maintained nfrastack image and repository.
 
 The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares a single `iot-backend` internal bridge network so the services can communicate directly. For example, wmbusmeters publishes MQTT messages to Mosquitto, Home Assistant subscribes to MQTT topics, and Frigate sends events via MQTT. This network is created by the `_bootstrap` service and referenced as `external: true` by each IoT app. The backend bridge is `internal: true` and carries no internet route. Matter Server is excluded — it uses `network_mode: host` for mDNS device discovery and Thread border router communication.
 
+### Browser Egress Policy (Public Websites Only)
+
+**Current decision: browser execution enabled under accepted risk.** Both
+apps use `dhi.io/playwright:1.63.0-debian13` and a dedicated Squid proxy,
+active by default without profiles. Normal Compose deployment recreates the
+changed browser definitions. Initial DHI adoption remains tag-only under the
+repository rule; Renovate will add a digest pin. No custom image publication
+is needed.
+
+The inspected DHI image contains Chromium `153.0.8010.47-2~deb13u1`.
+The confirmed Linux issue is the **high-severity V8**
+[CVE-2026-93377](https://security-tracker.debian.org/tracker/CVE-2026-93377).
+The current CNA description of
+[CVE-2026-93372](https://www.cve.org/CVERecord?id=CVE-2026-93372) is
+Android-specific; critical Linux applicability is not confirmed.
+The known-exploited CVE-2026-85046 finding concerned the former Chromium 151
+image, not the September 17 issue. CVE-2026-93377 was not listed in CISA KEV
+when checked; absence from that catalog does not establish safety.
+
+`services/shared/config/browser/launch.mjs` retains Google's September 17
+fixed-version floor, `153.0.8010.52`. Both browser definitions explicitly set
+`BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47`. Only that exact older version
+may run with the matching environment value, and the launcher logs a
+`WARNING`. Other below-minimum versions are rejected; versions at or above
+the minimum use normal startup. This is not a generic bypass.
+
+<!-- dprint-ignore -->
+!!! warning "Explicit risk acceptance does not fix V8"
+    The operator approved enabling both browsers with this exact-version
+    exception. Squid and container hardening do not patch the V8 vulnerability.
+    Synthetic runtime success is not evidence of a patched image, production
+    TrueNAS validation, or zero risk.
+
+**Patch follow-up:** the publisher's patch date is unknown. Select a reviewed
+patched DHI build and pull/redeploy it through the normal `dccd-all` workflow.
+Verify the actual Chromium version in **both** containers, not just the
+Playwright tag. After patched-image verification, remove
+`BROWSER_ALLOW_UNPATCHED_VERSION` from both Compose files and redeploy again.
+Do not assume a new build is already present or an automatic update will
+resolve the exception.
+
+The launcher mounts read-only at `/opt/browser/launch.mjs` and runs as
+`65532:65532`. After its version/exception check passes, it launches Chromium
+with `--no-sandbox` on loopback port `9223` and relays internal port `9222`
+to it. A Node health check validates `/json/version` and its WebSocket URL.
+
+changedetection.io and Karakeep each use a dedicated `<app>-browser-proxy`.
+Both use the operator-approved Canonical image
+`docker.io/ubuntu/squid:7.2-26.04_edge@sha256:77585a8f42b57872b96c6c10de8d0199642256b9390beeb6e99afa5de8a71e1c`
+and mount `services/shared/config/browser/squid.conf` read-only at
+`/etc/squid/squid.conf`.
+
+Chrome joins only its app's internal browser network. Only the Squid proxy
+joins both that control network and the existing browser-egress bridge.
+Chrome has no direct internet route, published port, or frontend membership.
+The proxy also has no published port or frontend membership. App clients
+retain their existing networks; this policy does not filter non-browser
+Basic HTTP paths or optional AI calls.
+
+| Control                  | Configuration                                                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser proxy            | `--proxy-server=http://<app>-browser-proxy:3128`                                                                                              |
+| Implicit loopback bypass | Removed with `--proxy-bypass-list=<-loopback>`                                                                                                |
+| Non-proxied UDP paths    | `--disable-quic` and `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`                                                              |
+| Allowed ports            | `80` and `443`; `CONNECT` only to `443`                                                                                                       |
+| Destinations             | Eligible public IPv4/native IPv6, excluding configured private, loopback, link-local, reserved/special-use, and transition ranges             |
+| IPv6 transitions         | IPv4-mapped addresses checked against IPv4 policy; NAT64 and 6to4 excluded by eligibility/deny rules                                          |
+| Request checks           | `host_verify_strict on`; cache-manager access denied                                                                                          |
+| Proxy runtime            | Explicit `65534:65534`, read-only root, `cap_drop: ALL`, `no-new-privileges`, 100 PIDs, `${BROWSER_PROXY_MEM_LIMIT:-256m}`, `/tmp` tmpfs only |
+| State and logs           | No disk cache or persistent state; access/store logs disabled; diagnostics to stderr; pinger disabled                                         |
+| Readiness                | Bundled Perl sends a loopback-destination HTTP request and requires `403`, not just an open socket                                            |
+
+Chrome depends on a healthy proxy, and both applications depend on healthy
+Chrome. The denial probe tests one policy path, not every destination rule
+or browser workflow.
+
+Both browser and proxy declare `config.watch=../shared/config/browser` and
+`config.sha256=${CONFIG_HASH:-}`. The
+[config-change mechanism](#config-change-container-recreation) recreates
+enabled consumers on their next dccd deployment when the shared launcher or
+policy changes.
+There are no new host firewall rules, host dependencies, secrets, databases,
+or persistent-volume init containers.
+
+<!-- dprint-ignore -->
+!!! warning "Public websites only is an intentional restriction"
+    Internal-site crawling/monitoring is unsupported. Do not add `DIRECT`
+    fallbacks, proxy bypass rules, or additional Chrome egress networks to
+    work around denied requests. Unreviewed per-watch proxy overrides are
+    outside this policy's assurance and must not be used to bypass it.
+
+The policy targets browser HTTP(S) redirect/subresource SSRF and removes
+Chrome's direct internet route. It is **not full native-code compromise
+containment**: the launcher uses `--no-sandbox`, and the internal
+control network necessarily includes app clients and the proxy. A compromised
+native browser can reach those peers. Neither the flags nor Squid make browser
+zero-days safe or guarantee protection for arbitrary application fetch/proxy
+overrides. Complete DNS-rebinding protection has not been established.
+
+Standalone tests of the pinned Squid image passed public HTTP,
+certificate-validated HTTPS, and controlled denial tests for private
+literals/hostnames, IPv4-mapped IPv6, NAT64, 6to4, forbidden ports, and
+disallowed `CONNECT`. These tests exercised the controlled proxy without
+contacting real LAN services.
+
+#### Browser Runtime Validation
+
+The active browser configuration passed synthetic runtime checks on a
+**rootful Podman test VM**, using the cached DHI image with actual Chromium
+`153.0.8010.47`. Both browser logs emitted the explicit unpatched-version
+exception warning.
+
+- **Startup and isolation:** both apps, browsers, and proxies were healthy.
+  Browser UID `65532`, proxy UID `65534`, read-only browser/proxy roots,
+  100-PID limits, no published host ports, and internal-only Chrome network
+  membership were confirmed.
+- **changedetection.io:** an API-created public-site browser watch persisted
+  history and a PNG. Python Playwright passed public HTTPS, a JavaScript
+  button click, and screenshot capture through its DHI browser.
+- **Karakeep client:** the worker image's actual Playwright `1.59.1` client
+  resolved the configured browser URL to IPv4 and passed public HTTPS,
+  JavaScript, and screenshot checks through its DHI browser.
+- **Private-destination probes:** both actual browsers blocked private
+  image/subresource and redirect tests against a controlled canary.
+  Positive-control clients reached the canary; browser probes added **zero
+  connections**.
+- **Restart recovery:** both browsers were restarted without restarting the
+  apps. Public fetches, reconnection, and the changedetection watch succeeded
+  again; the canary connection count remained unchanged.
+
+These checks did **not** validate production TrueNAS, real Entra/SSO or TLS
+termination, the full Karakeep signup/bookmark job flow, or changedetection.io's
+browser-step UI/visual selector. Those checks remain pending. The historical
+file-state restore evidence remains separate. The image is still unpatched,
+and these finite tests do not close the DNS-rebinding assurance gap or prove
+native-code compromise containment. See the
+[test-runtime requirement](INFRASTRUCTURE.md#stateless-browser-proxies).
+
+### changedetection.io Network and Access Model
+
+Browser fetching and both browser/proxy services are enabled by default in
+Compose; no profile activation is required.
+
+| Network                          | Members and access                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| `changedetection-browser`        | App, dedicated Chrome, and browser proxy; internal, IPv4-only CDP and HTTP proxy traffic |
+| `changedetection-browser-egress` | Browser proxy only; outbound connections to permitted public websites                    |
+| `changedetection-frontend`       | App and Traefik; HTTPS UI/API routing and app outbound traffic                           |
+
+Traefik routes `https://changedetection.${DOMAINNAME}` to the app's fixed
+internal port `5000` through `chain-auth@file`. The entire UI and API use this
+SSO-protected router: there are no bypass routers or Gatus integration.
+Neither app nor Chrome publishes a host port. Chrome has no Traefik labels
+and does not join the frontend network.
+
+```mermaid
+flowchart LR
+    User[UI or API client] --> Proxy[Traefik: chain-auth]
+    Proxy -->|frontend: port 5000| App[changedetection]
+    App -->|internal browser network: CDP| Chrome[changedetection-chrome]
+    Chrome -->|HTTP proxy| Squid[changedetection-browser-proxy]
+    Squid --> Egress[Dedicated egress bridge]
+    Egress --> Web[Public websites only]
+```
+
+`changedetection-chrome` uses the same DHI tag as Karakeep, but uses a
+separate container/network stack. Neither browser nor proxy instance is
+shared between apps. The browser's configured identity is `65532:65532`;
+the proxy remains `65534:65534`.
+
+| Browser control reservation | Compose value                                   |
+| --------------------------- | ----------------------------------------------- |
+| Subnet                      | `172.30.100.16/29`                              |
+| Dynamic allocation range    | `172.30.100.16/30`                              |
+| Chrome `ipv4_address`       | `172.30.100.22` (outside the dynamic range)     |
+| App `PLAYWRIGHT_DRIVER_URL` | `http://172.30.100.22:9222`; HTTP CDP discovery |
+
+The reservation provides an IP-based HTTP CDP endpoint, avoiding Docker
+hostname `Host` headers and a hardcoded transient WebSocket ID. HTTP discovery
+obtains the current endpoint on each connection. IPv4-only control matches
+the shared launcher's relay. Keep the subnet/range, Chrome address, and app
+driver URL coordinated.
+
+`DEFAULT_FETCH_BACKEND=html_webdriver` selects browser fetching with
+`${FETCH_WORKERS:-2}` adjustable workers. Startup waits for successful init
+and healthy Chrome. Existing Basic HTTP watch settings are not automatically
+migrated; explicitly select the browser fetcher where wanted. DHI browser-step
+and visual-selector integration remain pending validation.
+The [public-website-only policy and residual risks](#browser-egress-policy-public-websites-only)
+apply to this stack; arbitrary per-watch proxy overrides are not covered.
+
+Operational setup and file-state backup limitations are documented in the
+[changedetection.io service guide](services/changedetection.md).
+
 ### Karakeep Network and Access Model
 
 Karakeep uses `karakeep-frontend` for Traefik access to the web container and
@@ -393,51 +591,51 @@ outbound worker crawling and optional AI calls. The internal
 Meilisearch containers. Meilisearch is backend-only; only the web container is
 exposed through Traefik.
 
-| Network                   | Members and access                                                     |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `karakeep-backend`        | Web, workers, and Meilisearch; internal application and search traffic |
-| `karakeep-browser`        | Web, workers, and Chrome; internal browser-control traffic             |
-| `karakeep-browser-egress` | Chrome only; dedicated bridge for outbound page fetches                |
-| `karakeep-frontend`       | Web and workers; Traefik access and their outbound traffic             |
+`CRAWLER_HEADLESS_BROWSER=true` and
+`BROWSER_WEB_URL=http://karakeep-chrome:9222` enable browser crawling.
+The web service depends on healthy Chrome; Chrome and Squid have no profiles.
 
-Only `karakeep-browser`, the internal control network, is IPv4-only. The
-official Chrome image exposes port `9222` through
-`socat TCP4-LISTEN:9222`; when Docker on TrueNAS assigned an IPv6 service
-address, Karakeep selected the AAAA result and repeatedly failed with
-`ECONNREFUSED ...:9222`. Disabling IPv6 on the control network aligns service
-discovery with the upstream listener. The separate
-`karakeep-browser-egress` network and Chrome's outbound path are unchanged;
-this is a listener-compatibility fix, not an SSRF mitigation.
+| Network                   | Members and access                                                           |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `karakeep-backend`        | Web, workers, and Meilisearch; internal application and search traffic       |
+| `karakeep-browser`        | Web, workers, Chrome, and browser proxy; internal CDP and HTTP proxy traffic |
+| `karakeep-browser-egress` | Browser proxy only; outbound connections to permitted public websites        |
+| `karakeep-frontend`       | Web and workers; Traefik access and their outbound traffic                   |
+
+The `karakeep-browser` control network is IPv4-only, matching the
+shared launcher's CDP relay. IPv4-only control is not an SSRF mitigation.
+The browser definition uses only this internal network; the separate
+`karakeep-browser-egress` bridge belongs only to the filtering proxy.
 
 Chrome does not join the frontend or backend networks and has no published
-ports or Traefik labels. Over the internal browser network, it can communicate
-only with Karakeep web and workers. Its separate egress bridge retains outbound
-access for public-page fetches without placing its DevTools listener on an
-application or proxy network.
+ports or Traefik labels. Over the internal browser network it shares CDP and
+HTTP proxy reachability with Karakeep web, workers, and the proxy. It cannot
+route directly to the internet.
 
 <!-- dprint-ignore -->
 !!! warning "Residual browser and SSRF risk"
-    Chrome processes attacker-controlled pages, and the upstream entrypoint
-    starts Chromium with `--no-sandbox`. This is an explicit residual
+    Chrome processes attacker-controlled pages using the
+    shared launcher's `--no-sandbox` option. This is an explicit residual
     browser-engine risk, not a safe mode. Non-root execution, container
     hardening, resource limits, and network separation reduce blast radius;
-    they do not eliminate browser exploitation or SSRF risk.
+    they do not eliminate browser exploitation. A native-code compromise can
+    still reach app/proxy peers on the shared internal control network.
 
 Karakeep validates HTTP(S) URLs, resolved A/AAAA addresses, redirects, and
 browser subrequests against private and reserved ranges. This deployment does
 not configure internal hostname allowlists. The plain HTTP crawler pins its
-validated DNS result, while Playwright and Chrome independently resolve the
-hostname after validation. DNS-rebinding and other time-of-check/time-of-use
-protection is therefore not established for the browser path.
-
-The dedicated egress bridge provides routing rather than destination
-filtering: it does not itself block RFC1918, link-local, or host destinations.
+validated DNS result. The browser HTTP(S) path adds Squid checks rather
+than relying only on app-side validation before browser resolution. The
+[public-website-only policy](#browser-egress-policy-public-websites-only)
+targets redirect/subresource SSRF without claiming complete DNS-rebinding or
+native-code compromise containment. Plain HTTP crawling and optional AI calls
+retain their existing app egress, outside this browser proxy.
 Review the upstream
 [security considerations](https://docs.karakeep.app/administration/security-considerations/)
 and
 [reviewed source revision](https://github.com/karakeep-app/karakeep/tree/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175)
-before changing these controls. Operational details and the plain HTTP rollback
-procedure are in the
+before changing these controls. Browser configuration and the accepted
+version exception are documented in the
 [Karakeep service documentation](services/karakeep.md).
 
 The one-shot `karakeep-db-backup` sidecar is network-isolated. It starts with
@@ -746,7 +944,10 @@ Unset the variable or remove the export line:
 unset COMPOSE_PROFILES
 ```
 
-On the next deploy, the profiled containers are no longer part of the active service set. `dccd.sh` uses `--remove-orphans` implicitly, so Docker Compose will stop and remove them automatically. To tear down immediately without waiting for a deploy cycle:
+Removing a profile prevents its services from being selected for a normal
+deployment; it does not guarantee that already-running containers are stopped
+or removed. Explicitly stop the affected services and verify their state.
+For the unrelated surveillance stack, an explicit teardown is:
 
 ```sh
 docker compose --profile surveillance down
@@ -754,7 +955,9 @@ docker compose --profile surveillance down
 
 ### Gatus Monitoring
 
-When a profile is inactive, its containers do not exist, so their Traefik labels are not discoverable by the Gatus sidecar. Monitoring for profiled services is automatically gated — no manual Gatus configuration is needed to suppress alerts.
+Once profiled containers are stopped and removed, their Traefik labels are
+not discoverable by the Gatus sidecar. Merely deactivating a profile does not
+prove that old containers or their monitoring labels have disappeared.
 
 ## Config-Change Container Recreation
 
@@ -830,9 +1033,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include |
-| -------- | -------------------------- | --------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container |
+| File     | Purpose                    | When to include                                                                 |
+| -------- | -------------------------- | ------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 

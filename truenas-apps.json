@@ -1,9 +1,49 @@
 {
   "apps": {
+    "adguard": {
+      "account_name": "svc-app-adguard",
+      "account_id": 3101,
+      "admin_group_member": false
+    },
+    "alloy": {
+      "account_name": "svc-app-alloy",
+      "account_id": 3125,
+      "admin_group_member": false
+    },
+    "bitwarden": {
+      "account_name": "svc-app-bitwarden",
+      "account_id": 3126,
+      "admin_group_member": false
+    },
+    "changedetection": {
+      "account_name": "svc-app-changedetection",
+      "account_id": 3131,
+      "admin_group_member": false
+    },
     "dawarich": {
       "account_name": "svc-app-dawarich",
       "account_id": 3128,
       "admin_group_member": true
+    },
+    "dozzle": {
+      "account_name": "svc-app-dozzle",
+      "account_id": 3109,
+      "admin_group_member": false
+    },
+    "drawio": {
+      "account_name": "svc-app-drawio",
+      "account_id": 3119,
+      "admin_group_member": false
+    },
+    "gatus": {
+      "account_name": "svc-app-gatus",
+      "account_id": 3103,
+      "admin_group_member": false
+    },
+    "homepage": {
+      "account_name": "svc-app-homepage",
+      "account_id": 3102,
+      "admin_group_member": false
     },
     "karakeep": {
       "account_name": "svc-app-karakeep",
@@ -13,6 +53,46 @@
     "memos": {
       "account_name": "svc-app-memos",
       "account_id": 3129,
+      "admin_group_member": false
+    },
+    "mosquitto": {
+      "account_name": "svc-app-mosquitto",
+      "account_id": 3122,
+      "admin_group_member": false
+    },
+    "openclaw": {
+      "account_name": "svc-app-openclaw",
+      "account_id": 3127,
+      "admin_group_member": false
+    },
+    "outline": {
+      "account_name": "svc-app-outline",
+      "account_id": 3120,
+      "admin_group_member": false
+    },
+    "prowlarr": {
+      "account_name": "svc-app-prowlarr",
+      "account_id": 3113,
+      "admin_group_member": false
+    },
+    "spottarr": {
+      "account_name": "svc-app-spottarr",
+      "account_id": 3117,
+      "admin_group_member": false
+    },
+    "traefik": {
+      "account_name": "svc-app-traefik",
+      "account_id": 3100,
+      "admin_group_member": false
+    },
+    "unifi": {
+      "account_name": "svc-app-unifi",
+      "account_id": 3108,
+      "admin_group_member": false
+    },
+    "wmbusmeters": {
+      "account_name": "svc-app-wmbusmeters",
+      "account_id": 3123,
       "admin_group_member": false
     }
   }

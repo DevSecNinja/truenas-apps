@@ -68,6 +68,7 @@ services:
       traefik-backend:
       adguard-frontend:
       alloy-frontend:
+      changedetection-frontend:
       dawarich-frontend:
       echo-server-frontend:
       excalidraw-frontend:
@@ -227,6 +228,9 @@ networks:
     external: true
   alloy-frontend:
     name: alloy-frontend
+    external: true
+  changedetection-frontend:
+    name: changedetection-frontend
     external: true
   dawarich-frontend:
     name: dawarich-frontend
