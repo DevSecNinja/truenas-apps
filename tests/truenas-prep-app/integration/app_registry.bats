@@ -15,6 +15,13 @@ teardown() {
   prep_common_teardown
 }
 
+@test "load_app_config: loads the changedetection account from the registry" {
+  run load_app_config_values "changedetection"
+
+  assert_success
+  assert_output "changedetection|svc-app-changedetection|3131|false"
+}
+
 @test "load_app_config: loads the Dawarich account from the registry" {
   run load_app_config_values "dawarich"
 
@@ -100,6 +107,7 @@ teardown() {
   run list_supported_apps
 
   assert_success
+  assert_line "  changedetection"
   assert_line "  dawarich"
   assert_line "  karakeep"
   assert_line "  memos"

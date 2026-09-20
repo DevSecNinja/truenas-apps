@@ -1,5 +1,10 @@
 {
   "apps": {
+    "changedetection": {
+      "account_name": "svc-app-changedetection",
+      "account_id": 3131,
+      "admin_group_member": false
+    },
     "dawarich": {
       "account_name": "svc-app-dawarich",
       "account_id": 3128,

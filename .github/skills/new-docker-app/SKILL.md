@@ -55,6 +55,18 @@ Determine the correct PUID/PGID model for this app (media consumer, media produc
 
 Follow the dedicated [SOPS secrets skill](../sops-secrets/SKILL.md) for key preflight, safe editing, generation, and validation.
 
+Before **every** operation that may access 1Password, follow its
+[advance-disclosure requirements](../sops-secrets/SKILL.md#before-every-1password-operation):
+show the exact commands (with the key reference redacted), purpose, read-only
+1Password scope, local encrypted files created or changed, and privacy
+handling. Explain that the prompt grants CLI access broadly, not a
+technically restricted per-command grant. This applies to all paths below,
+including indirect SOPS key reads and backup-passphrase preflight. A batch
+notice must enumerate every possible access and conditional phase before
+the helper starts; a changed plan needs a new notice. After a timeout or
+failure, show the new exact retry plan, ask whether the user is ready, and
+wait before retrying.
+
 Classify every secret before creating the files:
 
 - **Random values**: App-owned passwords, passphrases, and tokens that can be generated locally.
@@ -100,7 +112,7 @@ New-SopsEncryptedEnvFile `
     -RequiredVariables @('DOMAINNAME', 'APP_SECRET')
 ```
 
-`New-SopsEncryptedEnvFile` is self-contained for a fresh terminal. It resolves SOPS directly or through `mise`, runs idempotent `op signin`, and verifies the authenticated account with `op whoami`. Immediately before every operation that can invoke 1Password, it logs what will happen and why. It never prints the `op://` reference, Age identity, or decrypted or generated values.
+`New-SopsEncryptedEnvFile` is self-contained for a fresh terminal. It resolves SOPS directly or through `mise`, runs idempotent `op signin`, and verifies the authenticated account with `op whoami`. It emits phase logs, but these do not replace the agent's user-visible notice before invocation. Announce the exact helper call and underlying commands: sign-in, account verification, template encryption, the generation count and each variable's SOPS-triggered key read and set, metadata checks, and final validation decrypt/key read. It never prints the `op://` reference, Age identity, or decrypted or generated values.
 
 The function provides these plaintext and failure-safety guarantees:
 
@@ -128,9 +140,9 @@ Open-SopsEncryptedFile `
     -AgeKeyReference 'op://<vault>/<item>/<field>'
 ```
 
-The function resolves SOPS, runs idempotent `op signin`, verifies the authenticated account with `op whoami`, and logs before every operation that can invoke 1Password and why. It never prints the key reference or decrypted values.
+The function resolves SOPS, runs idempotent `op signin`, verifies the authenticated account with `op whoami`, and emits phase logs. Before invoking it, announce those commands, the `sops edit` command and its SOPS-triggered key read, the local encrypted target to be changed, and the metadata checks. Runtime logs do not replace this advance notice. It never prints the key reference or decrypted values.
 
-By default, it sets `SOPS_EDITOR='code --wait'`. SOPS opens a temporary decrypted buffer in VS Code, waits for it to be saved and closed, and then re-encrypts the target. Save and close the temporary VS Code tab or window to let SOPS finish; do not edit the ciphertext file directly. Plaintext is not written to the repository.
+By default, it sets `SOPS_EDITOR='code --wait'`. SOPS opens a temporary plaintext editor file outside the repository in VS Code, waits for it to be saved and closed, and then re-encrypts the target. Disclose this temporary file; editing is not entirely in-memory. Save and close the temporary VS Code tab or window to let SOPS finish; do not edit the ciphertext file directly. Plaintext is not written to the repository.
 
 The function verifies encryption metadata before and after editing, restores the previous SOPS and editor environment variables, and supports `-WhatIf`. Use `-EditorCommand` to override VS Code when necessary. The `-AgeKeyFile` parameter set is available only for tests or a controlled fallback; 1Password and VS Code are recommended.
 
@@ -151,6 +163,14 @@ Add-SopsGeneratedEnvSecret `
 ```
 
 Despite the singular cmdlet noun, `GeneratedSecrets` is an ordered map and can contain multiple variables. Its values are random byte counts from 16 through 1024. The target must already be SOPS-encrypted. Use the recommended `AgeKeyReference` parameter set; use `-AgeKeyFile` only for tests or a controlled fallback.
+
+Before invoking it, show the exact helper call and enumerate metadata checks,
+`op signin`, `op whoami`, the initial SOPS decrypt/key read, each variable's
+conditional sentinel-add and generated-value set/key reads, and final
+validation decrypt/key read before encrypted-file replacement. State the
+maximum generation count and the branch that preserves existing values
+without rewriting ciphertext. Include the temporary encrypted working file;
+the module's logs alone are not advance disclosure.
 
 The function:
 
@@ -186,6 +206,10 @@ When a sidecar is required:
 #### SOPS/1Password prerequisite for the backup passphrase
 
 `DB_ENC_PASSPHRASE` (and any other generated backup-encryption secret) must go through the same preflight as every other generated secret — never plaintext, never a placeholder:
+
+Apply the Step 2 advance-disclosure and retry requirements before every
+1Password-capable operation below, including a decryption smoke test against
+another app's file; name that file in the plan before accessing it.
 
 1. Confirm the 1Password CLI integration is enabled and the vault is unlocked (e.g. `op whoami` succeeds), or confirm the equivalent for whatever identity is configured.
 2. Configure `SOPS_AGE_KEY_CMD` (preferred) — e.g. `export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'` — or another valid SOPS identity (`SOPS_AGE_KEY_FILE` or a standard key-file location) if 1Password is not used.

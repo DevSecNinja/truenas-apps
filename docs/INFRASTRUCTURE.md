@@ -148,31 +148,32 @@ Each service account has a matching `svc-app-<name>` group created at the same G
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user          | Service(s)                                                                          | Git-tracked config? |
-| ------- | --------------------- | ----------------------------------------------------------------------------------- | ------------------- |
-| 3100    | `svc-app-traefik`     | traefik, traefik-init                                                               | Yes (`./config`)    |
-| 3101    | `svc-app-adguard`     | adguard, adguard-init, adguard-unbound-init                                         | No (`./data/conf`)  |
-| 3102    | `svc-app-homepage`    | homepage, homepage-init                                                             | Yes (`./config`)    |
-| 3103    | `svc-app-gatus`       | gatus, gatus-db-backup                                                              | No                  |
-| 3104    | `svc-app-echo`        | echo-server                                                                         | No                  |
-| 3105    | `svc-app-tfa`         | traefik-forward-auth, init                                                          | No (`./data`)       |
-| 3106    | `svc-app-immich`      | immich-server, immich-ml, immich-init                                               | No                  |
-| 3107    | `svc-app-metube`      | metube, metube-init                                                                 | No                  |
-| 3108    | `svc-app-unifi`       | unifi, unifi-db-backup                                                              | No                  |
-| 3109    | `svc-app-dozzle`      | dozzle, dozzle-init                                                                 | No                  |
-| 3110    | `svc-app-radarr`      | radarr                                                                              | No                  |
-| 3118    | `svc-app-tubesync`    | tubesync                                                                            | No                  |
-| 3119    | `svc-app-drawio`      | drawio                                                                              | No                  |
-| 3120    | `svc-app-outline`     | outline-db-backup†                                                                  | No                  |
-| 3122    | `svc-app-mosquitto`   | mosquitto, mosquitto-init                                                           | Yes (`./config`)    |
-| 3123    | `svc-app-wmbusmeters` | wmbusmeters, wmbusmeters-init                                                       | Yes (`./config`)    |
-| 3124    | `svc-app-matter`      | matter-server, matter-server-init                                                   | No                  |
-| 3125    | `svc-app-alloy`       | alloy, alloy-init                                                                   | Yes (`./config`)    |
-| 3126    | `svc-app-bitwarden`   | bitwarden                                                                           | No                  |
-| 3127    | `svc-app-openclaw`    | openclaw, openclaw-init                                                             | No                  |
-| 3128    | `svc-app-dawarich`    | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                       | No                  |
-| 3129    | `svc-app-memos`       | memos, memos-init                                                                   | No                  |
-| 3130    | `svc-app-karakeep`    | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup | No                  |
+| UID/GID | TrueNAS user              | Service(s)                                                                          | Git-tracked config? |
+| ------- | ------------------------- | ----------------------------------------------------------------------------------- | ------------------- |
+| 3101    | `svc-app-adguard`         | adguard, adguard-init, adguard-unbound-init                                         | No (`./data/conf`)  |
+| 3125    | `svc-app-alloy`           | alloy, alloy-init                                                                   | Yes (`./config`)    |
+| 3126    | `svc-app-bitwarden`       | bitwarden                                                                           | No                  |
+| 3131    | `svc-app-changedetection` | changedetection; changedetection-init ownership target                              | No (`./data`)       |
+| 3128    | `svc-app-dawarich`        | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                       | No                  |
+| 3109    | `svc-app-dozzle`          | dozzle, dozzle-init                                                                 | No                  |
+| 3119    | `svc-app-drawio`          | drawio                                                                              | No                  |
+| 3104    | `svc-app-echo`            | echo-server                                                                         | No                  |
+| 3103    | `svc-app-gatus`           | gatus, gatus-db-backup                                                              | No                  |
+| 3102    | `svc-app-homepage`        | homepage, homepage-init                                                             | Yes (`./config`)    |
+| 3106    | `svc-app-immich`          | immich-server, immich-ml, immich-init                                               | No                  |
+| 3130    | `svc-app-karakeep`        | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup | No                  |
+| 3124    | `svc-app-matter`          | matter-server, matter-server-init                                                   | No                  |
+| 3129    | `svc-app-memos`           | memos, memos-init                                                                   | No                  |
+| 3107    | `svc-app-metube`          | metube, metube-init                                                                 | No                  |
+| 3122    | `svc-app-mosquitto`       | mosquitto, mosquitto-init                                                           | Yes (`./config`)    |
+| 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                             | No                  |
+| 3120    | `svc-app-outline`         | outline-db-backup†                                                                  | No                  |
+| 3110    | `svc-app-radarr`          | radarr                                                                              | No                  |
+| 3100    | `svc-app-traefik`         | traefik, traefik-init                                                               | Yes (`./config`)    |
+| 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                          | No (`./data`)       |
+| 3118    | `svc-app-tubesync`        | tubesync                                                                            | No                  |
+| 3108    | `svc-app-unifi`           | unifi, unifi-db-backup                                                              | No                  |
+| 3123    | `svc-app-wmbusmeters`     | wmbusmeters, wmbusmeters-init                                                       | Yes (`./config`)    |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user (UID/GID 1000). UID 3120 is used only for the
@@ -180,6 +181,15 @@ db-backup sidecar. The Outline server itself runs without a `user:` directive;
 an `outline-init` container pre-chowns `./data/data` to UID 1000 so the node
 process can write to the bind-mount path. See:
 https://github.com/outline/outline/discussions/9452
+
+The `svc-app-changedetection` account has UID `3131`, primary group
+`svc-app-changedetection` (GID `3131`), and no shared-purpose group memberships.
+The app uses this identity; `changedetection-init` runs as root and assigns
+the datastore to it. Registry key `changedetection` sets
+`admin_group_member=false`, so the helper does not add the administrator to
+the service group. The disabled `changedetection-chrome` definition uses
+DHI's `65532:65532`; its disabled browser proxy uses `65534:65534`.
+Neither uses the TrueNAS app allocation.
 
 The `svc-app-dawarich` user has UID 3128, primary group
 `svc-app-dawarich` (GID 3128), and no shared-purpose group memberships.
@@ -196,13 +206,57 @@ shared-purpose group memberships. The web, worker, and Meilisearch processes
 use this identity; `karakeep-init` assigns their runtime paths and the database
 backup output child to it. The `karakeep-db-backup` s6 supervisor starts as
 root, then maps `USER_DBBACKUP` and `GROUP_DBBACKUP` to `3130` so the backup
-process uses this identity. The active `karakeep-chrome` service does not use
-the TrueNAS account allocation; Compose explicitly runs it with the upstream
-image's non-root `nobody` identity.
+process uses this identity. The disabled `karakeep-chrome` definition uses
+DHI's `65532:65532`, while its disabled proxy uses `65534:65534`.
+Neither needs a new TrueNAS account or shared-group membership.
+
+### Stateless Browser Proxies
+
+changedetection.io and Karakeep each stage a dedicated Canonical Squid
+`7.2-26.04_edge` proxy using the same approved digest and shared read-only
+`services/shared/config/browser/squid.conf`. Both browser and proxy services
+belong to the default-off `browser-pending-security-update` profile.
+Neither proxy needs a
+dataset, host service account, ownership init, new secret, or database backup.
+Each uses only `/tmp` scratch, a read-only root filesystem, dropped
+capabilities, `${BROWSER_PROXY_MEM_LIMIT:-256m}`, and a 100-PID limit.
+
+In the staged definitions, only each proxy joins its app's browser-egress
+bridge. Chrome is attached
+only to the internal browser network, which it shares with app clients and
+the proxy. There are no host-published proxy ports or new host firewall or
+dependency requirements. Internal-site crawling/monitoring is intentionally
+unsupported by the [public-website-only policy](ARCHITECTURE.md#browser-egress-policy-public-websites-only);
+do not add direct fallbacks, bypass rules, or Chrome egress networks.
+Current Basic HTTP app traffic is not filtered through the disabled proxy.
+
+The staged DHI browser mounts `services/shared/config/browser/launch.mjs`
+read-only. The launcher rejects Chromium below `153.0.8010.52`; the inspected
+image's `153.0.8010.47-2~deb13u1` remains vulnerable. Both services watch the
+shared `browser` directory for config changes. Initial DHI adoption is
+tag-only, with Renovate digest pinning to follow; no custom image publication
+or new persistent storage is required.
+
+Before relying on disabled browser execution, existing operators must
+explicitly stop `karakeep-chrome` and, if deployed, `changedetection-chrome`,
+plus their old proxies, and verify they are stopped. Profile deactivation is
+not a shutdown guarantee. Keep the profile off until patched-image
+verification, integration tests, and app environment/dependency review pass.
+
+**Test runtime:** use rootful Podman on the test VM. The Canonical image
+contains layer file ownership outside that VM's default rootless subordinate
+UID range, preventing unpack there; this is distinct from the configured
+runtime identity. The target TrueNAS runtime is rootful Docker. The proxy's
+effective runtime UID remains the explicitly configured non-root identity,
+which worked in the proxy test. No host UID-range or dependency change is
+required by this deployment.
 
 ### Shared Purpose Groups
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
+
+changedetection.io uses only its dedicated primary group; it requires no
+membership in the shared groups below.
 
 | GID  | Group               | Purpose                                      | Used as primary group by                                                                                                                                                       |
 | ---- | ------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -369,6 +423,57 @@ This gives `truenas_admin` full access while blocking all other users from readi
 1. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
 2. `truenas_admin` (a member of each app's primary group) gets group-write access via POSIX group permissions
 3. Next deploy, the init container re-chowns everything (idempotent)
+
+### changedetection.io Dataset
+
+Registry key `changedetection` provisions
+`vm-pool/apps/services/changedetection`. Follow the complete
+[brand-new Custom App rollout](#brand-new-custom-app-rollout), using:
+
+```sh
+cd /mnt/vm-pool/apps
+sudo bash scripts/truenas-prep-app.sh changedetection
+```
+
+The helper preserves the checked-out files and creates or verifies the
+dedicated account and matching primary group without administrative group
+membership.
+
+| Path                    | Purpose                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `./data` → `/datastore` | **Critical mutable file state**: global/watch/tag JSON, `secret.txt`, history snapshots, and screenshots |
+
+There is no SQLite or other formal database, database-backup sidecar, or
+encrypted database dump. The complete directory uses the existing vm-pool
+snapshot, replication, and encrypted off-site Cloud Sync coverage. Live file
+snapshots are not multi-file application-consistent: gracefully stop the app
+before a manual consistent snapshot/export, and restore the complete stopped
+datastore. See [Restore changedetection.io file state](BACKUP.md#restore-changedetectionio-file-state).
+
+`changedetection-init` chowns only `./data` to the app account and applies
+`u=rwX,g=,o=`. Use elevated privileges for recovery rather than broadening
+permissions or granting shared-group access.
+
+#### Static Browser Subnet Reservation
+
+| Reservation                | Value                                                           |
+| -------------------------- | --------------------------------------------------------------- |
+| Internal IPv4-only network | `changedetection-browser`                                       |
+| Subnet                     | `172.30.100.16/29`                                              |
+| Dynamic allocation range   | `172.30.100.16/30`                                              |
+| Chrome static address      | `172.30.100.22`                                                 |
+| Reserved CDP relay         | `http://172.30.100.22:9222` (staged, not an active app setting) |
+
+Reserve this subnet against overlap with Docker, LAN, and VPN networks.
+Chrome's address is outside the dynamic allocation range. If relocating the
+subnet, update IPAM and Chrome's `ipv4_address` together. The app currently
+sets `PLAYWRIGHT_DRIVER_URL` empty; the IP-based HTTP discovery endpoint is
+reserved for future reviewed integration, not enabled by this reservation.
+The app retains its control-network membership; Chrome and proxy memberships
+are staged in the inactive profile. Only the staged proxy joins
+`changedetection-browser-egress`. Chrome remains internal-network-only, with
+no published ports or frontend membership. See the
+[network and access model](ARCHITECTURE.md#changedetectionio-network-and-access-model).
 
 ### Dawarich Dataset
 
