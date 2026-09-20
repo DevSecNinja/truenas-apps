@@ -187,10 +187,11 @@ for the corresponding Karakeep settings and image model.
 | Memory           | `${CHROME_MEM_LIMIT:-2048m}`                                                                                                    |
 | PID limit        | `100`                                                                                                                           |
 
-The image entrypoint supplies Chromium's `--no-sandbox` option and publishes
-the browser through socat from `0.0.0.0:9222` to Chrome on
-`127.0.0.1:9223`. The Compose command retains these upstream browser flags
-exactly:
+Compose replaces the image launcher with `/bin/bash` running the read-only
+`./config/chrome-supervisor.sh` mount. The entrypoint launches
+`/headless-shell/headless-shell` with the five upstream startup flags,
+including `--no-sandbox` and `--remote-debugging-port=9223`. The five existing
+Compose command flags are retained:
 
 - `--disable-gpu`
 - `--disable-dev-shm-usage`
@@ -198,9 +199,18 @@ exactly:
 - `--disable-blink-features=AutomationControlled`
 - `--window-size=1440,900`
 
-No Compose-level remote-debugging override is added. Chrome has no published
-ports or Traefik labels and does not join `karakeep-frontend` or
-`karakeep-backend`.
+The supervisor watches both the socat listener on port `9222` (forwarding to
+Chrome on port `9223`) and Chrome. Any unexpected exit from either process,
+including status `0`, stops the sibling and exits the container with status
+`1`, invoking the existing bounded `on-failure` restart policy. `TERM` and
+`INT` are intentional stops (status `0`); unchanged `init: true` reaps orphaned
+descendants. This is process supervision, not a restart-on-unhealthy watchdog
+or a cure for resource exhaustion.
+
+On deployment through `dccd.sh`, the `config.sha256=${CONFIG_HASH:-}` label
+causes Chrome to be recreated when the Git-tracked supervisor script changes.
+Chrome has no published ports or Traefik labels and does not join
+`karakeep-frontend` or `karakeep-backend`.
 
 Enabling Chrome adds a default 2 GiB memory allowance and capacity for up to
 100 additional PIDs. Size the host for that extra headroom on top of the web,
@@ -212,7 +222,7 @@ limit with `CHROME_MEM_LIMIT` when the host needs a different bound.
 <!-- dprint-ignore -->
 !!! warning "Chromium runs without its browser sandbox"
     Saved URLs can cause Chrome to process attacker-controlled HTML,
-    JavaScript, media, and browser subresources. The upstream entrypoint's
+    JavaScript, media, and browser subresources. The preserved upstream
     `--no-sandbox` option is an explicit residual browser-engine risk, not a
     safe operating mode. A Chromium compromise or an SSRF flaw may still reach
     destinations available through the container's egress path.
@@ -287,13 +297,14 @@ rendering and screenshots are unavailable after this rollback.
 
 ### Volumes
 
-| Host path            | Container path           | Used by         | Purpose                                                        |
-| -------------------- | ------------------------ | --------------- | -------------------------------------------------------------- |
-| `./backups`          | `/backups`               | Init            | Creates and assigns ownership of the `db-backup` child         |
-| `./backups`          | `/backup-data`           | Database backup | Parent mount; output is written below `/backup-data/db-backup` |
-| `./data/karakeep`    | `/data`                  | Web, workers    | SQLite database and saved assets                               |
-| `./data/karakeep`    | `/karakeep-data` (`:ro`) | Database backup | Read-only source containing `db.db`                            |
-| `./data/meilisearch` | `/meili_data`            | Meilisearch     | Regeneratable full-text search index                           |
+| Host path                       | Container path                                | Used by         | Purpose                                                        |
+| ------------------------------- | --------------------------------------------- | --------------- | -------------------------------------------------------------- |
+| `./backups`                     | `/backups`                                    | Init            | Creates and assigns ownership of the `db-backup` child         |
+| `./backups`                     | `/backup-data`                                | Database backup | Parent mount; output is written below `/backup-data/db-backup` |
+| `./config/chrome-supervisor.sh` | `/usr/local/bin/chrome-supervisor.sh` (`:ro`) | Chrome          | Git-tracked process supervisor                                 |
+| `./data/karakeep`               | `/data`                                       | Web, workers    | SQLite database and saved assets                               |
+| `./data/karakeep`               | `/karakeep-data` (`:ro`)                      | Database backup | Read-only source containing `db.db`                            |
+| `./data/meilisearch`            | `/meili_data`                                 | Meilisearch     | Regeneratable full-text search index                           |
 
 ### Networks
 
@@ -464,6 +475,9 @@ provisioning the mobile proxy token.
   [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
   major upgrades. For Chrome image changes, also review the upstream
   [Chrome image migration guide](https://docs.karakeep.app/administration/chrome-image-migration/).
+  On every Chrome image upgrade, compare the new image's `run.sh` launcher
+  and flags with the supervisor and Compose `entrypoint`/`command`; keeping
+  them in sync is a repository maintainer responsibility.
 - The web container applies database migrations before startup and uses a
   stop-first update order so the replacement does not serve traffic before
   migrations finish.
