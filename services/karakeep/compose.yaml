@@ -299,7 +299,8 @@ services:
       - karakeep-browser-egress
       - karakeep-browser
     mem_limit: ${CHROME_MEM_LIMIT:-2048m}
-    pids_limit: 100
+    # Chromium threads and socat forks exhausted 100 tasks; retain a bounded limit.
+    pids_limit: ${CHROME_PIDS_LIMIT:-512}
     security_opt:
       - no-new-privileges=true
     cap_drop:

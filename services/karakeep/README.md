@@ -185,7 +185,7 @@ for the corresponding Karakeep settings and image model.
 | Browser endpoint | `http://karakeep-chrome:9222` on the internal browser network only                                                              |
 | Readiness check  | HTTP `GET /json/version` on `127.0.0.1:9222`                                                                                    |
 | Memory           | `${CHROME_MEM_LIMIT:-2048m}`                                                                                                    |
-| PID limit        | `100`                                                                                                                           |
+| PID limit        | `${CHROME_PIDS_LIMIT:-512}` (processes and threads)                                                                             |
 
 The image entrypoint supplies Chromium's `--no-sandbox` option and publishes
 the browser through socat from `0.0.0.0:9222` to Chrome on
@@ -202,10 +202,9 @@ No Compose-level remote-debugging override is added. Chrome has no published
 ports or Traefik labels and does not join `karakeep-frontend` or
 `karakeep-backend`.
 
-Enabling Chrome adds a default 2 GiB memory allowance and capacity for up to
-100 additional PIDs. Size the host for that extra headroom on top of the web,
-worker, Meilisearch, init, and backup containers. Override the Chrome memory
-limit with `CHROME_MEM_LIMIT` when the host needs a different bound.
+The PID limit counts threads as well as processes. `${CHROME_PIDS_LIMIT:-512}`
+raises the previous 100-task bound to provide configurable headroom for
+Chromium and socat, not a sizing guarantee; tune it from observed usage.
 
 #### Browser Threat Model
 
@@ -219,7 +218,7 @@ limit with `CHROME_MEM_LIMIT` when the host needs a different bound.
 
 Chrome runs under an explicit non-root identity with `init: true`, a read-only
 root filesystem, `no-new-privileges=true`, all capabilities dropped, a
-`/tmp` tmpfs, a 2 GiB default memory limit, and a 100-PID limit. Network
+`/tmp` tmpfs, a 2 GiB default memory limit, and a default 512-task limit. Network
 isolation prevents direct attachment to the frontend and backend application
 networks, while an internal browser link exposes DevTools only to Karakeep web
 and workers. These controls reduce blast radius; they do not eliminate browser
@@ -242,6 +241,14 @@ destinations reachable through host routing. Review the upstream
 and the
 [source revision reviewed for this deployment](https://github.com/karakeep-app/karakeep/tree/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175)
 when changing crawler or network controls.
+
+#### Troubleshooting Browser Readiness
+
+For failed TrueNAS deployments, review DCCD's
+[failure diagnostics](../ARCHITECTURE.md#shell-script-logging). A dead socat
+listener can leave Chrome running; health failure alone does not restart the
+container. If this recurs, manually restart Chrome with
+`sudo docker restart karakeep-chrome`.
 
 #### Roll Back to Plain HTTP Crawling
 
@@ -474,3 +481,7 @@ provisioning the mobile proxy token.
 - Preserve the SOPS-encrypted secrets with the backup. The repository's ZFS
   snapshot, replication, and off-site strategy covers the child dataset; see
   [Backup Strategy](../BACKUP.md).
+
+For an existing app after merge, use the sourced aliases to run
+`dccd-app karakeep`, verify service health, then run `dccd-all` and confirm a
+fresh successful database backup. Do not repeat first-run provisioning.

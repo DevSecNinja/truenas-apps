@@ -271,10 +271,11 @@ browser-derived content, and screenshots alongside the plain HTTP crawler.
 The official immutable Chrome image supports amd64 and arm64 and runs under
 its explicit upstream non-root identity. It uses `init: true`, a read-only root
 filesystem, `no-new-privileges=true`, dropped capabilities, a `/tmp` tmpfs, a
-100-PID limit, and a `${CHROME_MEM_LIMIT:-2048m}` memory limit. Its HTTP
-readiness check requests `/json/version` on `127.0.0.1:9222`; web startup is
-gated on that check. Enabling the browser therefore adds a default 2 GiB
-allowance and up to 100 PIDs to the full stack's resource requirements.
+`${CHROME_PIDS_LIMIT:-512}` task limit (including threads), and a
+`${CHROME_MEM_LIMIT:-2048m}` memory limit. Its HTTP readiness check requests
+`/json/version` on `127.0.0.1:9222`; web startup is gated on that check. Enabling
+the browser therefore adds a default 2 GiB allowance and up to 512 tasks to the
+full stack's resource requirements.
 
 The upstream entrypoint supplies `--no-sandbox` and exposes socat on
 `0.0.0.0:9222`, forwarding to Chrome on `127.0.0.1:9223`. Compose retains the
@@ -849,6 +850,13 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC2034
 LOG_TAG="dccd"
 ```
+
+`compose_up_wait_tolerant` logs actual Compose failure output through
+`log_data ERROR` on stderr. On TrueNAS, `dump_project_logs_tail` adds selected
+container state and failed health probe output alongside log tails; the summary
+reports deployment failure rather than assuming a timeout. Cron may hide
+standard output, but **must not hide standard error**. Diagnostics omit the full
+container environment; review logs and probe output for secrets before sharing.
 
 ### Helpers
 
