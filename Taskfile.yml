@@ -234,6 +234,7 @@ tasks:
   pre-commit:
     desc: Run all pre-commit checks (same as lefthook)
     cmds:
+      - mise install
       - mise exec -- lefthook run pre-commit
 
   ci:local:

@@ -346,6 +346,32 @@ sets this automatically.
 
 ### Pre-commit hook
 
+From the repository root, install or regenerate Git hooks after changes to the
+launcher in `.lefthook.toml`:
+
+```sh
+mise install && mise exec -- lefthook install -f
+```
+
+Generated hooks finish `mise install` before executing the pinned Lefthook
+through `mise exec`; checks still run in parallel. If tool installation fails,
+the checks do not start and the commit is blocked. Ensure `mise` is on `PATH`
+in the environment that launches Git, including VS Code or other GUI clients.
+
+This ordering prevents parallel checks within the same commit from racing to
+auto-install tools or repair mise runtime symlinks. It does not serialize
+independent processes or bypass sandbox restrictions.
+
+For manual checks, use `task pre-commit`, which performs setup before running
+Lefthook, or run:
+
+```sh
+mise install && mise exec -- lefthook run pre-commit
+```
+
+Direct `lefthook run` invocations bypass the generated hook launcher and its
+setup step.
+
 Lefthook runs both the DCCD and SOPS secret unit suites before every commit. CI and the Taskfile also
 include both projects' unit and integration tests; DCCD E2E tests run separately with Docker.
 
