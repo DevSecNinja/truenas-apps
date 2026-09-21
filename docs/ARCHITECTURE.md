@@ -18,8 +18,8 @@ services:
     deploy:
       restart_policy:
         condition: on-failure             # Restart only on crash (non-zero exit)
-        max_attempts: 3                   # Stop after 3 rapid crashes within the window
-        window: 120s                      # Counter resets if the container is up > 2 min
+        max_attempts: 3                   # At most 3 automatic retries; not a rolling window
+        window: 120s                      # Swarm-only; ignored by standalone Compose
     networks:
       - <service>-frontend                 # Traefik-facing network
     mem_limit: ${MEM_LIMIT:-<default>}     # Prevent runaway memory
@@ -43,6 +43,14 @@ services:
       - "traefik.enable=true"              # Opt-in to Traefik discovery
       - "traefik.http.routers...middlewares=chain-auth@file"
 ```
+
+**Restart policy under standalone Docker Compose:**
+
+- Compose maps `condition` and `max_attempts` to the Docker Engine restart policy, but drops `window` and `delay`. The example above therefore becomes `on-failure:3`, not three retries per 120 seconds.
+- Moby checks `restartCount < MaximumRetryCount` and increments the count for each automatic restart. Running for at least 10 seconds resets only the restart backoff delay, not the cumulative retry count; an explicit start resets the restart manager. Failures separated by days can therefore exhaust the cap and leave a container stopped until an explicit start or recreation.
+- Health checks report readiness/health; an `unhealthy` state alone does not trigger an Engine restart. `scripts/dccd.sh` is a deployment tool, not a watchdog: by default, it skips deployment when the repository is unchanged and some containers are running, even if another container has stopped.
+
+Source references: Compose v2.39.4 [`getRestartPolicy`](https://github.com/docker/compose/blob/v2.39.4/pkg/compose/create.go), Moby v28.5.0 [`ShouldRestart`](https://github.com/moby/moby/blob/v28.5.0/restartmanager/restartmanager.go), and [explicit-start handling](https://github.com/moby/moby/blob/v28.5.0/daemon/start.go).
 
 **Key rules:**
 

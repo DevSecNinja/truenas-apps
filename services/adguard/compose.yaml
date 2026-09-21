@@ -293,7 +293,8 @@ services:
       - "53:53/udp"
       # TODO: [adguard] Implement DNS over TLS with TLS certificate
       # - "853:853/tcp"
-    mem_limit: ${MEM_LIMIT:-1024m}
+    # Filter reloads keep both old and new engines in memory; 1 GiB caused OOM kills.
+    mem_limit: ${MEM_LIMIT:-2048m}
     pids_limit: 100
     security_opt:
       - no-new-privileges=true
