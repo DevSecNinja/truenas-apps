@@ -277,7 +277,7 @@ services:
   # Public-only browser with an explicitly accepted, version-specific patch gap.
   karakeep-chrome:
     # Initial DHI adoption is tag-only; Renovate adds the multi-arch digest.
-    image: dhi.io/playwright:1.63.0-debian13
+    image: dhi.io/playwright:1.63.0-debian13@sha256:41e897d34bf35331d360bf9a63ecb2aa2d29e38139ab1640897947db674a66c4
     container_name: karakeep-chrome
     init: true
     entrypoint:
