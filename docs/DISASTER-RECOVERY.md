@@ -12,6 +12,9 @@ Before starting, ensure you have:
 - Access to this git repository (GitHub)
 - The **Age private key** (`age.key`) used for SOPS decryption — without this, secrets cannot be decrypted and no app will deploy. If the key is lost, every `secret.sops.env` must be re-encrypted with a new key
 - (Optional) ZFS snapshots or replication backups of app datasets for data restoration
+- For personal homes: the saved TrueNAS configuration with password secret
+  seed, secure UID/GID, quota, and share/ACL inventory, shared home dataset unlock keys,
+  SSH access recovery material, and backup decryption credentials
 
 ---
 
@@ -34,8 +37,20 @@ vm-pool/apps/services/plex
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth
 vm-pool/apps/services/unifi
-vm-pool/homes             # user home directories — per-user subdirs created automatically by TrueNAS
+vm-pool/homes             # One shared Multiprotocol dataset
+  <username>/            # Ordinary personal home directory, not a dataset
 ```
+
+`<username>` is a placeholder, not an account to create. Follow
+[Personal Home Recovery](#personal-home-recovery) for native SSH/SMB homes:
+restore the shared `homes` dataset from replication where available, or
+recreate that one empty dataset with the **Multiprotocol** preset,
+NFSv4/Passthrough ACLs, Sensitive case, Atime Off, Exec On, and automatic
+SMB/NFS shares disabled before restoring all home directories. Do not create
+datasets over populated directories. Existing per-user datasets need a separate
+controlled migration, not deletion or an assumed merge into the shared parent.
+`homes` does not inherit encryption from its `apps` sibling; recover its actual
+shared encryption root and unlock keys separately.
 
 ### apps Dataset Permissions
 
@@ -82,6 +97,17 @@ For each app, follow this order:
 ### Group Memberships for Media and Private Access
 
 Some service accounts need specific primary or auxiliary group memberships for media and private dataset access. See the [Shared Purpose Groups](INFRASTRUCTURE.md#shared-purpose-groups) and [Media Access](INFRASTRUCTURE.md#media-access) sections in INFRASTRUCTURE.md for the full membership configuration.
+
+### Personal Home Identities
+
+Restore personal users and their private primary groups with the **same
+recorded UID/GID**, preferably from the saved TrueNAS configuration and
+password secret seed. Keep their shares/logins disabled until data and
+permissions have been checked. If recreating settings manually, use
+[Personal Home Folders](HOME-FOLDERS.md), not the app service-account table;
+retain SMB passwords and public-key-only SSH without sudo/admin privileges.
+Do not move `truenas_admin` or its `/home/truenas_admin/host-init` mirror,
+and do not give app/service accounts homes.
 
 ---
 
@@ -214,6 +240,52 @@ If you have ZFS snapshots or replication backups, restore them **before** deploy
 
 If no backups are available, apps will start fresh — databases will be initialised empty and ACME certificates will be re-requested from Let's Encrypt.
 
+### Personal Home Recovery
+
+Personal files cannot be regenerated like app caches. If no home backup is
+available, record the loss rather than treating a newly empty home as restored.
+
+1. Preserve the early-boot administrative account and access. Import/unlock
+   the required pool and actual shared home encryption root with the saved keys.
+   A locked data-pool home cannot replace the administrative boot-time home.
+2. Restore the **one `vm-pool/homes` dataset** from
+   [replication](BACKUP.md#restore-from-replica), or recreate it empty following
+   [Home Folders](HOME-FOLDERS.md#2-prepare-the-shared-dataset-once) before
+   restoring files. Restore shared dataset properties, encryption, dataset
+   quota, and recorded ownership-based user data/object quotas. Verify the
+   root/admin-owned shared root's ACL: ordinary-user traversal only, no
+   inheritance, no listing/create/delete/change-ACL rights or broad named
+   grants. Inspect ancestor traversal without broad pool changes.
+3. Recover all users' **ordinary directories**, including `Files` **and hidden
+   SSH/configuration files**, initially with personal access disabled. For a
+   cloud/file-copy restore, use an isolated target and the
+   [home restore procedure](BACKUP.md#restore-home-files).
+   Such copies might not preserve numeric owners or NFSv4 ACLs. For a single
+   user's home or file, copy out selected files; **rollback of the shared
+   dataset affects every user**.
+4. Restore/edit each account's full existing home path with **Create Home
+   Directory unchecked**: attaching a restored home is the exception to
+   automatic new-home creation. Verify the saved path is exactly
+   `/mnt/vm-pool/homes/<username>`, then perform the final folder/file
+   ownership/ACL review after account saves. Preserve personal UID/GID;
+   enforce owner-only home and `.ssh` `0700`, `authorized_keys` `0600`,
+   and no broad/inherited access.
+   Restore only approved public login keys; the client's private key stays
+   on the client. Do not edit the dataset root as a substitute for each
+   home's ACL or blanket-recursively chown/reset all homes.
+5. Restore each ordinary private **Multi-protocol Share**, pointing only to
+   that user's `Files` directory. Review that path through the share's
+   **Edit Filesystem ACL**, verifying owner-only filesystem inheritance
+   and a share ACL allowing only the personal user CHANGE, without
+   overlapping home/parent exports.
+6. Enable access only after the checks above. Run the
+   [SSH/SMB positive and negative tests](HOME-FOLDERS.md#5-verify-before-use),
+   verify service startup and post-reboot/unlock availability, and confirm
+   cross-user denial locally and over SMB. Confirm renewed snapshots and
+   replication of the shared dataset contain all home directories, plus
+   off-site sync and sample restores for each user. Export a fresh system
+   configuration with its password secret seed.
+
 ---
 
 ## Step 7: Configure Media and Private Dataset Permissions (If Applicable)
@@ -305,7 +377,9 @@ backup count.
 Use this as a quick reference:
 
 - [ ] Create ZFS datasets (`vm-pool/apps` hierarchy) with encryption enabled
-- [ ] Create `vm-pool/homes` dataset (Generic preset) for user home directories
+- [ ] Recover one shared `vm-pool/homes` dataset and all ordinary home directories, with encryption/unlock settings and dataset/user quotas
+- [ ] Restore personal identities with the same UID/GID; attach full restored home paths with creation unchecked, then review shared-root and personal ACLs, SSH keys, and `Files`-only SMB shares
+- [ ] Verify personal SSH/SMB isolation, reboot/unlock behavior, and home backup/restore coverage; keep the admin home/mirror unchanged
 - [ ] Unlock the encrypted apps dataset (if not auto-unlocked on boot)
 - [ ] Set permissions on the apps dataset
 - [ ] Create shared purpose groups (GIDs 3200–3202)

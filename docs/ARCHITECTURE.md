@@ -1052,7 +1052,28 @@ services/<service>/
 
 **ZFS datasets do not need to be created manually for individual services.** The full dataset hierarchy is established once during initial setup (see `README.md § Setup`). Each `services/<app>/` directory lives on the `vm-pool/apps` dataset (or a child dataset created at setup time). TrueNAS handles snapshots and replication of these datasets automatically — no per-service backup containers are needed for file-level data (only for databases, which require consistent pg_dump / mongodump exports).
 
-**`vm-pool/homes`** is a sibling dataset to `vm-pool/apps` (not a child). It holds user home directories. When a TrueNAS local user account has its home directory set to `/mnt/vm-pool/homes` and **Create Home Directory** is enabled, TrueNAS automatically creates a per-user subdirectory (e.g. `/mnt/vm-pool/homes/jean-paul`) with owner-only permissions (`rwx------`). Pool-level snapshots cover it automatically alongside `vm-pool/apps`.
+**`vm-pool/homes`** is a native-host sibling of `vm-pool/apps`, not app storage.
+The approved [Personal Home Folders](HOME-FOLDERS.md) design uses **one shared
+Multiprotocol dataset** (NFSv4/Passthrough, case-sensitive, Atime Off, Exec On),
+with automatic SMB/NFS shares disabled at creation. Its administrative root
+grants ordinary users only non-inheriting traversal, not listing or creation.
+For each personal account, **Create Home Directory checked** with parent
+`/mnt/vm-pool/homes` makes TrueNAS create the ordinary
+`/mnt/vm-pool/homes/<username>` directory with the personal owner/private group
+and explicit `0700`. Verify the saved path and folder ACLs; no per-user dataset
+or separate manual home creation is needed. Existing/restored homes instead use
+the full path with creation unchecked.
+
+Separately create each private `Files/` directory and individual SMB share;
+`.ssh`, `.config`, and shell dotfiles remain SSH/local-only. Folder/file ACLs
+provide privacy between ordinary users, not protection from administrators or
+a jailed SSH shell. Optional user quotas are ownership-based; dataset properties,
+encryption, snapshots, and replication are shared. A shared dataset rollback
+affects **every user**. No app/service accounts or the `truenas_admin` home and
+boot-time mirror are changed. Snapshot/replication coverage of `homes` and
+off-site copies of each user's files must be
+[verified](BACKUP.md#personal-home-protection), not inferred from a pool-level
+task. Host setup and tests are pending.
 
 **`backups/`** holds database backup files produced by backup sidecars such as `tiredofit/db-backup` and `nfrastack/db-backup`. Like `data/`, this directory is excluded from Git and mounted read-write. Each backup type gets its own subdirectory (e.g., `backups/db-backup/`).
 

@@ -146,6 +146,17 @@ All servers and workstations follow a structured naming scheme:
 
 Each service account has a matching `svc-app-<name>` group created at the same GID as its UID. These groups are **GID reservations only** — they exist to prevent TrueNAS from assigning the GID to an unrelated group in the future. The app's _functional_ primary group is typically a shared purpose group (e.g., `media` at GID 3200), not the `svc-app-*` placeholder. There is generally no need to add `truenas_admin` or other users to the `svc-app-*` groups. Dawarich is an exception: `truenas_admin` belongs to `svc-app-dawarich` for operational access to its mode `770` runtime directories.
 
+### Personal Accounts
+
+Personal SMB/SSH users are separate from app identities. For
+[Personal Home Folders](HOME-FOLDERS.md), choose unused personal UID and private
+primary GID values at least `3000`, below the reserved `3100–3199` app range;
+do not consume `3200+`, which is reserved for shared purpose groups.
+Check actual host allocations first, preserve existing personal IDs, and
+record assigned IDs securely in the operator inventory. Do not add fictional
+users to the app tables or grant personal users app-group, sudo, or admin access.
+An SMB password is still required when SSH is public-key-only.
+
 ### App Service Accounts
 
 | UID/GID | TrueNAS user              | Service(s)                                                                          | Git-tracked config?  |
@@ -799,6 +810,48 @@ user: "3106:3202" # svc-app-immich:private-photos
 3. Create the service account user with its UID and the new group as primary
 4. Add an init container that chowns the service's specific subdirectory under `/mnt/archive-pool/private/`
 5. Bind-mount only that subdirectory into the container — never the parent `private/` path
+
+## Personal Home Storage
+
+The approved [Personal Home Folders](HOME-FOLDERS.md) guide targets TrueNAS
+25.10 on `svlnas`; native-host setup and verification remain pending. It uses
+**one shared `vm-pool/homes` dataset**, mounted at `/mnt/vm-pool/homes`,
+with Multiprotocol/NFSv4/Passthrough, case-sensitive names, Atime Off, and
+Exec On. Disable automatic SMB/NFS shares at dataset creation; do not inherit
+SMB-only Restricted ACL mode. Review the new shared root's ACL nonrecursively:
+root/admin ownership, ordinary-user traversal only, **no inheritance** on that
+traversal ACE, and no broad named/group grants. Users must not list, create,
+delete, or change ACLs there; middleware creates their homes administratively.
+Mode `0711` alone does not prove named ACL grants are absent.
+
+For **each** personal account, select parent `/mnt/vm-pool/homes` with
+**Create Home Directory checked** and explicit owner-only `0700` permissions.
+TrueNAS creates an ordinary directory owned by the personal user/private group;
+verify the saved full path `/mnt/vm-pool/homes/<username>` and its folder ACL.
+No per-user dataset or manual home `mkdir` is required. Separately create private
+`Files/` and its individual SMB **Multi-protocol Share**; automatic home creation
+does neither. `.ssh`, `.config`, and shell dotfiles are not exported.
+
+Set a shared dataset quota and optionally **Datasets → homes → Manage User
+Quotas → User Data Quota / User Object Quota**. User quotas count ownership
+across the dataset, not folder size or per-user snapshot retention. All homes
+share dataset properties, encryption, snapshots, and replication; monitor
+snapshot growth and pool reserve. Rollback of this dataset affects **all users**.
+Owner-only privacy and user quotas do not require separate datasets.
+
+For initial adoption, if an existing parent/home has data or per-user child
+datasets, stop, snapshot/back up, and plan migration separately; creating the
+shared parent does not merge them. Do not change populated ACL types, create
+datasets over directories, delete child datasets, or recursively reset homes.
+Once the shared dataset is prepared and verified, adding another user repeats
+only per-user setup without altering existing homes. When attaching an existing
+or restored home, use its **full path with creation unchecked** instead.
+
+Keep `truenas_admin` and `/home/truenas_admin/host-init` unchanged, and do not
+give app/service accounts homes. `homes` does not inherit encryption from its
+`apps` sibling, and locked homes cannot replace early-boot admin access.
+Verify [backup coverage and sample restores](BACKUP.md#personal-home-protection)
+for every user before relying on this storage.
 
 ## Historical Archives over SMB
 
