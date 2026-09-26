@@ -645,30 +645,32 @@ record_container_restarts() {
     done <<<"${containers}"
 }
 
-# Dump the last N log lines (default 10) from every container in a compose
-# project. Used when a deploy fails to give a quick on-screen hint without
-# requiring the operator to ssh in and run `docker compose logs`.
+# Dump state, failed health probes and log tails from every project container.
 # Arguments: $1 = project name, $2 = (optional) line count
 dump_project_logs_tail() {
     local project="$1"
     local lines="${2:-10}"
-    local containers
-    containers=$(${SUDO} docker ps -a \
+    local containers container state logs
+    # Select state only, never the full inspect (which includes secrets in Env).
+    local state_format='status={{.State.Status}} exit_code={{.State.ExitCode}} oom_killed={{.State.OOMKilled}}{{if .State.Error}} error={{.State.Error}}{{end}}{{if .State.Health}} health={{.State.Health.Status}} failing_streak={{.State.Health.FailingStreak}}{{range .State.Health.Log}}{{if ne .ExitCode 0}}{{printf "\nprobe %s: exit_code=%d\n%s" .End .ExitCode .Output}}{{end}}{{end}}{{else}} health=not-configured{{end}}'
+    if ! containers=$(${SUDO} docker ps -a \
         --filter "label=com.docker.compose.project=${project}" \
-        --format '{{.Names}}' 2>/dev/null) || true
-
-    if [ -z "${containers}" ]; then
+        --format '{{.Names}}' 2>&1); then
+        printf '%s\n' "${containers}" | log_data WARN "${project}: unable to list containers for diagnostics"
         return 0
     fi
 
     while IFS= read -r container; do
         [ -z "${container}" ] && continue
-        local logs
-        logs=$(${SUDO} docker logs --tail "${lines}" "${container}" 2>&1) || true
-        if [ -z "${logs}" ]; then
-            printf '(no log output)\n' | log_data WARN "${container}: last ${lines} log lines"
+        if state=$(${SUDO} docker inspect --format "${state_format}" "${container}" 2>&1); then
+            printf '%s\n' "${state}" | log_data WARN "${container}: container state and failed health probes"
         else
-            printf '%s\n' "${logs}" | log_data WARN "${container}: last ${lines} log lines"
+            printf '%s\n' "${state}" | log_data WARN "${container}: unable to inspect container state"
+        fi
+        if logs=$(${SUDO} docker logs --tail "${lines}" "${container}" 2>&1); then
+            printf '%s\n' "${logs:-(no log output)}" | log_data WARN "${container}: last ${lines} log lines"
+        else
+            printf '%s\n' "${logs}" | log_data WARN "${container}: unable to read container logs"
         fi
     done <<<"${containers}"
 }
@@ -915,28 +917,25 @@ redeploy_truenas_apps() {
             # --abort-on-container-exit is incompatible with -d, which is fine — we
             # want to block until the init work is done before deploying later apps.
             log_info "${app_name} output suppressed — check 'sudo docker compose --project-name ${project_name} logs' if needed"
+            local bootstrap_output
             # shellcheck disable=SC2310  # set -e disable in `if !` is acceptable here; we handle the failure explicitly
-            if ! run_compose_command \
+            if ! bootstrap_output=$(run_compose_command \
                 --project-name "${project_name}" \
                 --file "${compose_file}" \
                 up \
                 --build \
                 --abort-on-container-exit \
-                >/dev/null 2>&1; then
+                2>&1); then
                 log_error "${app_name} one-shot container failed - check 'sudo docker compose --project-name ${project_name} logs' for details"
+                printf '%s\n' "${bootstrap_output}" | log_data ERROR "${app_name}: Docker Compose failed"
                 dump_project_logs_tail "${project_name}"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
             fi
         else
-            local deploy_output
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
-            if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" --project-name "${project_name}" --file "${compose_file}"); then
-                log_error "${app_name} failed to become healthy within ${WAIT_TIMEOUT}s - check 'sudo docker compose --project-name ${project_name} logs' for details"
-                if [ -n "${deploy_output}" ]; then
-                    # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
-                    echo "${deploy_output}" | sed 's/^/  /'
-                fi
+            if ! compose_up_wait_tolerant "${app_name}" --project-name "${project_name}" --file "${compose_file}" >/dev/null; then
+                log_error "${app_name} deployment failed - see Compose error and container diagnostics"
                 dump_project_logs_tail "${project_name}"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")
@@ -1125,7 +1124,9 @@ compose_up_wait_tolerant() {
         fi
     fi
 
-    # Real failure — surface output for the caller to log
+    # Cron may hide stdout; keep the actual Compose failure on stderr.
+    printf '%s\n' "${out}" | log_data ERROR "${app_name}: Docker Compose failed (exit ${rc})"
+    # Preserve stdout for callers that classify specific Compose errors.
     echo "${out}"
     return 1
 }
@@ -1191,10 +1192,6 @@ redeploy_compose_file() {
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
             if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
                 log_error "Failed to deploy ${file} - containers may be unhealthy"
-                if [ -n "${deploy_output}" ]; then
-                    # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
-                    echo "${deploy_output}" | sed 's/^/  /'
-                fi
                 if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                     log_hint "An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
                 fi
@@ -1212,10 +1209,6 @@ redeploy_compose_file() {
         # shellcheck disable=SC2310  # failure is handled by the surrounding if block
         if ! deploy_output=$(compose_up_wait_tolerant "${app_name}" "${compose_file_args[@]}"); then
             log_error "Failed to deploy ${file} - containers may be unhealthy"
-            if [ -n "${deploy_output}" ]; then
-                # shellcheck disable=SC2001  # multiline replace; ${var//x/y} doesn't anchor to line start
-                echo "${deploy_output}" | sed 's/^/  /'
-            fi
             if echo "${deploy_output}" | grep -q "declared as external, but could not be found"; then
                 log_hint "An external network has not been created yet. This usually means a dependency app deploys later (alphabetically). Re-run the deployment to resolve this."
             fi

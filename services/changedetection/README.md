@@ -2,14 +2,13 @@
 
 [changedetection.io](https://changedetection.io/) monitors websites for changes,
 retains diffs and screenshots, and sends notifications. Browser fetching is
-enabled by default in Compose under an explicit unpatched-version risk exception.
+enabled by default in Compose with a mandatory Chromium version floor.
 
 ## Why
 
 Keep watch definitions and history on locally managed storage behind the
 existing SSO boundary. A dedicated DHI browser uses a public-website-only
-filtering proxy. The operator has explicitly accepted the current browser's
-unpatched-version risk pending a verified replacement.
+filtering proxy. No browser version exception is active.
 
 ## Compose File
 
@@ -42,7 +41,7 @@ No smaller or DHI alternative has been adopted for the application itself.
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `changedetection`               | Web UI, API, and fetch workers; writes only persistent `/datastore` and temporary paths                                                               |
 | `changedetection-browser-proxy` | Stateless Squid proxy; filters browser HTTP(S) to public websites                                                                                     |
-| `changedetection-chrome`        | DHI browser with an explicit, exact-version risk exception                                                                                            |
+| `changedetection-chrome`        | DHI browser with a mandatory Chromium version floor                                                                                                   |
 | `changedetection-init`          | `docker.io/library/busybox:1.38.0`; validates `DOMAINNAME`, chowns `./data` mounted at `/datastore` to UID/GID `3131:3131`, and applies `u=rwX,g=,o=` |
 
 The app runs as `svc-app-changedetection` with matching UID and primary GID
@@ -66,21 +65,16 @@ fetcher on watches where JavaScript rendering is wanted.
 
 Both apps use `dhi.io/playwright:1.63.0-debian13` as separate browser
 instances. Initial DHI adoption is tag-only; Renovate will add the digest pin.
-The inspected image contains vulnerable Chromium `153.0.8010.47-2~deb13u1`,
-below the launcher's normal `153.0.8010.52` minimum. Both browser definitions
-set `BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47`: only that exact older
-version may start under this explicit exception, with a `WARNING` log.
-Other versions below the minimum remain blocked; versions at or above it
-use normal startup.
+A fresh pull reported Chromium `153.0.8010.52`
+from the actual binary on a disposable rootful Podman VM, meeting the
+launcher's mandatory minimum. Neither stack sets
+`BROWSER_ALLOW_UNPATCHED_VERSION`; the launcher's retained exact-version
+exception compatibility is dormant, so older cached `153.0.8010.47`
+images fail closed. See
+[verified image references and security scope](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
+This binary-version check is not a production deployment, full application
+revalidation, or a claim that all CVEs are fixed.
 
-<!-- dprint-ignore -->
-!!! warning "Accepted risk is not a browser patch"
-    The operator approved this exact-version exception despite the confirmed
-    high-severity Linux V8 issue CVE-2026-93377. Squid and container hardening
-    do not fix V8. Synthetic runtime validation does not establish a patched
-    image or a successful or safe production TrueNAS deployment.
-
-See [risk scope and patch follow-up](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
 Normal deployment recreates changed browser definitions; no profile activation
 or profile-related manual shutdown is required for this transition.
 
@@ -91,7 +85,7 @@ or profile-related manual shutdown is required for this transition.
 | `changedetection-frontend`       | App and Traefik; UI/API traffic and app egress                                          |
 
 The HTTP CDP endpoint uses the reserved Chrome address. The read-only
-`../shared/config/browser/launch.mjs` checks the version or exact exception
+`../shared/config/browser/launch.mjs` checks the version
 before launch, then relays port `9222` to Chromium on loopback port `9223`.
 HTTP discovery obtains the current WebSocket endpoint on each connection;
 it does not pin a transient WebSocket ID.
@@ -114,7 +108,10 @@ See the [network and access model](../ARCHITECTURE.md#changedetectionio-network-
 
 Chrome uses DHI's non-root identity (`65532:65532`), with
 `init: true`, `cap_drop: ALL`, `no-new-privileges`, a read-only root filesystem,
-temporary filesystems, and a 100-PID limit. The app also drops all capabilities,
+temporary filesystems, and a fixed 512-task cap (processes and threads).
+This is initial browser headroom, not a production capacity guarantee.
+Changes require a reviewed Compose edit; no environment override is supported.
+The app also drops all capabilities,
 has a read-only root filesystem, and uses a 100-PID limit. Chrome has no
 published ports, no Traefik labels, and no frontend network membership.
 
@@ -233,11 +230,13 @@ The new Squid proxy separately passed public HTTP and certificate-validated
 HTTPS tests and controlled denial tests for private literals/hostnames,
 IPv4-mapped IPv6, NAT64, 6to4, forbidden ports, and disallowed `CONNECT`.
 Those tests used only the controlled proxy, not connections to real LAN
-services. Those results do not validate the DHI browser. **The current
-configuration enables browser execution under an accepted risk exception.**
-Completed synthetic DHI checks and remaining production/workflow checks are
+services. Those results do not validate the current DHI browser.
+Historical synthetic DHI checks used Chromium `153.0.8010.47` with the
+former exception and 100-PID limits; they do not revalidate the newly verified
+`153.0.8010.52` build. Those results and remaining production/workflow checks are
 recorded in [Browser Runtime Validation](../ARCHITECTURE.md#browser-runtime-validation).
-They do not make the image patched or supersede the historical restore evidence.
+No version exception is active. The binary-version verification does not
+supersede the historical restore evidence.
 
 ## First-Run Setup
 
@@ -295,8 +294,8 @@ source /mnt/vm-pool/apps/scripts/aliases.sh
      for a new-user account flow.
 6. Verify init completed, proxy/Chrome/app health checks pass, and
    unauthenticated UI/API requests remain behind SSO. Check the browser's
-   actual version and expected exception warning. Browser-step and
-   visual-selector integration remain pending verification.
+   actual version is at least `153.0.8010.52`, with no exception warning.
+   Browser-step and visual-selector integration remain pending verification.
 
 ## Upgrade Notes
 
@@ -306,12 +305,16 @@ source /mnt/vm-pool/apps/scripts/aliases.sh
 - Do not run old and new app instances against the same datastore.
 - Recheck JavaScript fetching, screenshots/diffs, browser reconnection, and
   notifications after upgrades.
-- The publisher's patch date is unknown. Select a reviewed patched DHI build,
-  pull/redeploy through `dccd-all`, and verify the actual Chromium version
-  in both browsers. After patched-image verification, remove
-  `BROWSER_ALLOW_UNPATCHED_VERSION` from **both** apps' Compose files and
-  redeploy again. Do not assume the Playwright tag or a future automatic
-  update proves the browser is patched.
+- After DHI updates, verify the actual Chromium version in both browsers is
+  at least `153.0.8010.52`, with no exception warning. The obsolete
+  `BROWSER_ALLOW_UNPATCHED_VERSION` override is already absent from both
+  stacks; do not restore it for an older cached image. The Playwright tag
+  alone does not prove the running binary version or that all CVEs are fixed.
 - If rollback requires older file formats, restore the matching complete
   pre-upgrade state with the corresponding image version. Keep the failed
   tree until recovery is verified.
+
+For the existing apps after merge, use the sourced aliases to run
+`dccd-app karakeep`, `dccd-app changedetection`, then `dccd-all`.
+Verify both browser versions, service health, and browser workflows.
+Do not repeat first-run provisioning.

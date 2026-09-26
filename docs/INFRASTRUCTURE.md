@@ -239,23 +239,26 @@ do not add direct fallbacks, bypass rules, or Chrome egress networks.
 Non-browser Basic HTTP app traffic is not filtered through this proxy.
 
 The DHI browser mounts `services/shared/config/browser/launch.mjs`
-read-only. The normal minimum remains `153.0.8010.52`, but both browser
-definitions set `BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47` under explicit
-operator risk acceptance. Only that exact older version may start with the
-matching value and a `WARNING`; other below-minimum versions remain blocked.
-The inspected `153.0.8010.47-2~deb13u1` build remains vulnerable. Both services watch the
+read-only. The minimum `153.0.8010.52` is mandatory: neither browser definition
+sets `BROWSER_ALLOW_UNPATCHED_VERSION`, so older cached `153.0.8010.47`
+images fail closed. A fresh pull of the unchanged DHI tag
+reported Chromium `153.0.8010.52` from the actual binary on a disposable
+rootful Podman VM; see the
+[verified image references](ARCHITECTURE.md#browser-egress-policy-public-websites-only).
+Both services watch the
 shared `browser` directory for config changes. Initial DHI adoption is
 tag-only, with Renovate digest pinning to follow; no custom image publication
 or new persistent storage is required.
 
 Normal deployment recreates changed browser definitions; no profile-related
-shutdown is required for this transition. The publisher's patch date is
-unknown. Pull/redeploy a reviewed patched build through `dccd-all`, verify
-the actual Chromium version in both containers, then remove
-`BROWSER_ALLOW_UNPATCHED_VERSION` from both Compose files and redeploy again.
+shutdown is required for this transition. For existing apps, use the sourced
+aliases to run `dccd-app karakeep`, `dccd-app changedetection`, then
+`dccd-all`. Verify both browsers meet the version floor without an exception
+warning and that service health and browser workflows pass.
 See [Browser Runtime Validation](ARCHITECTURE.md#browser-runtime-validation)
-for completed synthetic checks and remaining production-host checks; the
-tests do not establish that the image is patched.
+for historical synthetic checks on the older image and remaining checks.
+The new binary-version verification is not a production deployment or a
+full application/proxy revalidation.
 
 **Test runtime:** use rootful Podman on the test VM. The Canonical image
 contains layer file ownership outside that VM's default rootless subordinate

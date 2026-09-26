@@ -1,11 +1,14 @@
 #!/usr/bin/env bats
 # Integration tests: deploy standard (non-TrueNAS) mode
 
+load '../helpers/diagnostics'
+
+setup_file() {
+    diagnostics_require_helpers
+}
+
 setup() {
-    load '../helpers/common'
-    load '../helpers/mocks'
-    common_setup
-    create_default_mocks
+    diagnostics_setup
 }
 
 teardown() {
@@ -145,4 +148,36 @@ YAML
     redeploy_compose_file "${BASE_DIR}/services/testapp/compose.yaml"
     [[ "${_DEPLOY_ERRORS}" -eq 1 ]]
     rm -f "${TMPRESTART}"
+}
+
+@test "redeploy_compose_file: real error is on stderr only and external-network hint survives" {
+    local message='network browser declared as external, but could not be found'
+    mkdir -p "${BASE_DIR}/services/testapp"
+    touch "${BASE_DIR}/services/testapp/compose.yaml"
+    NO_PULL=1
+    create_sequential_mock docker '0:' '0:web' "17:${message}"
+
+    run --separate-stderr redeploy_compose_file "${BASE_DIR}/services/testapp/compose.yaml"
+    assert_success
+    assert_output --partial 'An external network has not been created yet'
+    refute_output --partial "${message}"
+    assert_stderr --partial 'Docker Compose failed (exit 17)'
+    assert_stderr --partial "${message}"
+}
+
+@test "redeploy_compose_file: graceful deployment also keeps actual failure off stdout" {
+    local message='dependency failed to start: container chrome is unhealthy'
+    mkdir -p "${BASE_DIR}/services/testapp"
+    touch "${BASE_DIR}/services/testapp/compose.yaml"
+    GRACEFUL=1
+    NO_PULL=1
+    TMPRESTART="${BASE_DIR}/dry-run"
+    create_sequential_mock docker '0:' '0:web' '0:Container chrome Recreate' "17:${message}"
+
+    run --separate-stderr redeploy_compose_file "${BASE_DIR}/services/testapp/compose.yaml"
+    assert_success
+    refute_output --partial "${message}"
+    assert_stderr --partial 'Docker Compose failed (exit 17)'
+    assert_stderr --partial "${message}"
+    assert_stderr --partial 'Failed to deploy'
 }

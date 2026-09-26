@@ -169,7 +169,7 @@ check_source_browser_policy() {
           (.environment.CRAWLER_HEADLESS_BROWSER == "true") and
           (.environment.BROWSER_WEB_URL == "http://karakeep-chrome:9222")))
       end) and
-      ($browser.environment.BROWSER_ALLOW_UNPATCHED_VERSION == "153.0.8010.47") and
+      ($browser.environment.BROWSER_ALLOW_UNPATCHED_VERSION == null) and
       ($browser.image | test("^dhi\\.io/playwright:[^@]+(@sha256:[a-f0-9]{64})?$")) and
       ($browser.user == "65532:65532") and
       ($browser.entrypoint == ["node", "/opt/browser/launch.mjs"]) and
@@ -201,7 +201,7 @@ check_source_browser_policy() {
     '
 }
 
-@test "browser_proxy: both apps enable healthy DHI browsers with the exact exception and mandatory proxy isolation" {
+@test "browser_proxy: both apps enforce the version floor without override and retain mandatory proxy isolation" {
     policy_e2e_enabled || skip "E2E tests require DCCD_E2E=1"
     local app
     for app in changedetection karakeep; do
