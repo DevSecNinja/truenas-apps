@@ -80,6 +80,7 @@ deploy_truenas_and_check_failure() {
     assert_stderr --partial "${message}"
     assert_stderr --partial 'karakeep deployment failed'
     refute_stderr --partial 'timed out'
+    refute_stderr --partial 'readiness timeout'
     assert_stderr --partial 'health=unhealthy'
     assert_stderr --partial 'unable to read container logs'
     assert_mock_called_with docker 'label=com.docker.compose.project=ix-karakeep'

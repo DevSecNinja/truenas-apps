@@ -21,8 +21,8 @@ setup() {
     BROWSER_TMPDIR="$(mktemp -d "${BATS_TMPDIR}/dccd-test.XXXXXX")"
     cd "${BROWSER_TMPDIR}"
     declare -gA EXPECTED_LIMITS=(
-        [karakeep]='{"karakeep":100,"karakeep-browser-proxy":100,"karakeep-chrome":BROWSER_LIMIT,"karakeep-db-backup":100,"karakeep-init":50,"karakeep-meilisearch":100,"karakeep-workers":100}'
-        [changedetection]='{"changedetection":100,"changedetection-browser-proxy":100,"changedetection-chrome":BROWSER_LIMIT,"changedetection-init":100}'
+        [karakeep]='{"karakeep":100,"karakeep-browser-proxy":100,"karakeep-chrome":512,"karakeep-db-backup":100,"karakeep-init":50,"karakeep-meilisearch":100,"karakeep-workers":100}'
+        [changedetection]='{"changedetection":100,"changedetection-browser-proxy":100,"changedetection-chrome":512,"changedetection-init":100}'
     )
 }
 
@@ -54,16 +54,18 @@ render_browser_task_limits() {
     for app in karakeep changedetection; do
         run render_browser_task_limits "${app}"
         assert_success
-        assert_output "${EXPECTED_LIMITS[$app]//BROWSER_LIMIT/512}"
+        assert_output "${EXPECTED_LIMITS[$app]}"
     done
 }
 
-@test "browser_task_limits: each app honors CHROME_PIDS_LIMIT=256 only for its browser" {
-    local app
+@test "browser_task_limits: CHROME_PIDS_LIMIT cannot override fixed browser or non-browser limits" {
+    local app limit
     for app in karakeep changedetection; do
-        run render_browser_task_limits "${app}" CHROME_PIDS_LIMIT=256
-        assert_success
-        assert_output "${EXPECTED_LIMITS[$app]//BROWSER_LIMIT/256}"
+        for limit in 0 -1 256; do
+            run render_browser_task_limits "${app}" "CHROME_PIDS_LIMIT=${limit}"
+            assert_success
+            assert_output "${EXPECTED_LIMITS[$app]}"
+        done
     done
 }
 
@@ -77,7 +79,8 @@ render_browser_task_limits() {
         run jq -e --arg app "${app}" '
             def network_names: if type == "array" then . else keys end;
             .services[$app + "-chrome"] as $browser |
-            ($browser.pids_limit == "${CHROME_PIDS_LIMIT:-512}") and
+            ($browser.pids_limit == 512) and
+            ($browser.environment.BROWSER_ALLOW_UNPATCHED_VERSION == null) and
             ($browser.image | startswith("dhi.io/playwright:")) and
             ($browser.entrypoint == ["node", "/opt/browser/launch.mjs"]) and
             ($browser.volumes == ["../shared/config/browser/launch.mjs:/opt/browser/launch.mjs:ro"]) and

@@ -8,8 +8,8 @@ notes, and images, with full-text search and optional AI tagging.
 Karakeep keeps saved content and its search index on locally managed storage.
 The split web, worker, and search services isolate background crawling and
 indexing from the user-facing application. Browser rendering is enabled in
-Compose through a DHI browser and filtering proxy, under an explicit accepted
-unpatched-version risk.
+Compose through a DHI browser and filtering proxy, with a mandatory Chromium
+version floor and no active version exception.
 
 ## Compose File
 
@@ -148,7 +148,7 @@ starting the server.
 | ------------------------ | --------------------------------------------------------------------- |
 | `karakeep`               | Web UI and API on the internal container port `3000`                  |
 | `karakeep-browser-proxy` | Stateless Squid proxy; filters browser HTTP(S) to public websites     |
-| `karakeep-chrome`        | DHI browser with an explicit, exact-version risk exception            |
+| `karakeep-chrome`        | DHI browser with a mandatory Chromium version floor                   |
 | `karakeep-db-backup`     | One-shot encrypted SQLite backup sidecar                              |
 | `karakeep-init`          | Validates required settings and assigns runtime directory ownership   |
 | `karakeep-meilisearch`   | Full-text search engine on the internal port `7700`                   |
@@ -163,21 +163,17 @@ The web service waits for healthy Chrome, which waits for a healthy Squid
 proxy. Neither browser nor proxy has a profile. Normal deployment recreates
 changed browser definitions; no profile-related manual shutdown is required.
 
-<!-- dprint-ignore -->
-!!! warning "Accepted risk is not a browser patch"
-    The operator approved running the current unpatched browser despite the
-    confirmed high-severity Linux V8 issue CVE-2026-93377. The proxy does not
-    fix V8. Synthetic runtime validation does not establish a patched image
-    or a successful or safe production TrueNAS deployment.
-
 The browser is `dhi.io/playwright:1.63.0-debian13`, initially tag-only
 under the repository's DHI adoption rule; Renovate will add the digest pin.
-The inspected image contains vulnerable Chromium `153.0.8010.47-2~deb13u1`.
-The shared read-only `../shared/config/browser/launch.mjs` normally rejects
-versions below `153.0.8010.52`. Both browser definitions set
-`BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47`, allowing only that exact
-older version with a `WARNING` log; this is not a generic bypass. Versions at
-or above the minimum use normal startup.
+A fresh pull reported Chromium `153.0.8010.52`
+from the actual binary on a disposable rootful Podman VM.
+The shared read-only `../shared/config/browser/launch.mjs` rejects versions
+below that floor. Neither stack sets `BROWSER_ALLOW_UNPATCHED_VERSION`;
+the launcher's retained exact-version exception compatibility is dormant,
+so older cached `153.0.8010.47` images fail closed. See
+[verified image references and security scope](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
+This binary-version check is not a production deployment, full application
+revalidation, or a claim that all CVEs are fixed.
 
 The Node launcher provides a stable IPv4 TCP CDP relay on port `9222` to Chromium's
 loopback port `9223`. The Node health check verifies `/json/version` and its
@@ -194,9 +190,10 @@ Its command sets `--proxy-server=http://karakeep-browser-proxy:3128`,
 
 Chrome has a default 2 GiB memory allowance
 and the proxy adds `${BROWSER_PROXY_MEM_LIMIT:-256m}`. Chrome uses
-`${CHROME_PIDS_LIMIT:-512}` (processes and threads); the proxy retains its
-separate 100-PID limit. This is conservative initial browser headroom, not
-load-proven sizing; tune it from observed usage. Size the
+a fixed 512-task cap (processes and threads); the proxy retains its
+separate 100-PID limit. The browser cap provides initial headroom, not a
+production capacity guarantee. Changes require a reviewed Compose edit;
+no environment override is supported. Size the
 host for both in addition to the web, worker, Meilisearch, init, and backup
 containers.
 
@@ -237,7 +234,7 @@ fallbacks, proxy bypass rules, or extra Chrome egress networks to restore it.
 Chrome has an explicit non-root identity, `init: true`,
 a read-only root filesystem, `no-new-privileges=true`, all capabilities dropped, a
 `/tmp` tmpfs, a 2 GiB default memory limit, and a
-`${CHROME_PIDS_LIMIT:-512}` task limit. Network
+fixed 512-task cap. Network
 isolation prevents direct attachment to the frontend and backend application
 networks. The internal browser network necessarily includes Karakeep web,
 workers, and the proxy, so these peers can reach DevTools. Removing Chrome's
@@ -271,12 +268,14 @@ does not restart the container.
 
 #### Browser Remediation Status
 
-Completed synthetic DHI browser/proxy checks are recorded in
+Historical synthetic DHI browser/proxy checks are recorded in
 [Browser Runtime Validation](../ARCHITECTURE.md#browser-runtime-validation).
-They cover the worker's Playwright client, not the full signup/bookmark job
-flow or production TrueNAS. **The browser remains enabled under an unpatched
-risk exception**, not completed security remediation. See
-[risk scope and patch follow-up](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
+They used Chromium `153.0.8010.47` with the former exception and 100-PID
+limits, and cover the worker's Playwright client, not the full signup/bookmark
+job flow or production TrueNAS. The newly verified binary meets the
+`153.0.8010.52` floor; those older results do not validate its application
+workflows. No version exception is active. See
+[current version policy and residual risks](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
 
 ### Security Model
 
@@ -466,7 +465,7 @@ provisioning the mobile proxy token.
    healthy, and performs the default backup freshness check. Confirm that
    `karakeep-init` completes successfully and the browser proxy, Chrome,
    Meilisearch, web, and workers become healthy. Check the actual browser
-   version and expected exception warning.
+   version is at least `153.0.8010.52`, with no exception warning.
 5. Complete the application setup and validation:
 
    - Open `https://karakeep.${DOMAINNAME}` through Forward Auth and create the
@@ -489,12 +488,11 @@ provisioning the mobile proxy token.
 - Renovate manages image updates. Review the
   [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
   major upgrades.
-- The DHI publisher's patch date is unknown. Select a reviewed patched build,
-  pull/redeploy through `dccd-all`, and verify the actual Chromium version
-  in both browsers. After verification, remove
-  `BROWSER_ALLOW_UNPATCHED_VERSION` from **both** apps' Compose files and
-  redeploy again. Do not assume the Playwright tag or automatic updates
-  guarantee a patched browser.
+- After DHI updates, verify the actual Chromium version in both browsers is
+  at least `153.0.8010.52`, with no exception warning. The obsolete
+  `BROWSER_ALLOW_UNPATCHED_VERSION` override is already absent from both
+  stacks; do not restore it for an older cached image. The Playwright tag
+  alone does not prove the running binary version or that all CVEs are fixed.
 - The web container applies database migrations before startup and uses a
   stop-first update order so the replacement does not serve traffic before
   migrations finish.
@@ -506,8 +504,8 @@ provisioning the mobile proxy token.
   snapshot, replication, and off-site strategy covers the child dataset; see
   [Backup Strategy](../BACKUP.md).
 
-For an existing app after merge, use the sourced aliases to run
-`dccd-app karakeep` and, if changedetection is already deployed,
-`dccd-app changedetection`. Verify service health, then run `dccd-all` and
+For the existing apps after merge, use the sourced aliases to run
+`dccd-app karakeep`, `dccd-app changedetection`, then `dccd-all`.
+Verify both browser versions, service health, and browser workflows, and
 confirm a fresh successful Karakeep database backup. Do not repeat first-run
 provisioning.

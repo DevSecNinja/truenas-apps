@@ -935,7 +935,7 @@ redeploy_truenas_apps() {
         else
             # shellcheck disable=SC2310  # failure is handled by the surrounding if block
             if ! compose_up_wait_tolerant "${app_name}" --project-name "${project_name}" --file "${compose_file}" >/dev/null; then
-                log_error "${app_name} deployment failed (readiness timeout: ${WAIT_TIMEOUT}s) - see Compose error and container diagnostics"
+                log_error "${app_name} deployment failed - see Compose error and container diagnostics"
                 dump_project_logs_tail "${project_name}"
                 _DEPLOY_ERRORS=$((_DEPLOY_ERRORS + 1))
                 _DEPLOY_FAILED_APPS+=("${app_name}")

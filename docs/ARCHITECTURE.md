@@ -276,16 +276,17 @@ Karakeep enables browser crawling with `CRAWLER_HEADLESS_BROWSER=true` and
 Both applications wait for healthy Chrome; Chrome waits for its healthy proxy.
 
 Both browser definitions use `dhi.io/playwright:1.63.0-debian13` and are active
-by default, without profiles, under an explicit unpatched-version exception.
+by default, without profiles, with a mandatory Chromium `153.0.8010.52` minimum
+and no active version exception.
 The browser runs as
 `65532:65532` with a read-only root, `init: true`, dropped capabilities,
-`no-new-privileges`, tmpfs scratch, a `${CHROME_PIDS_LIMIT:-512}` task cap
+`no-new-privileges`, tmpfs scratch, a fixed 512-task cap
 (processes and threads), and
 `${CHROME_MEM_LIMIT:-2048m}`. Its Squid proxy adds
 `${BROWSER_PROXY_MEM_LIMIT:-256m}` and a separate 100-PID limit.
-The browser cap provides conservative initial headroom, not load-proven sizing;
-tune it from observed usage.
-The shared Node launcher checks Chromium's version or exact exception before launch and provides an
+The browser cap provides initial headroom, not a production capacity guarantee.
+Changes require a reviewed Compose edit; no environment override is supported.
+The shared Node launcher checks Chromium's version before launch and provides an
 IPv4 TCP CDP relay on port `9222` to loopback port `9223`. See
 [Browser Egress Policy](#browser-egress-policy-public-websites-only).
 
@@ -394,47 +395,65 @@ The IoT stack (Home Assistant, Mosquitto, ESPHome, Frigate, wmbusmeters) shares 
 
 ### Browser Egress Policy (Public Websites Only)
 
-**Current decision: browser execution enabled under accepted risk.** Both
+**Current decision: browser execution enabled with the version floor enforced.** Both
 apps use `dhi.io/playwright:1.63.0-debian13` and a dedicated Squid proxy,
 active by default without profiles. Normal Compose deployment recreates the
 changed browser definitions. Initial DHI adoption remains tag-only under the
 repository rule; Renovate will add a digest pin. No custom image publication
 is needed.
 
-The inspected DHI image contains Chromium `153.0.8010.47-2~deb13u1`.
-The confirmed Linux issue is the **high-severity V8**
+A fresh pull of the unchanged DHI tag to a disposable
+rootful Podman VM reported **Chromium `153.0.8010.52`** from the actual binary,
+meeting the configured fixed-version floor.
+
+Both app-specific browser command sets then returned valid CDP discovery
+without a version override, with the fixed 512-task cap, UID 65532, read-only
+root and 2 GiB memory. Both stopped cleanly. These isolated checks used no
+network access; they do not revalidate complete app/proxy workflows. The old
+cached `153.0.8010.47` build was rejected with exit code 1 without an override.
+
+| Verified image reference | Digest                                                                    |
+| ------------------------ | ------------------------------------------------------------------------- |
+| Registry image index     | `sha256:41e897d34bf35331d360bf9a63ecb2aa2d29e38139ab1640897947db674a66c4` |
+| Linux amd64 manifest     | `sha256:b7f5663a4c94286c6181b031b9625d02f25066cd0004b1b3b56688e48da3b8b9` |
+
+These are verification references, not Compose digest pins. This confirms the
+binary version only, not a production deployment or full application/proxy
+revalidation with this build.
+
+The previously inspected DHI image contained Chromium `153.0.8010.47-2~deb13u1`.
+Its confirmed Linux issue was the **high-severity V8**
 [CVE-2026-93377](https://security-tracker.debian.org/tracker/CVE-2026-93377).
-The current CNA description of
-[CVE-2026-93372](https://www.cve.org/CVERecord?id=CVE-2026-93372) is
-Android-specific; critical Linux applicability is not confirmed.
+At that review, the CNA description of
+[CVE-2026-93372](https://www.cve.org/CVERecord?id=CVE-2026-93372) was
+Android-specific; critical Linux applicability was not confirmed.
 The known-exploited CVE-2026-85046 finding concerned the former Chromium 151
 image, not the September 17 issue. CVE-2026-93377 was not listed in CISA KEV
 when checked; absence from that catalog does not establish safety.
 
 `services/shared/config/browser/launch.mjs` retains Google's September 17
-fixed-version floor, `153.0.8010.52`. Both browser definitions explicitly set
-`BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47`. Only that exact older version
-may run with the matching environment value, and the launcher logs a
-`WARNING`. Other below-minimum versions are rejected; versions at or above
-the minimum use normal startup. This is not a generic bypass.
+fixed-version floor, `153.0.8010.52`. Neither browser definition sets
+`BROWSER_ALLOW_UNPATCHED_VERSION`, so the floor is mandatory for both stacks:
+older cached `153.0.8010.47` images fail closed. The launcher's exact-version
+exception compatibility remains in code but is dormant; it is not an active
+deployment exception.
 
 <!-- dprint-ignore -->
-!!! warning "Explicit risk acceptance does not fix V8"
-    The operator approved enabling both browsers with this exact-version
-    exception. Squid and container hardening do not patch the V8 vulnerability.
-    Synthetic runtime success is not evidence of a patched image, production
-    TrueNAS validation, or zero risk.
+!!! warning "Meeting the version floor is not a complete security assessment"
+    The verified binary meets the fixed-version floor for the reviewed V8
+    issue. This does not establish that all CVEs are fixed, validate production
+    TrueNAS, or eliminate browser risk. Squid and container hardening do not
+    replace browser security updates.
 
-**Patch follow-up:** the publisher's patch date is unknown. Select a reviewed
-patched DHI build and pull/redeploy it through the normal `dccd-all` workflow.
-Verify the actual Chromium version in **both** containers, not just the
-Playwright tag. After patched-image verification, remove
-`BROWSER_ALLOW_UNPATCHED_VERSION` from both Compose files and redeploy again.
-Do not assume a new build is already present or an automatic update will
-resolve the exception.
+**Existing-app deployment:** with the aliases already sourced, run
+`dccd-app karakeep`, `dccd-app changedetection`, then `dccd-all`.
+Verify the actual Chromium version in **both** containers is at least
+`153.0.8010.52`, with no exception warning, and verify service health and
+browser workflows. The unchanged tag alone does not prove which build is
+running. Do not restore the obsolete override to start an older cached image.
 
 The launcher mounts read-only at `/opt/browser/launch.mjs` and runs as
-`65532:65532`. After its version/exception check passes, it launches Chromium
+`65532:65532`. After its version check passes, it launches Chromium
 with `--no-sandbox` on loopback port `9223` and relays internal port `9222`
 to it. A Node health check validates `/json/version` and its WebSocket URL.
 
@@ -499,8 +518,9 @@ contacting real LAN services.
 
 #### Browser Runtime Validation
 
-Before the default browser task cap increased from 100 to 512, the DHI
-browser/proxy configuration passed synthetic runtime checks on a
+The following historical checks predate both the fixed 512-task browser cap
+and removal of the version exception. The DHI browser/proxy configuration
+passed synthetic runtime checks on a
 **rootful Podman test VM**, using the cached DHI image with actual Chromium
 `153.0.8010.47`. Both browser logs emitted the explicit unpatched-version
 exception warning.
@@ -526,8 +546,9 @@ exception warning.
 These checks did **not** validate production TrueNAS, real Entra/SSO or TLS
 termination, the full Karakeep signup/bookmark job flow, or changedetection.io's
 browser-step UI/visual selector. Those checks remain pending. The historical
-file-state restore evidence remains separate. The image is still unpatched,
-and these finite tests do not close the DNS-rebinding assurance gap or prove
+file-state restore evidence remains separate. These checks used the older,
+unpatched image, not the newly verified `153.0.8010.52` build, and do not
+close the DNS-rebinding assurance gap or prove
 native-code compromise containment. See the
 [test-runtime requirement](INFRASTRUCTURE.md#stateless-browser-proxies).
 
@@ -638,8 +659,8 @@ Review the upstream
 [security considerations](https://docs.karakeep.app/administration/security-considerations/)
 and
 [reviewed source revision](https://github.com/karakeep-app/karakeep/tree/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175)
-before changing these controls. Browser configuration and the accepted
-version exception are documented in the
+before changing these controls. Browser configuration and the mandatory
+version floor are documented in the
 [Karakeep service documentation](services/karakeep.md).
 
 The one-shot `karakeep-db-backup` sidecar is network-isolated. It starts with

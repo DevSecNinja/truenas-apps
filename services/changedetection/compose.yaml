@@ -118,7 +118,7 @@ services:
       - "traefik.http.routers.changedetection-rtr.service=changedetection-svc"
       - "traefik.http.services.changedetection-svc.loadbalancer.server.port=5000"
 
-  # Public-only browser with an explicitly accepted, version-specific patch gap.
+  # Public-only browser with a fail-closed Chromium version guard.
   changedetection-chrome:
     # Initial DHI adoption is tag-only; Renovate adds the multi-arch digest.
     image: dhi.io/playwright:1.63.0-debian13
@@ -144,7 +144,6 @@ services:
     env_file:
       - path: ../shared/env/tz.env
     environment:
-      BROWSER_ALLOW_UNPATCHED_VERSION: "153.0.8010.47" # Remove after upgrading to a patched build
       HOME: /tmp
       LANG: C
       LC_ALL: C
@@ -158,8 +157,8 @@ services:
       changedetection-browser:
         ipv4_address: 172.30.100.22
     mem_limit: ${CHROME_MEM_LIMIT:-2048m}
-    # Chromium threads share the PID budget; keep configurable, bounded headroom.
-    pids_limit: ${CHROME_PIDS_LIMIT:-512}
+    # Chromium threads share the PID budget; keep a fixed bound with headroom.
+    pids_limit: 512
     security_opt:
       - no-new-privileges=true
     cap_drop:
