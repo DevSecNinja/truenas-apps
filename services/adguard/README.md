@@ -113,7 +113,14 @@ Unbound's healthcheck verifies three things in sequence:
 2. Resolves `healthcheck.${DOMAINNAME}` — proves Unbound is running, the config was loaded, and envsubst substituted `${DOMAINNAME}` correctly
 3. Resolves `dns.google` — proves recursive resolution from root is working
 
-AdGuard's healthcheck is a simple HTTP check against its web UI on port 80.
+AdGuard's healthcheck is a simple HTTP check against its web UI on port 80; it does not test DNS resolution. An `unhealthy` state alone does not cause Docker Engine to restart the container.
+
+## Memory and Recovery
+
+- **Default limit:** `adguard.mem_limit` is `${MEM_LIMIT:-2048m}` (2 GiB). Filter rebuilds require headroom because old and new engines coexist in memory. An explicit, non-empty `MEM_LIMIT` supplied to Compose overrides the default.
+- When changing the memory limit, recreate the AdGuard container on each affected host, verify the effective limit (including any external override), and observe peak memory through a filter refresh. A restart alone does not apply a changed Compose limit.
+
+**Restart policy:** `on-failure` with `max_attempts: 3` allows at most three automatic retries. Standalone Compose ignores `window: 120s`; long uptime does not reset the retry count. See [Compose restart-policy semantics](../ARCHITECTURE.md#compose-file-standards).
 
 ## Multi-Server Deployment
 

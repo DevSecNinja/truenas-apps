@@ -75,6 +75,7 @@ nav:
       - Alloy: services/alloy.md
       - Bazarr: services/bazarr.md
       - Bitwarden Lite: services/bitwarden.md
+      - changedetection.io: services/changedetection.md
       - Cloudflared: services/cloudflared.md
       - Dawarich: services/dawarich.md
       - Dozzle: services/dozzle.md

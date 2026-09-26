@@ -1,0 +1,257 @@
+---
+services:
+  changedetection-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: changedetection-init
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Assign the datastore to svc-app-changedetection
+      - FOWNER # Tighten permissions after changing ownership
+      - DAC_OVERRIDE # Traverse private runtime paths on repeat deployments
+    read_only: true
+    command:
+      - "sh"
+      - "-ec"
+      - |-
+        case "$${DOMAINNAME:-}" in
+          ""|CHANGE_ME|GENERATE)
+            echo "ERROR: changedetection requires a populated DOMAINNAME" >&2
+            exit 1
+            ;;
+        esac
+        chown -R 3131:3131 /datastore
+        chmod -R u=rwX,g=,o= /datastore
+    volumes:
+      - ./data:/datastore
+    healthcheck:
+      test:
+        - "CMD"
+        - "test"
+        - "-d"
+        - "/datastore"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  changedetection:
+    image: docker.io/dgtlmoon/changedetection.io:0.60.7@sha256:096dae27b5d677b89f0e810fff95a70403271aa3ff3b6437952d2db9be7e74c5
+    container_name: changedetection
+    depends_on:
+      changedetection-init:
+        condition: service_completed_successfully
+      changedetection-chrome:
+        condition: service_healthy
+    env_file:
+      - path: .env # Decrypted from secret.sops.env
+        required: false
+      - path: ../shared/env/tz.env
+    environment:
+      BASE_URL: https://changedetection.${DOMAINNAME}
+      USE_X_SETTINGS: "1"
+      DEFAULT_FETCH_BACKEND: html_webdriver
+      FETCH_WORKERS: ${FETCH_WORKERS:-2}
+      PLAYWRIGHT_DRIVER_URL: http://172.30.100.22:9222
+      PLAYWRIGHT_BROWSER_TYPE: chromium
+      FAST_PUPPETEER_CHROME_FETCHER: "false"
+      DISABLE_VERSION_CHECK: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/.cache
+    user: "3131:3131" # svc-app-changedetection
+    deploy:
+      update_config:
+        order: stop-first # Only one writer may use the file-backed datastore
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    stop_grace_period: 60s
+    networks:
+      - changedetection-frontend
+      - changedetection-browser
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/datastore
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - >-
+          import urllib.request;
+          urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:5000/', timeout=5).read(1)
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - homepage.group=Productivity
+      - homepage.name=changedetection.io
+      - homepage.icon=changedetection.svg
+      - homepage.href=https://changedetection.${DOMAINNAME}
+      - homepage.description=Website Change Monitoring
+      - "traefik.enable=true"
+      - "traefik.docker.network=changedetection-frontend"
+      - "traefik.http.routers.changedetection-rtr.rule=Host(`changedetection.${DOMAINNAME}`)"
+      - "traefik.http.routers.changedetection-rtr.entrypoints=https"
+      - "traefik.http.routers.changedetection-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.changedetection-rtr.service=changedetection-svc"
+      - "traefik.http.services.changedetection-svc.loadbalancer.server.port=5000"
+
+  # Public-only browser with an explicitly accepted, version-specific patch gap.
+  changedetection-chrome:
+    # Initial DHI adoption is tag-only; Renovate adds the multi-arch digest.
+    image: dhi.io/playwright:1.63.0-debian13
+    container_name: changedetection-chrome
+    init: true
+    entrypoint:
+      - "node"
+      - "/opt/browser/launch.mjs"
+    depends_on:
+      changedetection-browser-proxy:
+        condition: service_healthy
+    command:
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --hide-scrollbars
+      - --disable-blink-features=AutomationControlled
+      - --window-size=1440,900
+      - --user-data-dir=/tmp/chrome
+      - --proxy-server=http://changedetection-browser-proxy:3128
+      - --proxy-bypass-list=<-loopback>
+      - --disable-quic
+      - --force-webrtc-ip-handling-policy=disable_non_proxied_udp
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      BROWSER_ALLOW_UNPATCHED_VERSION: "153.0.8010.47" # Remove after upgrading to a patched build
+      HOME: /tmp
+      LANG: C
+      LC_ALL: C
+    user: "65532:65532" # DHI nonroot identity; no persistent browser state
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      changedetection-browser:
+        ipv4_address: 172.30.100.22
+    mem_limit: ${CHROME_MEM_LIMIT:-2048m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/fontconfig
+    volumes:
+      - ../shared/config/browser/launch.mjs:/opt/browser/launch.mjs:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - >-
+          fetch('http://127.0.0.1:9222/json/version',{signal:AbortSignal.timeout(4000)})
+          .then(async r=>{if(!r.ok)throw new Error('CDP HTTP '+r.status);
+          const j=await r.json();if(typeof j.webSocketDebuggerUrl!=='string')throw new Error('Missing CDP endpoint');})
+          .catch(e=>{console.error(e.message);process.exit(1)});
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    labels:
+      - "config.watch=../shared/config/browser"
+      - "config.sha256=${CONFIG_HASH:-}"
+
+  changedetection-browser-proxy:
+    image: docker.io/ubuntu/squid:7.2-26.04_edge@sha256:77585a8f42b57872b96c6c10de8d0199642256b9390beeb6e99afa5de8a71e1c
+    container_name: changedetection-browser-proxy
+    entrypoint:
+      - "/usr/sbin/squid-gnutls"
+    command:
+      - "-N"
+      - "-f"
+      - "/etc/squid/squid.conf"
+    env_file:
+      - path: ../shared/env/tz.env
+    user: "65534:65534" # Stateless proxy; no host-owned persistent paths
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    networks:
+      - changedetection-browser
+      - changedetection-browser-egress
+    mem_limit: ${BROWSER_PROXY_MEM_LIMIT:-256m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ../shared/config/browser/squid.conf:/etc/squid/squid.conf:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "perl"
+        - "-MIO::Socket::INET"
+        - "-e"
+        - >-
+          alarm 4;
+          my $$s = IO::Socket::INET->new(PeerAddr=>"127.0.0.1",PeerPort=>3128,Proto=>"tcp",Timeout=>2) or die "proxy unavailable";
+          $$s->autoflush(1);
+          print $$s "GET http://127.0.0.1/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+          my $$status = <$$s>;
+          exit(($$status // "") =~ m{^HTTP/1\.[01] 403 } ? 0 : 1);
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "config.watch=../shared/config/browser"
+      - "config.sha256=${CONFIG_HASH:-}"
+
+networks:
+  changedetection-frontend:
+    name: changedetection-frontend
+    driver: bridge
+  changedetection-browser:
+    name: changedetection-browser
+    driver: bridge
+    enable_ipv6: false # The CDP relay listens on IPv4 only
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.100.16/29
+          ip_range: 172.30.100.16/30
+  changedetection-browser-egress:
+    name: changedetection-browser-egress
+    driver: bridge

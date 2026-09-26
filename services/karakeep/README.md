@@ -7,9 +7,9 @@ notes, and images, with full-text search and optional AI tagging.
 
 Karakeep keeps saved content and its search index on locally managed storage.
 The split web, worker, and search services isolate background crawling and
-indexing from the user-facing application. The enabled Chrome service renders
-JavaScript-driven pages and supports screenshots without exposing its DevTools
-endpoint through the host or Traefik.
+indexing from the user-facing application. Browser rendering is enabled in
+Compose through a DHI browser and filtering proxy, under an explicit accepted
+unpatched-version risk.
 
 ## Compose File
 
@@ -94,8 +94,8 @@ requests. It stores the settings in Expo SecureStore, but the values remain
 visible in the configuration UI to anyone with access to the unlocked device.
 
 Complete account creation through the SSO-protected web flow before signing in
-from the native app. Do not enable the optional Chrome service for mobile
-access; it is unrelated to the authentication route.
+from the native app. Browser crawling is separate from mobile authentication
+and does not change the mobile route controls.
 
 ### Rotate the Mobile Proxy Token
 
@@ -127,7 +127,7 @@ These links are pinned to upstream commit
 ## Architecture
 
 - **Active images**: `ghcr.io/karakeep-app/karakeep:0.33.2`,
-  `ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1`,
+  `dhi.io/playwright:1.63.0-debian13`, `docker.io/ubuntu/squid:7.2-26.04_edge`,
   `docker.io/getmeili/meilisearch:v1.41.0`, and
   `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
@@ -144,118 +144,125 @@ starting the server.
 
 ### Services
 
-| Container              | Role                                                                  |
-| ---------------------- | --------------------------------------------------------------------- |
-| `karakeep-chrome`      | Headless Chromium for browser-rendered crawling and screenshots       |
-| `karakeep-init`        | Validates required settings and assigns runtime directory ownership   |
-| `karakeep`             | Web UI and API on the internal container port `3000`                  |
-| `karakeep-db-backup`   | One-shot encrypted SQLite backup sidecar                              |
-| `karakeep-workers`     | Background crawling, asset processing, indexing, and optional AI work |
-| `karakeep-meilisearch` | Full-text search engine on the internal port `7700`                   |
+| Container                | Role                                                                  |
+| ------------------------ | --------------------------------------------------------------------- |
+| `karakeep`               | Web UI and API on the internal container port `3000`                  |
+| `karakeep-browser-proxy` | Stateless Squid proxy; filters browser HTTP(S) to public websites     |
+| `karakeep-chrome`        | DHI browser with an explicit, exact-version risk exception            |
+| `karakeep-db-backup`     | One-shot encrypted SQLite backup sidecar                              |
+| `karakeep-init`          | Validates required settings and assigns runtime directory ownership   |
+| `karakeep-meilisearch`   | Full-text search engine on the internal port `7700`                   |
+| `karakeep-workers`       | Background crawling, asset processing, indexing, and optional AI work |
 
 ### Browser Rendering and Screenshots
 
-Browser crawling is enabled through `CRAWLER_HEADLESS_BROWSER=true` and
-`BROWSER_WEB_URL=http://karakeep-chrome:9222` in the shared Karakeep
-environment. The web service waits for a healthy Chrome service before
-starting, and both the web and worker services can reach Chrome over the
-internal `karakeep-browser` network. This enables JavaScript-rendered page
-capture, browser-derived content, and screenshots in addition to Karakeep's
-plain HTTP crawling path.
+**Browser rendering is enabled by default in Compose.**
+`CRAWLER_HEADLESS_BROWSER=true` and
+`BROWSER_WEB_URL=http://karakeep-chrome:9222` configure browser crawling.
+The web service waits for healthy Chrome, which waits for a healthy Squid
+proxy. Neither browser nor proxy has a profile. Normal deployment recreates
+changed browser definitions; no profile-related manual shutdown is required.
 
-The `karakeep-browser` control network is explicitly IPv4-only because the
-official Chrome image exposes port `9222` through
-`socat TCP4-LISTEN:9222`. When Docker on TrueNAS assigned an IPv6 service
-address, Karakeep selected the AAAA result and repeatedly failed with
-`ECONNREFUSED ...:9222`. Disabling IPv6 only on this internal network aligns
-service discovery with the upstream listener. The separate
-`karakeep-browser-egress` network and Chrome's outbound path are unchanged;
-this is a listener-compatibility fix, not an SSRF mitigation.
+<!-- dprint-ignore -->
+!!! warning "Accepted risk is not a browser patch"
+    The operator approved running the current unpatched browser despite the
+    confirmed high-severity Linux V8 issue CVE-2026-93377. The proxy does not
+    fix V8. Synthetic runtime validation does not establish a patched image
+    or a successful or safe production TrueNAS deployment.
 
-See the upstream
-[Docker guide](https://docs.karakeep.app/installation/docker/) and
-[Chrome image migration guide](https://docs.karakeep.app/administration/chrome-image-migration/)
-for the corresponding Karakeep settings and image model.
+The browser is `dhi.io/playwright:1.63.0-debian13`, initially tag-only
+under the repository's DHI adoption rule; Renovate will add the digest pin.
+The inspected image contains vulnerable Chromium `153.0.8010.47-2~deb13u1`.
+The shared read-only `../shared/config/browser/launch.mjs` normally rejects
+versions below `153.0.8010.52`. Both browser definitions set
+`BROWSER_ALLOW_UNPATCHED_VERSION=153.0.8010.47`, allowing only that exact
+older version with a `WARNING` log; this is not a generic bypass. Versions at
+or above the minimum use normal startup.
 
-| Property         | Active configuration                                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Image            | `ghcr.io/karakeep-app/karakeep-chrome:151.0.7922.47-r1@sha256:5b19bbb160e9ff60681a3abd97e1c4ec9f64212301410de658c3900ab7ef31e7` |
-| Architectures    | `linux/amd64`, `linux/arm64`                                                                                                    |
-| Runtime identity | `65534:65534` (upstream non-root `nobody`)                                                                                      |
-| Browser endpoint | `http://karakeep-chrome:9222` on the internal browser network only                                                              |
-| Readiness check  | HTTP `GET /json/version` on `127.0.0.1:9222`                                                                                    |
-| Memory           | `${CHROME_MEM_LIMIT:-2048m}`                                                                                                    |
-| PID limit        | `100`                                                                                                                           |
+The launcher provides a stable IPv4 CDP relay on port `9222` to Chromium's
+loopback port `9223`. The Node health check verifies `/json/version` and its
+WebSocket URL.
+No custom image publication is needed.
 
-The image entrypoint supplies Chromium's `--no-sandbox` option and publishes
-the browser through socat from `0.0.0.0:9222` to Chrome on
-`127.0.0.1:9223`. The Compose command retains these upstream browser flags
-exactly:
+Chrome runs as DHI's `65532:65532`, joins only the internal
+IPv4 `karakeep-browser` network, and waits for a healthy Squid proxy. It has
+no published ports, Traefik labels, frontend, or backend membership.
+Its command sets `--proxy-server=http://karakeep-browser-proxy:3128`,
+`--proxy-bypass-list=<-loopback>` (removes the implicit loopback bypass),
+`--disable-quic`, and
+`--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
 
-- `--disable-gpu`
-- `--disable-dev-shm-usage`
-- `--hide-scrollbars`
-- `--disable-blink-features=AutomationControlled`
-- `--window-size=1440,900`
+Chrome has a default 2 GiB memory allowance
+and the proxy adds `${BROWSER_PROXY_MEM_LIMIT:-256m}`. Each has its own 100-PID limit. Size the
+host for both in addition to the web, worker, Meilisearch, init, and backup
+containers.
 
-No Compose-level remote-debugging override is added. Chrome has no published
-ports or Traefik labels and does not join `karakeep-frontend` or
-`karakeep-backend`.
+#### Public-Website-Only Browser Proxy
 
-Enabling Chrome adds a default 2 GiB memory allowance and capacity for up to
-100 additional PIDs. Size the host for that extra headroom on top of the web,
-worker, Meilisearch, init, and backup containers. Override the Chrome memory
-limit with `CHROME_MEM_LIMIT` when the host needs a different bound.
+`karakeep-browser-proxy` uses the operator-approved, digest-pinned Canonical
+`docker.io/ubuntu/squid:7.2-26.04_edge` image and mounts
+`../shared/config/browser/squid.conf` read-only. The policy permits
+only eligible public destinations on ports `80`/`443`, with `CONNECT`
+restricted to `443`.
+See the [shared browser egress policy](../ARCHITECTURE.md#browser-egress-policy-public-websites-only)
+for private/reserved IPv4, native IPv6, and transition-address filtering.
+
+The proxy runs as `65534:65534`, with a read-only root, `cap_drop: ALL`,
+`no-new-privileges`, a 100-PID limit, and only `/tmp` as writable scratch.
+It has no published ports, persistent state, disk cache, or URL access log.
+Its bundled Perl health check requires an HTTP `403` for a loopback
+destination. Both services use `config.watch=../shared/config/browser`
+and `config.sha256` so the launcher and policy are watched together.
+Config changes trigger recreation on deployment. No new secret, database,
+or host dependency is required.
+
+Internal-site crawling is intentionally unsupported. Do not add `DIRECT`
+fallbacks, proxy bypass rules, or extra Chrome egress networks to restore it.
 
 #### Browser Threat Model
 
 <!-- dprint-ignore -->
-!!! warning "Chromium runs without its browser sandbox"
-    Saved URLs can cause Chrome to process attacker-controlled HTML,
-    JavaScript, media, and browser subresources. The upstream entrypoint's
-    `--no-sandbox` option is an explicit residual browser-engine risk, not a
-    safe operating mode. A Chromium compromise or an SSRF flaw may still reach
-    destinations available through the container's egress path.
+!!! warning "Browser hardening does not patch the image"
+    Chrome processes attacker-controlled HTML, JavaScript,
+    media, and subresources. The launcher's `--no-sandbox` option is an
+    explicit residual browser-engine risk, not a safe operating mode.
+    Filtering browser HTTP(S) does not make Chrome
+    zero-day-proof or fully contain a native-code compromise. Chrome can
+    still reach its web, worker, and proxy peers on the shared internal
+    control network.
 
-Chrome runs under an explicit non-root identity with `init: true`, a read-only
-root filesystem, `no-new-privileges=true`, all capabilities dropped, a
+Chrome has an explicit non-root identity, `init: true`,
+a read-only root filesystem, `no-new-privileges=true`, all capabilities dropped, a
 `/tmp` tmpfs, a 2 GiB default memory limit, and a 100-PID limit. Network
 isolation prevents direct attachment to the frontend and backend application
-networks, while an internal browser link exposes DevTools only to Karakeep web
-and workers. These controls reduce blast radius; they do not eliminate browser
-exploitation or SSRF risk.
+networks. The internal browser network necessarily includes Karakeep web,
+workers, and the proxy, so these peers can reach DevTools. Removing Chrome's
+direct internet route and filtering its HTTP(S) requests reduces exposure;
+it does not isolate a compromised native browser from those peers.
 
 Karakeep validates HTTP(S) URLs, resolved A/AAAA addresses, redirects, and
 browser subrequests against private and reserved address ranges. No internal
 hostname allowlists are configured in this deployment. The plain HTTP crawling
-path pins the validated DNS result, but Playwright and Chrome resolve
-hostnames independently after validation. DNS-rebinding and other
-time-of-check/time-of-use protection is therefore not established for the
-browser path.
-
-The dedicated `karakeep-browser-egress` bridge supplies outbound routing; it is
-not an RFC1918, link-local, or host-destination firewall. The internal browser
-network limits Chrome's Docker service-to-service path to Karakeep web and
-workers, but the egress bridge does not by itself prevent requests to private
-destinations reachable through host routing. Review the upstream
+path pins the validated DNS result. The browser HTTP(S) path uses Squid's
+destination checks rather than relying only on app-side validation before
+browser resolution. This targets redirect/subresource SSRF; it is not a
+blanket guarantee against every DNS-rebinding or native-code attack;
+complete DNS-rebinding protection has not been established. The
+web/worker plain HTTP path and optional AI calls retain their own egress and
+are not forced through this browser proxy. Review the upstream
 [security considerations](https://docs.karakeep.app/administration/security-considerations/)
 and the
 [source revision reviewed for this deployment](https://github.com/karakeep-app/karakeep/tree/a1a887d5a0c311aacfbe13fcc080b1ddef5b8175)
 when changing crawler or network controls.
 
-#### Roll Back to Plain HTTP Crawling
+#### Browser Remediation Status
 
-To disable browser rendering and restore plain HTTP crawling:
-
-1. Set `CRAWLER_HEADLESS_BROWSER=false`.
-2. Remove `BROWSER_WEB_URL` from the shared Karakeep environment.
-3. Remove the web service's `karakeep-chrome` dependency.
-4. Remove the web and worker services from `karakeep-browser`.
-5. Remove or disable the `karakeep-chrome` service and remove
-   `karakeep-browser` and `karakeep-browser-egress`.
-
-Links can still be fetched through the plain HTTP crawler, but JavaScript
-rendering and screenshots are unavailable after this rollback.
+Completed synthetic DHI browser/proxy checks are recorded in
+[Browser Runtime Validation](../ARCHITECTURE.md#browser-runtime-validation).
+They cover the worker's Playwright client, not the full signup/bookmark job
+flow or production TrueNAS. **The browser remains enabled under an unpatched
+risk exception**, not completed security remediation. See
+[risk scope and patch follow-up](../ARCHITECTURE.md#browser-egress-policy-public-websites-only).
 
 ### Security Model
 
@@ -275,33 +282,38 @@ rendering and screenshots are unavailable after this rollback.
   `no-new-privileges=true`, dropped capabilities, PID limits, and memory
   limits. The backup sidecar omits the read-only root filesystem required by
   s6 but retains the other controls.
-- Chrome uses its upstream non-root identity, a read-only root filesystem,
+- Chrome uses DHI's non-root identity, a read-only root filesystem,
   `no-new-privileges=true`, dropped capabilities, `init: true`, a `/tmp`
-  tmpfs, and explicit memory and PID limits. Its `/json/version` health check
+  tmpfs, and explicit memory and PID limits. Its `/json/version` check
   gates web startup.
+- The stateless browser proxy uses `65534:65534`, distinct from DHI.
+  It has a read-only root, dropped capabilities, and bounded resources.
+  Chrome waits for its denial-check health probe.
 - Only the web container is routed through Traefik. Meilisearch remains on the
-  internal backend network, and Chrome remains on its isolated browser and
-  egress networks.
+  internal backend network. Chrome is internal-browser-network-only; only the
+  browser proxy joins the browser egress bridge.
 
 ## Volumes and Networks
 
 ### Volumes
 
-| Host path            | Container path           | Used by         | Purpose                                                        |
-| -------------------- | ------------------------ | --------------- | -------------------------------------------------------------- |
-| `./backups`          | `/backups`               | Init            | Creates and assigns ownership of the `db-backup` child         |
-| `./backups`          | `/backup-data`           | Database backup | Parent mount; output is written below `/backup-data/db-backup` |
-| `./data/karakeep`    | `/data`                  | Web, workers    | SQLite database and saved assets                               |
-| `./data/karakeep`    | `/karakeep-data` (`:ro`) | Database backup | Read-only source containing `db.db`                            |
-| `./data/meilisearch` | `/meili_data`            | Meilisearch     | Regeneratable full-text search index                           |
+| Host path                             | Container path                    | Used by         | Purpose                                                        |
+| ------------------------------------- | --------------------------------- | --------------- | -------------------------------------------------------------- |
+| `./backups`                           | `/backups`                        | Init            | Creates and assigns ownership of the `db-backup` child         |
+| `./backups`                           | `/backup-data`                    | Database backup | Parent mount; output is written below `/backup-data/db-backup` |
+| `./data/karakeep`                     | `/data`                           | Web, workers    | SQLite database and saved assets                               |
+| `./data/karakeep`                     | `/karakeep-data` (`:ro`)          | Database backup | Read-only source containing `db.db`                            |
+| `./data/meilisearch`                  | `/meili_data`                     | Meilisearch     | Regeneratable full-text search index                           |
+| `../shared/config/browser/launch.mjs` | `/opt/browser/launch.mjs` (`:ro`) | Chrome          | Shared version gate and CDP relay; no persistent browser data  |
+| `../shared/config/browser/squid.conf` | `/etc/squid/squid.conf` (`:ro`)   | Browser proxy   | Shared public-website-only policy; no persistent proxy data    |
 
 ### Networks
 
 | Network                   | Members and purpose                                                          |
 | ------------------------- | ---------------------------------------------------------------------------- |
 | `karakeep-backend`        | Web, workers, and Meilisearch; internal application and search traffic       |
-| `karakeep-browser`        | Web, workers, and Chrome; internal browser-control traffic only              |
-| `karakeep-browser-egress` | Chrome only; outbound page fetches through a dedicated bridge                |
+| `karakeep-browser`        | Web, workers, Chrome, and browser proxy; internal CDP and HTTP proxy traffic |
+| `karakeep-browser-egress` | Browser proxy only; outbound connections to permitted public websites        |
 | `karakeep-frontend`       | Web and workers; Traefik access plus outbound crawling and optional AI calls |
 
 ## Secrets
@@ -438,16 +450,16 @@ provisioning the mobile proxy token.
    This decrypts the committed secrets, deploys Karakeep and its dependent
    integrations, runs the first one-shot database backup after Karakeep becomes
    healthy, and performs the default backup freshness check. Confirm that
-   `karakeep-init` completes successfully and the Chrome, Meilisearch, web, and
-   worker services become healthy.
+   `karakeep-init` completes successfully and the browser proxy, Chrome,
+   Meilisearch, web, and workers become healthy. Check the actual browser
+   version and expected exception warning.
 5. Complete the application setup and validation:
 
    - Open `https://karakeep.${DOMAINNAME}` through Forward Auth and create the
      first local Karakeep account.
    - Configure the registration and access policy.
-   - Save a bookmark for a public JavaScript-rendered page, then verify its
-     browser-rendered content and screenshot. Do not use a private or internal
-     URL as a crawler test.
+   - Save a public JavaScript-rendered page and verify its rendered content
+     and browser screenshot. Do not use a private/internal URL as a crawler test.
    - Save a test note, then verify that full-text search returns the bookmark
      and note.
    - Verify that `karakeep-db-backup` exited successfully and that
@@ -462,8 +474,13 @@ provisioning the mobile proxy token.
 
 - Renovate manages image updates. Review the
   [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
-  major upgrades. For Chrome image changes, also review the upstream
-  [Chrome image migration guide](https://docs.karakeep.app/administration/chrome-image-migration/).
+  major upgrades.
+- The DHI publisher's patch date is unknown. Select a reviewed patched build,
+  pull/redeploy through `dccd-all`, and verify the actual Chromium version
+  in both browsers. After verification, remove
+  `BROWSER_ALLOW_UNPATCHED_VERSION` from **both** apps' Compose files and
+  redeploy again. Do not assume the Playwright tag or automatic updates
+  guarantee a patched browser.
 - The web container applies database migrations before startup and uses a
   stop-first update order so the replacement does not serve traffic before
   migrations finish.

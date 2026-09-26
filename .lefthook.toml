@@ -1,3 +1,6 @@
+# Finish tool setup before parallel checks can race to repair mise's runtime symlinks.
+lefthook = "mise install && mise exec -- lefthook"
+
 [pre-commit]
 parallel = true
 
