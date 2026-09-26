@@ -66,8 +66,9 @@ nav:
       - Backup Strategy: BACKUP.md
       - Contributing: CONTRIBUTING.md
       - Database Upgrades: DATABASE-UPGRADES.md
-      - Linux VM Deployment: VM-LINUX.md
       - Disaster Recovery: DISASTER-RECOVERY.md
+      - Home Folders: HOME-FOLDERS.md
+      - Linux VM Deployment: VM-LINUX.md
       - Troubleshooting: TROUBLESHOOTING.md
   - Services:
       - AdGuard Home: services/adguard.md

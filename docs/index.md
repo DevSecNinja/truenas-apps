@@ -69,6 +69,27 @@ The setup follows
 | [Unifi](https://ui.com/)                                                                      | Ubiquiti network controller with MongoDB backend                |
 | [wmbusmeters](https://github.com/wmbusmeters/wmbusmeters)                                     | Wireless M-Bus smart meter reader (water/gas/heat)              |
 
+## Personal Home Folders
+
+[Personal Home Folders](HOME-FOLDERS.md) documents the approved native
+TrueNAS 25.10 setup for persistent, non-admin SSH homes and private SMB personal
+files. This is an operator guide, not a Docker app or GitOps deployment;
+host configuration and access/backup tests remain pending.
+
+```text
+vm-pool/homes                 # One shared Multiprotocol/NFSv4/Passthrough dataset
+  <username>/                # Ordinary home directory created by TrueNAS
+```
+
+`<username>` is a placeholder. For each personal account, check **Create Home
+Directory** and select the parent `/mnt/vm-pool/homes`; TrueNAS appends the
+username and creates a private directory, not a per-user dataset. Separately
+create its ordinary `Files/` directory and private `<username>-files` SMB share.
+`.ssh`, `.config`, and shell dotfiles remain SSH/local-only. The shared dataset
+supports user quotas; snapshots cover all homes, so a rollback affects every user.
+The `homes` dataset is a sibling of `vm-pool/apps`, outside the repository and
+apps table. The existing `truenas_admin` home and boot-time mirror stay unchanged.
+
 ## Historical Archives
 
 The operator confirmed creation and ACL setup of the non-app `archive-pool/archives` dataset,
@@ -85,6 +106,7 @@ for setup status and remaining SMB and backup verification; this is not an app o
 | [Contributing](CONTRIBUTING.md)           | Renovate, commit conventions, release process        |
 | [Database Upgrades](DATABASE-UPGRADES.md) | PostgreSQL major version upgrade procedures          |
 | [Disaster Recovery](DISASTER-RECOVERY.md) | Full rebuild procedures for a fresh TrueNAS          |
+| [Home Folders](HOME-FOLDERS.md)           | Native private SMB folders and persistent SSH homes  |
 | [Troubleshooting](TROUBLESHOOTING.md)     | Docker, DNS, and permissions diagnostics             |
 | [Retired Services](RETIRED-SERVICES.md)   | Log of retired services and last active state        |
 

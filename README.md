@@ -74,6 +74,29 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 
 ---
 
+## Personal Home Folders
+
+[Personal Home Folders](docs/HOME-FOLDERS.md) documents the approved native
+TrueNAS 25.10 setup for persistent, non-admin SSH homes and private SMB personal
+files. This is an operator guide, not a Docker app or GitOps deployment;
+host configuration and access/backup tests remain pending.
+
+```text
+vm-pool/homes                 # One shared Multiprotocol/NFSv4/Passthrough dataset
+  <username>/                # Ordinary home directory created by TrueNAS
+```
+
+`<username>` is a placeholder. For each personal account, check **Create Home
+Directory** and select the parent `/mnt/vm-pool/homes`; TrueNAS appends the
+username and creates a private directory, not a per-user dataset. Separately
+create its ordinary `Files/` directory and private `<username>-files` SMB share.
+`.ssh`, `.config`, and shell dotfiles remain SSH/local-only. The shared dataset
+supports user quotas; snapshots cover all homes, so a rollback affects every user.
+The `homes` dataset is a sibling of `vm-pool/apps`, outside the repository and
+apps table. The existing `truenas_admin` home and boot-time mirror stay unchanged.
+
+---
+
 ## Historical Archives
 
 The operator confirmed creation and ACL setup of the non-app `archive-pool/archives` dataset,

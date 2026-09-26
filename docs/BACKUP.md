@@ -129,7 +129,12 @@ When multiple tasks fire at the same minute (e.g. daily + weekly both at midnigh
 | 6 | Weekly   | 2 months | 8 rolling weeklies  | At 00:00, only on Sunday           |
 | 7 | Monthly  | 3 months | 3 rolling monthlies | At 00:00, on day 1 of the month    |
 
-Snapshots are set at the **pool level** so all datasets (`vm-pool/apps`, `vm-pool/vms`, `vm-pool/homes`, `vm-pool/iso`, etc.) are covered automatically — including any datasets added in the future.
+The documented tasks select the **pool level with Recursive enabled**. Coverage
+of child datasets depends on the actual recursion and exclusion settings, not
+just the selected pool. After adding datasets, verify snapshots exist for each
+child, including the shared `vm-pool/homes` dataset. Personal homes are ordinary
+directories within its snapshots, not child datasets with their own timelines; see
+[Personal Home Protection](#personal-home-protection).
 
 > **Exclude replication datasets**: The archive-pool tasks **must** exclude `archive-pool/replication` (and its children). Snapshotting a replication target creates namespace collisions that can break subsequent replication runs — the replication task expects to manage snapshots on its target exclusively.
 
@@ -444,7 +449,15 @@ Create these tasks in TrueNAS → Data Protection → Cloud Sync Tasks → **Add
 | Transfers           | Low Bandwidth (4)         |
 | Bandwidth Limit     | _(empty)_                 |
 
-Covers the entire `vm-pool` pool: apps, VMs, db dumps, secrets, git repo. `iso/` excluded — installer images have no restore value. All content is client-side encrypted before upload. The documented TrueNAS cron runs `dccd.sh` every 15 minutes with `-f`, so its one-shot database backup containers may run on every forced full deployment. The latest successful dumps present when this task starts are included in Cloud Sync.
+Covers files under `vm-pool`: apps, personal homes, db dumps, secrets, and the
+git repo (not VM zvol contents; see the known gap above). Verify new homes,
+including hidden files, are present remotely as described in
+[Personal Home Protection](#personal-home-protection). `iso/` is excluded —
+installer images have no restore value. All content is client-side encrypted
+before upload. The documented TrueNAS cron runs `dccd.sh` every 15 minutes
+with `-f`, so its one-shot database backup containers may run on every forced
+full deployment. The latest successful dumps present when this task starts
+are included in Cloud Sync.
 
 ---
 
@@ -710,6 +723,98 @@ For local recovery, copy individual files from
 `/mnt/archive-pool/archives/.zfs/snapshot/<snapshot-name>/` into an isolated restore target,
 or use the Azure procedure above. Verify the recovered files before copying selected files
 back over SMB. **Do not roll back the entire archive dataset** to recover a single archive.
+
+---
+
+## Personal Home Protection
+
+The [Personal Home Folders](HOME-FOLDERS.md) design is native TrueNAS storage,
+not an app. **Home configuration, backup coverage, and restores have not been
+tested on the live host.** The following is the required operator acceptance
+procedure, not a claim that the documented tasks already protect new homes.
+
+One `vm-pool/homes` snapshot includes **all users' ordinary home directories**.
+They share the dataset's snapshot schedule, replication policy, and encryption
+root; there are no per-user snapshots or independent rollbacks. User quotas
+limit ownership-based live usage, not per-user snapshot-retention space.
+Monitor shared snapshot growth, the dataset quota, and pool reserve.
+
+| Path under `/mnt/vm-pool/homes/<username>`                      | Classification                                                  | Protection                                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| `.ssh`, `.config`, shell dotfiles, other personal configuration | Critical mutable file state, including credentials/SSH material | Snapshots, replication, encrypted off-site copy             |
+| `Files/`                                                        | Critical mutable file state (personal documents)                | Same layers; SMB access does not change backup requirements |
+| Proven regeneratable cache paths only                           | Regeneratable cache                                             | Optional narrowly scoped exclusion after review             |
+
+Do not exclude all hidden files or `.config` as caches. No databases are
+introduced and no database backup sidecar is needed. If a user later runs a
+live database in a home, require a separate reviewed application-consistent
+backup; file sync and raw snapshots alone are not that backup.
+
+### Verify Home Coverage
+
+1. Confirm the shared `vm-pool/homes` dataset is mounted/unlocked. Check the actual
+   **recursive** `vm-pool` snapshot tasks, exclusions, and snapshots for
+   `homes`, then find each user's ordinary directory inside those snapshots.
+   Do not look for a separate snapshot per username dataset. The documented
+   retention is hourly for 1 day, daily/weekly for 1 month, and monthly for
+   3 months, shared by all homes.
+2. Check the actual recursive replication source, selected snapshots,
+   exclusions, destination, and successful runs. The documented daily
+   **03:00** task targets `archive-pool/replication/vm-pool`; verify the
+   `archive-pool/replication/vm-pool/homes` dataset and its snapshots contain
+   all users' ordinary directories.
+   Protect destination permissions and retain the read-only replication
+   target; do not expose backup copies in SMB shares.
+3. Verify [Task A](#task-a-vm-pool-to-azure), daily at **04:00**, reads the
+   unlocked shared dataset and uploads each user's files to the Azure
+   `vm-pool` container's `homes/<username>/` prefix. Inspect filters and actual
+   remote contents for **hidden files, SSH configuration, and `Files`**, not
+   just a successful pool-level task.
+   The documented exclusions are `iso/` and `.zfs/`; do not accidentally
+   broaden these to personal configuration.
+4. Protect backup destination access and store the shared encryption root's
+   ZFS unlock keys, Cloud Sync password/salt, and recovery credentials
+   independently of the NAS.
+   Contents are encrypted but **filenames are not**. SYNC propagates
+   deletions; versioning/soft delete are not immutable retention.
+5. Export the updated [system configuration and password secret seed](#system-configuration-file).
+   Securely record personal usernames, exact UID/GID values, home paths,
+   share definitions, shared-root and personal ACLs, and dataset/user quotas
+   for recovery.
+
+Task A reads live files rather than snapshots. Finish/quiesce writes before a
+representative restore test; do not promise transaction consistency for
+applications writing several related home files.
+
+### Restore Home Files
+
+Before relying on the backups, restore **one `Files` document and one existing
+SSH-only file** (for example `.ssh/config`, if present) from both a snapshot
+and the encrypted off-site copy:
+
+1. Select a known-good recovery point. Browse the user's directory **inside
+   the shared dataset snapshot** at
+   `/mnt/vm-pool/homes/.zfs/snapshot/<snapshot-name>/<username>/`, or use
+   [Restore from Azure Blob](#restore-from-azure-blob) with the saved
+   encryption password/salt and that user's `homes/<username>/` prefix.
+2. Copy to an **isolated, access-restricted restore path**, not into a live
+   home or SMB export. Verify contents/checksums, including hidden files.
+3. Check numeric ownership against the recorded personal UID/GID, NFSv4
+   ACLs and inheritance, and modes: home/`.ssh` `0700`, `authorized_keys`
+   `0600`. File-copy/cloud restores may not preserve UID/GID or NFSv4 ACLs.
+   Reapply and verify the intended folder/file permissions before enabling
+   shares/logins or copying selected recovered files back. Inspect the home
+   itself and the share's `Files` filesystem ACL, not the dataset root as if
+   it were one user's home; never blanket-recursively chown/reset all homes.
+4. For a full recovery, restore the same identities and follow
+   [Personal Home Recovery](DISASTER-RECOVERY.md#personal-home-recovery).
+   Recheck SSH-only versus SMB access with both the owner and another
+   ordinary user, and record restore evidence in the operator inventory.
+
+**Rolling back `vm-pool/homes` affects every user.** For one home or file,
+copy out selected files without rolling back the shared dataset or discarding
+other users' newer work. Retention of home files is independent of the app
+database sidecars' 48-hour cleanup policy.
 
 ---
 
@@ -1121,14 +1226,16 @@ state beyond what is already covered above:
 
 These credentials must be stored securely outside the NAS (password manager) to enable full disaster recovery:
 
-| Secret                                | Purpose                              | Used by                            |
-| ------------------------------------- | ------------------------------------ | ---------------------------------- |
-| Age private key (`age.key`)           | Decrypts all `secret.sops.env` files | SOPS / `dccd.sh`                   |
-| Cloud Sync encryption password + salt | Decrypts Azure Blob backups          | rclone crypt / TrueNAS Cloud Sync  |
-| `DB_ENC_PASSPHRASE`                   | Decrypts database dump files         | tiredofit v4 and nfrastack 4.9.2   |
-| Azure Storage credential              | Authenticates to Azure Blob          | TrueNAS Cloud Sync tasks           |
-| ZFS encryption passphrase             | Unlocks `vm-pool/apps` dataset       | TrueNAS (on boot or manual unlock) |
-| TrueNAS system config (`.tar` file)   | Restores TrueNAS host configuration  | TrueNAS System → Manage Config     |
+| Secret                                        | Purpose                                                                              | Used by                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Age private key (`age.key`)                   | Decrypts all `secret.sops.env` files                                                 | SOPS / `dccd.sh`                                                    |
+| Cloud Sync encryption password + salt         | Decrypts Azure Blob backups                                                          | rclone crypt / TrueNAS Cloud Sync                                   |
+| `DB_ENC_PASSPHRASE`                           | Decrypts database dump files                                                         | tiredofit v4 and nfrastack 4.9.2                                    |
+| Azure Storage credential                      | Authenticates to Azure Blob                                                          | TrueNAS Cloud Sync tasks                                            |
+| ZFS encryption passphrase                     | Unlocks `vm-pool/apps` dataset                                                       | TrueNAS (on boot or manual unlock)                                  |
+| Shared home dataset encryption key/passphrase | Unlocks the actual shared `homes` encryption root                                    | TrueNAS; not inherited from the `apps` sibling                      |
+| Personal identity and SSH recovery inventory  | Preserves UID/GID, home/share/ACL settings, dataset/user quotas, and access recovery | Secure operator inventory; client private keys backed up separately |
+| TrueNAS system config (`.tar` file)           | Restores TrueNAS host configuration                                                  | TrueNAS System → Manage Config                                      |
 
 All secrets are stored in an **online password manager** (cloud-synced), ensuring they remain accessible during a total site loss — even if the NAS, local network, and all on-premises devices are unavailable. The password manager is accessible from any device with internet access (phone, borrowed laptop, etc.), breaking the circular dependency where encrypted backups require keys stored on the same hardware that failed.
 
@@ -1226,6 +1333,7 @@ Run these checks after initial setup and periodically (monthly recommended):
 - [ ] Blob versioning is active on all containers (account-level setting, verify in Portal → Data Protection)
 - [ ] Snapshot browse test: `ls /mnt/vm-pool/apps/.zfs/snapshot/` shows recent entries
 - [ ] File restore test: copy a file from a snapshot and verify its contents
+- [ ] [Personal home coverage](#personal-home-protection): shared `homes` snapshots/replica contain all user directories, hidden files and `Files` exist off-site per user, and isolated restores preserve or correctly reapply owner-only access without shared-dataset rollback
 - [ ] tiredofit v4 DB restore test: automated weekly by the `backup-restore-test` CI pipeline — check the [Actions tab](https://github.com/DevSecNinja/truenas-apps/actions/workflows/backup-restore-test.yml) for the latest run status
 - [ ] Dawarich nfrastack `4.9.2`: a recent GPG backup, SHA1 sidecar, and successful restore test are recorded
 - [ ] Azure restore test: pull one file via rclone with the crypt passphrase and verify contents
