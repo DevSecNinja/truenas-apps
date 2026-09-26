@@ -10,9 +10,17 @@ setup_file() {
             return 1
         fi
     done
-    for tool in yq docker-compose jq; do
+    for tool in yq jq; do
         command -v "${tool}" || return 1
     done
+    if docker-compose version >/dev/null 2>&1; then
+        export BROWSER_COMPOSE_PROVIDER=docker-compose
+    elif docker compose version >/dev/null 2>&1; then
+        export BROWSER_COMPOSE_PROVIDER=docker
+    else
+        printf 'Required working Compose provider missing: docker-compose or docker compose\n' >&2
+        return 1
+    fi
 }
 
 setup() {
@@ -34,6 +42,10 @@ teardown() {
 
 render_browser_task_limits() {
     local app="$1"
+    local -a compose_command=("${BROWSER_COMPOSE_PROVIDER}")
+    if [[ "${BROWSER_COMPOSE_PROVIDER}" == docker ]]; then
+        compose_command+=(compose)
+    fi
     shift
     set -o pipefail
     # Extract only image/task-limit fields from every real service. No env_file,
@@ -43,7 +55,7 @@ render_browser_task_limits() {
         {"services": .services}
     ' "${REPO_ROOT}/services/${app}/compose.yaml" |
         env -i PATH="${PATH}" HOME="${BROWSER_TMPDIR}" "$@" \
-            docker-compose --project-directory "${BROWSER_TMPDIR}" \
+            "${compose_command[@]}" --project-directory "${BROWSER_TMPDIR}" \
             --project-name browser-task-limits --env-file /dev/null -f - \
             config --format json |
         jq -cS '.services | with_entries(.value = .value.pids_limit)'
