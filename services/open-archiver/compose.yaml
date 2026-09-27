@@ -1,0 +1,458 @@
+---
+x-app-image: &app-image ghcr.io/devsecninja/truenas-apps/open-archiver:831954bc4caac4edee212c2bf07cbabca6267c35@sha256:b094239f1eff4a02cc85c68a8def7d8838bd70805705c71a85bf09c6c8aee702
+
+services:
+  open-archiver-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: open-archiver-init
+    env_file:
+      - path: .env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Assign private runtime paths to their service identities.
+      - FOWNER # Tighten permissions after ownership changes.
+      - DAC_OVERRIDE # Traverse existing mode-700 data on repeat deployments.
+    read_only: true
+    command:
+      - sh
+      - -ec
+      - |-
+        for name in DOMAINNAME POSTGRES_ADMIN_PASSWORD POSTGRES_PASSWORD REDIS_PASSWORD \
+          MEILI_MASTER_KEY JWT_SECRET ENCRYPTION_KEY STORAGE_ENCRYPTION_KEY DB_ENC_PASSPHRASE; do
+          value="$(printenv "$${name}" || true)"
+          case "$${value}" in
+            ""|GENERATE|CHANGE_ME)
+              echo "ERROR: Open Archiver requires a populated $${name}" >&2
+              exit 1
+              ;;
+          esac
+        done
+        for value in "$${ENCRYPTION_KEY}" "$${STORAGE_ENCRYPTION_KEY}"; do
+          case "$${value}" in
+            *[!0-9a-fA-F]*)
+              echo "ERROR: Open Archiver encryption keys must be hexadecimal" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$${#value}" -ne 64 ]; then
+            echo "ERROR: Open Archiver encryption keys must contain 32 bytes" >&2
+            exit 1
+          fi
+        done
+        mkdir -p /data/archive /data/scratch /data/postgres /data/valkey /data/meilisearch
+        chown -R 3132:3132 /data/archive /data/scratch /data/meilisearch
+        chown -R 70:70 /data/postgres
+        chown -R 999:1000 /data/valkey
+        chmod -R u=rwX,g=,o= /data
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "test"
+        - "-d"
+        - "/data"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  open-archiver-migrate:
+    image: *app-image
+    container_name: open-archiver-migrate
+    depends_on:
+      open-archiver-db:
+        condition: service_healthy
+    entrypoint:
+      - "node"
+    command:
+      - "/app/packages/backend/dist/database/migrate.js"
+    working_dir: /app/packages/backend
+    user: "3132:3132"
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      DATABASE_URL: postgresql://openarchiver:${POSTGRES_PASSWORD}@open-archiver-db:5432/openarchiver
+    restart: "no"
+    networks:
+      - open-archiver-backend
+    mem_limit: 512m
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "require('fs').accessSync('src/database/migrations/meta/_journal.json')"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  open-archiver:
+    image: *app-image
+    container_name: open-archiver
+    depends_on:
+      open-archiver-init:
+        condition: service_completed_successfully
+      open-archiver-migrate:
+        condition: service_completed_successfully
+      open-archiver-valkey:
+        condition: service_healthy
+      open-archiver-meilisearch:
+        condition: service_healthy
+      open-archiver-tika:
+        condition: service_healthy
+    user: "3132:3132" # svc-app-open-archiver
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      NODE_ENV: production
+      HOME: /tmp
+      PORT_BACKEND: "4000"
+      PORT_FRONTEND: "3000"
+      APP_URL: https://open-archiver.${DOMAINNAME}
+      ORIGIN: https://open-archiver.${DOMAINNAME}
+      BODY_SIZE_LIMIT: 100M
+      DATABASE_URL: postgresql://openarchiver:${POSTGRES_PASSWORD}@open-archiver-db:5432/openarchiver
+      REDIS_HOST: open-archiver-valkey
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TLS_ENABLED: "false"
+      MEILI_HOST: http://open-archiver-meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 1d
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_ROOT_PATH: /archive
+      STORAGE_ENCRYPTION_KEY: ${STORAGE_ENCRYPTION_KEY}
+      TIKA_URL: http://open-archiver-tika:9998
+      ENABLE_DELETION: "false"
+      ALL_INCLUSIVE_ARCHIVE: "false"
+      ARCHIVE_DRAFTS: "false"
+      SYNC_FREQUENCY: "*/5 * * * *"
+      INGESTION_WORKER_CONCURRENCY: "2"
+      INGESTION_EMAIL_CONCURRENCY: "2"
+      INDEXING_WORKER_CONCURRENCY: "2"
+      INDEXING_WORKER_MAX_OLD_SPACE_MB: "1024"
+      MEILI_INDEXING_BATCH: "100"
+      MEILI_INDEXING_CHUNK: "10"
+      LOG_LEVEL: info
+    deploy:
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    stop_grace_period: 30s
+    networks:
+      - open-archiver-frontend
+      - open-archiver-backend
+      - open-archiver-parser
+    mem_limit: ${MEM_LIMIT:-4096m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    volumes:
+      - ./data/archive:/archive
+      # PST/EML imports can exceed available RAM; use private disk-backed scratch.
+      - ./data/scratch:/tmp
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/auth/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    labels:
+      - homepage.group=Productivity
+      - homepage.name=Open Archiver
+      - homepage.icon=open-archiver
+      - homepage.href=https://open-archiver.${DOMAINNAME}
+      - homepage.description=Encrypted Email Archive
+      - "traefik.enable=true"
+      - "traefik.docker.network=open-archiver-frontend"
+      - "traefik.http.routers.open-archiver-rtr.rule=Host(`open-archiver.${DOMAINNAME}`)"
+      - "traefik.http.routers.open-archiver-rtr.entrypoints=https"
+      - "traefik.http.routers.open-archiver-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.open-archiver-rtr.service=open-archiver-svc"
+      - "traefik.http.services.open-archiver-svc.loadbalancer.server.port=3000"
+
+  open-archiver-db:
+    # The upstream Alpine entrypoint supports the SQL role-bootstrap hook;
+    # DHI PostgreSQL does not process /docker-entrypoint-initdb.d.
+    image: docker.io/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    container_name: open-archiver-db
+    depends_on:
+      open-archiver-init:
+        condition: service_completed_successfully
+    user: "70:70"
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      POSTGRES_DB: openarchiver
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-host=scram-sha-256
+      OPEN_ARCHIVER_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: on-failure:3
+    networks:
+      - open-archiver-backend
+    mem_limit: ${DB_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./config/init-database.sql:/docker-entrypoint-initdb.d/10-open-archiver.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - PGPASSWORD="$${OPEN_ARCHIVER_DB_PASSWORD}" psql -h 127.0.0.1 -U openarchiver -d openarchiver -tAc 'SELECT 1' | grep
+          -qx 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  open-archiver-valkey:
+    # DHI offers this version, but authenticated pulls were unavailable in the
+    # validation environment. Keep the tested upstream Alpine runtime.
+    image: docker.io/valkey/valkey:8.1.10-alpine3.24@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+    container_name: open-archiver-valkey
+    depends_on:
+      open-archiver-init:
+        condition: service_completed_successfully
+    user: "999:1000"
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    command:
+      - valkey-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --save
+      - "300"
+      - "1"
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory-policy
+      - noeviction
+    restart: on-failure:3
+    networks:
+      - open-archiver-backend
+    mem_limit: ${VALKEY_MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/valkey:/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "valkey-cli ping | grep -qx PONG"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  open-archiver-meilisearch:
+    image: docker.io/getmeili/meilisearch:v1.38.2@sha256:448a5b1b3e9303fabf39b84a2672f184295f665b1cb8eaffb11c738273430e5e
+    container_name: open-archiver-meilisearch
+    depends_on:
+      open-archiver-init:
+        condition: service_completed_successfully
+    user: "3132:3132"
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MAX_INDEXING_MEMORY: 512Mb
+      MEILI_MAX_INDEXING_THREADS: "2"
+    restart: on-failure:3
+    networks:
+      - open-archiver-backend
+    mem_limit: ${MEILI_MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/meilisearch:/meili_data
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "--fail"
+        - "--silent"
+        - "http://127.0.0.1:7700/health"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  open-archiver-tika:
+    # Full is required for the explicitly selected Tesseract OCR support.
+    image: docker.io/apache/tika:3.2.2.0-full@sha256:ffab324253edc54706e8882dd28190b1e6559c344b5315ae8a74b9efda9e7291
+    container_name: open-archiver-tika
+    user: "35002:35002"
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/.cache
+      JAVA_TOOL_OPTIONS: -Xmx512m -XX:ActiveProcessorCount=2 -Djava.io.tmpdir=/tmp
+      OMP_THREAD_LIMIT: "2"
+    restart: on-failure:3
+    networks:
+      - open-archiver-parser
+    mem_limit: ${TIKA_MEM_LIMIT:-1536m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "-q"
+        - "-O"
+        - "-"
+        - "http://127.0.0.1:9998/version"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Approved one-shot s6 exception: /init rewrites /etc/bash/bashrc and other
+  # system configuration. No runtime data or Docker socket is mounted here.
+  open-archiver-db-backup:
+    image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
+    container_name: open-archiver-db-backup
+    depends_on:
+      open-archiver:
+        condition: service_healthy
+    env_file:
+      - path: ../shared/env/tz.env
+    command:
+      - "backup-now"
+    environment:
+      DBBACKUP_USER: archivebackup
+      DBBACKUP_GROUP: archivebackup
+      # This compatibility image ignores the legacy USER_DBBACKUP variables.
+      CONTAINER_INIT_PRE_COMMAND: >-
+        if ! grep -q '^archivebackup:' /etc/group; then
+          addgroup -g 3132 archivebackup || exit 1;
+        fi;
+        if ! id archivebackup >/dev/null 2>&1; then
+          adduser -D -H -u 3132 -G archivebackup archivebackup || exit 1;
+        fi;
+        if [ "$(id -u archivebackup)" != 3132 ] || [ "$(id -g archivebackup)" != 3132 ]; then
+          echo "ERROR: Invalid Open Archiver backup identity" >&2; exit 1;
+        fi
+      CONTAINER_NAME: open-archiver-db-backup
+      CONTAINER_ENABLE_MONITORING: "FALSE"
+      CONTAINER_ENABLE_SCHEDULING: "FALSE"
+      CHECK_NEW_VERSION: "FALSE"
+      STATS_ENABLED: "FALSE"
+      MODE: MANUAL
+      MANUAL_RUN_FOREVER: "FALSE"
+      ENABLE_NOTIFICATIONS: "FALSE"
+      DEFAULT_CHECKSUM: SHA1
+      DEFAULT_COMPRESSION: ZSTD
+      DEFAULT_CLEANUP_TIME: "2880"
+      DEFAULT_ENCRYPT: "TRUE"
+      DEFAULT_ENCRYPT_PASSPHRASE: ${DB_ENC_PASSPHRASE}
+      DB01_TYPE: pgsql
+      DB01_HOST: open-archiver-db
+      DB01_NAME: openarchiver
+      DB01_USER: openarchiver
+      DB01_PORT: "5432"
+      DB01_PASS: ${POSTGRES_PASSWORD}
+      DB02_TYPE: redis
+      DB02_HOST: open-archiver-valkey
+      DB02_PORT: "6379"
+      DB02_PASS: ${REDIS_PASSWORD}
+    restart: "no"
+    networks:
+      - open-archiver-backend
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # s6 assigns backup output to the backup identity.
+      - DAC_OVERRIDE # s6 prepares paths with private existing ownership.
+      - FOWNER # s6 adjusts permissions after changing ownership.
+      - SETUID # Drop from the s6 root supervisor to the backup user.
+      - SETGID # Drop from the s6 root supervisor to the backup group.
+    read_only: false
+    volumes:
+      - ./backups/db-backup:/backup
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "test -d /backup"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  open-archiver-frontend:
+    name: open-archiver-frontend
+  open-archiver-backend:
+    name: open-archiver-backend
+    internal: true
+  open-archiver-parser:
+    name: open-archiver-parser
+    internal: true

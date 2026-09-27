@@ -159,34 +159,35 @@ An SMB password is still required when SSH is public-key-only.
 
 ### App Service Accounts
 
-| UID/GID | TrueNAS user              | Service(s)                                                                          | Git-tracked config?  |
-| ------- | ------------------------- | ----------------------------------------------------------------------------------- | -------------------- |
-| 3101    | `svc-app-adguard`         | adguard, adguard-init, adguard-unbound-init                                         | No (`./data/conf`)   |
-| 3125    | `svc-app-alloy`           | alloy, alloy-init                                                                   | Yes (`./config`)     |
-| 3126    | `svc-app-bitwarden`       | bitwarden                                                                           | No                   |
-| 3131    | `svc-app-changedetection` | changedetection; changedetection-init ownership target                              | No (`./data`)        |
-| 3128    | `svc-app-dawarich`        | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                       | No                   |
-| 3109    | `svc-app-dozzle`          | dozzle, dozzle-init                                                                 | No                   |
-| 3119    | `svc-app-drawio`          | drawio                                                                              | No                   |
-| 3104    | `svc-app-echo`            | echo-server                                                                         | No                   |
-| 3103    | `svc-app-gatus`           | gatus, gatus-db-backup                                                              | No                   |
-| 3102    | `svc-app-homepage`        | homepage, homepage-init                                                             | Yes (`./config`)     |
-| 3106    | `svc-app-immich`          | immich-server, immich-ml, immich-init                                               | No                   |
-| 3130    | `svc-app-karakeep`        | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup | No                   |
-| 3124    | `svc-app-matter`          | matter-server, matter-server-init                                                   | No                   |
-| 3129    | `svc-app-memos`           | memos, memos-init                                                                   | No                   |
-| 3107    | `svc-app-metube`          | metube, metube-init                                                                 | No                   |
-| 3122    | `svc-app-mosquitto`       | mosquitto, mosquitto-init                                                           | Yes (`./config`)     |
-| 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                             | No                   |
-| 3120    | `svc-app-outline`         | outline-db-backup†                                                                  | No                   |
-| 3113    | `svc-app-prowlarr`        | prowlarr                                                                            | No (`./data/config`) |
-| 3110    | `svc-app-radarr`          | radarr                                                                              | No                   |
-| 3117    | `svc-app-spottarr`        | spottarr; spottarr-chown ownership target                                           | No (`./data`)        |
-| 3100    | `svc-app-traefik`         | traefik, traefik-init                                                               | Yes (`./config`)     |
-| 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                          | No (`./data`)        |
-| 3118    | `svc-app-tubesync`        | tubesync                                                                            | No                   |
-| 3108    | `svc-app-unifi`           | unifi, unifi-db-backup                                                              | No                   |
-| 3123    | `svc-app-wmbusmeters`     | wmbusmeters, wmbusmeters-init                                                       | Yes (`./config`)     |
+| UID/GID | TrueNAS user              | Service(s)                                                                                                                    | Git-tracked config?                                     |
+| ------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 3101    | `svc-app-adguard`         | adguard, adguard-init, adguard-unbound-init                                                                                   | No (`./data/conf`)                                      |
+| 3125    | `svc-app-alloy`           | alloy, alloy-init                                                                                                             | Yes (`./config`)                                        |
+| 3126    | `svc-app-bitwarden`       | bitwarden                                                                                                                     | No                                                      |
+| 3131    | `svc-app-changedetection` | changedetection; changedetection-init ownership target                                                                        | No (`./data`)                                           |
+| 3128    | `svc-app-dawarich`        | dawarich, dawarich-sidekiq, dawarich-init, dawarich-db-backup                                                                 | No                                                      |
+| 3109    | `svc-app-dozzle`          | dozzle, dozzle-init                                                                                                           | No                                                      |
+| 3119    | `svc-app-drawio`          | drawio                                                                                                                        | No                                                      |
+| 3104    | `svc-app-echo`            | echo-server                                                                                                                   | No                                                      |
+| 3103    | `svc-app-gatus`           | gatus, gatus-db-backup                                                                                                        | No                                                      |
+| 3102    | `svc-app-homepage`        | homepage, homepage-init                                                                                                       | Yes (`./config`)                                        |
+| 3106    | `svc-app-immich`          | immich-server, immich-ml, immich-init                                                                                         | No                                                      |
+| 3130    | `svc-app-karakeep`        | karakeep, karakeep-workers, karakeep-meilisearch, karakeep-init, karakeep-db-backup                                           | No                                                      |
+| 3124    | `svc-app-matter`          | matter-server, matter-server-init                                                                                             | No                                                      |
+| 3129    | `svc-app-memos`           | memos, memos-init                                                                                                             | No                                                      |
+| 3107    | `svc-app-metube`          | metube, metube-init                                                                                                           | No                                                      |
+| 3122    | `svc-app-mosquitto`       | mosquitto, mosquitto-init                                                                                                     | Yes (`./config`)                                        |
+| 3132    | `svc-app-open-archiver`   | open-archiver, open-archiver-migrate, open-archiver-meilisearch, open-archiver-db-backup; open-archiver-init ownership target | Read-only SQL init hook (`./config`); no runtime writes |
+| 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                                                                       | No                                                      |
+| 3120    | `svc-app-outline`         | outline-db-backup†                                                                                                            | No                                                      |
+| 3113    | `svc-app-prowlarr`        | prowlarr                                                                                                                      | No (`./data/config`)                                    |
+| 3110    | `svc-app-radarr`          | radarr                                                                                                                        | No                                                      |
+| 3117    | `svc-app-spottarr`        | spottarr; spottarr-chown ownership target                                                                                     | No (`./data`)                                           |
+| 3100    | `svc-app-traefik`         | traefik, traefik-init                                                                                                         | Yes (`./config`)                                        |
+| 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                                                                    | No (`./data`)                                           |
+| 3118    | `svc-app-tubesync`        | tubesync                                                                                                                      | No                                                      |
+| 3108    | `svc-app-unifi`           | unifi, unifi-db-backup                                                                                                        | No                                                      |
+| 3123    | `svc-app-wmbusmeters`     | wmbusmeters, wmbusmeters-init                                                                                                 | Yes (`./config`)                                        |
 
 † The `outlinewiki/outline` image does not support PUID/PGID — it runs as the
 image-internal `node` user, explicitly selected by `user: "1000:1000"`.
@@ -230,6 +231,31 @@ root, then maps `USER_DBBACKUP` and `GROUP_DBBACKUP` to `3130` so the backup
 process uses this identity. `karakeep-chrome` uses DHI's `65532:65532`,
 while its proxy uses `65534:65534`.
 Neither needs a new TrueNAS account or shared-group membership.
+
+#### Open Archiver Identity
+
+| Username                | UID  | Primary group           | Primary GID | Shared memberships | Services using the identity                                             |
+| ----------------------- | ---- | ----------------------- | ----------- | ------------------ | ----------------------------------------------------------------------- |
+| `svc-app-open-archiver` | 3132 | `svc-app-open-archiver` | 3132        | None               | App, migrations, Meilisearch, backup process, and init ownership target |
+
+Registry key `open-archiver` sets `admin_group_member=false`: the preparation
+helper does not add the administrator to this private service group. The backup
+supervisor starts as root. Its idempotent `CONTAINER_INIT_PRE_COMMAND` uses
+the verified image-provided `adduser`/`addgroup` tools to create the
+image-local `archivebackup` user/group and assert the dedicated UID and
+primary GID, selected through `DBBACKUP_USER` and `DBBACKUP_GROUP`.
+An earlier Open Archiver run showed that `USER_DBBACKUP`/`GROUP_DBBACKUP`
+were ignored and dumps retained image-default ownership. The explicit named
+identity corrected this: the rootless Podman AMD64 synthetic run verified
+output directory ownership `3132:3132`, mode `0700`, and fresh dump mode
+`0600`. This is not evidence of host provisioning or deployment.
+The init container also starts as root; it assigns runtime directory
+ownership rather than running as the app account.
+
+PostgreSQL uses image identity `70:70`, Valkey uses `999:1000`, and Tika uses
+`35002:35002`, as declared in Compose. These do not require additional TrueNAS
+service accounts. Use elevated operator access for recovery; do not broaden
+private data permissions or grant shared media/document group access.
 
 ### Stateless Browser Proxies
 
@@ -283,7 +309,7 @@ required by this deployment.
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-changedetection.io uses only its dedicated primary group; it requires no
+changedetection.io and Open Archiver use only their dedicated primary groups; they require no
 membership in the shared groups below.
 
 | GID  | Group               | Purpose                                      | Used as primary group by                                                                                                                                                       |
@@ -310,10 +336,10 @@ JSON registry and construct TrueNAS API payloads.
 
 #### Registry Coverage
 
-The registry currently enrolls **19 app stacks** using the existing dedicated
+The registry currently enrolls **20 app stacks** using the existing dedicated
 account model: `adguard`, `alloy`, `bitwarden`, `changedetection`, `dawarich`,
 `dozzle`, `drawio`, `gatus`, `homepage`, `karakeep`, `memos`, `mosquitto`,
-`openclaw`, `outline`, `prowlarr`, `spottarr`, `traefik`, `unifi`, and
+`open-archiver`, `openclaw`, `outline`, `prowlarr`, `spottarr`, `traefik`, `unifi`, and
 `wmbusmeters`.
 
 Each uses the exact `svc-app-<key>` account/group name and a matching UID and
@@ -477,11 +503,15 @@ Enable both **Apply permissions recursively** and **Apply permissions to child d
 
 This gives `truenas_admin` full access while blocking all other users from reading decrypted `.env` files containing secrets. Root does not need explicit permissions — it bypasses all permission checks.
 
-**Per-app config directories** are handled separately by init containers, not by dataset-level permissions:
+**Per-app runtime directories** are handled separately by init containers,
+not by broad dataset-level permission resets:
 
-1. Init containers chown `./config` subdirectories to the app's UID:GID with group-write (`775`/`664`)
-2. `truenas_admin` (a member of each app's primary group) gets group-write access via POSIX group permissions
-3. Next deploy, the init container re-chowns everything (idempotent)
+1. Init containers prepare runtime-only `./data` paths for the declared
+   service identities; they never chown or chmod tracked `./config`.
+2. Keep tracked configuration owned by the deployment user and mount it
+   read-only. If runtime changes are needed, seed a separate `./data` copy.
+3. Apply administrative group membership only when the registry requests it.
+   Private apps such as Open Archiver require elevated recovery access instead.
 
 ### changedetection.io Dataset
 
@@ -633,6 +663,40 @@ pre-owned child when the image resets the read-write mount root to root
 ownership, so host output remains exactly `./backups/db-backup`. ZFS snapshots,
 replication, and off-site sync protect the full child dataset, including saved
 assets and the regeneratable search index that are outside the SQLite backup.
+
+### Open Archiver Dataset
+
+Registry key `open-archiver` provisions
+`vm-pool/apps/services/open-archiver` while preserving the checkout. Follow
+the [brand-new Custom App rollout](#brand-new-custom-app-rollout); host
+provisioning remains unverified, and **production acceptance is required for
+the known dependency risk**. Before executing the rollout, require a verified
+upstream-fixed artifact or an explicit, narrowly reviewed operator exception.
+Implementation completion and synthetic recovery do not constitute risk acceptance.
+
+| Path                  | Classification and protection                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `./backups/db-backup` | GPG-encrypted, ZSTD-compressed PostgreSQL and Valkey dumps with SHA1 sidecars; 48-hour local retention                 |
+| `./data/archive`      | Critical encrypted email/attachment files; requires independent storage-layer backup matching database state           |
+| `./data/meilisearch`  | Rebuildable full-text index containing sensitive searchable plaintext                                                  |
+| `./data/postgres`     | PostgreSQL metadata, users, and encrypted source credentials; separate logical dump                                    |
+| `./data/scratch`      | Regeneratable imports/temp files that may contain sensitive plaintext or in-flight work; drain and stop before cleanup |
+| `./data/valkey`       | Persisted queue and transient MFA state; AOF plus RDB, also backed up through Redis protocol                           |
+
+`open-archiver-init` pre-owns archive, scratch, and search paths for the
+dedicated app identity, and database/queue paths for their Compose identities.
+It applies `u=rwX,g=,o=` throughout `./data`. The SQL initialization hook is
+mounted read-only from `./config`; no tracked config is modified. The backup
+image manages its output ownership separately.
+
+The child dataset belongs under the existing recursive vm-pool snapshots,
+replication, and encrypted off-site Task A. Verify actual child snapshots,
+replicas, exclusions, and off-site recovery before claiming coverage.
+Database dumps do not include archive files or form a full-archive atomic
+backup. Follow [Restore Open Archiver](BACKUP.md#restore-open-archiver) for a
+quiesced checkpoint, matching queue recovery, and preservation of the original
+encryption keys. Do not export these private paths through shared media or SMB
+datasets.
 
 ## Media Access
 

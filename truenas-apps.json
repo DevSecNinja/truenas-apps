@@ -60,6 +60,11 @@
       "account_id": 3122,
       "admin_group_member": false
     },
+    "open-archiver": {
+      "account_name": "svc-app-open-archiver",
+      "account_id": 3132,
+      "admin_group_member": false
+    },
     "openclaw": {
       "account_name": "svc-app-openclaw",
       "account_id": 3127,

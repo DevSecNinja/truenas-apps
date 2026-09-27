@@ -28,6 +28,34 @@ Read these references before starting — they define the patterns every compose
 
 Use the closest existing app in `services/` as a template. When in doubt, model after a simple single-container app like `echo-server` or a multi-container app like `immich`.
 
+### Upstream Maintenance and Adoption Gate
+
+Before approving any imported image, follow
+[Upstream Dependency Maintenance](../../../docs/ARCHITECTURE.md#image-selection-upstream-dependency-maintenance).
+Review every app, sidecar, init, and build-stage/base image, not only the
+main application:
+
+- [ ] Check language/framework/runtime and base-image/OS dependency coverage
+      through Renovate, Dependabot, or an equivalent documented effective process.
+- [ ] Trace recent merged dependency updates through tests, releases, and
+      rebuilt images. Bot configuration alone, repo pinning, or a fresh tag
+      does not prove fixes reached the artifact.
+- [ ] Inspect published maintenance, security reporting/disclosure, supported
+      version, and EOL policies; record gaps.
+- [ ] Inspect a current scan and SBOM/package inventory for the exact candidate
+      digest and platform. Verify affected/fixed versions and investigate
+      applicability, reachability, and exploit prerequisites.
+- [ ] Record dated evidence links, **well maintained / partial / unknown /
+      unmaintained**, confidence, and the adoption decision in the service
+      README or linked review. Absence of a bot alone is not evidence of neglect.
+- [ ] Block known fixable relevant HIGH/CRITICAL findings unless an explicit
+      reviewed exception meets the policy's narrow scope, evidence, approval,
+      and expiry requirements. Do not substitute a global zero-CVE demand or
+      runtime-test success for this assessment.
+- [ ] Keep remediation upstream; do not maintain patched dependency locks or
+      forks. Retain a blocked candidate pending upstream fixes rather than
+      presenting a deploy-now handoff.
+
 ## Procedure
 
 Work through each step in order. Skip any that don't apply.
@@ -37,7 +65,8 @@ Work through each step in order. Skip any that don't apply.
 Create `services/<app>/compose.yaml` following all compose conventions:
 
 - **Image**: Explicit registry prefix (`docker.io/library/...`, `ghcr.io/...`), digest-pinned (`@sha256:...`). No bare image names.
-  - **Prefer Docker Hardened Images (DHI)** when available at `dhi.io/<image>` — check the catalog at <https://hub.docker.com/hardened-images/catalog>. DHI provides minimal, near-zero-CVE base images with signed SBOMs and SLSA Level 3 provenance. Confirm the DHI tag declares `LINUX/AMD64` **and** `LINUX/ARM64` on the catalog page before adopting it (svlnas is x86_64; svlazext is arm64).
+  - **Adoption gate**: Complete the upstream-maintenance prerequisite above. Registry, variant, and tag-only bootstrap conventions do not waive exact-artifact security review.
+  - **Prefer Docker Hardened Images (DHI)** when available at `dhi.io/<image>` — check the catalog at <https://hub.docker.com/hardened-images/catalog>. DHI provides hardened base images with signed SBOMs and SLSA Level 3 provenance; still review the exact artifact's vulnerabilities. Confirm the DHI tag declares `LINUX/AMD64` **and** `LINUX/ARM64` on the catalog page before adopting it (svlnas is x86_64; svlazext is arm64).
   - **Initial commit: tag only, no digest.** Add the image with just the version tag (e.g. `dhi.io/redis:8.6.2-debian13`) and let Renovate add the `@sha256:...` pin in the next run. Renovate's HEAD request to dhi.io receives the multi-arch manifest-list digest only after the image has been republished as multi-arch; if you pin manually from a snapshot that was still single-platform, you'll lock the repo to amd64 and break arm64 hosts. Letting Renovate pin avoids this race.
 - **Security**: `read_only: true`, `security_opt: [no-new-privileges:true]`, `cap_drop: [ALL]`, `mem_limit`, `pids_limit: 100`. Add `cap_add` only when provably required — include a comment explaining why.
 - **Health check**: Mandatory on every service (required for `--wait` deploys).
@@ -334,6 +363,12 @@ mise exec -- shellcheck scripts/truenas-prep-app.sh
 
 ### Step 10 — Validate
 
+Refresh the [adoption review](#upstream-maintenance-and-adoption-gate) against
+the final image digest/platform, including current vulnerability evidence and
+any explicit exception. Compose validation and runtime/restore tests do not
+replace this gate. If it remains blocked, label the implementation a candidate
+and do not proceed to deployment.
+
 ```sh
 docker compose -f services/<app>/compose.yaml config --quiet
 ```
@@ -341,6 +376,12 @@ docker compose -f services/<app>/compose.yaml config --quiet
 Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are decrypted at deploy time. Warnings are fine; errors are not.
 
 ### Step 11 — Document post-merge host steps
+
+This rollout and its final-response contract apply only after the adoption
+gate is cleared. For a blocked candidate, report the blocker and upstream
+remediation requirement instead of a deploy-now command sequence. Any retained
+future rollout instructions must prominently say **do not execute** until
+the gate is cleared.
 
 For an app declared in `truenas-apps.json`, document this complete rollout for
 the operator on `svlnas`. The aliases must already be sourced from

@@ -15,7 +15,7 @@ teardown() {
   prep_common_teardown
 }
 
-@test "load_app_config: loads exactly the 19 approved simple-model accounts" {
+@test "load_app_config: loads exactly the 20 approved simple-model accounts" {
   local row app account_id admin_group_member
   local -a cases=(
     "adguard|3101|false"
@@ -30,6 +30,7 @@ teardown() {
     "karakeep|3130|false"
     "memos|3129|false"
     "mosquitto|3122|false"
+    "open-archiver|3132|false"
     "openclaw|3127|false"
     "outline|3120|false"
     "prowlarr|3113|false"
