@@ -683,7 +683,7 @@ check_backup_jobs() {
     if ! all_containers=$(
         ${SUDO} docker ps -a \
             --filter "label=com.docker.compose.service" \
-            --format '{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.service"}}' \
+            --format '{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.service"}}\t{{.Label "dccd.backup-jobs"}}' \
             2>/dev/null
     ); then
         log_error "Unable to discover database backup containers"
@@ -704,8 +704,8 @@ check_backup_jobs() {
 
     local checked=0
     local failed=0
-    local container_id container_name service_name
-    while IFS=$'\t' read -r container_id container_name service_name; do
+    local container_id container_name service_name expected_jobs
+    while IFS=$'\t' read -r container_id container_name service_name expected_jobs; do
         [ -z "${container_id}" ] && continue
         checked=$((checked + 1))
 
@@ -787,11 +787,71 @@ check_backup_jobs() {
                 continue
             fi
 
-            if ! printf '%s\n' "${backup_logs}" |
-                grep -Eq 'Backup [[:digit:]]+ routines finish time: .* with exit code 0([^[:digit:]]|$)'; then
+            local log_line job_code completed_jobs="" invalid_completion=0
+            local completion_pattern=$'Backup ([[:digit:]]+) routines finish time: .+ with exit code (-?[[:digit:]]+)([[:space:]]|$|\033\\[[0-9;]*m)'
+            local operation_error_pattern="(DB Backup of|Moving of backup) '.+' reported errors"
+            while IFS= read -r log_line; do
+                # The compatibility image can log an operation error but still emit exit code 0.
+                if [[ "${log_line}" =~ ${operation_error_pattern} ]]; then
+                    log_error "${container_name}: backup reported a dump or output-move error"
+                    invalid_completion=1
+                fi
+                if [[ "${log_line}" =~ Backup[[:space:]][[:digit:]]+[[:space:]]routines[[:space:]]finish[[:space:]]time: ]]; then
+                    if [[ "${log_line}" =~ ${completion_pattern} ]]; then
+                        local job_id="${BASH_REMATCH[1]}"
+                        job_code="${BASH_REMATCH[2]}"
+                        if [ "${job_code}" != "0" ]; then
+                            log_error "${container_name}: backup routine ${job_id} reported exit code ${job_code}"
+                            invalid_completion=1
+                        fi
+                        completed_jobs="${completed_jobs} ${job_id}"
+                    else
+                        log_error "${container_name}: malformed backup completion record"
+                        invalid_completion=1
+                    fi
+                fi
+            done <<<"${backup_logs}"
+
+            if [ "${invalid_completion}" -eq 1 ]; then
+                failed=$((failed + 1))
+                continue
+            fi
+            if [ -z "${completed_jobs}" ]; then
                 log_error "${container_name}: no successful backup completion found in logs from the last ${BACKUP_MAX_AGE_HOURS} hours"
                 failed=$((failed + 1))
                 continue
+            fi
+
+            if [ -n "${expected_jobs}" ]; then
+                if [[ ! "${expected_jobs}" =~ ^[[:digit:]]+(,[[:digit:]]+)*$ ]]; then
+                    log_error "${container_name}: invalid dccd.backup-jobs label"
+                    failed=$((failed + 1))
+                    continue
+                fi
+                local expected_job completed_job job_count seen_jobs=" "
+                # These lists contain only validated numeric job IDs.
+                for expected_job in ${expected_jobs//,/ }; do
+                    if [[ "${seen_jobs}" == *" ${expected_job} "* ]]; then
+                        log_error "${container_name}: duplicate job ${expected_job} in dccd.backup-jobs"
+                        invalid_completion=1
+                        continue
+                    fi
+                    seen_jobs="${seen_jobs}${expected_job} "
+                    job_count=0
+                    for completed_job in ${completed_jobs}; do
+                        if [ "${completed_job}" = "${expected_job}" ]; then
+                            job_count=$((job_count + 1))
+                        fi
+                    done
+                    if [ "${job_count}" -ne 1 ]; then
+                        log_error "${container_name}: expected one successful completion for backup routine ${expected_job}, found ${job_count}"
+                        invalid_completion=1
+                    fi
+                done
+                if [ "${invalid_completion}" -eq 1 ]; then
+                    failed=$((failed + 1))
+                    continue
+                fi
             fi
 
             local age_hours=$((age_seconds / 60 / 60))

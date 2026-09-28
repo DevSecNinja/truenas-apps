@@ -834,7 +834,8 @@ is not uniform across every path. These are per-engine backups, not atomic
 backups of an entire multi-store application. Open Archiver's
 [earlier synthetic restore passed](#open-archiver-synthetic-restore-evidence);
 it remains an unapproved candidate, and those results do not validate the
-revised init/repair behavior, target-host deployment, or storage-layer recovery.
+revised backup runner/freshness checker, init/repair behavior, target-host
+deployment, or storage-layer recovery.
 
 ### Covered Databases
 
@@ -853,8 +854,8 @@ revised init/repair behavior, target-host deployment, or storage-layer recovery.
 
 ### How They Run
 
-The db-backup sidecars run one backup and exit. They are started by each full
-`dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
+The db-backup sidecars run their configured backups and exit. They are started
+by each full `dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
 schedule rather than an intrinsic nightly schedule. The documented TrueNAS
 cron runs every 15 minutes with `-f`, so a one-shot backup may run on every
 forced full deployment. Dumps are:
@@ -868,12 +869,31 @@ forced full deployment. Dumps are:
 `dccd-all` enables the `dccd.sh -B` end-of-run check by default. It waits up to
 the configured `WAIT_TIMEOUT` for active `*-db-backup` services and requires
 each container to have exited with status 0, have a `FinishedAt` timestamp
-within the previous 48 hours, and include the backup image's successful
-completion marker (`Backup NN routines finish time: ... with exit code 0`) in
-Docker logs read since the container's latest `StartedAt`, excluding retained
-older-run success markers while allowing final buffered output after
-`FinishedAt`. If any check fails, `dccd.sh` fails. Disable the check for one
-invocation with:
+within the previous 48 hours, and have successful job completion records in
+Docker logs. Logs are read since the container's latest `StartedAt`, excluding
+retained older-run success markers while allowing final buffered output after
+`FinishedAt`. Successful records use the image's marker
+`Backup NN routines finish time: ... with exit code 0`. ANSI SGR sequences
+immediately after the numeric exit code, including the reset `\e[0m`, are
+accepted for both zero and nonzero codes; color formatting does not make a
+valid completion record malformed.
+
+- **All sidecars:** any current-run nonzero or malformed job completion fails
+  the check, even if another job succeeds.
+- **Operation errors:** current-run messages of the form
+  `DB Backup of 'filename' reported errors` or
+  `Moving of backup 'filename' reported errors` fail the check for any sidecar,
+  even if all completion records report `0`. The pinned nfrastack compatibility
+  image can log these errors while its scheduler still reports completion code `0`.
+- **Expected-job opt-in:** a non-empty `dccd.backup-jobs` label must list unique
+  numeric job IDs separated by commas, such as `01,02`. Each declared ID must
+  have exactly one successful completion. Invalid labels, missing expected
+  completions, and duplicate completions for an expected ID fail.
+- **Unlabeled sidecars:** retain the requirement for at least one successful
+  completion, but any nonzero/malformed completion or known operation-error
+  diagnostic still fails.
+
+If any check fails, `dccd.sh` fails. Disable the check for one invocation with:
 
 ```sh
 DCCD_CHECK_BACKUPS=0 dccd-all
@@ -892,8 +912,18 @@ sidecar maps its internal identity with `USER_DBBACKUP=3128` and
 `GROUP_DBBACKUP=3128`. `ENABLE_NOTIFICATIONS=FALSE` keeps it backend-only;
 Dawarich's remaining `NOTIFICATIONS_EMAIL_*` variables are application-only.
 
-Open Archiver's pinned nfrastack `4.9.2` sidecar runs `backup-now` with
+Open Archiver's pinned nfrastack `4.9.2` sidecar uses an inline Bash runner
+calling `backup01-now now`, then `backup02-now now`, with
 `MODE=MANUAL`, `MANUAL_RUN_FOREVER=FALSE`, and internal scheduling disabled.
+Each job is attempted exactly once; DB02 still runs if DB01 fails. The runner
+emits an `ERROR` diagnostic for each nonzero job-command exit and returns
+nonzero if either command does. The pinned image's upstream combined
+`backup-now` wrapper lacks failure aggregation; this local invocation change
+is not an upstream fix or an application dependency fork.
+The label `dccd.backup-jobs=01,02` opts into the
+exact-per-job completion check above. Deployment commands and the operator-only
+one-off invocation remain unchanged; the service invokes the runner automatically.
+
 The intended cadence is a nightly host dccd run; it also runs when a full
 `dccd-all` deployment starts it. Compose does not set a nightly timer:
 confirm the host cron, since the generic example above forces deployments
@@ -914,8 +944,9 @@ The Open Archiver backup job has an approved writable-root exception because
 `/init` writes `/etc/bash/bashrc`; read-only startup failed in testing. It
 retains `no-new-privileges`, drops all capabilities, and adds only `CHOWN`,
 `DAC_OVERRIDE`, `FOWNER`, `SETUID`, and `SETGID` for startup and privilege
-dropping. The quiesced local rootless Podman one-shot exited `0` and produced
-one PostgreSQL and one Redis-protocol GPG+ZSTD dump, each with a SHA1 sidecar.
+dropping. The **2026-09-27** quiesced local rootless Podman one-shot exited `0`
+and produced one PostgreSQL and one Redis-protocol GPG+ZSTD dump, each with a
+SHA1 sidecar.
 Earlier Open Archiver dumps retained image-default ownership because
 `USER_DBBACKUP`/`GROUP_DBBACKUP` were ignored. The current configuration
 explicitly creates and checks `archivebackup`, selected by
@@ -924,7 +955,8 @@ explicitly creates and checks `archivebackup`, selected by
 The mapped-identity synthetic run verified output directory ownership
 `3132:3132`, mode `0700`, and fresh dump mode `0600`.
 [Synthetic database/archive/queue recovery passed](#open-archiver-synthetic-restore-evidence);
-this does not prove target-host backup or storage-layer recovery.
+these historical results predate the runner/checker changes and do not prove
+target-host backup or storage-layer recovery.
 
 The tiredofit v4 sidecars produce GPG-encrypted backups. Notification behavior
 is configured per app; Karakeep and Memos disable sidecar notifications and
@@ -1150,9 +1182,14 @@ unverified under [issue #789](https://github.com/DevSecNinja/truenas-apps/issues
 The following outcomes were verified on **2026-09-27** against the earlier
 implementation and the still-pinned published derivative. No production
 credentials were used. They predate the app-role gate, non-recursive routine
-init/explicit repair mode, and Dockerfile/publication workflow revisions;
-they do not validate those changes. Revised image source has not yet been
-published or runtime tested, and real Entra configuration/checks remain pending.
+init/explicit repair mode, Dockerfile/publication workflow revisions, and
+backup runner/freshness-checker changes; they do not validate those changes.
+Revised image source has not yet been published or runtime tested, and real
+Entra configuration/checks remain pending.
+
+Mixed-outcome shell tests and checker mocks are separate regression checks,
+not real-container backup or restore evidence. No real-container backup run
+or new restore is recorded for the runner/checker changes.
 
 | Check                     | Verified outcome                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1215,7 +1252,10 @@ alone do not perform these steps.
    sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps open-archiver-db-backup
    ```
 
-   Require exit status zero and successful DB01 **and** DB02 completion logs.
+   The service automatically invokes the per-job runner. Require exit status
+   zero and exactly one successful completion for each job (`01` and `02`),
+   with no nonzero or malformed completion records or known dump/output-move
+   error diagnostics.
    A removed one-off container is not the named container inspected by the
    normal dccd freshness check; retain its reviewed, secret-free run evidence.
 4. While application writes remain blocked, capture matching quiesced

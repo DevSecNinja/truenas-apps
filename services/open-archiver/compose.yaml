@@ -401,7 +401,22 @@ services:
     env_file:
       - path: ../shared/env/tz.env
     command:
-      - "backup-now"
+      - bash
+      - -c
+      - |-
+        status=0
+        for job in 01 02; do
+          if "backup$${job}-now" now; then
+            :
+          else
+            code=$$?
+            echo "ERROR: Backup $${job} failed with exit code $${code}" >&2
+            status=1
+          fi
+        done
+        exit "$${status}"
+    labels:
+      - "dccd.backup-jobs=01,02"
     environment:
       DBBACKUP_USER: archivebackup
       DBBACKUP_GROUP: archivebackup

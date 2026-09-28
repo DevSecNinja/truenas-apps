@@ -59,11 +59,12 @@ create its Custom App before completing the prerequisites below.
 
 ### Evidence and Remaining Acceptance
 
-The table records the **earlier implementation**, not validation of the new
-app-role gate, non-recursive routine init/explicit repair mode, or revised
-Dockerfile and publication workflow. The Compose-pinned derivative is
-unchanged; the revised image source has not yet been published or runtime
-tested. Real Entra configuration and host checks remain pending.
+The table records the **earlier implementation**. It does not validate the
+new app-role gate, non-recursive routine init/explicit repair mode, revised
+Dockerfile/publication workflow, or backup runner/freshness-checker changes.
+The Compose-pinned derivative is unchanged; the revised image source has not
+yet been published or runtime tested. Real Entra configuration and host checks
+remain pending.
 
 | Item                             | Current evidence                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -363,8 +364,8 @@ of the NAS; never paste secret values into commands, logs, or issues.
 Publish the current-source derivative without activating it and require the
 publish job's checks against its exact pushed digest to pass. Review and record
 adoption clearance for every selected digest, and repeat isolated runtime
-acceptance of the image, role gate, and init/repair changes. Pin that approved,
-published and verified derivative in Compose through a reviewed change;
+acceptance of the image, role gate, init/repair, and backup changes. Pin that
+approved, published and verified derivative in Compose through a reviewed change;
 retaining the earlier bootstrap digest does not satisfy this prerequisite.
 The earlier smoke evidence does not cover these revisions. No TrueNAS rollout
 or real Entra authorization check has been verified.
@@ -473,19 +474,36 @@ On `svlnas`, the aliases must already be sourced from
 
 ## Database Backup
 
-| Property               | Configuration                                                                                       |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| Image                  | Digest-pinned `docker.io/nfrastack/db-backup:4.9.2`                                                 |
-| Execution              | `backup-now`, `MODE=MANUAL`, `MANUAL_RUN_FOREVER=FALSE`; internal scheduling/notifications disabled |
-| Cadence                | Intended nightly host dccd run, plus full `dccd-all` deployments; no in-container nightly timer     |
-| DB01                   | PostgreSQL `openarchiver`, backed up as nonsuperuser `openarchiver`                                 |
-| DB02                   | Valkey via Redis protocol, including queue and transient MFA state                                  |
-| Compression / checksum | ZSTD / SHA1 sidecars                                                                                |
-| Encryption             | GPG using `${DB_ENC_PASSPHRASE}`                                                                    |
-| Retention              | `DEFAULT_CLEANUP_TIME=2880` minutes (48 hours)                                                      |
-| Output                 | `./backups/db-backup`                                                                               |
-| Normal dependency      | Healthy app, after migrations                                                                       |
-| Acceptance             | Default `dccd-all` backup freshness check; verify both database artifacts                           |
+| Property               | Configuration                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Image                  | Digest-pinned `docker.io/nfrastack/db-backup:4.9.2`                                                                                                    |
+| Execution              | Inline Bash runner: `backup01-now now`, then `backup02-now now`; `MODE=MANUAL`, `MANUAL_RUN_FOREVER=FALSE`; internal scheduling/notifications disabled |
+| Cadence                | Intended nightly host dccd run, plus full `dccd-all` deployments; no in-container nightly timer                                                        |
+| DB01                   | PostgreSQL `openarchiver`, backed up as nonsuperuser `openarchiver`                                                                                    |
+| DB02                   | Valkey via Redis protocol, including queue and transient MFA state                                                                                     |
+| Compression / checksum | ZSTD / SHA1 sidecars                                                                                                                                   |
+| Encryption             | GPG using `${DB_ENC_PASSPHRASE}`                                                                                                                       |
+| Retention              | `DEFAULT_CLEANUP_TIME=2880` minutes (48 hours)                                                                                                         |
+| Output                 | `./backups/db-backup`                                                                                                                                  |
+| Normal dependency      | Healthy app, after migrations                                                                                                                          |
+| Acceptance             | Default `dccd-all` backup freshness check with `dccd.backup-jobs=01,02`; verify both database artifacts                                                |
+
+The runner attempts both jobs exactly once, in order, even if DB01 fails.
+It emits an `ERROR` diagnostic for each nonzero job-command exit and returns
+nonzero if either command does. This replaces the pinned nfrastack `4.9.2`
+image's combined `backup-now` wrapper, which does not aggregate per-job
+failures. This is local invocation and error handling, not an upstream image
+fix or an application dependency fork.
+
+The expected-job label requires exactly one successful completion for each of
+`01` and `02` in current-run logs. The
+[freshness checker](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/BACKUP.md#how-they-run) rejects any nonzero or malformed
+job completion even if another succeeds; invalid labels and missing or duplicate
+expected completions also fail. Known dump or output-move error diagnostics
+also fail the check, even if all completion records report `0`. ANSI SGR resets
+after numeric exit codes remain compatible with completion parsing.
+Deployment commands and the operator-only one-off invocation are unchanged:
+the service invokes the runner automatically.
 
 Actual frequency follows the host dccd cron; the generic repository example
 runs forced deployments every 15 minutes. Confirm the intended nightly
@@ -506,12 +524,14 @@ Follow [Restore Open Archiver](https://github.com/DevSecNinja/truenas-apps/blob/
 operator-only backup invocation and recovery sequence: restore a fresh owned
 database and matching archive with original keys, recover only matching queue
 state or deliberately reset/reconcile it, and fully reindex after Meilisearch
-loss. Earlier synthetic PostgreSQL, copied encrypted archive, and Valkey recovery
-**passed on rootless Podman AMD64**, including both dump checksums and the
-corrected backup permissions. See the
+loss. The **2026-09-27** synthetic PostgreSQL, copied encrypted archive, and
+Valkey recovery **passed on rootless Podman AMD64**, including both dump
+checksums and the corrected backup permissions. See the
 [exact synthetic outcomes and remaining checks](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/BACKUP.md#open-archiver-synthetic-restore-evidence).
-No production credentials were used; the revised init/repair behavior, target-host
-deployment, and storage-layer recovery remain unverified by those results.
+No production credentials were used. These results predate the per-job runner
+and stricter freshness checker; no real-container backup run or new restore is
+recorded for those changes. The revised init/repair behavior, target-host
+deployment, and storage-layer recovery also remain unverified by those results.
 
 ## Upgrade Notes
 
