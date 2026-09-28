@@ -249,8 +249,11 @@ were ignored and dumps retained image-default ownership. The explicit named
 identity corrected this: the rootless Podman AMD64 synthetic run verified
 output directory ownership `3132:3132`, mode `0700`, and fresh dump mode
 `0600`. This is not evidence of host provisioning or deployment.
-The init container also starts as root; it assigns runtime directory
-ownership rather than running as the app account.
+The init container also starts as root; it assigns the declared service
+identities to runtime directory roots rather than running as the app account.
+Routine init does not
+repair nested files; restored trees require the explicit
+[permission repair procedure](BACKUP.md#recovery-procedure).
 
 PostgreSQL uses image identity `70:70`, Valkey uses `999:1000`, and Tika uses
 `35002:35002`, as declared in Compose. These do not require additional TrueNAS
@@ -391,6 +394,13 @@ applies only to explicitly provisioned non-TrueNAS server mode.
 
 Use this sequence after merging a new registry-supported app. On `svlnas`, the
 aliases must already be sourced from `/mnt/vm-pool/apps/scripts/aliases.sh`.
+
+Registry enrollment is not production approval. For blocked candidates such
+as Open Archiver, first complete the
+[service-specific activation prerequisites](services/open-archiver.md#first-run-setup):
+image clearance, a separate reviewed Traefik network activation follow-up,
+and the administrator-only Entra app-role assignment before Custom App
+creation. Do not execute this generic rollout to bypass those gates.
 
 1. Pull the merged changes and decrypt SOPS files while limiting the first pass
    to the new app:
@@ -667,12 +677,22 @@ assets and the regeneratable search index that are outside the SQLite backup.
 ### Open Archiver Dataset
 
 Registry key `open-archiver` provisions
-`vm-pool/apps/services/open-archiver` while preserving the checkout. Follow
-the [brand-new Custom App rollout](#brand-new-custom-app-rollout); host
-provisioning remains unverified, and **production acceptance is required for
-the known dependency risk**. Before executing the rollout, require a verified
-upstream-fixed artifact or an explicit, narrowly reviewed operator exception.
-Implementation completion and synthetic recovery do not constitute risk acceptance.
+`vm-pool/apps/services/open-archiver` while preserving the checkout.
+**This is a blocked candidate, not an approved deployment.** All eight image
+inputs remain unapproved in the
+[dated review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979);
+record clearance before activation. Shared Traefik intentionally omits the
+candidate's frontend attachment and external network declaration. A separate
+reviewed follow-up must add both after image clearance, before rollout.
+Use the [service-specific first-run procedure](services/open-archiver.md#first-run-setup),
+which preserves the canonical `dccd-app open-archiver`, preparation, Custom
+App, then `dccd-all` sequence and coordinates the activation window.
+Before Custom App creation or route exposure, configure the enabled
+`open-archiver-access` Users/Groups role in the Entra registration selected by
+`${AZURE_CLIENT_ID}` and assign only the bootstrap administrator in the
+corresponding Enterprise application. Do not restrict the shared portal or
+improvise network configuration outside Git. Host provisioning and real
+Entra checks remain pending; earlier synthetic recovery is not risk acceptance.
 
 | Path                  | Classification and protection                                                                                          |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -683,11 +703,16 @@ Implementation completion and synthetic recovery do not constitute risk acceptan
 | `./data/scratch`      | Regeneratable imports/temp files that may contain sensitive plaintext or in-flight work; drain and stop before cleanup |
 | `./data/valkey`       | Persisted queue and transient MFA state; AOF plus RDB, also backed up through Redis protocol                           |
 
-`open-archiver-init` pre-owns archive, scratch, and search paths for the
-dedicated app identity, and database/queue paths for their Compose identities.
-It applies `u=rwX,g=,o=` throughout `./data`. The SQL initialization hook is
-mounted read-only from `./config`; no tracked config is modified. The backup
-image manages its output ownership separately.
+With `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false` explicitly set, routine
+`open-archiver-init` uses `umask 077` and pre-owns only the archive, scratch,
+and search directory roots for the dedicated app identity, and database/queue
+directory roots for their Compose identities. It applies `u=rwX,g=,o=` to
+those five directories and mode `0700` to `./data`, without recursive
+traversal. Restored descendants require an explicit
+`OPEN_ARCHIVER_REPAIR_PERMISSIONS=true` recovery run with all writers stopped
+and the prior state preserved; an ordinary deployment does not repair them.
+The SQL initialization hook is mounted read-only from `./config`; no tracked
+config is modified. The backup image manages its output ownership separately.
 
 The child dataset belongs under the existing recursive vm-pool snapshots,
 replication, and encrypted off-site Task A. Verify actual child snapshots,

@@ -13,8 +13,7 @@ ENV NODE_ENV=production \
 # Bake the locked dependencies, including the SQLite binding used by imports.
 RUN node -e "const fs=require('fs'); const p=require('./package.json'); p.pnpm.onlyBuiltDependencies=['esbuild','sqlite3']; fs.writeFileSync('package.json', JSON.stringify(p));" \
     && pnpm install --frozen-lockfile --prod \
-    && cd /app/packages/backend \
-    && node -e "require('sqlite3')" \
+    && node -e "require('/app/packages/backend/node_modules/sqlite3')" \
     && chmod -R a+rX /app
 
 COPY start.mjs /usr/local/bin/open-archiver-start.mjs

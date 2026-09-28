@@ -832,8 +832,9 @@ below for the full audit of what currently relies on storage-layer (ZFS
 snapshot/replication/off-site) coverage only, and note that coverage itself
 is not uniform across every path. These are per-engine backups, not atomic
 backups of an entire multi-store application. Open Archiver's
-[synthetic restore passed](#open-archiver-synthetic-restore-evidence);
-target-host deployment and storage-layer recovery remain unverified.
+[earlier synthetic restore passed](#open-archiver-synthetic-restore-evidence);
+it remains an unapproved candidate, and those results do not validate the
+revised init/repair behavior, target-host deployment, or storage-layer recovery.
 
 ### Covered Databases
 
@@ -1125,15 +1126,20 @@ PostgreSQL database.
 
 **Known security risk: production adoption is not yet approved.** A live
 Trivy scan found fixable HIGH/CRITICAL dependencies in the exact published
-image. The synthetic recovery evidence below is not a security assessment or
+image. The [dated per-image review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979)
+now covers all eight image inputs, but every adoption decision remains
+**NOT APPROVED**. The synthetic recovery evidence below is not a security assessment or
 permission to deploy that image. The implementation can be completed without
 accepting production risk: require an upstream-fixed artifact or an explicit,
 narrowly reviewed operator exception under the
 [adoption policy](ARCHITECTURE.md#adoption-gate-and-remediation-ownership).
 Dependency remediation remains upstream; no patched dependency fork will be
-maintained here.
+maintained here. Production activation also requires the reviewed Traefik
+network follow-up and administrator-only Entra role assignment documented in
+[First-Run Setup](services/open-archiver.md#first-run-setup); recovery commands
+are not a shortcut around those gates.
 
-Synthetic PostgreSQL, encrypted archive, and Valkey recovery passed on
+Earlier synthetic PostgreSQL, encrypted archive, and Valkey recovery passed on
 rootless Podman AMD64 using only test credentials. The published GHCR digest
 was pulled anonymously and the full stack recreated healthy, with init and
 migration exiting `0`. Production deployment and storage-layer recovery remain
@@ -1141,25 +1147,29 @@ unverified under [issue #789](https://github.com/DevSecNinja/truenas-apps/issues
 
 ### Open Archiver Synthetic Restore Evidence
 
-The following outcomes were verified on **2026-09-27**. No production
-credentials were used.
+The following outcomes were verified on **2026-09-27** against the earlier
+implementation and the still-pinned published derivative. No production
+credentials were used. They predate the app-role gate, non-recursive routine
+init/explicit repair mode, and Dockerfile/publication workflow revisions;
+they do not validate those changes. Revised image source has not yet been
+published or runtime tested, and real Entra configuration/checks remain pending.
 
-| Check                     | Verified outcome                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Schema and authentication | Migrated the real upstream schema and created the first administrator; second setup returned `403`, unauthenticated access returned `401`                                                                                                                                                                                                                                |
-| Runtime hardening         | App root-filesystem write failed with `EROFS`; archive hardlink succeeded; database role had `rolsuper=false`, `rolcreatedb=false`, and `rolcreaterole=false`                                                                                                                                                                                                            |
-| Repeat startup            | Init succeeded multiple times; restarting the original test stack preserved the email and search index                                                                                                                                                                                                                                                                   |
-| Published runtime         | Anonymously pulled the exact Compose-pinned GHCR digest; full stack recreated healthy, with init and migration exiting `0`                                                                                                                                                                                                                                               |
-| Archive fixture           | Uploaded a ZIP containing MIME EML with a text attachment; ingestion and indexing completed for exactly one email                                                                                                                                                                                                                                                        |
-| OCR                       | Actual Tika recognized `ARCHIVE OCR 1420` in a generated PNG through the app's isolated parser network                                                                                                                                                                                                                                                                   |
-| Quiescence                | Drained queues, stopped the app cleanly with exit `0`, and copied the encrypted archive                                                                                                                                                                                                                                                                                  |
-| Backup execution          | Reran the mapped-identity sidecar: one PostgreSQL and one Redis-protocol job, each exactly once; sidecar exited `0`                                                                                                                                                                                                                                                      |
-| Artifacts and permissions | Both GPG+ZSTD dumps passed SHA1 verification; output directory was `3132:3132`, mode `0700`, and fresh dump mode was `0600`                                                                                                                                                                                                                                              |
-| PostgreSQL recovery       | GPG-decrypted and ZSTD-decompressed the SQL into an entirely fresh PostgreSQL 17 container; restored one user and one archive sentinel row                                                                                                                                                                                                                               |
-| Archive recovery          | Used `StorageService.get` with the original test storage encryption key against the copied archive and restored database; verified mail and embedded attachment content plus the ciphertext prefix                                                                                                                                                                       |
-| Valkey recovery           | Decrypted the RDB and restored it into a fresh Valkey 8 instance; confirmed ingestion metadata was present                                                                                                                                                                                                                                                               |
-| Full reindex              | Emptied Meilisearch documents to `0`, then called `POST reindex-all` with `mode=full`; rebuilt `1` document from preserved archived data while database email count remained `1`                                                                                                                                                                                         |
-| HTTPS proxy boundary      | Official upstream Traefik `3.7.10` (same version, not the DHI build), router generated from actual app labels, and actual repository middleware chain/rules; only the Forward Auth endpoint used a synthetic responder. Anonymous setup/health returned `401`, allowed-auth health `200`, the protected source API without a local token `401`, and unmatched host `404` |
+| Check                     | Verified outcome                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema and authentication | Migrated the real upstream schema and created the first administrator; second setup returned `403`, unauthenticated access returned `401`                                                                                                                                                                                                                                                                |
+| Runtime hardening         | App root-filesystem write failed with `EROFS`; archive hardlink succeeded; database role had `rolsuper=false`, `rolcreatedb=false`, and `rolcreaterole=false`                                                                                                                                                                                                                                            |
+| Repeat startup            | Init succeeded multiple times; restarting the original test stack preserved the email and search index                                                                                                                                                                                                                                                                                                   |
+| Published runtime         | Anonymously pulled the exact Compose-pinned GHCR digest; full stack recreated healthy, with init and migration exiting `0`                                                                                                                                                                                                                                                                               |
+| Archive fixture           | Uploaded a ZIP containing MIME EML with a text attachment; ingestion and indexing completed for exactly one email                                                                                                                                                                                                                                                                                        |
+| OCR                       | Actual Tika recognized `ARCHIVE OCR 1420` in a generated PNG through the app's isolated parser network                                                                                                                                                                                                                                                                                                   |
+| Quiescence                | Drained queues, stopped the app cleanly with exit `0`, and copied the encrypted archive                                                                                                                                                                                                                                                                                                                  |
+| Backup execution          | Reran the mapped-identity sidecar: one PostgreSQL and one Redis-protocol job, each exactly once; sidecar exited `0`                                                                                                                                                                                                                                                                                      |
+| Artifacts and permissions | Both GPG+ZSTD dumps passed SHA1 verification; output directory was `3132:3132`, mode `0700`, and fresh dump mode was `0600`                                                                                                                                                                                                                                                                              |
+| PostgreSQL recovery       | GPG-decrypted and ZSTD-decompressed the SQL into an entirely fresh PostgreSQL 17 container; restored one user and one archive sentinel row                                                                                                                                                                                                                                                               |
+| Archive recovery          | Used `StorageService.get` with the original test storage encryption key against the copied archive and restored database; verified mail and embedded attachment content plus the ciphertext prefix                                                                                                                                                                                                       |
+| Valkey recovery           | Decrypted the RDB and restored it into a fresh Valkey 8 instance; confirmed ingestion metadata was present                                                                                                                                                                                                                                                                                               |
+| Full reindex              | Emptied Meilisearch documents to `0`, then called `POST reindex-all` with `mode=full`; rebuilt `1` document from preserved archived data while database email count remained `1`                                                                                                                                                                                                                         |
+| HTTPS proxy boundary      | Official upstream Traefik `3.7.10` (same version, not the DHI build), router generated from the earlier app labels, and repository middleware chain/rules; only the Forward Auth endpoint used a synthetic responder. Anonymous setup/health returned `401`, allowed-auth health `200`, the protected source API without a local token `401`, and unmatched host `404`; the new role gate was not tested |
 
 Original-stack restart persistence does not prove restart of the restored
 stack. These results do not establish actual Entra login, production MFA, real mailbox
@@ -1242,33 +1252,54 @@ alone do not perform these steps.
    `${DB_ENC_PASSPHRASE}` and decompress with ZSTD. DB01 yields PostgreSQL SQL;
    DB02 yields a Redis-compatible RDB. Use a restricted workspace outside the
    tracked checkout; do not feed an RDB into `psql`.
-4. Start a fresh compatible PostgreSQL instance with the read-only
-   `config/init-database.sql` hook and the configured separate administrator
-   credential. It must create the nonsuperuser `openarchiver` login and owned
+4. Prepare fresh directory roots with routine init, then start only a fresh
+   compatible PostgreSQL instance with the read-only `config/init-database.sql`
+   hook and the configured separate administrator credential.
+   It must create the nonsuperuser `openarchiver` login and owned
    `openarchiver` database. Confirm its authenticated app-role `SELECT 1`
    health check passes. Restore the SQL with `psql` as that app role,
    enabling `ON_ERROR_STOP`, into the **fresh database before app migrations**
    run. Do not overlay an existing application schema. Check restore errors,
    ownership, and record counts; never pass the admin password to the app.
 5. Install the complete matching `./data/archive` tree, preserving encrypted
-   files and layout. Retain the failed tree separately. Reapply and verify
-   ownership/modes using the source-controlled init container before starting
-   the app. It assigns archive, scratch, and search paths to the dedicated
-   app identity; PostgreSQL and Valkey keep their own Compose identities.
+   files and layout. Retain the failed tree separately and take a protective
+   snapshot before changing permissions. After the SQL restore, stop
+   PostgreSQL and all other data writers, including the app, Valkey,
+   Meilisearch, migrations, and backup jobs. Keep redeploy automation suspended.
+   Routine init is non-recursive with
+   `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false`; it does not repair restored
+   descendants. Confirm the existing Custom App project is
+   `ix-open-archiver`, then run the explicit repair from the service directory:
+
+   ```sh
+   cd /mnt/vm-pool/apps/services/open-archiver
+   sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps -e OPEN_ARCHIVER_REPAIR_PERMISSIONS=true open-archiver-init
+   ```
+
+   Require exit status zero and verify ownership/modes before restarting any
+   writer. This retains secret validation and recursively repairs only
+   archive, scratch, Meilisearch, PostgreSQL, and Valkey trees under `./data`;
+   it never touches tracked `./config`. Archive/scratch/search use the
+   dedicated app identity, while PostgreSQL and Valkey use their Compose
+   identities. Do not persist the repair override for routine deployments.
    Keep sources and the frontend unavailable to writers during recovery.
 6. Restore Valkey **only from the same coordinated checkpoint** if replay is
-   appropriate. When using DB02's RDB, use a fresh Valkey data directory and
-   load the RDB with AOF temporarily disabled; old AOF data must not override
-   it. Re-enable AOF persistence and verify a new AOF is established before
-   returning to the normal `--appendonly yes` configuration. Alternatively,
-   recover the matching complete Valkey persistence directory. In either case,
+   appropriate. Install DB02's RDB into a fresh Valkey data directory, or
+   recover the matching complete Valkey persistence directory. After installing
+   either set of persistence files, repeat step 5's explicit repair with all
+   writers stopped **before starting Valkey**.
+   For RDB-only recovery, start Valkey with AOF temporarily disabled so old AOF
+   data cannot override the RDB. Re-enable AOF persistence and verify a new AOF
+   is established before returning to the normal `--appendonly yes`
+   configuration. In either case,
    review queued jobs against restored database/archive state before workers
    start. Without matching queue state, deliberately reset/reconcile jobs and
    transient MFA sessions, then restart sources under supervision; do not
    blindly replay a newer or unrelated queue.
-7. If Meilisearch was lost or does not match the restored state, use a fresh
-   index and perform a **full application reindex**. It cannot replace the
-   encrypted archive or PostgreSQL backup. Scratch files are regeneratable,
+7. If Meilisearch was lost or does not match the restored state, prepare a fresh
+   index and perform a **full application reindex** after the app restarts in
+   step 8. It cannot replace the encrypted archive or PostgreSQL backup.
+   Scratch files are regeneratable,
    but may contain plaintext and unfinished imports: retain anything needed
    for investigation, then clean up only reviewed paths while workers are
    drained and stopped.
@@ -1278,7 +1309,11 @@ alone do not perform these steps.
    to it as a recovery shortcut. Run the separate migration one-shot to
    successful completion before the app. Normal dccd pulls merged changes,
    so confirm the intended image/schema version before resuming deployment.
-9. Through `chain-auth@file`, verify local login/MFA, that `/setup` is locked,
+9. Through `chain-auth@file` and the app-local
+   `Role("open-archiver-access")` gate, verify with fresh sessions that an
+   unauthenticated request and a signed-in user without the role are denied,
+   including `GET /setup` and `POST /api/v1/auth/setup`, while an approved
+   assigned user passes the role gate. Verify local login/MFA, that `/setup` is locked,
    mailbox/source settings, archive counts, and representative message and
    attachment downloads. Test OCR search after reindex, inspect queue
    reconciliation, then enable one source for a least-privilege test import.

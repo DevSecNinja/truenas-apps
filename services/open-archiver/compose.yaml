@@ -9,6 +9,8 @@ services:
       - path: .env
         required: false
       - path: ../shared/env/tz.env
+    environment:
+      OPEN_ARCHIVER_REPAIR_PERMISSIONS: "false"
     restart: "no"
     network_mode: none
     mem_limit: 64m
@@ -48,11 +50,22 @@ services:
             exit 1
           fi
         done
+        set --
+        case "$${OPEN_ARCHIVER_REPAIR_PERMISSIONS}" in
+          false) ;;
+          true) set -- -R ;;
+          *)
+            echo "ERROR: OPEN_ARCHIVER_REPAIR_PERMISSIONS must be true or false" >&2
+            exit 1
+            ;;
+        esac
+        umask 077
         mkdir -p /data/archive /data/scratch /data/postgres /data/valkey /data/meilisearch
-        chown -R 3132:3132 /data/archive /data/scratch /data/meilisearch
-        chown -R 70:70 /data/postgres
-        chown -R 999:1000 /data/valkey
-        chmod -R u=rwX,g=,o= /data
+        chown "$$@" 3132:3132 /data/archive /data/scratch /data/meilisearch
+        chown "$$@" 70:70 /data/postgres
+        chown "$$@" 999:1000 /data/valkey
+        chmod "$$@" u=rwX,g=,o= /data/archive /data/scratch /data/postgres /data/valkey /data/meilisearch
+        chmod 700 /data
     volumes:
       - ./data:/data
     healthcheck:
@@ -197,7 +210,12 @@ services:
       - "traefik.docker.network=open-archiver-frontend"
       - "traefik.http.routers.open-archiver-rtr.rule=Host(`open-archiver.${DOMAINNAME}`)"
       - "traefik.http.routers.open-archiver-rtr.entrypoints=https"
-      - "traefik.http.routers.open-archiver-rtr.middlewares=chain-auth@file"
+      - "traefik.http.routers.open-archiver-rtr.middlewares=chain-auth@file,open-archiver-access"
+      # Require this Entra app role for the entire hostname, including bootstrap APIs.
+      - "traefik.http.middlewares.open-archiver-access.forwardauth.address=http://traefik-forward-auth:4181/portals/main?if=Role%28%22open-archiver-access%22%29"
+      - "traefik.http.middlewares.open-archiver-access.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.open-archiver-access.forwardauth.maxResponseBodySize=1048576"
+      - "traefik.http.middlewares.open-archiver-access.forwardauth.authResponseHeaders=X-Forwarded-User,X-Forwarded-DisplayName"
       - "traefik.http.routers.open-archiver-rtr.service=open-archiver-svc"
       - "traefik.http.services.open-archiver-svc.loadbalancer.server.port=3000"
 

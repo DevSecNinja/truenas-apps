@@ -214,7 +214,7 @@ Named Docker volumes and bind-mounted directories are created as `root:root` by 
 
 The init container runs as root, chowns the volume paths to the service's UID:GID, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
 
-**Bind-mount directories (`./data`, `./backups`) that are runtime-only (gitignored) must be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. The init container is the single recovery point that restores ownership on every deploy.
+**Bind-mount directories (`./data`, `./backups`) that are runtime-only (gitignored) must be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. Init restores ownership on its declared paths; this does not guarantee recursive repair on every deploy. Open Archiver prepares directory roots only during routine startup and requires explicit stopped-writer repair for restored descendants.
 
 **Git-tracked `./config` directories must NEVER be chowned or chmod'd by an init container.** Doing so changes file ownership away from the deploy user and causes `git pull` to fail with `error: unable to unlink old '...': Permission denied`. Config files checked out by git are already world-readable (`644` files, `755` directories), so any container user can read them without ownership changes. If a service needs to _write_ config at runtime, copy the file from `./config` to `./data` in the init container and mount the `./data` copy into the main container (see the gatus pattern).
 
@@ -264,32 +264,32 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd                                                                                                                                                                                                                 |
-| -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                                                                                                                                                  |
-| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                                                                    |
-| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                                                                    |
-| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                                                                          |
-| changedetection      | `changedetection-init`      | `docker.io/library/busybox:1.38.0`; chowns `./data` mounted at `/datastore` → PUID/PGID `3131:3131`, then applies `u=rwX,g=,o=`                                                                                                 |
-| dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999`                                               |
-| dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                                                                        |
-| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                                                                        |
-| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                                                                                                                                                 |
-| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                                                                |
-| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                                                                      |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                                                              |
-| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; creates and chowns `./backups/db-backup`, then chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                                                              |
-| matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                                                                        |
-| memos                | `memos-init`                | `./data` → PUID/PGID `3129:3129`                                                                                                                                                                                                |
-| metube               | `metube-init`               | `./data/state`                                                                                                                                                                                                                  |
-| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                                                                                                                                                     |
-| open-archiver        | `open-archiver-init`        | `docker.io/library/busybox:1.38.0`; chowns `./data/archive`, `./data/scratch`, `./data/meilisearch` → UID/GID `3132:3132`; `./data/postgres` → `70:70`; `./data/valkey` → `999:1000`; applies `u=rwX,g=,o=` throughout `./data` |
-| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                 |
-| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                  |
-| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                                                                        |
-| traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                   |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                        |
-| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                   |
+| Service              | Init container              | Volumes chown'd                                                                                                                                                                                                                                                                    |
+| -------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                                                                                                                                                                                                     |
+| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                                                                                                                       |
+| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                                                                                                                       |
+| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                                                                                                                             |
+| changedetection      | `changedetection-init`      | `docker.io/library/busybox:1.38.0`; chowns `./data` mounted at `/datastore` → PUID/PGID `3131:3131`, then applies `u=rwX,g=,o=`                                                                                                                                                    |
+| dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999`                                                                                                  |
+| dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                                                                                                                           |
+| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                                                                                                                           |
+| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                                                                                                                                                                                                    |
+| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                                                                                                                   |
+| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                                                                                                                         |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                                                                                                                 |
+| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; creates and chowns `./backups/db-backup`, then chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                                                                                                                 |
+| matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                                                                                                                           |
+| memos                | `memos-init`                | `./data` → PUID/PGID `3129:3129`                                                                                                                                                                                                                                                   |
+| metube               | `metube-init`               | `./data/state`                                                                                                                                                                                                                                                                     |
+| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                                                                                                                                                                                                        |
+| open-archiver        | `open-archiver-init`        | `docker.io/library/busybox:1.38.0`; chowns directory roots `./data/archive`, `./data/scratch`, `./data/meilisearch` → UID/GID `3132:3132`; `./data/postgres` → `70:70`; `./data/valkey` → `999:1000`; applies `u=rwX,g=,o=` non-recursively by default and mode `0700` to `./data` |
+| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                                                                    |
+| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                                                                     |
+| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                                                                                                                           |
+| traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                                                                      |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
+| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
 
 `changedetection-init` validates that `DOMAINNAME` is populated and is neither
 `CHANGE_ME` nor `GENERATE` before touching permissions. It runs without a
@@ -322,6 +322,13 @@ and `CHANGE_ME`. Both encryption keys must encode exactly 32 bytes as
 `CHOWN`, `FOWNER`, and `DAC_OVERRIDE` for private runtime paths. It mounts
 only `./data`; tracked `./config` is never chowned or written. Runtime
 identities use direct `user:` settings, not PUID/PGID environment variables.
+Routine init explicitly sets `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false` and
+uses `umask 077`: it creates and sets ownership/modes on the five directory
+roots, plus mode `0700` on `/data`, without walking the archive or database
+contents. Restored trees require an operator-only run with
+`OPEN_ARCHIVER_REPAIR_PERMISSIONS=true`, after stopping all writers and
+preserving the existing state. Only the five named runtime trees are repaired
+recursively; see the [recovery procedure](BACKUP.md#recovery-procedure).
 The separate `open-archiver-migrate` one-shot waits for healthy PostgreSQL
 and must exit successfully before the app starts.
 
@@ -436,7 +443,7 @@ No generated base config is bind-mounted. This avoids the first-deploy bind-moun
 
 ## Networking: Per-Service Isolation
 
-Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins each frontend network individually.
+Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins approved, activated services' frontend networks individually. A blocked candidate such as Open Archiver does not add its network dependency to shared Traefik before a separately reviewed activation change.
 
 **Why not a single shared `traefik-public` network?**
 
@@ -843,8 +850,12 @@ procedure and upstream source references pinned to the audited mobile commit.
 
 ### Open Archiver Network and Access Model
 
-**Implementation is complete; production adoption still requires review.** The live
-Trivy scan of the published digest found fixable HIGH/CRITICAL dependencies.
+**Blocked candidate; production adoption is not approved.** The
+[2026-09-27 per-image review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979)
+records all eight image inputs, exact-digest/platform scan inventories,
+maintenance evidence, confidence, and gaps. The inventory gap is closed,
+but every image remains **NOT APPROVED**. The published derivative has
+fixable HIGH/CRITICAL dependencies.
 The hardening and synthetic results below do not establish a secure image or
 authorize deployment. Remediation must remain upstream; no patched dependency
 fork will be maintained here. Require a verified upstream-fixed artifact or
@@ -856,21 +867,41 @@ derivative image's provenance. Findings are recorded
 in `services/open-archiver/README.md`.
 
 Open Archiver uses `https://open-archiver.${DOMAINNAME}` with
-`chain-auth@file` (ItalyPaleAle's Traefik Forward Auth, not Authelia), followed
-by local authentication and MFA. Built-in SSO is not available in OSS.
-Restrict Forward Auth to the intended administrator before `/setup`.
+`chain-auth@file` (ItalyPaleAle's Traefik Forward Auth, not Authelia), then
+the app-local `open-archiver-access` Forward Auth middleware with condition
+`Role("open-archiver-access")`, followed by local authentication and MFA.
+The role gate covers every request, including `GET /setup` and
+`POST /api/v1/auth/setup`; a missing role denies access.
+Built-in SSO is not available in OSS. Before Custom App creation or route
+exposure, create the enabled Users/Groups role in the Entra registration used
+by `${AZURE_CLIENT_ID}` and assign only the bootstrap administrator in its
+Enterprise application. The shared `main` portal remains unchanged.
+Follow the [bootstrap role and fresh-session acceptance procedure](services/open-archiver.md#bootstrap-access-role);
+keep the gate after local setup locks and MFA is enabled.
 There are no published host ports or UI/API/monitoring bypasses.
+Open Archiver intentionally has no Gatus integration or unauthenticated
+monitoring router; in-container health checks remain enabled. Adding any
+route, including monitoring, requires review.
 
-| Network                  | Members and access                                                              |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `open-archiver-backend`  | Internal: app, migrations, PostgreSQL, Valkey, Meilisearch, and database backup |
-| `open-archiver-frontend` | App's Traefik-facing network and outbound mailbox-provider connectivity         |
-| `open-archiver-parser`   | Internal: app and Tika only; no database, queue, search, or Traefik membership  |
+Shared Traefik currently has neither an `open-archiver-frontend` attachment
+nor an external declaration for that network. After image adoption clearance,
+a separate reviewed activation follow-up must add both to
+`services/traefik/compose.yaml` before the
+[gated rollout](services/open-archiver.md#first-run-setup). Do not create
+untracked overrides or manually connect networks. The diagram below describes
+the intended flow after that activation, not a currently exposed service.
+
+| Network                  | Members and access                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `open-archiver-backend`  | Internal: app, migrations, PostgreSQL, Valkey, Meilisearch, and database backup                 |
+| `open-archiver-frontend` | App only: outbound mailbox-provider connectivity; Traefik attachment awaits reviewed activation |
+| `open-archiver-parser`   | Internal: app and Tika only; no database, queue, search, or Traefik membership                  |
 
 ```mermaid
 flowchart LR
     User --> Gate["Traefik + chain-auth"]
-    Gate --> App["Open Archiver: local auth + MFA"]
+    Gate --> Role["App-local open-archiver-access role gate"]
+    Role --> App["Open Archiver: local auth + MFA"]
     App --> Backend["Internal: PostgreSQL / Valkey / Meilisearch"]
     App --> Parser["Separate internal network: Tika OCR"]
     App --> Mail["Mailbox providers"]
@@ -890,15 +921,19 @@ pre-init account check and `DBBACKUP_USER`/`DBBACKUP_GROUP` selection.
 Detailed runtime settings and image tradeoffs remain in
 `services/open-archiver/README.md`.
 
-Local rootless Podman testing passed init/migrations, all five long-running
+Earlier local rootless Podman testing passed init/migrations, all five long-running
 service health checks, and
 [synthetic database/archive/queue recovery](BACKUP.md#open-archiver-synthetic-restore-evidence).
 Compose pins the published GHCR derivative, anonymously pulled and recreated
 healthy. Repeated init, restart persistence, full reindex, and real HTTPS
 proxy-boundary checks passed. Proxy tests used official upstream Traefik
-`3.7.10` (not the DHI build), actual app labels/repository middleware, and a
-synthetic Forward Auth responder. Actual Entra login and TrueNAS deployment
-still require operator validation under
+`3.7.10` (not the DHI build), the earlier app labels/repository middleware,
+and a synthetic Forward Auth responder. These results do not validate the new
+role gate, non-recursive routine init/explicit repair mode, or revised
+Dockerfile/publication workflow. The pinned derivative is unchanged; revised
+image source has not yet been published or runtime tested. Actual Entra role
+configuration, authorization checks, and TrueNAS deployment still require
+operator validation under
 [issue #789](https://github.com/DevSecNinja/truenas-apps/issues/789).
 See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
 alone are not a coordinated archive backup.

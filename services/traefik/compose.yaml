@@ -97,7 +97,6 @@ services:
       frigate-frontend:
       home-assistant-frontend:
       outline-frontend:
-      open-archiver-frontend:
       openclaw-frontend:
       sqlite-web-frontend:
       bitwarden-frontend:
@@ -307,9 +306,6 @@ networks:
     external: true
   openclaw-frontend:
     name: openclaw-frontend
-    external: true
-  open-archiver-frontend:
-    name: open-archiver-frontend
     external: true
   esphome-frontend:
     name: esphome-frontend
