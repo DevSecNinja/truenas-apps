@@ -441,6 +441,80 @@ The `adguard-unbound` resolver overrides its entrypoint with `/sbin/tini -- /bin
 
 No generated base config is bind-mounted. This avoids the first-deploy bind-mount race and ensures each Renovate image update starts with that image's current defaults; the wrapper changes only the two required include directives instead of masking new defaults with an older persistent copy. The healthcheck requires `unbound-checkconf -o control-enable` to return `yes`, proving that the `conf.d` include made the mounted remote-control config effective.
 
+## Networking: DNS Resolution
+
+The chosen architecture separates **host bootstrap DNS** from **everyday LAN
+client DNS**. Public resolution for TrueNAS boot, recovery, and image pulls must
+not depend on a DNS container hosted on that same NAS.
+
+```mermaid
+flowchart LR
+    Host["TrueNAS host"] --> Gateway["UniFi gateway"]
+    Gateway -->|"public queries"| Public["Public upstream resolver"]
+    Gateway -->|"known infrastructure names"| Records["Small manual record set"]
+    Client["LAN clients via VLAN DHCP"] --> AdGuard["NAS-local AdGuard"]
+    AdGuard --> Unbound["Co-located Unbound<br/>local records + recursion"]
+    Unbound -->|"public queries"| Hierarchy["Public DNS hierarchy"]
+```
+
+The gateway independently serves a small infrastructure record set alongside
+public forwarding. This covers known host/container dependencies, **not the full
+client DNS namespace or filtering policy**; it is not complete client DNS
+redundancy. There is no automatic record synchronisation with Unbound. See
+[DNS configuration and record maintenance](INFRASTRUCTURE.md#dns-configuration-and-record-maintenance)
+for the chosen settings and record owners.
+
+### Why the Paths Are Separate
+
+The Azure DNS VM became unavailable after its credits were exhausted, leaving an
+unreachable remote secondary that contributed to long DNS delays. Separately,
+uncached NAS queries through the gateway received immediate `REFUSED` responses
+with `EDE23 Network Error` when the gateway used NAS-local AdGuard as its upstream,
+even though router-originated, cached, and direct AdGuard queries worked.
+Switching the gateway upstream to a public resolver worked; the exact forwarding
+fault was never proven, and this split avoids both that path and NAS bootstrap
+coupling.
+
+DNS server lists are not guaranteed ordered primary/backup failover. The inspected
+gateway runtime used dnsmasq's `all-servers` setting to query all eligible
+upstreams; this is an observation of that configuration, not every UniFi firmware
+version. DHCP clients select resolvers according to their own OS behaviour, not
+that gateway flag. An unreachable resolver can delay or fail queries; mixing
+public and private resolvers in a client list can bypass filtering and return
+`NXDOMAIN` or `NODATA` for private names.
+
+### Docker DNS Is Not Independent Split DNS
+
+The tracked Compose files have no `dns`, `dns_search`, or `dns_opt` overrides.
+On custom networks, Docker's embedded resolver handles Docker service names;
+other lookups default to the host's upstream resolvers unless an out-of-repository
+daemon/runtime override changes this. Verify each affected running container's
+effective resolver after host DNS changes rather than assuming immediate adoption.
+
+Docker database/cache names and Traefik's Docker backend/forward-auth names do
+not require private-domain DNS. IP-addressed Gatus checks with a `Host` header
+also avoid hostname resolution for their target, but this does not prove that
+HTTP integrations or alerts work. Homepage server-side monitors, Gatus alert
+webhooks, and deployment status reporting still need the
+[infrastructure records](INFRASTRUCTURE.md#manual-infrastructure-records).
+Browser links resolve on the client, not in the Homepage container.
+
+### Desired State: Two Independent Local Resolvers
+
+**The second local resolver is not deployed.** It should run AdGuard with its own
+resolving backend on separate always-on hardware or a suitable router-capable
+host, with independent storage and power where practical. Another VM/container
+on this TrueNAS, or a resolver forwarding back to its AdGuard/Unbound stack,
+would not provide the required failure-domain independence.
+
+Either local resolver must provide public resolution and identical internal
+answers while the other is unavailable. Client VLANs should then advertise both
+local resolver addresses, with matching filtering/client policies and internal
+records. Host bootstrap must remain independent of NAS-local DNS. See
+[future configuration](INFRASTRUCTURE.md#second-local-resolver-configuration)
+and the [validation gate](INFRASTRUCTURE.md#dns-failure-validation) before
+advertising a second resolver.
+
 ## Networking: Per-Service Isolation
 
 Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins approved, activated services' frontend networks individually. A blocked candidate such as Open Archiver does not add its network dependency to shared Traefik before a separately reviewed activation change.
