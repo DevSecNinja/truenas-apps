@@ -86,6 +86,11 @@ creation. Let the Custom App create its network before applying the reviewed,
 tracked Traefik network entries and running the final `dccd-all`. Coordinate
 scheduled redeploys to prevent Traefik from referencing a missing network.
 
+The enrollment guard applies only to TrueNAS-mode dccd. Raw Compose and
+generic/unscoped deployment outside TrueNAS mode can start this stack before
+its Custom App exists; do not use those paths before the activation
+prerequisites are complete.
+
 ## Personal Home Folders
 
 [Personal Home Folders](docs/HOME-FOLDERS.md) documents the approved native
