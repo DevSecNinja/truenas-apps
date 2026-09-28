@@ -170,20 +170,20 @@ Dependency updates are managed by Renovate. Only `renovate.json5` lives in this 
 
 All updates must meet a minimum release age before they can merge, giving time for bad releases to be retracted:
 
-| Update type   | Manager / datasource                 | Minimum age | Merge        |
-| ------------- | ------------------------------------ | ----------- | ------------ |
-| minor / patch | `actions/*` GitHub Actions           | 3 days      | Auto-merged  |
-| minor / patch | All other GitHub Actions             | 14 days     | Auto-merged  |
-| minor / patch | Docker images                        | 14 days     | Auto-merged  |
-| minor / patch | GitHub Releases                      | 14 days     | Auto-merged  |
-| minor / patch | `mise` tools                         | 14 days     | Auto-merged  |
-| digest        | Docker images pinned to `:latest`    | 14 days     | Auto-merged  |
-| digest        | GitHub Actions refs pinned to `main` | 14 days     | Auto-merged  |
-| major         | Everything                           | 14 days     | Manual merge |
+| Update type   | Manager / datasource                        | Minimum age | Merge        |
+| ------------- | ------------------------------------------- | ----------- | ------------ |
+| minor / patch | `actions/*` GitHub Actions                  | 3 days      | Auto-merged  |
+| minor / patch | All other GitHub Actions                    | 14 days     | Auto-merged  |
+| minor / patch | Docker images                               | 14 days     | Auto-merged  |
+| minor / patch | GitHub Releases                             | 14 days     | Auto-merged  |
+| minor / patch | `mise` tools                                | 14 days     | Auto-merged  |
+| digest        | Docker images pinned to `:latest` / `:beta` | 14 days     | Auto-merged  |
+| digest        | GitHub Actions refs pinned to `main`        | 14 days     | Auto-merged  |
+| major         | Everything                                  | 14 days     | Manual merge |
 
 Auto-merged PRs require CI to pass and carry the `[automerge]` commit-message suffix. Most rules use `automergeType: "pr"` with `platformAutomerge: true`, so GitHub merges the PR itself once every required check is green; the 3-day `actions/*` exception uses `automergeType: "branch"` (direct push, no PR). **Major** updates always require a manual merge, regardless of datasource.
 
-Digest-only updates are **disabled by the shared preset** to reduce PR noise and to avoid auto-merging a hijacked mutable tag. This repository re-enables them in the two cases where the digest is the only thing that ever moves, both in `renovate.json5`: Docker images pinned to `:latest` (#628) and GitHub Actions / reusable-workflow refs pinned to `main` (#636).
+Digest-only updates are **disabled by the shared preset** to reduce PR noise and to avoid auto-merging a hijacked mutable tag. This repository re-enables them in `renovate.json5` for mutable Docker channels (`:latest` / `:beta`), explicitly matched rolling Docker version tags, and GitHub Actions / reusable-workflow refs pinned to `main` (#636).
 
 ### Enforcing the soak without a trusted timestamp
 
@@ -206,22 +206,32 @@ Background: ADR 0005 in `DevSecNinja/.github` (`docs/design-decisions/0005-pr-ag
 
 #### Homepage frozen-candidate pilot
 
-The local `renovate.json5` rule **Freeze Homepage update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker` and package `ghcr.io/gethomepage/homepage` only. It overrides the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` for Homepage, aiming to let an existing candidate finish its soak instead of repeatedly restarting it as newer candidates appear.
+The Homepage pilot now covers an exact five-package cohort. The local `renovate.json5` rule **Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker`, overriding the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` only for:
+
+- **Home Assistant:** `ghcr.io/home-assistant/home-assistant` — churn on the existing `:beta` channel is intentionally included as a low-impact rolling-digest stress test because the container is not actively used.
+- **Homepage:** `ghcr.io/gethomepage/homepage` — single-image update coverage, continuing the original pilot.
+- **Immich:** `ghcr.io/immich-app/immich-machine-learning` and `ghcr.io/immich-app/immich-server` — grouped app-image coverage, preserving the existing Immich update group.
+- **Traefik:** `dhi.io/traefik` — single-image update coverage for important infrastructure.
+
+Matching is by exact package name, not by stack or registry. Immich Postgres (`ghcr.io/immich-app/postgres`), `dhi.io/redis`, all other sidecars, AdGuard Home, Bitwarden, and ESPHome are excluded. The aim is to let existing candidates finish their soak instead of repeatedly restarting it as newer candidates appear.
 
 - **Existing branch:** Ordinary automatic Renovate version/digest rewrites to the same existing branch stop. This freezes that branch's candidate; it is **not a per-digest queue**. Separate major-update branches and stale-branch cleanup remain normal.
-- **Cooldown:** The external required `pr-cooldown` check still waits 14 days from the HEAD committer date and reevaluates every six hours. The pilot does not shorten or bypass this gate.
+- **Cooldown:** The independent required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer date and reevaluates every six hours. Expanding the rule does not rewrite existing HEADs or reset their elapsed age; current candidates retain time already accrued.
+- **Mutable channels:** Digest updates for `:latest` / `:beta` remain enabled with `minimumReleaseAge: "0"`. That existing Renovate setting is unchanged and does not bypass the independent Docker-gated cooldown.
 - **Merge:** GitHub `platformAutomerge` is already enabled. Non-strict up-to-date protection allows an eligible PR that is behind the base branch but has no conflicts to merge once all required checks pass, without rebasing merely to catch up.
 - **Next candidate:** After merge, the next scheduled Renovate run may propose the latest candidate, which starts a fresh soak. Intermediate versions/digests are not queued individually.
 
-**Operator intervention:** Conflicts, failing builds, and known-bad releases need an operator; the frozen branch will not automatically repair them. For a known-bad candidate, consider disabling automerge before diagnosing it so a passing cooldown cannot cause an unwanted merge.
+**Operator intervention:** Conflicts, failing builds, and known-bad releases need an operator; the frozen branch will not automatically repair them. Disable automerge for a known-bad candidate before diagnosing it so a passing cooldown cannot cause an unwanted merge. In particular, Traefik is important infrastructure: retain manual rejection or refresh when a candidate is known-bad or a newer release contains a needed security fix. This policy does not force unsafe candidates to finish soaking or merge.
 
 <!-- dprint-ignore -->
 !!! warning "Rebasing can replace the candidate and restart the cooldown"
-    Requesting a Renovate rebase from the PR or the Dependency Dashboard, including **rebase all**, can replace the target version/digest and restart the cooldown. Even a manual Git rebase that preserves the image target resets this HEAD-age gate by writing a new committer date. Rebase deliberately, then review the resulting target and required checks.
+    Resolving conflicts manually or requesting a Renovate rebase from the PR or Dependency Dashboard, including **Rebase all open PRs**, can refresh the candidate and reset its HEAD age. Even a manual Git rebase that preserves the image target restarts this gate by writing a new committer date. Rebase deliberately, then review the resulting target and required checks; automatic conflict resolution is not promised.
 
-**Scope and rollback:** No workflow, shared preset, branch-name, soak-duration, other-image, or digest-enabling policy changes are part of this pilot. To roll back, remove the local Homepage rule from `renovate.json5`; Homepage then inherits the shared `rebaseWhen: "conflicted"` behavior again.
+**Observed first cycle:** Homepage [#722](https://github.com/DevSecNinja/truenas-apps/pull/722) retained HEAD `6d3dfe8` (2026-09-10 02:32:56 UTC) and candidate `v2.3.0@sha256:f820276654539cdc2cf0169f28188d135919a7984fad76d83d8d5ff1383f3705` through the newer `v2.4.0` release on 2026-09-17. After 55 pending cooldown status posts, the check succeeded on 2026-09-24 at 04:48:54 UTC and automerge followed at 04:49:22 UTC. This demonstrates one freeze/soak/automerge cycle. As of 2026-09-28, the next `v2.4.0` candidate was only **Rate-Limited** in dashboard [#115](https://github.com/DevSecNinja/truenas-apps/issues/115); no next PR or new soak had been observed.
 
-Observation and rollout tracking: [#758](https://github.com/DevSecNinja/truenas-apps/issues/758).
+**Scope and rollback:** This is a repository-local rule expansion, not a global or shared-config change. No workflow, cooldown algorithm/duration, branch naming, grouping, automerge, rate-limit, digest-enabling, or image-pin changes are included. To roll back, remove the local freeze rule from `renovate.json5`; all five packages then inherit the shared `rebaseWhen: "conflicted"` behavior again.
+
+Broader rollout tracking remains open in [#758](https://github.com/DevSecNinja/truenas-apps/issues/758); related: [#759](https://github.com/DevSecNinja/truenas-apps/issues/759).
 
 References: [Renovate `rebaseWhen`](https://docs.renovatebot.com/configuration-options/#rebasewhen) and [renovatebot/renovate#26294](https://github.com/renovatebot/renovate/discussions/26294).
 
