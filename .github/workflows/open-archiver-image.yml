@@ -1,0 +1,113 @@
+---
+name: Open Archiver Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - services/open-archiver/image/**
+      - tests/open-archiver/**
+      - .github/workflows/open-archiver-image.yml
+  pull_request:
+    paths:
+      - services/open-archiver/image/**
+      - services/open-archiver/compose.yaml
+      - services/traefik/compose*.yaml
+      - services/traefik/config/rules/**
+      - tests/open-archiver/**
+      - .github/workflows/open-archiver-image.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Test process supervision
+        run: node --experimental-vm-modules --test tests/open-archiver/*.test.mjs
+
+      - name: Build test image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: services/open-archiver/image
+          platforms: linux/amd64
+          load: true
+          tags: open-archiver-test:local
+
+      - name: Check non-root offline runtime artifacts
+        run: |-
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --entrypoint node open-archiver-test:local \
+            -e 'const fs=require("fs"); if(process.getuid()!==3132) throw Error("Unexpected UID"); require("/app/packages/backend/node_modules/sqlite3"); for(const p of ["/usr/local/bin/open-archiver-start.mjs","/app/packages/backend/dist/database/migrate.js","/app/packages/backend/src/database/migrations/meta/_journal.json"]) fs.accessSync(p,fs.constants.R_OK);'
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Harden runner
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Authenticate to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish candidate image
+        id: publish
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: services/open-archiver/image
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: ghcr.io/devsecninja/truenas-apps/open-archiver:${{ github.sha }}
+
+      - name: Verify published runtime artifacts
+        env:
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |-
+          docker run --rm --pull always --platform linux/amd64 --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --entrypoint node \
+            "ghcr.io/devsecninja/truenas-apps/open-archiver@${IMAGE_DIGEST}" \
+            -e 'const fs=require("fs"); if(process.getuid()!==3132) throw Error("Unexpected UID"); require("/app/packages/backend/node_modules/sqlite3"); for(const p of ["/usr/local/bin/open-archiver-start.mjs","/app/packages/backend/dist/database/migrate.js","/app/packages/backend/src/database/migrations/meta/_journal.json"]) fs.accessSync(p,fs.constants.R_OK);'
+
+      - name: Record immutable deployment reference
+        env:
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: printf 'Image to review and pin (no automatic deployment):\n\nghcr.io/devsecninja/truenas-apps/open-archiver@%s\n'
+          "${IMAGE_DIGEST}" >> "${GITHUB_STEP_SUMMARY}"

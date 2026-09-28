@@ -50,6 +50,50 @@ teardown() {
     assert_output --partial "function"
 }
 
+@test "redeploy_truenas_apps: unenrolled Open Archiver skips Docker and preserves runtime paths and deployment state" {
+    local candidate_dir="${BASE_DIR}/services/open-archiver"
+    TRUENAS_APPS_BASE="${BASE_DIR}/truenas-config"
+    mkdir -p "${candidate_dir}" "${TRUENAS_APPS_BASE}"
+    # Copy only the tracked Compose file, never env files or runtime content.
+    # Without Custom App enrollment, even this unprofiled stack must not be parsed.
+    cp "${REPO_ROOT}/services/open-archiver/compose.yaml" "${candidate_dir}/compose.yaml"
+    assert_file_exists "${candidate_dir}/compose.yaml"
+    assert_dir_not_exists "${TRUENAS_APPS_BASE}/open-archiver/versions"
+    unset COMPOSE_PROFILES
+    COMPOSE_PROFILE_ARGS=()
+    NO_PULL=0
+    _DEPLOY_ATTEMPTED=7
+    export CONFIG_HASH=previous-app-hash
+    _CONFIG_HASH_ENV_FILE="${BASE_DIR}/previous-app.config-hash.env"
+    create_mock mount 1 ""
+
+    # Call directly: checking counters after BATS run would inspect the parent
+    # shell's unchanged state rather than the deployment's state.
+    redeploy_truenas_apps || return
+    assert_equal "${_DEPLOY_ATTEMPTED}" 7
+    assert_equal "${_DEPLOY_ERRORS}" 0
+    assert_equal "${_DEPLOY_CHANGED}" 0
+    assert_equal "${_DEPLOY_UNCHANGED}" 0
+    assert_equal "${_DEPLOY_RESTARTED}" 0
+    assert_equal "${#_DEPLOY_FAILED_APPS[@]}" 0
+    assert_equal "${CONFIG_HASH}" previous-app-hash
+    assert_equal "${_CONFIG_HASH_ENV_FILE}" "${BASE_DIR}/previous-app.config-hash.env"
+    # No config/selection call is allowed, not merely no pull/up.
+    assert_mock_not_called docker
+    assert_mock_not_called mount
+    assert_mock_not_called sudo
+    assert_mock_not_called yq
+    assert_mock_not_called sops
+    assert_mock_not_called git
+    assert_dir_not_exists "${TRUENAS_APPS_BASE}/open-archiver"
+    assert_dir_not_exists "${candidate_dir}/config"
+    assert_dir_not_exists "${candidate_dir}/data"
+    assert_dir_not_exists "${candidate_dir}/backups"
+    assert_file_not_exists "${candidate_dir}/.env"
+    assert_file_not_exists "${candidate_dir}/.config-hash.env"
+    assert_files_equal "${REPO_ROOT}/services/open-archiver/compose.yaml" "${candidate_dir}/compose.yaml"
+}
+
 prepare_failed_truenas_deploy() {
     local app="$1" message="$2" state="$3"
     NO_PULL=1

@@ -56,6 +56,7 @@ Source references: Compose v2.39.4 [`getRestartPolicy`](https://github.com/docke
 
 - Images must always include an explicit registry prefix (e.g. `docker.io/library/busybox`, `ghcr.io/gethomepage/homepage`). Bare image names like `busybox` or `user/image` are not allowed — Docker's implicit `docker.io` default is not reliable across runtimes and Renovate cannot enforce the correct registry without it
 - Images are digest-pinned (`@sha256:...`) — Renovate manages updates via PRs
+- Every imported image must receive an [upstream dependency maintenance review](#image-selection-upstream-dependency-maintenance); pinning, a fresh tag, and runtime hardening do not establish dependency security.
 - When the same image is published on several registries, prefer the `docker.io` copy — see [Image Selection: Registry Preference](#image-selection-registry-preference) below.
 - **Prefer the smallest, most hardened image variant available** for a given version tag. When multiple variants are published, choose according to this priority order:
   1. **Hardened** (e.g., `-hardened`, Chainguard distroless/static images, Docker Hub Hardened Images at `dhi.io/<name>`) — minimal attack surface, no shell, stripped of unnecessary OS components. Note that hardened variants are sometimes published under a **different image name or registry** rather than as a tag suffix on the official image (e.g., `eclipse-mosquitto` has a hardened build at `dhi.io/eclipse-mosquitto`). Always check the [Docker Hub Hardened Images catalog](https://hub.docker.com/hardened-images/catalog) and [Chainguard](https://www.chainguard.dev/chainguard-images) for a hardened alternative before falling back to Alpine. **Note:** Images from `dhi.io` require Docker Hub authentication (`docker login dhi.io` with your Docker Hub username and a personal access token). Tag format is `<name>:<version>-<os>` (e.g., `dhi.io/traefik:3.6.14-debian13`). Runtime variants run as a nonroot user (UID 65532) and have no shell; health checks must use `CMD` format (not `CMD-SHELL`).
@@ -75,9 +76,78 @@ Source references: Compose v2.39.4 [`getRestartPolicy`](https://github.com/docke
 - Volumes mounted `:ro` wherever the container only reads
 - **`./config` volumes must always be mounted `:ro`** — config files are git-tracked and must never be modified by a container at runtime. If a service needs to write config at runtime, copy the file from `./config` to `./data` in an init container and mount the `./data` copy read-write (see the gatus pattern). Any exception requires explicit approval and a comment in the compose file explaining why
 
+## Image Selection: Upstream Dependency Maintenance
+
+**Security goal:** every container we import has effective upstream maintenance
+of its language/framework/runtime dependencies and its base-image/OS packages.
+This covers application, database, parser, backup, init, and other sidecar
+images, plus imported build-stage/base images. Apply this review to adoption
+and image updates; the goal also applies to existing imports, but is not a
+claim that the fleet has already been audited.
+
+### Required Evidence
+
+Record a compact, dated review in the consuming service's README or a linked
+review issue. Identify each image's upstream source, exact digest and target
+platform, review date, maintenance flag, confidence, evidence links, gaps,
+and adoption decision. Use dated links to concrete changes, tests, releases,
+and artifacts rather than only a project home page.
+
+| Evidence            | What to establish                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependency tracking | Renovate, Dependabot, or an equivalent documented effective process covers both language/runtime dependencies and base-image/OS dependencies. Inspect the actual coverage, not just whether a bot configuration exists.                                                                                                                                                           |
+| Effective delivery  | Recent dependency updates were merged, tested, released, and incorporated into rebuilt images. Assess recency against the upstream support/release cadence; open bot PRs or a newly pushed tag alone are insufficient.                                                                                                                                                            |
+| Exact artifact      | Inspect the selected digest/platform and its SBOM or package inventory with a current vulnerability scan. Verify affected and fixed versions actually present in the artifact; a fixed repository lockfile or source commit does not prove the published image contains the fix. Record scan date/tool/database freshness and distinguish raw entries from deduplicated findings. |
+| Published policies  | Check maintenance/release commitments, supported versions, security reporting and disclosure channels, and end-of-life policies for the application, language runtime, and base distribution. Record missing information as a gap, not an invented policy.                                                                                                                        |
+
+Assign one maintenance flag with **high**, **medium**, or **low** confidence,
+explaining the confidence and linking the dated evidence:
+
+| Flag                | Meaning                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **well maintained** | Evidence demonstrates effective dependency tracking and delivery into supported artifacts across both dependency layers.        |
+| **partial**         | Maintenance exists, but coverage or delivery has evidenced gaps, such as unrebuilt images or neglected runtime/base updates.    |
+| **unknown**         | Evidence is insufficient or inaccessible; record what remains unverified.                                                       |
+| **unmaintained**    | Positive evidence of abandonment, unsupported/EOL components without maintenance, or a persistently ineffective update process. |
+
+No bot does **not** mean unmaintained: a documented, effective manual or vendor
+process may qualify. Conversely, a configured bot is not proof of maintenance.
+The flag describes the evidence, not adoption approval; even a well-maintained
+project can publish a vulnerable artifact. Unresolved evidence requires review,
+not an automatic safe or unmaintained classification.
+
+### Adoption Gate and Remediation Ownership
+
+Known, fixable **HIGH/CRITICAL findings relevant to the selected artifact and
+deployment block adoption, image updates, and rollout**, unless an explicit,
+reviewed, documented, narrowly justified exception is approved. Investigate
+package/version applicability, affected code paths, reachability, exploit
+prerequisites, and deployed configuration. Do not assume an internal network,
+authentication, or dropped capabilities makes a vulnerable dependency
+unreachable. Unknown reachability is not evidence of safety.
+
+This is not a blanket global zero-CVE requirement. Document non-applicability,
+false positives, and residual risks with evidence; do not silently suppress
+findings. Runtime, restore, and hardening tests complement this assessment but
+cannot clear a dependency-security blocker.
+
+An exception must identify the approving reviewer and date, exact image
+digest/platform and findings, applicability analysis, narrow deployment scope,
+mitigations, residual risk, upstream tracking, and an expiry/review date with
+exit criteria. It must not waive all future findings or silently carry across
+image changes.
+
+**Remediation belongs upstream.** Seek upstream dependency updates and rebuilt
+releases, then verify the fixes in the exact replacement artifact and rerun
+relevant regressions. Do not take ownership of downstream patched dependency
+locks or forks as an adoption workaround. Local packaging/startup wrappers do
+not replace upstream dependency maintenance. Without an acceptable upstream
+artifact or approved exception, retain the integration as a **blocked
+candidate**, not a deployable service; gate any documented rollout commands.
+
 ## Image Selection: Docker Hardened Images
 
-DHI images at `dhi.io/<image>:<tag>` are preferred whenever the [catalog](https://hub.docker.com/hardened-images/catalog) lists the upstream — they ship with near-zero CVEs, signed SBOMs, and SLSA Build Level 3 provenance, and are free under the Community tier (Apache 2.0). Pulls require `docker login dhi.io`; `scripts/dccd.sh` performs that login automatically when DHI credentials are present. Current DHI consumers: `services/adguard/compose.yaml` (redis), `services/alloy/compose.yaml`, `services/traefik/compose.yaml`.
+DHI images at `dhi.io/<image>:<tag>` are preferred whenever the [catalog](https://hub.docker.com/hardened-images/catalog) lists the upstream — they provide hardened bases, signed SBOMs, and SLSA Build Level 3 provenance, and are free under the Community tier (Apache 2.0). This preference does not waive the exact-artifact maintenance and vulnerability review above. Pulls require `docker login dhi.io`; `scripts/dccd.sh` performs that login automatically when DHI credentials are present. Current DHI consumers: `services/adguard/compose.yaml` (redis), `services/alloy/compose.yaml`, `services/traefik/compose.yaml`.
 
 Two caveats apply when adopting a DHI (or any new) image — the full procedure lives in the `new-docker-app` skill at `.github/skills/new-docker-app/SKILL.md`:
 
@@ -144,7 +214,7 @@ Named Docker volumes and bind-mounted directories are created as `root:root` by 
 
 The init container runs as root, chowns the volume paths to the service's UID:GID, and exits before the main container starts. The main service declares `depends_on: <app>-init: condition: service_completed_successfully`.
 
-**Bind-mount directories (`./data`, `./backups`) that are runtime-only (gitignored) must be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. The init container is the single recovery point that restores ownership on every deploy.
+**Bind-mount directories (`./data`, `./backups`) that are runtime-only (gitignored) must be included in the init container's chown command**, even when the main container mounts a path inside them as `:ro`. A host-level `chown` (e.g. a TrueNAS dataset permission reset) can make those directories unreadable or untraversable. Init restores ownership on its declared paths; this does not guarantee recursive repair on every deploy. Open Archiver prepares directory roots only during routine startup and requires explicit stopped-writer repair for restored descendants.
 
 **Git-tracked `./config` directories must NEVER be chowned or chmod'd by an init container.** Doing so changes file ownership away from the deploy user and causes `git pull` to fail with `error: unable to unlink old '...': Permission denied`. Config files checked out by git are already world-readable (`644` files, `755` directories), so any container user can read them without ownership changes. If a service needs to _write_ config at runtime, copy the file from `./config` to `./data` in the init container and mount the `./data` copy into the main container (see the gatus pattern).
 
@@ -189,36 +259,37 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
   its existing app init container pre-owns the `./backups/db-backup` child
   because the backup image resets the read-write parent mount root to root
   ownership.
-- **nfrastack/db-backup** manages backup output ownership through its `USER_DBBACKUP` and `GROUP_DBBACKUP` settings. It does not need an external init container.
-- **Database images** (postgres, MongoDB) initialise their own data directories. They do not need an external init container.
+- **nfrastack/db-backup** manages backup output ownership internally. Verify the selected image's supported identity settings; Open Archiver uses `DBBACKUP_USER`/`DBBACKUP_GROUP` with a pre-init account check, not the ignored legacy `USER_DBBACKUP` variables.
+- **Database images** (postgres, MongoDB) that start as root can initialise their own data-directory ownership. Direct non-root deployments, such as Open Archiver's PostgreSQL and Valkey containers, still require pre-owned runtime paths.
 
 **Services using this pattern:**
 
-| Service              | Init container              | Volumes chown'd                                                                                                                                                                   |
-| -------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                                                                                                    |
-| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                      |
-| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                      |
-| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                            |
-| changedetection      | `changedetection-init`      | `docker.io/library/busybox:1.38.0`; chowns `./data` mounted at `/datastore` → PUID/PGID `3131:3131`, then applies `u=rwX,g=,o=`                                                   |
-| dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999` |
-| dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                          |
-| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                          |
-| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                                                                                                   |
-| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                  |
-| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                        |
-| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                |
-| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; creates and chowns `./backups/db-backup`, then chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                |
-| matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                          |
-| memos                | `memos-init`                | `./data` → PUID/PGID `3129:3129`                                                                                                                                                  |
-| metube               | `metube-init`               | `./data/state`                                                                                                                                                                    |
-| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                                                                                                       |
-| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                   |
-| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                    |
-| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                          |
-| traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                     |
-| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                          |
-| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                     |
+| Service              | Init container              | Volumes chown'd                                                                                                                                                                                                                                                                    |
+| -------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _bootstrap           | `content-init`              | `/mnt/archive-pool/content` (full tree: mkdir + chown `:3200` + setgid `2775`)                                                                                                                                                                                                     |
+| adguard              | `adguard-init`              | `./data/work`, `./data/conf`                                                                                                                                                                                                                                                       |
+| adguard              | `adguard-unbound-init`      | `./data/unbound` (generated template output)                                                                                                                                                                                                                                       |
+| alloy                | `alloy-init`                | `./data` (WAL + queue)                                                                                                                                                                                                                                                             |
+| changedetection      | `changedetection-init`      | `docker.io/library/busybox:1.38.0`; chowns `./data` mounted at `/datastore` → PUID/PGID `3131:3131`, then applies `u=rwX,g=,o=`                                                                                                                                                    |
+| dawarich             | `dawarich-init`             | Validates required decrypted values; chowns `./data/public`, `./data/storage`, `./data/watched`, `./data/app-tmp`, `./data/sidekiq-tmp` → `3128:3128`; `./data/redis` → `999:999`                                                                                                  |
+| dozzle               | `dozzle-init`               | `./data`                                                                                                                                                                                                                                                                           |
+| frigate              | `frigate-init`              | Seeds `./config/config.yml` → `./data/config/` on first deploy (`cp -n`)                                                                                                                                                                                                           |
+| gatus                | `gatus-init`                | Copies `./config/config.yaml` → `./data/sidecar-config/` (config mounted `:ro`)                                                                                                                                                                                                    |
+| home-assistant       | `home-assistant-init`       | Seeds `./config/configuration.yaml` → `./data/config/` on first deploy (`cp -n`)                                                                                                                                                                                                   |
+| homepage             | _(removed)_                 | None — config is git-tracked and read-only; no init needed                                                                                                                                                                                                                         |
+| immich               | `immich-init`               | `/mnt/archive-pool/private/photos/immich` (+ `DAC_OVERRIDE`), `./data/model-cache`                                                                                                                                                                                                 |
+| karakeep             | `karakeep-init`             | `docker.io/library/busybox:1.38.0`; creates and chowns `./backups/db-backup`, then chowns `./data/karakeep` and `./data/meilisearch` → `3130:3130`                                                                                                                                 |
+| matter-server        | `matter-server-init`        | `./data`                                                                                                                                                                                                                                                                           |
+| memos                | `memos-init`                | `./data` → PUID/PGID `3129:3129`                                                                                                                                                                                                                                                   |
+| metube               | `metube-init`               | `./data/state`                                                                                                                                                                                                                                                                     |
+| mosquitto            | `mosquitto-init`            | `./data/data`, `./data/log`                                                                                                                                                                                                                                                        |
+| open-archiver        | `open-archiver-init`        | `docker.io/library/busybox:1.38.0`; chowns directory roots `./data/archive`, `./data/scratch`, `./data/meilisearch` → UID/GID `3132:3132`; `./data/postgres` → `70:70`; `./data/valkey` → `999:1000`; applies `u=rwX,g=,o=` non-recursively by default and mode `0700` to `./data` |
+| openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                                                                    |
+| outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                                                                     |
+| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                                                                                                                           |
+| traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                                                                      |
+| traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
+| wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
 
 `changedetection-init` validates that `DOMAINNAME` is populated and is neither
 `CHANGE_ME` nor `GENERATE` before touching permissions. It runs without a
@@ -243,6 +314,23 @@ passphrase before assigning `./data/karakeep`, `./data/meilisearch`, and the
 newly created `./backups/db-backup` child to `3130:3130`. It mounts
 `./backups` at `/backups` so it can prepare the child without changing the
 parent mount root. It never changes ownership under `./config`.
+
+`open-archiver-init` validates `DOMAINNAME` and the eight generated secret
+variables before changing permissions, rejecting empty values, `GENERATE`,
+and `CHANGE_ME`. Both encryption keys must encode exactly 32 bytes as
+64 hexadecimal characters. The init runs without networking and retains only
+`CHOWN`, `FOWNER`, and `DAC_OVERRIDE` for private runtime paths. It mounts
+only `./data`; tracked `./config` is never chowned or written. Runtime
+identities use direct `user:` settings, not PUID/PGID environment variables.
+Routine init explicitly sets `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false` and
+uses `umask 077`: it creates and sets ownership/modes on the five directory
+roots, plus mode `0700` on `/data`, without walking the archive or database
+contents. Restored trees require an operator-only run with
+`OPEN_ARCHIVER_REPAIR_PERMISSIONS=true`, after stopping all writers and
+preserving the existing state. Only the five named runtime trees are repaired
+recursively; see the [recovery procedure](BACKUP.md#recovery-procedure).
+The separate `open-archiver-migrate` one-shot waits for healthy PostgreSQL
+and must exit successfully before the app starts.
 
 ---
 
@@ -305,7 +393,7 @@ Some images cannot use `read_only: true` or `user:` because their init system (s
 - **LinuxServer images** (e.g., `unifi-network-application`, `plex`) — use `PUID`/`PGID` environment variables for internal privilege dropping; omit `user:` and `read_only`. Add back `CHOWN`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`.
 - **LinuxServer socket-proxy** — runs as root by design to proxy the Docker socket. Does not support custom users, mods, or scripts. Omit `cap_drop: ALL`; `no-new-privileges` and `read_only` are still applied.
 - **tiredofit/db-backup** — uses `USER_DBBACKUP`/`GROUP_DBBACKUP` for internal privilege dropping; omit `user:` and `read_only`.
-- **nfrastack/db-backup** — the `4.9.2` compatibility release uses `USER_DBBACKUP`/`GROUP_DBBACKUP` to select its internal backup identity; omit `user:` and `read_only`. Dawarich maps both settings to its dedicated service account.
+- **nfrastack/db-backup** — starts as root with a writable root filesystem, then selects an internal backup identity. Verify the image-supported variables rather than assuming legacy settings work; Open Archiver uses `DBBACKUP_USER`/`DBBACKUP_GROUP` and a pre-init account check.
 - **mvance/unbound** — starts as root and drops privileges to the `_unbound` user internally; its startup script generates `unbound.conf` and creates subdirectories at runtime, so omit `user:` and `read_only`.
 - **meeb/tubesync** — uses s6-overlay: `tubesync-config-init` sets the `app` user's `PUID:PGID` and prepares app-owned `/config` directories (mode 0755) and `/run/app` (mode 0700); service startup scripts finish root-level setup before dropping privileges to `app`. Omit `user:` and `read_only:`. Retain `cap_drop: ALL` and `no-new-privileges`; add back `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID`, and `SETPCAP` via `cap_add`. `FOWNER` permits chmod after chown; `DAC_OVERRIDE` lets root create `/config/state/hat` and access `/run/app` despite their app ownership and restrictive modes.
 - **ghcr.io/home-assistant/home-assistant** — uses s6-overlay (confirmed by `s6-rc` log lines). Omit `user:` and `read_only:`. Add back `CHOWN`, `SETUID`, `SETGID`, `SETPCAP` via `cap_add` (standard s6-overlay set). Also add `NET_RAW` — required by HA's built-in DHCP watcher integration, which opens raw `AF_PACKET` sockets to track devices; without it HA logs `[Errno 1] Operation not permitted` at startup and the DHCP integration stops working. No TrueNAS service account or init container is required — s6-overlay manages `/config` ownership internally.
@@ -355,7 +443,7 @@ No generated base config is bind-mounted. This avoids the first-deploy bind-moun
 
 ## Networking: Per-Service Isolation
 
-Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins each frontend network individually.
+Each service gets its own frontend network (e.g., `echo-server-frontend`, `homepage-frontend`). Traefik joins approved, activated services' frontend networks individually. A blocked candidate such as Open Archiver does not add its network dependency to shared Traefik before a separately reviewed activation change.
 
 **Why not a single shared `traefik-public` network?**
 
@@ -760,6 +848,109 @@ immediately when the deployment takes effect. The
 [Karakeep service documentation](services/karakeep.md) provides the operator
 procedure and upstream source references pinned to the audited mobile commit.
 
+### Open Archiver Network and Access Model
+
+**Blocked candidate; production adoption is not approved.** The
+[2026-09-27 per-image review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979)
+records all eight image inputs, exact-digest/platform scan inventories,
+maintenance evidence, confidence, and gaps. The inventory gap is closed,
+but every image remains **NOT APPROVED**. The published derivative has
+fixable HIGH/CRITICAL dependencies.
+The hardening and synthetic results below do not establish a secure image or
+authorize deployment. Remediation must remain upstream; no patched dependency
+fork will be maintained here. Require a verified upstream-fixed artifact or
+explicit operator acceptance through a narrowly documented exception under
+the [adoption policy](#adoption-gate-and-remediation-ownership).
+The integration is implemented with no TrueNAS deployment. Image-bootstrap
+commit `831954bc4caac4edee212c2bf07cbabca6267c35` records the published
+derivative image's provenance. Findings are recorded
+in `services/open-archiver/README.md`.
+
+Open Archiver uses `https://open-archiver.${DOMAINNAME}` with
+`chain-auth@file` (ItalyPaleAle's Traefik Forward Auth, not Authelia), then
+the app-local `open-archiver-access` Forward Auth middleware with condition
+`Role("open-archiver-access")`, followed by local authentication and MFA.
+The role gate covers every request, including `GET /setup` and
+`POST /api/v1/auth/setup`; a missing role denies access.
+Built-in SSO is not available in OSS. Before Custom App creation or route
+exposure, create the enabled Users/Groups role in the Entra registration used
+by `${AZURE_CLIENT_ID}` and assign only the bootstrap administrator in its
+Enterprise application. The shared `main` portal remains unchanged.
+Follow the [bootstrap role and fresh-session acceptance procedure](services/open-archiver.md#bootstrap-access-role);
+keep the gate after local setup locks and MFA is enabled.
+There are no published host ports or UI/API/monitoring bypasses.
+Open Archiver intentionally has no Gatus integration or unauthenticated
+monitoring router; in-container health checks remain enabled. Adding any
+route, including monitoring, requires review.
+
+Shared Traefik currently has neither an `open-archiver-frontend` attachment
+nor an external declaration for that network. All eight Open Archiver services,
+including init, migration, and backup, have **no Compose profile** and are
+selected normally. Initial enrollment is manual TrueNAS Custom App creation:
+`dccd.sh -t` skips a missing app config directory, but generic/unscoped dccd
+outside TrueNAS mode and raw Compose do not have that enrollment guard and
+select this stack. Use the existing TrueNAS aliases and app-first
+[rollout](services/open-archiver.md#first-run-setup), not generic discovery.
+
+Per-image adoption and runtime clearance and a reviewed Compose pin of the
+approved current-source, published and digest-verified derivative are still
+required. Assign only the Entra bootstrap administrator before Custom App
+creation. Keep shared Traefik's entries deferred until the Custom App creates
+`open-archiver-frontend`; then add the attachment and external declaration to
+tracked `services/traefik/compose.yaml` through normal review before the final
+`dccd-all`. The include-only Custom App YAML retains `services: {}`.
+Do not create untracked overrides or manually connect networks. The diagram
+below describes the intended flow after onboarding, not a currently exposed
+service.
+
+| Network                  | Members and access                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `open-archiver-backend`  | Internal: app, migrations, PostgreSQL, Valkey, Meilisearch, and database backup                 |
+| `open-archiver-frontend` | App only: outbound mailbox-provider connectivity; Traefik attachment awaits reviewed activation |
+| `open-archiver-parser`   | Internal: app and Tika only; no database, queue, search, or Traefik membership                  |
+
+```mermaid
+flowchart LR
+    User --> Gate["Traefik + chain-auth"]
+    Gate --> Role["App-local open-archiver-access role gate"]
+    Role --> App["Open Archiver: local auth + MFA"]
+    App --> Backend["Internal: PostgreSQL / Valkey / Meilisearch"]
+    App --> Parser["Separate internal network: Tika OCR"]
+    App --> Mail["Mailbox providers"]
+```
+
+| Component            | Security boundary                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| App                  | Five direct Node children under a non-root supervisor; build-time dependencies, separate migrations, read-only root, private disk-backed scratch                                           |
+| Backup               | Approved writable-root exception because `/init` writes `/etc/bash/bashrc`; drops all capabilities except `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID`; mounts only backup output |
+| PostgreSQL           | Native psql `\getenv` in read-only `config/init-database.sql`; nonsuperuser database owner and authenticated `SELECT 1` health check; admin password never passed to app/migrations/backup |
+| Tika                 | Full OCR image; no archive mount, secrets, frontend membership, or direct internet route. Parser exploits can still reach its app peer                                                     |
+| Valkey / Meilisearch | Private backend state: queue/transient MFA data and rebuildable but sensitive searchable plaintext, respectively                                                                           |
+
+All containers retain `no-new-privileges` and a 100-task PID limit.
+[Identity details](INFRASTRUCTURE.md#open-archiver-identity) cover the backup
+pre-init account check and `DBBACKUP_USER`/`DBBACKUP_GROUP` selection.
+Detailed runtime settings and image tradeoffs remain in
+`services/open-archiver/README.md`.
+
+Earlier local rootless Podman testing passed init/migrations, all five long-running
+service health checks, and
+[synthetic database/archive/queue recovery](BACKUP.md#open-archiver-synthetic-restore-evidence).
+Compose pins the published GHCR derivative, anonymously pulled and recreated
+healthy. Repeated init, restart persistence, full reindex, and real HTTPS
+proxy-boundary checks passed. Proxy tests used official upstream Traefik
+`3.7.10` (not the DHI build), the earlier app labels/repository middleware,
+and a synthetic Forward Auth responder. These results do not validate the new
+role gate, non-recursive routine init/explicit repair mode, revised
+Dockerfile/publication workflow, or Valkey memory
+limits under load. The pinned derivative is unchanged; revised
+image source has not yet been published or runtime tested. Actual Entra role
+configuration, authorization checks, and TrueNAS deployment still require
+operator validation under
+[issue #789](https://github.com/DevSecNinja/truenas-apps/issues/789).
+See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
+alone are not a coordinated archive backup.
+
 ### Dawarich Split Authentication Routers
 
 Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
@@ -939,7 +1130,27 @@ If Traefik and Homepage shared one proxy, compromising either would grant the at
 
 ## Docker Compose Profiles
 
-Services with a `profiles:` key in their compose definition are **excluded from normal deploys**. Running `docker compose up -d` or `dccd.sh` does not start them — they only launch when their profile is explicitly activated. This is useful for services that are not always needed (e.g., an NVR that only runs when you are away from home).
+**Repository policy:** reserve profiles for genuinely optional runtime
+workloads, such as `surveillance`. Do not automatically add a staging,
+adoption, or onboarding profile to normal TrueNAS apps. Initial enrollment
+uses manual Custom App creation through the
+[existing app-first rollout](INFRASTRUCTURE.md#brand-new-custom-app-rollout).
+
+TrueNAS mode (`dccd.sh -t`) skips an app when
+`/mnt/.ix-apps/app_configs/<app>/versions` is missing. This enrollment guard
+belongs to dccd's TrueNAS mode, **not ordinary Compose**. Open Archiver has no
+profile and normal Compose selection includes all eight services.
+Generic/unscoped dccd outside TrueNAS mode and raw Compose do not check that
+enrollment and select this stack. Use the sourced TrueNAS aliases and the
+existing onboarding sequence; lack of a Custom App is not an
+inactive-by-default guarantee outside TrueNAS mode. Manual enrollment does
+not waive image-adoption or vulnerability-risk review.
+
+Services with a `profiles:` key are **excluded from default service selection**
+when no matching profile is active and no service is explicitly targeted.
+`dccd.sh` skips stacks with zero selected services in both TrueNAS and generic
+modes. Profiles are selection controls, not authorization or risk approval:
+explicit named-service targeting and `--profile '*'` bypass default selection.
 
 **Services using profiles:**
 
@@ -948,6 +1159,8 @@ Services with a `profiles:` key in their compose definition are **excluded from 
 | `surveillance` | `frigate-init`, `frigate` | NVR — only needed when away from home |
 
 ### Activating a Profile
+
+The examples below apply to the optional `surveillance` workload.
 
 **Environment variable (recommended):** Docker Compose natively reads the `COMPOSE_PROFILES` variable. Set it before running `dccd.sh`:
 
@@ -961,7 +1174,10 @@ Multiple profiles can be comma-separated:
 export COMPOSE_PROFILES=surveillance,other
 ```
 
-**On TrueNAS:** Add the export to the cron job that runs `dccd.sh`, or to `~/.bashrc` / `~/.profile` on the deployment user. The profiled services will start on the next deploy.
+**On TrueNAS, for operational profiles such as `surveillance`:** Add the export
+to the cron job that runs `dccd.sh`, or to the deployment user's shell startup
+file for interactive runs. dccd forwards it as Compose CLI profile flags.
+This does not establish that the TrueNAS UI receives the variable.
 
 **CLI flag (one-off):** For a single manual run without persisting:
 
@@ -980,7 +1196,7 @@ unset COMPOSE_PROFILES
 Removing a profile prevents its services from being selected for a normal
 deployment; it does not guarantee that already-running containers are stopped
 or removed. Explicitly stop the affected services and verify their state.
-For the unrelated surveillance stack, an explicit teardown is:
+For the surveillance stack, an explicit teardown is:
 
 ```sh
 docker compose --profile surveillance down
@@ -1087,9 +1303,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include                                                                 |
-| -------- | -------------------------- | ------------------------------------------------------------------------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy |
+| File     | Purpose                    | When to include                                                                                                     |
+| -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 

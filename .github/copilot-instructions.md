@@ -115,6 +115,7 @@ docs/
 Read `docs/ARCHITECTURE.md` (compose patterns) and `docs/INFRASTRUCTURE.md` (UID/GID, storage, multi-server) before editing any compose file. Key rules:
 
 - **Images**: Always include explicit registry prefix (`docker.io/library/...`, `ghcr.io/...`). Always digest-pinned (`@sha256:...`). Bare names like `busybox` are forbidden.
+- **Image adoption**: Apply [Upstream Dependency Maintenance](../docs/ARCHITECTURE.md#image-selection-upstream-dependency-maintenance) to every imported app, sidecar, init, and build-stage/base image; digest pinning and hardening are not dependency-security approval.
 - **Security**: Every container must have `read_only: true`, `no-new-privileges`, `cap_drop: ALL`, `mem_limit`, `pids_limit: 100`. Add `cap_add` only when provably required with a comment explaining why.
 - **Health checks**: Mandatory on every service (required for `--wait` deploys).
 - **Init containers**: Required when a service uses `user: "UID:GID"` with writable volumes. Use the busybox init pattern from ARCHITECTURE.md. Must only chown `./data` (runtime) paths — **never** chown `./config` (git-tracked) directories.
@@ -122,6 +123,26 @@ Read `docs/ARCHITECTURE.md` (compose patterns) and `docs/INFRASTRUCTURE.md` (UID
 - **Networks**: Each app gets its own `<app>-frontend` network. Must be added to `services/traefik/compose.yaml`.
 - **Volumes**: Mount `:ro` wherever the container only reads.
 - **Shared env**: All stacks reference `../shared/env/tz.env` for timezone.
+
+### Upstream Dependency Maintenance
+
+- Evaluate language/runtime and base-image/OS dependencies: Renovate,
+  Dependabot, or an equivalent documented effective process must be evidenced
+  by recent merged updates, tests, releases, and rebuilt images, not merely
+  bot configuration.
+- Inspect published maintenance/security-reporting/EOL policies and the exact
+  digest/platform's scan and SBOM/package inventory. Verify fixed versions
+  reached that artifact; a repo pin or fresh tag is not proof.
+- Record dated evidence links, confidence, and **well maintained / partial /
+  unknown / unmaintained** in the service README or linked review. Do not
+  infer neglect solely from the absence of a bot.
+- Known fixable relevant HIGH/CRITICAL findings block adoption/rollout unless
+  explicitly reviewed and narrowly excepted under the Architecture policy.
+  Investigate reachability/applicability; do not impose blind global zero-CVE
+  requirements or treat successful runtime tests as security approval.
+- Keep remediation upstream, not in downstream patched dependency locks or
+  forks. A blocked implementation remains a candidate; do not provide a
+  deploy-now handoff before its adoption gate is cleared.
 
 ## TrueNAS Host Script Dependencies
 
@@ -164,6 +185,10 @@ Use the skill at `.github/skills/new-docker-app/SKILL.md` as a checklist. Key st
 11. If the app runs on a server that also has Traefik, add its frontend network to the Traefik compose override for that server (e.g. `services/traefik/compose.svlazext.yaml`)
 
 ### Post-Merge TrueNAS App Rollout (Mandatory)
+
+The rollout and final-response contract below require a cleared image-adoption
+gate. For a blocked candidate, report the blocker and upstream remediation
+requirement instead; clearly gate any retained future deployment instructions.
 
 For a brand-new TrueNAS Custom App, operator handoffs must use the aliases from `/mnt/vm-pool/apps/scripts/aliases.sh`, which must already be sourced:
 

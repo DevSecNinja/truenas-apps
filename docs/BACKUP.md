@@ -603,7 +603,7 @@ permanent or immutable archive retention.
 
 **Encryption**: Use the same password and salt across all four tasks (simpler key management) or unique ones per task (stronger isolation). **Store the password and salt in your password manager** — without them, encrypted blobs cannot be restored. Leave **Filename Encryption** deselected — plaintext filenames allow browsing and verifying backups in Azure Portal, but names remain visible even though content is encrypted. Use neutral filenames for sensitive exports.
 
-**Use Snapshot**: Disabled on all tasks. TrueNAS only supports this on leaf datasets with no child datasets. Pool-level paths have nested children, producing the error _"This option is only available for datasets that have no further nesting."_ The consistency risk is minimal — db-backup sidecars produce application-consistent dumps before Cloud Sync runs, and media/config files are rarely written mid-sync.
+**Use Snapshot**: Disabled on all tasks. TrueNAS only supports this on leaf datasets with no child datasets. Pool-level paths have nested children, producing the error _"This option is only available for datasets that have no further nesting."_ Database sidecars provide per-engine recovery points, but live file sync does not coordinate databases with separate file state. In particular, Open Archiver requires a [coordinated checkpoint](#coordinated-open-archiver-checkpoint) for its database, archive files, and any queue state being restored.
 
 **Exclusions**: `archive-pool/content/downloads/` and `archive-pool/TimeMachine/` are excluded — transient downloads have no backup value, and Time Machine backups are already a redundant copy of a Mac.
 
@@ -821,7 +821,7 @@ database sidecars' 48-hour cleanup policy.
 ## Application-Level Database Backups
 
 The following stateful databases have application-consistent backup sidecars
-in their compose files today. Dawarich uses maintained
+in their compose files today. Dawarich and Open Archiver use maintained
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
 `tiredofit/db-backup` v4. These produce compressed, encrypted dump files
 independent of ZFS snapshots — providing an application-consistent recovery
@@ -830,26 +830,32 @@ PostgreSQL WAL consistency). **Not every service with an embedded database has
 this layer yet** — see [Persistent State Inventory](#persistent-state-inventory-beyond-application-level-backups)
 below for the full audit of what currently relies on storage-layer (ZFS
 snapshot/replication/off-site) coverage only, and note that coverage itself
-is not uniform across every path.
+is not uniform across every path. These are per-engine backups, not atomic
+backups of an entire multi-store application. Open Archiver's
+[earlier synthetic restore passed](#open-archiver-synthetic-restore-evidence);
+it remains an unapproved candidate, and those results do not validate the
+revised backup runner/freshness checker, init/repair behavior, target-host
+deployment, or storage-layer recovery.
 
 ### Covered Databases
 
-| Service        | Database   | Backup sidecar             | Image family    | Encryption | Output path                                  |
-| -------------- | ---------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
-| Bitwarden      | SQLite     | `bitwarden-db-backup`      | tiredofit v4    | GPG        | `services/bitwarden/backups/db-backup/`      |
-| Dawarich       | PostgreSQL | `dawarich-db-backup`       | nfrastack 4.9.2 | GPG        | `services/dawarich/backups/db-backup/`       |
-| Gatus          | PostgreSQL | `gatus-db-backup`          | tiredofit v4    | GPG        | `services/gatus/backups/db-backup/`          |
-| Home Assistant | SQLite     | `home-assistant-db-backup` | tiredofit v4    | GPG        | `services/home-assistant/backups/db-backup/` |
-| Immich         | PostgreSQL | `immich-db-backup`         | tiredofit v4    | GPG        | `services/immich/backups/db-backup/`         |
-| Karakeep       | SQLite     | `karakeep-db-backup`       | tiredofit v4    | GPG        | `services/karakeep/backups/db-backup/`       |
-| Memos          | SQLite     | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
-| Outline        | PostgreSQL | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
-| Unifi          | MongoDB    | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
+| Service        | Database                                            | Backup sidecar             | Image family    | Encryption | Output path                                  |
+| -------------- | --------------------------------------------------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
+| Bitwarden      | SQLite                                              | `bitwarden-db-backup`      | tiredofit v4    | GPG        | `services/bitwarden/backups/db-backup/`      |
+| Dawarich       | PostgreSQL                                          | `dawarich-db-backup`       | nfrastack 4.9.2 | GPG        | `services/dawarich/backups/db-backup/`       |
+| Gatus          | PostgreSQL                                          | `gatus-db-backup`          | tiredofit v4    | GPG        | `services/gatus/backups/db-backup/`          |
+| Home Assistant | SQLite                                              | `home-assistant-db-backup` | tiredofit v4    | GPG        | `services/home-assistant/backups/db-backup/` |
+| Immich         | PostgreSQL                                          | `immich-db-backup`         | tiredofit v4    | GPG        | `services/immich/backups/db-backup/`         |
+| Karakeep       | SQLite                                              | `karakeep-db-backup`       | tiredofit v4    | GPG        | `services/karakeep/backups/db-backup/`       |
+| Memos          | SQLite                                              | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
+| Open Archiver  | PostgreSQL (DB01), Valkey via Redis protocol (DB02) | `open-archiver-db-backup`  | nfrastack 4.9.2 | GPG        | `services/open-archiver/backups/db-backup/`  |
+| Outline        | PostgreSQL                                          | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
+| Unifi          | MongoDB                                             | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
 
 ### How They Run
 
-The db-backup sidecars run one backup and exit. They are started by each full
-`dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
+The db-backup sidecars run their configured backups and exit. They are started
+by each full `dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
 schedule rather than an intrinsic nightly schedule. The documented TrueNAS
 cron runs every 15 minutes with `-f`, so a one-shot backup may run on every
 forced full deployment. Dumps are:
@@ -863,12 +869,31 @@ forced full deployment. Dumps are:
 `dccd-all` enables the `dccd.sh -B` end-of-run check by default. It waits up to
 the configured `WAIT_TIMEOUT` for active `*-db-backup` services and requires
 each container to have exited with status 0, have a `FinishedAt` timestamp
-within the previous 48 hours, and include the backup image's successful
-completion marker (`Backup NN routines finish time: ... with exit code 0`) in
-Docker logs read since the container's latest `StartedAt`, excluding retained
-older-run success markers while allowing final buffered output after
-`FinishedAt`. If any check fails, `dccd.sh` fails. Disable the check for one
-invocation with:
+within the previous 48 hours, and have successful job completion records in
+Docker logs. Logs are read since the container's latest `StartedAt`, excluding
+retained older-run success markers while allowing final buffered output after
+`FinishedAt`. Successful records use the image's marker
+`Backup NN routines finish time: ... with exit code 0`. ANSI SGR sequences
+immediately after the numeric exit code, including the reset `\e[0m`, are
+accepted for both zero and nonzero codes; color formatting does not make a
+valid completion record malformed.
+
+- **All sidecars:** any current-run nonzero or malformed job completion fails
+  the check, even if another job succeeds.
+- **Operation errors:** current-run messages of the form
+  `DB Backup of 'filename' reported errors` or
+  `Moving of backup 'filename' reported errors` fail the check for any sidecar,
+  even if all completion records report `0`. The pinned nfrastack compatibility
+  image can log these errors while its scheduler still reports completion code `0`.
+- **Expected-job opt-in:** a non-empty `dccd.backup-jobs` label must list unique
+  numeric job IDs separated by commas, such as `01,02`. Each declared ID must
+  have exactly one successful completion. Invalid labels, missing expected
+  completions, and duplicate completions for an expected ID fail.
+- **Unlabeled sidecars:** retain the requirement for at least one successful
+  completion, but any nonzero/malformed completion or known operation-error
+  diagnostic still fails.
+
+If any check fails, `dccd.sh` fails. Disable the check for one invocation with:
 
 ```sh
 DCCD_CHECK_BACKUPS=0 dccd-all
@@ -886,6 +911,52 @@ ZSTD-compressed, GPG-encrypted PostgreSQL dump with a SHA1 sidecar.
 sidecar maps its internal identity with `USER_DBBACKUP=3128` and
 `GROUP_DBBACKUP=3128`. `ENABLE_NOTIFICATIONS=FALSE` keeps it backend-only;
 Dawarich's remaining `NOTIFICATIONS_EMAIL_*` variables are application-only.
+
+Open Archiver's pinned nfrastack `4.9.2` sidecar uses an inline Bash runner
+calling `backup01-now now`, then `backup02-now now`, with
+`MODE=MANUAL`, `MANUAL_RUN_FOREVER=FALSE`, and internal scheduling disabled.
+Each job is attempted exactly once; DB02 still runs if DB01 fails. The runner
+emits an `ERROR` diagnostic for each nonzero job-command exit and returns
+nonzero if either command does. The pinned image's upstream combined
+`backup-now` wrapper lacks failure aggregation; this local invocation change
+is not an upstream fix or an application dependency fork.
+The label `dccd.backup-jobs=01,02` opts into the
+exact-per-job completion check above. Deployment commands and the operator-only
+one-off invocation remain unchanged; the service invokes the runner automatically.
+
+The intended cadence is a nightly host dccd run; it also runs when a full
+`dccd-all` deployment starts it. Compose does not set a nightly timer:
+confirm the host cron, since the generic example above forces deployments
+every 15 minutes. The default `dccd-all` freshness check applies.
+DB01 dumps the `openarchiver` PostgreSQL database as its nonsuperuser owner;
+DB02 backs up Valkey using Redis protocol. Both use GPG encryption via
+`${DB_ENC_PASSPHRASE}`, ZSTD compression, SHA1 sidecars, and
+`DEFAULT_CLEANUP_TIME=2880` (48 hours), writing to `./backups/db-backup`.
+The normal job waits for a healthy application, after migrations.
+
+Valkey stores actual queue and transient MFA state, not just cache. Its
+backup is independent of the PostgreSQL dump and encrypted archive files;
+successful exit/freshness does not prove a coordinated full-archive backup.
+Archive files require separate storage-layer protection. See
+[Restore Open Archiver](#restore-open-archiver).
+
+The Open Archiver backup job has an approved writable-root exception because
+`/init` writes `/etc/bash/bashrc`; read-only startup failed in testing. It
+retains `no-new-privileges`, drops all capabilities, and adds only `CHOWN`,
+`DAC_OVERRIDE`, `FOWNER`, `SETUID`, and `SETGID` for startup and privilege
+dropping. The **2026-09-27** quiesced local rootless Podman one-shot exited `0`
+and produced one PostgreSQL and one Redis-protocol GPG+ZSTD dump, each with a
+SHA1 sidecar.
+Earlier Open Archiver dumps retained image-default ownership because
+`USER_DBBACKUP`/`GROUP_DBBACKUP` were ignored. The current configuration
+explicitly creates and checks `archivebackup`, selected by
+`DBBACKUP_USER`/`DBBACKUP_GROUP`; see
+[Open Archiver Identity](INFRASTRUCTURE.md#open-archiver-identity).
+The mapped-identity synthetic run verified output directory ownership
+`3132:3132`, mode `0700`, and fresh dump mode `0600`.
+[Synthetic database/archive/queue recovery passed](#open-archiver-synthetic-restore-evidence);
+these historical results predate the runner/checker changes and do not prove
+target-host backup or storage-layer recovery.
 
 The tiredofit v4 sidecars produce GPG-encrypted backups. Notification behavior
 is configured per app; Karakeep and Memos disable sidecar notifications and
@@ -918,6 +989,9 @@ TrueNAS host.
     PostgreSQL database.
 
 ### Restore a Database Dump
+
+For Open Archiver, use [Restore Open Archiver](#restore-open-archiver)
+instead of restoring only its SQL dump with this generic procedure.
 
 1. Locate the dump file (locally or download from Azure Blob — see [Layer 3 restore](#restore-from-azure-blob)):
 
@@ -1077,6 +1151,227 @@ for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's maintained
 nfrastack `4.9.2` compatibility image uses the same proven v4 GPG workflow; its
 runtime-produced dump has also been decrypted and restored into a fresh
 PostgreSQL database.
+
+---
+
+## Restore Open Archiver
+
+**Known security risk: production adoption is not yet approved.** A live
+Trivy scan found fixable HIGH/CRITICAL dependencies in the exact published
+image. The [dated per-image review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979)
+now covers all eight image inputs, but every adoption decision remains
+**NOT APPROVED**. The synthetic recovery evidence below is not a security assessment or
+permission to deploy that image. The implementation can be completed without
+accepting production risk: require an upstream-fixed artifact or an explicit,
+narrowly reviewed operator exception under the
+[adoption policy](ARCHITECTURE.md#adoption-gate-and-remediation-ownership).
+Dependency remediation remains upstream; no patched dependency fork will be
+maintained here. Production onboarding still requires per-image adoption and
+runtime clearance, a reviewed Compose pin of the approved current-source,
+published and digest-verified derivative, and the administrator-only Entra
+role assignment before Custom App creation. Shared Traefik's attachment and
+external declaration remain deferred until the app network exists; add them
+through normal reviewed, tracked changes during onboarding.
+Follow [First-Run Setup](services/open-archiver.md#first-run-setup); recovery
+commands are not a shortcut around those gates.
+
+Open Archiver has no Compose profile and normal selection includes all eight
+services. Only TrueNAS-mode dccd checks Custom App enrollment; generic/unscoped
+dccd outside that mode and raw Compose, including the backup and repair
+invocations below, do not have that guard. While adoption is blocked, runtime
+acceptance must be separately approved and isolated with synthetic data.
+The Valkey memory changes have not received new runtime validation.
+
+Earlier synthetic PostgreSQL, encrypted archive, and Valkey recovery passed on
+rootless Podman AMD64 using only test credentials. The published GHCR digest
+was pulled anonymously and the full stack recreated healthy, with init and
+migration exiting `0`. Production deployment and storage-layer recovery remain
+unverified under [issue #789](https://github.com/DevSecNinja/truenas-apps/issues/789).
+
+### Open Archiver Synthetic Restore Evidence
+
+The following outcomes were verified on **2026-09-27** against the earlier
+implementation and the still-pinned published derivative. No production
+credentials were used. They predate the app-role gate, non-recursive routine
+init/explicit repair mode, Dockerfile/publication workflow revisions, and
+backup runner/freshness-checker changes; they do not validate those changes.
+Revised image source has not yet been published or runtime tested, and real
+Entra configuration/checks remain pending.
+
+Mixed-outcome shell tests and checker mocks are separate regression checks,
+not real-container backup or restore evidence. No real-container backup run
+or new restore is recorded for the runner/checker changes.
+
+| Check                     | Verified outcome                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema and authentication | Migrated the real upstream schema and created the first administrator; second setup returned `403`, unauthenticated access returned `401`                                                                                                                                                                                                                                                                |
+| Runtime hardening         | App root-filesystem write failed with `EROFS`; archive hardlink succeeded; database role had `rolsuper=false`, `rolcreatedb=false`, and `rolcreaterole=false`                                                                                                                                                                                                                                            |
+| Repeat startup            | Init succeeded multiple times; restarting the original test stack preserved the email and search index                                                                                                                                                                                                                                                                                                   |
+| Published runtime         | Anonymously pulled the exact Compose-pinned GHCR digest; full stack recreated healthy, with init and migration exiting `0`                                                                                                                                                                                                                                                                               |
+| Archive fixture           | Uploaded a ZIP containing MIME EML with a text attachment; ingestion and indexing completed for exactly one email                                                                                                                                                                                                                                                                                        |
+| OCR                       | Actual Tika recognized `ARCHIVE OCR 1420` in a generated PNG through the app's isolated parser network                                                                                                                                                                                                                                                                                                   |
+| Quiescence                | Drained queues, stopped the app cleanly with exit `0`, and copied the encrypted archive                                                                                                                                                                                                                                                                                                                  |
+| Backup execution          | Reran the mapped-identity sidecar: one PostgreSQL and one Redis-protocol job, each exactly once; sidecar exited `0`                                                                                                                                                                                                                                                                                      |
+| Artifacts and permissions | Both GPG+ZSTD dumps passed SHA1 verification; output directory was `3132:3132`, mode `0700`, and fresh dump mode was `0600`                                                                                                                                                                                                                                                                              |
+| PostgreSQL recovery       | GPG-decrypted and ZSTD-decompressed the SQL into an entirely fresh PostgreSQL 17 container; restored one user and one archive sentinel row                                                                                                                                                                                                                                                               |
+| Archive recovery          | Used `StorageService.get` with the original test storage encryption key against the copied archive and restored database; verified mail and embedded attachment content plus the ciphertext prefix                                                                                                                                                                                                       |
+| Valkey recovery           | Decrypted the RDB and restored it into a fresh Valkey 8 instance; confirmed ingestion metadata was present                                                                                                                                                                                                                                                                                               |
+| Full reindex              | Emptied Meilisearch documents to `0`, then called `POST reindex-all` with `mode=full`; rebuilt `1` document from preserved archived data while database email count remained `1`                                                                                                                                                                                                                         |
+| HTTPS proxy boundary      | Official upstream Traefik `3.7.10` (same version, not the DHI build), router generated from the earlier app labels, and repository middleware chain/rules; only the Forward Auth endpoint used a synthetic responder. Anonymous setup/health returned `401`, allowed-auth health `200`, the protected source API without a local token `401`, and unmatched host `404`; the new role gate was not tested |
+
+Original-stack restart persistence does not prove restart of the restored
+stack. These results do not establish actual Entra login, production MFA, real mailbox
+integration, UI download acceptance, load capacity, or TrueNAS
+snapshot/replication/off-site recovery. They also do not turn the separate
+engine dumps into an atomic full-archive backup.
+
+<!-- dprint-ignore -->
+!!! warning "Keep matching state and original encryption keys"
+    PostgreSQL metadata and encrypted `./data/archive` files must come from a
+    matching recovery point. Preserve the original `ENCRYPTION_KEY` and
+    `STORAGE_ENCRYPTION_KEY`; generating replacements does not decrypt existing
+    credentials or archived messages. Retain `DB_ENC_PASSPHRASE`, SOPS/age
+    recovery access, and storage-layer recovery keys independently of the NAS.
+    Meilisearch is rebuildable but contains sensitive searchable plaintext.
+    Valkey queue/MFA state is sensitive and must not be replayed from an
+    unrelated checkpoint.
+
+### Coordinated Open Archiver Checkpoint
+
+Use this before upgrades or a planned recovery test. Nightly online dumps
+alone do not perform these steps.
+
+1. Suspend automated redeploys and prevent interactive/API writes. Disable
+   mailbox sources and scheduled imports in the application so no new work is
+   enqueued. Keep workers running long enough to finish active ingestion and
+   indexing; verify queue state and deal explicitly with failed, delayed, or
+   retrying work. If a drain cannot be established, do not call the checkpoint
+   coordinated.
+2. **Drain before stopping the app.** The upstream worker can force-exit after
+   five seconds. The local supervisor's 20-second deadline and Compose's
+   30-second stop grace do not guarantee drain. Stop only the `open-archiver`
+   application container in its existing TrueNAS project after drain, and
+   verify all five child processes have exited. Leave PostgreSQL and Valkey
+   running for engine-level dumps; prevent all other writers.
+3. In the existing project, run the one-shot backup without its healthy-app
+   dependency. This raw Compose invocation is for operator troubleshooting,
+   checkpoint capture, or restoration only—not the normal deployment path.
+   Confirm the project name matches the existing Custom App first:
+
+   ```sh
+   cd /mnt/vm-pool/apps/services/open-archiver
+   sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps open-archiver-db-backup
+   ```
+
+   The service automatically invokes the per-job runner. Require exit status
+   zero and exactly one successful completion for each job (`01` and `02`),
+   with no nonzero or malformed completion records or known dump/output-move
+   error diagnostics.
+   A removed one-off container is not the named container inspected by the
+   normal dccd freshness check; retain its reviewed, secret-free run evidence.
+4. While application writes remain blocked, capture matching quiesced
+   `./data/archive` files and dataset snapshots containing the selected dumps.
+   Include Valkey state from this checkpoint if queue recovery will be used.
+   Record snapshot identifiers, dump filenames/checksums, image revisions,
+   key versions, and the decision about pending jobs together. Do not mix
+   unrelated live PostgreSQL directories, queue snapshots, and archive copies.
+5. Verify both dump artifacts and their SHA1 sidecars, then test GPG decryption
+   and ZSTD decompression in a restricted recovery workspace. Use a protected
+   credential prompt/channel, not a passphrase in command arguments or logs.
+   SHA1 is the configured corruption check, not proof of authenticity.
+   Check archive completeness and representative decrypt/download results
+   in an isolated recovery test, without restarting production writers.
+6. Ensure this matching checkpoint reaches the required snapshot, replication,
+   and off-site layers before claiming it protected. Task A reads live files:
+   if relying on it for the checkpoint, finish and verify its copy while state
+   remains quiesced, or retain a separately protected checkpoint copy.
+   Resume the app and sources only after capture and verification, then
+   restore normal deployment automation and backup checks.
+
+### Recovery Procedure
+
+1. Suspend redeploys and all writers. Preserve the failed data and current
+   secrets in a restricted recovery location; take a protective snapshot if
+   possible. Restore into isolated fresh paths/instances first. Do not delete
+   the live data tree, overwrite the only backup, or roll back sibling datasets.
+2. Select one coordinated checkpoint. Recover the PostgreSQL dump, matching
+   archive tree, and optional matching queue state from local snapshots,
+   replication, or [encrypted off-site storage](#restore-from-azure-blob).
+   Recover the original encryption keys securely without printing them.
+   Keep source credentials, decrypted SQL, and plaintext attachments private.
+3. Verify available checksums; decrypt the selected artifacts with the matching
+   `${DB_ENC_PASSPHRASE}` and decompress with ZSTD. DB01 yields PostgreSQL SQL;
+   DB02 yields a Redis-compatible RDB. Use a restricted workspace outside the
+   tracked checkout; do not feed an RDB into `psql`.
+4. Prepare fresh directory roots with routine init, then start only a fresh
+   compatible PostgreSQL instance with the read-only `config/init-database.sql`
+   hook and the configured separate administrator credential.
+   It must create the nonsuperuser `openarchiver` login and owned
+   `openarchiver` database. Confirm its authenticated app-role `SELECT 1`
+   health check passes. Restore the SQL with `psql` as that app role,
+   enabling `ON_ERROR_STOP`, into the **fresh database before app migrations**
+   run. Do not overlay an existing application schema. Check restore errors,
+   ownership, and record counts; never pass the admin password to the app.
+5. Install the complete matching `./data/archive` tree, preserving encrypted
+   files and layout. Retain the failed tree separately and take a protective
+   snapshot before changing permissions. After the SQL restore, stop
+   PostgreSQL and all other data writers, including the app, Valkey,
+   Meilisearch, migrations, and backup jobs. Keep redeploy automation suspended.
+   Routine init is non-recursive with
+   `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false`; it does not repair restored
+   descendants. Confirm the existing Custom App project is
+   `ix-open-archiver`, then run the explicit repair from the service directory:
+
+   ```sh
+   cd /mnt/vm-pool/apps/services/open-archiver
+   sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps -e OPEN_ARCHIVER_REPAIR_PERMISSIONS=true open-archiver-init
+   ```
+
+   Require exit status zero and verify ownership/modes before restarting any
+   writer. This retains secret validation and recursively repairs only
+   archive, scratch, Meilisearch, PostgreSQL, and Valkey trees under `./data`;
+   it never touches tracked `./config`. Archive/scratch/search use the
+   dedicated app identity, while PostgreSQL and Valkey use their Compose
+   identities. Do not persist the repair override for routine deployments.
+   Keep sources and the frontend unavailable to writers during recovery.
+6. Restore Valkey **only from the same coordinated checkpoint** if replay is
+   appropriate. Install DB02's RDB into a fresh Valkey data directory, or
+   recover the matching complete Valkey persistence directory. After installing
+   either set of persistence files, repeat step 5's explicit repair with all
+   writers stopped **before starting Valkey**.
+   For RDB-only recovery, start Valkey with AOF temporarily disabled so old AOF
+   data cannot override the RDB. Re-enable AOF persistence and verify a new AOF
+   is established before returning to the normal `--appendonly yes`
+   configuration. In either case,
+   review queued jobs against restored database/archive state before workers
+   start. Without matching queue state, deliberately reset/reconcile jobs and
+   transient MFA sessions, then restart sources under supervision; do not
+   blindly replay a newer or unrelated queue.
+7. If Meilisearch was lost or does not match the restored state, prepare a fresh
+   index and perform a **full application reindex** after the app restarts in
+   step 8. It cannot replace the encrypted archive or PostgreSQL backup.
+   Scratch files are regeneratable,
+   but may contain plaintext and unfinished imports: retain anything needed
+   for investigation, then clean up only reviewed paths while workers are
+   drained and stopped.
+8. Restore using the compatible fixed app revision associated with the
+   checkpoint. The initial selected release `v0.6.0` predates the archive
+   integrity fix in `2082eba984ca771c23c2a7c60fc9284794e24b9b`; do not downgrade
+   to it as a recovery shortcut. Run the separate migration one-shot to
+   successful completion before the app. Normal dccd pulls merged changes,
+   so confirm the intended image/schema version before resuming deployment.
+9. Through `chain-auth@file` and the app-local
+   `Role("open-archiver-access")` gate, verify with fresh sessions that an
+   unauthenticated request and a signed-in user without the role are denied,
+   including `GET /setup` and `POST /api/v1/auth/setup`, while an approved
+   assigned user passes the role gate. Verify local login/MFA, that `/setup` is locked,
+   mailbox/source settings, archive counts, and representative message and
+   attachment downloads. Test OCR search after reindex, inspect queue
+   reconciliation, then enable one source for a least-privilege test import.
+   Only resume all sources and automation after integrity checks pass.
+10. Run the normal `dccd-all` deployment/backup check and verify fresh DB01
+    and DB02 artifacts plus independent archive coverage. Record actual
+    seed/backup/decrypt/restore evidence before treating recovery as tested.
 
 ---
 
@@ -1245,22 +1540,26 @@ sidecar for their primary database, but several also persist additional
 state on disk that the sidecar does **not** include in its dump (it only
 backs up the named database engine, not arbitrary files on the volume).
 
-| Service        | Persistent path                                      | Classification                                                                                                                               | Storage-layer coverage        | Notes                                                                                                                                                                                     |
-| -------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bitwarden      | `./data/logs`                                        | Regeneratable cache (application logs)                                                                                                       | vm-pool 3-layer               | Low value; safe to lose.                                                                                                                                                                  |
-| Dawarich       | `./data/public`, `./data/storage`                    | **Critical mutable file state** (Rails Active Storage uploads — imports, generated exports, and, if used, photos)                            | vm-pool 3-layer               | **Not** included in `dawarich-db-backup`'s PostgreSQL dump — that sidecar only backs up `dawarich-db`. File-level state here is only protected by vm-pool ZFS/replication/off-site.       |
-| Dawarich       | `./data/watched`                                     | Regeneratable cache (drop-folder for GPX/import files)                                                                                       | vm-pool 3-layer               | Transient — files are typically consumed on import.                                                                                                                                       |
-| Dawarich       | `./data/redis`                                       | Regeneratable cache (Sidekiq job-queue RDB snapshot)                                                                                         | vm-pool 3-layer               | `--appendonly no`; periodic `--save`. Losing it only requires re-queuing background jobs.                                                                                                 |
-| Gatus          | `./data/sidecar-config`                              | Not app state — regenerated from git-tracked `./config` plus live Docker label discovery on every deploy                                     | N/A — no unique state to lose | Mirrors the AdGuard `AdGuardHome.yaml` pattern below.                                                                                                                                     |
-| Home Assistant | `./data/config` (excluding `home-assistant_v2.db`)   | **Critical mutable file state** (`.storage/` entity registry & integration configs, `configuration.yaml`, `secrets.yaml`, custom components) | vm-pool 3-layer               | **Not** included in `home-assistant-db-backup`'s dump — that sidecar only backs up the SQLite recorder database, not the rest of `/config`.                                               |
-| Immich         | `/mnt/archive-pool/private/photos/immich` (`upload`) | External/private media data (the actual photo/video library)                                                                                 | **archive-pool (private)**    | Different coverage than `immich-db-backup` or vm-pool: no hourly snapshots, no cross-pool replication (already on the redundant pool), off-site via Task B, not Task A.                   |
-| Immich         | `./data/model-cache`                                 | Regeneratable cache (ML models)                                                                                                              | vm-pool 3-layer               | Re-downloaded from Hugging Face / ModelScope on demand.                                                                                                                                   |
-| Karakeep       | `./data/karakeep/assets`                             | **Critical mutable file state** (saved assets)                                                                                               | vm-pool 3-layer               | **Not** included in `karakeep-db-backup`; restore it from the snapshot, replication, or off-site layer that matches the required recovery point.                                          |
-| Karakeep       | `./data/meilisearch`                                 | Regeneratable cache (full-text search index)                                                                                                 | vm-pool 3-layer               | **Not** included in `karakeep-db-backup`; the search index can be regenerated.                                                                                                            |
-| Memos          | — (none beyond the covered database)                 | N/A                                                                                                                                          | N/A                           | Memos 0.30 defaults attachment storage to SQLite blobs, so `memos-db-backup` already covers attachments — see the [Memos README](services/memos.md#database-backup).                      |
-| Outline        | `./data/data` (`FILE_STORAGE=local`)                 | **Critical mutable file state** (uploaded document attachments/images)                                                                       | vm-pool 3-layer               | **Not** included in `outline-db-backup`'s PostgreSQL dump — attachments are stored as local files, referenced by URL from the database, not as DB blobs.                                  |
-| Unifi          | `./data/config`                                      | **Critical mutable file state** (controller runtime config, SSH host keys, cert store)                                                       | vm-pool 3-layer               | **Not** included in `unifi-db-backup`'s MongoDB dump.                                                                                                                                     |
-| Unifi          | `./backups/autobackup`                               | Application-native backup (UniFi's own periodic `.unf` export)                                                                               | vm-pool 3-layer               | A genuine extra protection layer from UniFi itself, but it is **not** independent of the host — it lands on the same vm-pool dataset and is not encrypted or restore-tested by this repo. |
+| Service        | Persistent path                                      | Classification                                                                                                                               | Storage-layer coverage                     | Notes                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bitwarden      | `./data/logs`                                        | Regeneratable cache (application logs)                                                                                                       | vm-pool 3-layer                            | Low value; safe to lose.                                                                                                                                                                  |
+| Dawarich       | `./data/public`, `./data/storage`                    | **Critical mutable file state** (Rails Active Storage uploads — imports, generated exports, and, if used, photos)                            | vm-pool 3-layer                            | **Not** included in `dawarich-db-backup`'s PostgreSQL dump — that sidecar only backs up `dawarich-db`. File-level state here is only protected by vm-pool ZFS/replication/off-site.       |
+| Dawarich       | `./data/watched`                                     | Regeneratable cache (drop-folder for GPX/import files)                                                                                       | vm-pool 3-layer                            | Transient — files are typically consumed on import.                                                                                                                                       |
+| Dawarich       | `./data/redis`                                       | Regeneratable cache (Sidekiq job-queue RDB snapshot)                                                                                         | vm-pool 3-layer                            | `--appendonly no`; periodic `--save`. Losing it only requires re-queuing background jobs.                                                                                                 |
+| Gatus          | `./data/sidecar-config`                              | Not app state — regenerated from git-tracked `./config` plus live Docker label discovery on every deploy                                     | N/A — no unique state to lose              | Mirrors the AdGuard `AdGuardHome.yaml` pattern below.                                                                                                                                     |
+| Home Assistant | `./data/config` (excluding `home-assistant_v2.db`)   | **Critical mutable file state** (`.storage/` entity registry & integration configs, `configuration.yaml`, `secrets.yaml`, custom components) | vm-pool 3-layer                            | **Not** included in `home-assistant-db-backup`'s dump — that sidecar only backs up the SQLite recorder database, not the rest of `/config`.                                               |
+| Immich         | `/mnt/archive-pool/private/photos/immich` (`upload`) | External/private media data (the actual photo/video library)                                                                                 | **archive-pool (private)**                 | Different coverage than `immich-db-backup` or vm-pool: no hourly snapshots, no cross-pool replication (already on the redundant pool), off-site via Task B, not Task A.                   |
+| Immich         | `./data/model-cache`                                 | Regeneratable cache (ML models)                                                                                                              | vm-pool 3-layer                            | Re-downloaded from Hugging Face / ModelScope on demand.                                                                                                                                   |
+| Karakeep       | `./data/karakeep/assets`                             | **Critical mutable file state** (saved assets)                                                                                               | vm-pool 3-layer                            | **Not** included in `karakeep-db-backup`; restore it from the snapshot, replication, or off-site layer that matches the required recovery point.                                          |
+| Karakeep       | `./data/meilisearch`                                 | Regeneratable cache (full-text search index)                                                                                                 | vm-pool 3-layer                            | **Not** included in `karakeep-db-backup`; the search index can be regenerated.                                                                                                            |
+| Memos          | — (none beyond the covered database)                 | N/A                                                                                                                                          | N/A                                        | Memos 0.30 defaults attachment storage to SQLite blobs, so `memos-db-backup` already covers attachments — see the [Memos README](services/memos.md#database-backup).                      |
+| Open Archiver  | `./data/archive`                                     | **Critical mutable file state** (encrypted messages and attachments)                                                                         | vm-pool 3-layer; host verification pending | Not included in database dumps. Restore from the same coordinated checkpoint as PostgreSQL and any queue state. Preserve the original storage key.                                        |
+| Open Archiver  | `./data/meilisearch`                                 | Regeneratable cache containing **sensitive searchable plaintext**                                                                            | vm-pool 3-layer; host verification pending | Not dumped by the sidecar; full reindex required after loss. Maintain private access even though rebuildable.                                                                             |
+| Open Archiver  | `./data/scratch`                                     | Regeneratable scratch with possible plaintext/in-flight imports                                                                              | vm-pool 3-layer; host verification pending | Drain work and stop the app before reviewed cleanup; do not treat active imports as disposable.                                                                                           |
+| Open Archiver  | `./data/valkey`                                      | **Database/queue state**, including transient MFA state                                                                                      | vm-pool 3-layer; host verification pending | Also covered by DB02 Redis-protocol backup. AOF and RDB persistence; recover only a matching checkpoint or deliberately reset/reconcile.                                                  |
+| Outline        | `./data/data` (`FILE_STORAGE=local`)                 | **Critical mutable file state** (uploaded document attachments/images)                                                                       | vm-pool 3-layer                            | **Not** included in `outline-db-backup`'s PostgreSQL dump — attachments are stored as local files, referenced by URL from the database, not as DB blobs.                                  |
+| Unifi          | `./data/config`                                      | **Critical mutable file state** (controller runtime config, SSH host keys, cert store)                                                       | vm-pool 3-layer                            | **Not** included in `unifi-db-backup`'s MongoDB dump.                                                                                                                                     |
+| Unifi          | `./backups/autobackup`                               | Application-native backup (UniFi's own periodic `.unf` export)                                                                               | vm-pool 3-layer                            | A genuine extra protection layer from UniFi itself, but it is **not** independent of the host — it lands on the same vm-pool dataset and is not encrypted or restore-tested by this repo. |
 
 ### Inventory — Services With No Database Backup Sidecar
 
