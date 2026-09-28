@@ -398,15 +398,15 @@ aliases must already be sourced from `/mnt/vm-pool/apps/scripts/aliases.sh`.
 Registry enrollment is not production approval. For blocked candidates such
 as Open Archiver, first complete the
 [service-specific activation prerequisites](services/open-archiver.md#first-run-setup):
-per-image adoption and runtime clearance and the administrator-only Entra
-app-role assignment. A separate reviewed production-activation follow-up must
-then pin the approved current-source, published and digest-verified derivative,
-remove the candidate-only profiles from all eight Open Archiver services,
-update candidate-activation tests, and add the shared Traefik network
-attachment and external declaration. Only then use this unchanged sequence
-and include-only Custom App YAML with `services: {}`. Do not rely on
-`COMPOSE_PROFILES` reaching the TrueNAS UI or add `open-archiver` to production
-cron, aliases, or `.env` to bypass those gates.
+per-image adoption and runtime clearance, a reviewed Compose pin of the
+approved current-source, published and digest-verified derivative, and the
+administrator-only Entra app-role assignment before Custom App creation.
+No separate onboarding profile is required. Manual Custom App creation
+controls initial enrollment: TrueNAS-mode dccd skips a missing
+`/mnt/.ix-apps/app_configs/<app>/versions` directory. Generic/unscoped dccd
+outside TrueNAS mode and raw Compose do not have this guard; Open Archiver
+has no profile and all eight services are selected normally. Use the sourced
+TrueNAS aliases and sequence below, not generic discovery.
 
 1. Pull the merged changes and decrypt SOPS files while limiting the first pass
    to the new app:
@@ -438,6 +438,9 @@ cron, aliases, or `.env` to bypass those gates.
    services: {}
    ```
 
+   Confirm the app's frontend network exists before adding any deferred shared
+   Traefik attachment and external declaration through normal reviewed,
+   tracked changes.
 4. Run the canonical final deployment:
 
    ```sh
@@ -688,19 +691,17 @@ Registry key `open-archiver` provisions
 inputs remain unapproved in the
 [dated review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979);
 record clearance before activation. Shared Traefik intentionally omits the
-candidate's frontend attachment and external network declaration. All eight
-services, including init, migration, and backup, explicitly carry the
-candidate-only `open-archiver` profile, leaving default service selection
-empty; dccd skips zero-service stacks. After per-image adoption and runtime
-clearance and the administrator-only Entra role assignment, a separate
-reviewed production-activation follow-up must pin the approved current-source
-derivative, remove all eight profile declarations, update candidate-activation
-tests, and add both Traefik network entries.
+candidate's frontend attachment and external network declaration until the
+app network exists. All eight services, including init, migration, and backup,
+have no Compose profile and are selected normally. Manual Custom App creation
+controls initial TrueNAS enrollment; only TrueNAS-mode dccd skips a missing
+app config directory. Generic/unscoped dccd outside TrueNAS mode and raw
+Compose do not have that guard.
 Use the [service-specific first-run procedure](services/open-archiver.md#first-run-setup),
 which preserves the canonical `dccd-app open-archiver`, preparation, Custom
-App, then `dccd-all` sequence and coordinates the activation window.
-Explicit profile selection is only for approved isolated acceptance with
-synthetic data while blocked, not a production setting.
+App, then `dccd-all` sequence. It requires image/runtime clearance and the
+approved current-source image pin, with the tracked Traefik network entries
+added through normal review after the Custom App creates its network.
 Before Custom App creation or route exposure, configure the enabled
 `open-archiver-access` Users/Groups role in the Entra registration selected by
 `${AZURE_CLIENT_ID}` and assign only the bootstrap administrator in the

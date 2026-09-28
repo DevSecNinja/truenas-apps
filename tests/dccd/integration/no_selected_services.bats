@@ -9,9 +9,10 @@ setup_file() {
 
 setup() {
     diagnostics_setup
-    NO_SELECTION_APP="${BASE_DIR}/services/open-archiver"
+    NO_SELECTION_APP="${BASE_DIR}/services/optional-app"
     mkdir -p "${NO_SELECTION_APP}/config"
-    # Compose is mocked here; actual candidate rendering is covered separately.
+    # Model profile-gated apps (e.g. Frigate), not the unprofiled Open Archiver stack.
+    # Compose selection is mocked here.
     # This .env is an empty disposable fixture, never the worktree service .env.
     touch "${NO_SELECTION_APP}/compose.yaml" "${NO_SELECTION_APP}/.env" \
         "${NO_SELECTION_APP}/config/settings.conf"
@@ -62,25 +63,25 @@ assert_no_selection_side_effects() {
     assert_mock_not_called yq
 }
 
-@test "redeploy_compose_file: no selected services skip pull, up, config mutation and attempted increment" {
+@test "redeploy_compose_file: optional app with no selected services skips pull, up, config mutation and attempted increment" {
     run deploy_and_assert_no_selection_state redeploy_compose_file "${NO_SELECTION_APP}/compose.yaml"
     assert_success
-    assert_output --partial "open-archiver: Skipping — no services match active profiles"
+    assert_output --partial "optional-app: Skipping — no services match active profiles"
     assert_no_selection_side_effects "-f ${NO_SELECTION_APP}/compose.yaml"
 }
 
-@test "redeploy_truenas_apps: unrelated profile with no selected services leaves deployment state untouched" {
+@test "redeploy_truenas_apps: optional app with no selected services leaves deployment state untouched" {
     TRUENAS=1
     TRUENAS_APPS_BASE="${BASE_DIR}/truenas-config"
     COMPOSE_PROFILE_ARGS=(--profile surveillance)
-    local rendered="${TRUENAS_APPS_BASE}/open-archiver/versions/1.0/templates/rendered"
+    local rendered="${TRUENAS_APPS_BASE}/optional-app/versions/1.0/templates/rendered"
     mkdir -p "${rendered}"
     touch "${rendered}/docker-compose.yaml"
     assert_dir_exists "${rendered}"
 
     run deploy_and_assert_no_selection_state redeploy_truenas_apps
     assert_success
-    assert_output --partial "open-archiver: Skipping — no services match active profiles"
+    assert_output --partial "optional-app: Skipping — no services match active profiles"
     assert_no_selection_side_effects \
-        "--profile surveillance --project-name ix-open-archiver --file ${rendered}/docker-compose.yaml"
+        "--profile surveillance --project-name ix-optional-app --file ${rendered}/docker-compose.yaml"
 }

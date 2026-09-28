@@ -138,7 +138,7 @@ test("activation: shared Traefik neither joins nor requires the unadopted candid
     }
 });
 
-test("activation: all eight candidate services require the explicit open-archiver profile", () => {
+test("activation: all eight candidate services are available without a Compose profile", () => {
     assert.deepEqual(keys(services).sort(), [
         "open-archiver",
         "open-archiver-db",
@@ -150,26 +150,23 @@ test("activation: all eight candidate services require the explicit open-archive
         "open-archiver-valkey",
     ]);
     for (const name of keys(services)) {
-        const profiles = entry(entry(services, name).body, "profiles");
-        assert.equal(profiles.value, "", `${name}: profiles must be an explicit list`);
-        assert.deepEqual(
-            items(profiles.body).map(scalar), ["open-archiver"],
-            `${name}: no default or unrelated-profile activation, including one-shot services`,
+        assert.ok(
+            !keys(entry(services, name).body).includes("profiles"),
+            `${name}: no profile gate, including init, migration and backup services`,
         );
     }
 });
 
-test("activation: candidate dependencies cannot escape the open-archiver profile gate", () => {
+test("activation: candidate dependencies refer to declared services without hidden profile gates", () => {
     const names = keys(services);
     for (const name of names) {
         const service = entry(services, name).body;
         if (!keys(service).includes("depends_on")) continue;
         for (const dependency of keys(entry(service, "depends_on").body)) {
             assert.ok(names.includes(dependency), `${name}: dependency ${dependency} must be in the candidate stack`);
-            assert.deepEqual(
-                items(entry(entry(services, dependency).body, "profiles").body).map(scalar),
-                ["open-archiver"],
-                `${name}: dependency ${dependency} must not be ungated`,
+            assert.ok(
+                !keys(entry(services, dependency).body).includes("profiles"),
+                `${name}: dependency ${dependency} must not require a profile`,
             );
         }
     }

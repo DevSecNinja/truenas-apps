@@ -76,8 +76,12 @@ The setup follows
 Open Archiver is listed as a candidate, not a running service. Do not provision
 its listed dataset or create its Custom App until the
 [activation prerequisites](services/open-archiver.md#first-run-setup)
-are complete, including image clearance, the reviewed Traefik network
-follow-up, and the administrator-only Entra app-role assignment.
+are complete, including image/runtime clearance, the approved image pin,
+and the administrator-only Entra app-role assignment. Follow the existing
+app-first sequence: `dccd-app open-archiver`, preparation, then Custom App
+creation. Let the Custom App create its network before applying the reviewed,
+tracked Traefik network entries and running the final `dccd-all`. Coordinate
+scheduled redeploys to prevent Traefik from referencing a missing network.
 
 ## Personal Home Folders
 

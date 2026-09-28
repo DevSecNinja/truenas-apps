@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 # Real, offline Compose rendering only: no daemon, pulls or container creation.
+# Candidate refers to image approval, not a Compose service-selection gate.
 
 load '../helpers/diagnostics'
 
@@ -85,7 +86,7 @@ assert_open_archiver_graph() {
     # Compare the complete dependency graph and readiness conditions, not just
     # a service count that could hide a missing init/migrate/backup dependency.
     run jq -e '
-        (.services | all(.[]; .profiles == ["open-archiver"])) and
+        (.services | all(.[]; (.profiles // []) == [])) and
         ((.services | with_entries(
             .value = ((.value.depends_on // {}) | with_entries(.value = .value.condition))
         )) == {
@@ -122,68 +123,73 @@ assert_open_archiver_valkey_limits() {
     assert_output "\"${mem_limit}\""
 }
 
-@test "open_archiver_candidate: no active profile renders no services" {
+@test "open_archiver_candidate: unset COMPOSE_PROFILES renders all eight services and their dependency graph" {
+    # Keep coverage of the selection query used by generic dccd deployments.
     run render_open_archiver_candidate "" services
     assert_success
-    assert_output ""
+    local selected="${output}"
+
+    run render_open_archiver_candidate "" json
+    assert_success
+    local document="${output}"
+    assert_open_archiver_graph "${document}"
+
+    run jq -e --arg selected "${selected}" \
+        '(.services | keys) == ($selected | split("\n") | sort)' <<<"${document}"
+    assert_success
+    assert_output "true"
 }
 
-@test "open_archiver_candidate: unrelated surveillance CLI and environment profiles render no services" {
-    run render_open_archiver_candidate surveillance services
-    assert_success
-    assert_output ""
-
-    run render_open_archiver_candidate "" services COMPOSE_PROFILES=surveillance
-    assert_success
-    assert_output ""
-}
-
-@test "open_archiver_candidate: CLI profile retains all eight services and their dependency graph" {
-    run render_open_archiver_candidate open-archiver json
-    assert_success
-    assert_open_archiver_graph "${output}"
-}
-
-@test "open_archiver_candidate: COMPOSE_PROFILES retains the same eight services and dependency graph" {
-    run render_open_archiver_candidate "" json COMPOSE_PROFILES=open-archiver
+@test "open_archiver_candidate: empty COMPOSE_PROFILES renders all eight services and their dependency graph" {
+    run render_open_archiver_candidate "" json COMPOSE_PROFILES=
     assert_success
     assert_open_archiver_graph "${output}"
 }
 
-@test "open_archiver_candidate: active Valkey defaults to 192mb with a 512m cap and noeviction" {
-    run render_open_archiver_candidate open-archiver json
+@test "open_archiver_candidate: unrelated surveillance CLI and environment profiles retain the unprofiled stack" {
+    run render_open_archiver_candidate surveillance json
+    assert_success
+    assert_open_archiver_graph "${output}"
+
+    run render_open_archiver_candidate "" json COMPOSE_PROFILES=surveillance
+    assert_success
+    assert_open_archiver_graph "${output}"
+}
+
+@test "open_archiver_candidate: unprofiled Valkey defaults to 192mb with a 512m cap and noeviction" {
+    run render_open_archiver_candidate "" json
     assert_success
     assert_open_archiver_valkey_limits "${output}" 192mb 536870912
 }
 
 @test "open_archiver_candidate: VALKEY_MAXMEMORY overrides the command independently of the container cap" {
-    run render_open_archiver_candidate open-archiver json VALKEY_MAXMEMORY=384mb
+    run render_open_archiver_candidate "" json VALKEY_MAXMEMORY=384mb
     assert_success
     assert_open_archiver_valkey_limits "${output}" 384mb 536870912
 }
 
 @test "open_archiver_candidate: VALKEY_MEM_LIMIT overrides the container cap independently of maxmemory" {
-    run render_open_archiver_candidate open-archiver json VALKEY_MEM_LIMIT=1024m
+    run render_open_archiver_candidate "" json VALKEY_MEM_LIMIT=1024m
     assert_success
     assert_open_archiver_valkey_limits "${output}" 192mb 1073741824
 }
 
 @test "open_archiver_candidate: both explicit Valkey overrides are honored without enabling eviction" {
-    run render_open_archiver_candidate open-archiver json VALKEY_MAXMEMORY=384mb VALKEY_MEM_LIMIT=1024m
+    run render_open_archiver_candidate "" json VALKEY_MAXMEMORY=384mb VALKEY_MEM_LIMIT=1024m
     assert_success
     assert_open_archiver_valkey_limits "${output}" 384mb 1073741824
 }
 
 @test "open_archiver_candidate: empty Valkey variables use colon-dash defaults independently" {
-    run render_open_archiver_candidate open-archiver json VALKEY_MAXMEMORY= VALKEY_MEM_LIMIT=
+    run render_open_archiver_candidate "" json VALKEY_MAXMEMORY= VALKEY_MEM_LIMIT=
     assert_success
     assert_open_archiver_valkey_limits "${output}" 192mb 536870912
 
-    run render_open_archiver_candidate open-archiver json VALKEY_MAXMEMORY= VALKEY_MEM_LIMIT=1024m
+    run render_open_archiver_candidate "" json VALKEY_MAXMEMORY= VALKEY_MEM_LIMIT=1024m
     assert_success
     assert_open_archiver_valkey_limits "${output}" 192mb 1073741824
 
-    run render_open_archiver_candidate open-archiver json VALKEY_MAXMEMORY=384mb VALKEY_MEM_LIMIT=
+    run render_open_archiver_candidate "" json VALKEY_MAXMEMORY=384mb VALKEY_MEM_LIMIT=
     assert_success
     assert_open_archiver_valkey_limits "${output}" 384mb 536870912
 }

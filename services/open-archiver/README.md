@@ -51,11 +51,12 @@ published derivative image's provenance. The integration is implemented, with
 no TrueNAS deployment; production adoption awaits upstream fixes or explicit,
 narrowly reviewed acceptance.
 Shared Traefik deliberately does **not** attach to `open-archiver-frontend`
-or declare it as an external network. All eight services, including init,
-migration, and backup, explicitly declare `profiles: [open-archiver]` as a
-**candidate-only selection guard**. Production activation requires a separate
-reviewed follow-up that removes those profiles and adds the Traefik network
-entries after the [activation prerequisites](#activation-prerequisites).
+or declare it as an external network until the app network exists. All eight
+services, including init, migration, and backup, have **no Compose profile**
+and are selected normally. Initial enrollment follows the existing manual
+TrueNAS Custom App process after the
+[activation prerequisites](#activation-prerequisites); this is not an
+inactive-by-default Compose stack.
 Do not improvise host configuration or network changes outside Git.
 
 ### Evidence and Remaining Acceptance
@@ -63,7 +64,7 @@ Do not improvise host configuration or network changes outside Git.
 The table records the **earlier implementation**. It does not validate the
 new app-role gate, non-recursive routine init/explicit repair mode, revised
 Dockerfile/publication workflow, backup runner/freshness-checker changes,
-candidate profile guard, or Valkey `maxmemory` behavior under load.
+or Valkey `maxmemory` behavior under load.
 The Compose-pinned derivative is unchanged; the revised image source has not
 yet been published or runtime tested. Real Entra configuration and host checks
 remain pending.
@@ -377,28 +378,21 @@ of the NAS; never paste secret values into commands, logs, or issues.
     production rollout commands below until the activation prerequisites are complete.
     Remediation remains upstream; do not maintain a patched dependency fork here.
 
-### Candidate-Only Profile Guard
+### TrueNAS Enrollment
 
-With no active profile and no named service target, daemonless
-`docker compose config --services` selects no services;
-`docker compose --profile open-archiver config --services` selects exactly
-the eight services listed above. `dccd.sh` already skips zero-service stacks
-in both TrueNAS and generic modes. These selection checks do not validate
-container startup, Valkey memory behavior, or production readiness.
-
-While the candidate is blocked, use `--profile open-archiver` or
-`COMPOSE_PROFILES=open-archiver` **only for separately approved, isolated
-acceptance with synthetic data**. Do not add this profile to production cron,
-aliases, shell startup files, or `.env`. Production activation removes the
-guard through the reviewed follow-up below; it does not persist a profile
-selector or assume a shell export reaches the TrueNAS UI.
+Open Archiver has no Compose profile: normal service selection includes all
+eight services. In TrueNAS mode, `dccd.sh -t` skips the app while
+`/mnt/.ix-apps/app_configs/open-archiver/versions` is absent. Manual Custom App
+creation controls initial enrollment; it does not grant image-adoption or
+vulnerability-risk approval. While adoption remains blocked, runtime
+acceptance must be separately approved and isolated with synthetic data.
 
 <!-- dprint-ignore -->
-!!! warning "Profiles are selection, not authorization or risk approval"
-    Explicit named-service targeting (including `run` for init or backup) and
-    `--profile '*'` bypass default profile selection. Neither grants permission
-    to run this candidate in production. Unsetting a profile does not stop or
-    remove already-running containers; explicitly stop them and verify their state.
+!!! warning "The enrollment guard is TrueNAS-specific"
+    Generic/unscoped dccd runs outside TrueNAS mode and raw Compose do not check
+    TrueNAS enrollment. They select this stack even before its Custom App exists.
+    Use the sourced TrueNAS aliases and app-first rollout below, not generic
+    discovery. No profile flag or `COMPOSE_PROFILES` setting is required.
 
 ### Activation Prerequisites
 
@@ -409,25 +403,19 @@ acceptance of the image, role gate, init/repair, backup, and Valkey memory
 changes. The earlier smoke evidence does not cover these revisions. No TrueNAS
 rollout or real Entra authorization check has been verified.
 
-After per-image adoption and runtime clearance and the
-[administrator-only Entra role assignment](#bootstrap-access-role), merge a
-**separate reviewed production-activation follow-up** that:
+Before production onboarding, pin the approved, current-source, published and
+digest-verified derivative in Compose through the normal reviewed change
+process; retaining the earlier bootstrap digest does not qualify. Complete
+the [administrator-only Entra role assignment](#bootstrap-access-role)
+before Custom App creation.
 
-- Pins the approved, current-source, published and digest-verified derivative
-  in Compose; retaining the earlier bootstrap digest does not qualify.
-- Explicitly removes `profiles: [open-archiver]` from **all eight services**,
-  including init, migration, and backup, and updates the candidate-activation
-  tests for the approved default-active definition.
-- Adds `open-archiver-frontend` to both the Traefik service's network
-  attachments and the external network declarations in
-  `services/traefik/compose.yaml`.
-
-This preserves the include-only Custom App YAML with `services: {}` and the
-normal rollout below, without relying on `COMPOSE_PROFILES` reaching the
-TrueNAS UI. Do not add networks or untracked Compose overrides manually.
-Coordinate the follow-up with the operator: suspend scheduled full redeploys
-before merging it so they cannot apply Traefik's new dependency before the
-Custom App creates its network. Resume automation only after rollout succeeds.
+Shared Traefik's network entries remain deferred to avoid missing-network
+failures. During the existing manual rollout below, first let the Custom App
+create `open-archiver-frontend`, then add the tracked Traefik attachment and
+external declaration through normal review before the final `dccd-all`.
+Coordinate scheduled full redeploys during onboarding so they cannot apply
+the new dependency before that network exists. Do not manually connect
+networks or create untracked Compose overrides.
 
 ### Bootstrap Access Role
 
@@ -456,9 +444,8 @@ setup is locked and MFA is enabled.
 
 ### Rollout After Approval
 
-Run this unchanged sequence only after the reviewed production-activation
-follow-up has removed all eight profile declarations. Do not enable the
-candidate profile as a substitute.
+Follow the existing TrueNAS onboarding sequence after image and runtime
+clearance. The include-only Custom App YAML needs no profile settings.
 
 On `svlnas`, the aliases must already be sourced from
 `/mnt/vm-pool/apps/scripts/aliases.sh`.
@@ -492,6 +479,11 @@ On `svlnas`, the aliases must already be sourced from
    services: {}
    ```
 
+   Confirm the app has created `open-archiver-frontend`. Then add that network
+   to both the Traefik service's attachments and the external declarations in
+   tracked `services/traefik/compose.yaml` through the normal reviewed change
+   process. Coordinate automation so Traefik uses those entries only after
+   the network exists.
 4. Run the canonical final deployment:
 
    ```sh
