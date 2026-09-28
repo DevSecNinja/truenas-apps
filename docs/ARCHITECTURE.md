@@ -451,6 +451,37 @@ Network-level isolation. With per-service networks, containers cannot communicat
 
 Services that need Docker API access get a dedicated **internal** backend network with a socket proxy (e.g., `homepage-backend`). The same pattern applies to databases and other backing services — they sit on an internal backend network with `internal: true`, preventing external routing and ensuring only the application container can reach them.
 
+### Shared Forward Auth and Entra App Roles
+
+The shared `main` portal's `microsoftEntraID` provider in
+`services/traefik-forward-auth/config/config.yaml` uses `${AZURE_CLIENT_ID}`.
+On **2026-09-28**, the operator confirmed that this Entra app registration
+already has roles named **`Admin`** and **`User`**. This records reported role
+names, not validated Values, token claims, or live assignments.
+These are **application roles**, not Entra directory administrator roles, and
+do not automatically grant app-local privileges.
+
+**Recommended standard for future integrations:**
+
+- Reuse the existing shared roles by default rather than create per-app roles,
+  with an explicit least-privilege policy defining the allowed audience for
+  each route.
+- Before writing a `Role(...)` condition, verify the actual app-role **Value**
+  emitted in the token's `roles` claim and its exact case; do not assume it
+  matches the display name.
+- `Admin` does not imply `User`: there is no automatic role inheritance. If a
+  route permits either role, use an explicit **OR** between the verified Values.
+- Restrict sensitive initial setup to the intended bootstrap administrator.
+  Allowing every shared `Admin` assignee may be too broad; verify effective
+  assignments or add a reviewed restriction before exposing setup.
+
+This guidance does not change existing authorization, role assignments, the
+shared portal, or the enterprise application's global **Assignment required?**
+setting.
+
+References: Microsoft [Entra app roles](https://learn.microsoft.com/en-us/entra/identity-platform/howto-add-app-roles-in-apps)
+and Forward Auth [v4.14.1 authorization conditions](https://github.com/italypaleale/traefik-forward-auth/blob/v4.14.1/docs/content/docs/authorization-conditions.md).
+
 ### Exception: arr-stack-backend
 
 The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
@@ -882,6 +913,13 @@ There are no published host ports or UI/API/monitoring bypasses.
 Open Archiver intentionally has no Gatus integration or unauthenticated
 monitoring router; in-container health checks remain enabled. Adding any
 route, including monitoring, requires review.
+
+The [shared-role standard](#shared-forward-auth-and-entra-app-roles) does not
+replace Open Archiver's documented current app-specific condition:
+`Admin` or `User` alone does not satisfy `Role("open-archiver-access")`.
+Any migration requires a separately reviewed route policy, aligned assignments,
+and allowed/denied tests with fresh Entra sign-ins and Forward Auth cookies,
+including setup endpoints.
 
 Shared Traefik currently has neither an `open-archiver-frontend` attachment
 nor an external declaration for that network. All eight Open Archiver services,
