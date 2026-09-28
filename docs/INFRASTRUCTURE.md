@@ -398,9 +398,15 @@ aliases must already be sourced from `/mnt/vm-pool/apps/scripts/aliases.sh`.
 Registry enrollment is not production approval. For blocked candidates such
 as Open Archiver, first complete the
 [service-specific activation prerequisites](services/open-archiver.md#first-run-setup):
-image clearance, a separate reviewed Traefik network activation follow-up,
-and the administrator-only Entra app-role assignment before Custom App
-creation. Do not execute this generic rollout to bypass those gates.
+per-image adoption and runtime clearance and the administrator-only Entra
+app-role assignment. A separate reviewed production-activation follow-up must
+then pin the approved current-source, published and digest-verified derivative,
+remove the candidate-only profiles from all eight Open Archiver services,
+update candidate-activation tests, and add the shared Traefik network
+attachment and external declaration. Only then use this unchanged sequence
+and include-only Custom App YAML with `services: {}`. Do not rely on
+`COMPOSE_PROFILES` reaching the TrueNAS UI or add `open-archiver` to production
+cron, aliases, or `.env` to bypass those gates.
 
 1. Pull the merged changes and decrypt SOPS files while limiting the first pass
    to the new app:
@@ -682,11 +688,19 @@ Registry key `open-archiver` provisions
 inputs remain unapproved in the
 [dated review](https://github.com/DevSecNinja/truenas-apps/issues/789#issuecomment-5859558979);
 record clearance before activation. Shared Traefik intentionally omits the
-candidate's frontend attachment and external network declaration. A separate
-reviewed follow-up must add both after image clearance, before rollout.
+candidate's frontend attachment and external network declaration. All eight
+services, including init, migration, and backup, explicitly carry the
+candidate-only `open-archiver` profile, leaving default service selection
+empty; dccd skips zero-service stacks. After per-image adoption and runtime
+clearance and the administrator-only Entra role assignment, a separate
+reviewed production-activation follow-up must pin the approved current-source
+derivative, remove all eight profile declarations, update candidate-activation
+tests, and add both Traefik network entries.
 Use the [service-specific first-run procedure](services/open-archiver.md#first-run-setup),
 which preserves the canonical `dccd-app open-archiver`, preparation, Custom
 App, then `dccd-all` sequence and coordinates the activation window.
+Explicit profile selection is only for approved isolated acceptance with
+synthetic data while blocked, not a production setting.
 Before Custom App creation or route exposure, configure the enabled
 `open-archiver-access` Users/Groups role in the Entra registration selected by
 `${AZURE_CLIENT_ID}` and assign only the bootstrap administrator in the

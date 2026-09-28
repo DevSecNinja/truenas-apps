@@ -884,12 +884,27 @@ monitoring router; in-container health checks remain enabled. Adding any
 route, including monitoring, requires review.
 
 Shared Traefik currently has neither an `open-archiver-frontend` attachment
-nor an external declaration for that network. After image adoption clearance,
-a separate reviewed activation follow-up must add both to
-`services/traefik/compose.yaml` before the
-[gated rollout](services/open-archiver.md#first-run-setup). Do not create
-untracked overrides or manually connect networks. The diagram below describes
-the intended flow after that activation, not a currently exposed service.
+nor an external declaration for that network. All eight Open Archiver services,
+including init, migration, and backup, explicitly declare
+`profiles: [open-archiver]` as a **candidate-only selection guard**.
+Default Compose selection is empty; `dccd.sh` skips zero-service stacks in
+both TrueNAS and generic modes. Explicit profile selection is reserved for
+approved isolated acceptance with synthetic data, not production rollout.
+
+After per-image adoption and runtime clearance and the administrator-only
+Entra role assignment, a separate reviewed production-activation follow-up
+must pin an approved current-source, published and digest-verified derivative,
+remove the profiles from **all eight services**, update candidate-activation
+tests, and add both Traefik network entries to
+`services/traefik/compose.yaml`. This preserves the include-only Custom App
+YAML with `services: {}` and the normal
+[gated rollout](services/open-archiver.md#first-run-setup), without assuming
+`COMPOSE_PROFILES` reaches the TrueNAS UI. Do not add this profile to production
+cron, aliases, or `.env`, create untracked overrides, or manually connect
+networks. Profiles are not authorization or risk approval; named-service
+targeting and `--profile '*'` bypass default selection, and unsetting a profile
+does not stop running containers. The diagram below describes the intended
+flow after reviewed activation, not a currently exposed service.
 
 | Network                  | Members and access                                                                              |
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
@@ -929,8 +944,9 @@ healthy. Repeated init, restart persistence, full reindex, and real HTTPS
 proxy-boundary checks passed. Proxy tests used official upstream Traefik
 `3.7.10` (not the DHI build), the earlier app labels/repository middleware,
 and a synthetic Forward Auth responder. These results do not validate the new
-role gate, non-recursive routine init/explicit repair mode, or revised
-Dockerfile/publication workflow. The pinned derivative is unchanged; revised
+role gate, non-recursive routine init/explicit repair mode, revised
+Dockerfile/publication workflow, candidate profile guard, or Valkey memory
+limits under load. The pinned derivative is unchanged; revised
 image source has not yet been published or runtime tested. Actual Entra role
 configuration, authorization checks, and TrueNAS deployment still require
 operator validation under
@@ -1117,15 +1133,25 @@ If Traefik and Homepage shared one proxy, compromising either would grant the at
 
 ## Docker Compose Profiles
 
-Services with a `profiles:` key in their compose definition are **excluded from normal deploys**. Running `docker compose up -d` or `dccd.sh` does not start them — they only launch when their profile is explicitly activated. This is useful for services that are not always needed (e.g., an NVR that only runs when you are away from home).
+Services with a `profiles:` key are **excluded from default service selection**
+when no matching profile is active and no service is explicitly targeted.
+`dccd.sh` skips stacks with zero selected services in both TrueNAS and generic
+modes. Profiles are selection controls, not authorization or risk approval:
+explicit named-service targeting and `--profile '*'` bypass default selection.
 
 **Services using profiles:**
 
-| Profile        | Services                  | Purpose                               |
-| -------------- | ------------------------- | ------------------------------------- |
-| `surveillance` | `frigate-init`, `frigate` | NVR — only needed when away from home |
+| Profile         | Services                                                                | Purpose                                                                                     |
+| --------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `open-archiver` | All eight Open Archiver services, including init, migration, and backup | Candidate-only guard; reviewed production activation removes all eight profile declarations |
+| `surveillance`  | `frigate-init`, `frigate`                                               | NVR — only needed when away from home                                                       |
 
 ### Activating a Profile
+
+The examples below apply to optional operational profiles such as
+`surveillance`, **not** the blocked Open Archiver candidate. Its profile may
+be selected only for approved isolated acceptance with synthetic data; follow
+the [candidate guard and production activation procedure](services/open-archiver.md#candidate-only-profile-guard).
 
 **Environment variable (recommended):** Docker Compose natively reads the `COMPOSE_PROFILES` variable. Set it before running `dccd.sh`:
 
@@ -1139,7 +1165,11 @@ Multiple profiles can be comma-separated:
 export COMPOSE_PROFILES=surveillance,other
 ```
 
-**On TrueNAS:** Add the export to the cron job that runs `dccd.sh`, or to `~/.bashrc` / `~/.profile` on the deployment user. The profiled services will start on the next deploy.
+**On TrueNAS, for operational profiles such as `surveillance`:** Add the export
+to the cron job that runs `dccd.sh`, or to the deployment user's shell startup
+file for interactive runs. dccd forwards it as Compose CLI profile flags.
+This does not establish that the TrueNAS UI receives the variable. Do not add
+`open-archiver` to production cron, aliases, shell startup files, or `.env`.
 
 **CLI flag (one-off):** For a single manual run without persisting:
 

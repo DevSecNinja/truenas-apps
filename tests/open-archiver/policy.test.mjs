@@ -138,6 +138,57 @@ test("activation: shared Traefik neither joins nor requires the unadopted candid
     }
 });
 
+test("activation: all eight candidate services require the explicit open-archiver profile", () => {
+    assert.deepEqual(keys(services).sort(), [
+        "open-archiver",
+        "open-archiver-db",
+        "open-archiver-db-backup",
+        "open-archiver-init",
+        "open-archiver-meilisearch",
+        "open-archiver-migrate",
+        "open-archiver-tika",
+        "open-archiver-valkey",
+    ]);
+    for (const name of keys(services)) {
+        const profiles = entry(entry(services, name).body, "profiles");
+        assert.equal(profiles.value, "", `${name}: profiles must be an explicit list`);
+        assert.deepEqual(
+            items(profiles.body).map(scalar), ["open-archiver"],
+            `${name}: no default or unrelated-profile activation, including one-shot services`,
+        );
+    }
+});
+
+test("activation: candidate dependencies cannot escape the open-archiver profile gate", () => {
+    const names = keys(services);
+    for (const name of names) {
+        const service = entry(services, name).body;
+        if (!keys(service).includes("depends_on")) continue;
+        for (const dependency of keys(entry(service, "depends_on").body)) {
+            assert.ok(names.includes(dependency), `${name}: dependency ${dependency} must be in the candidate stack`);
+            assert.deepEqual(
+                items(entry(entry(services, dependency).body, "profiles").body).map(scalar),
+                ["open-archiver"],
+                `${name}: dependency ${dependency} must not be ungated`,
+            );
+        }
+    }
+});
+
+test("valkey: 192mb maxmemory leaves headroom below the independent 512m container cap without eviction", () => {
+    const valkey = entry(services, "open-archiver-valkey").body;
+    const command = items(entry(valkey, "command").body).map(scalar);
+    assert.equal(command[0], "valkey-server");
+    for (const [flag, value] of [
+        ["--maxmemory", "${VALKEY_MAXMEMORY:-192mb}"],
+        ["--maxmemory-policy", "noeviction"],
+    ]) {
+        assert.equal(command.filter((arg) => arg === flag).length, 1, `expected exactly one ${flag}`);
+        assert.equal(command[command.indexOf(flag) + 1], value, flag);
+    }
+    assert.equal(entry(valkey, "mem_limit").value, "${VALKEY_MEM_LIMIT:-512m}");
+});
+
 test("workflow: only main pushes and ordinary pull requests trigger candidate image checks", () => {
     const events = entry(workflow, "on").body;
     assert.deepEqual(keys(events).sort(), ["pull_request", "push"]);

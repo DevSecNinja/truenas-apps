@@ -1166,10 +1166,22 @@ accepting production risk: require an upstream-fixed artifact or an explicit,
 narrowly reviewed operator exception under the
 [adoption policy](ARCHITECTURE.md#adoption-gate-and-remediation-ownership).
 Dependency remediation remains upstream; no patched dependency fork will be
-maintained here. Production activation also requires the reviewed Traefik
-network follow-up and administrator-only Entra role assignment documented in
-[First-Run Setup](services/open-archiver.md#first-run-setup); recovery commands
-are not a shortcut around those gates.
+maintained here. After per-image adoption and runtime clearance and the
+administrator-only Entra role assignment, production activation requires a
+separate reviewed follow-up: pin the approved current-source, published and
+digest-verified derivative, remove the candidate-only profiles from all eight
+services (including init, migration, and backup), update candidate-activation
+tests, and add the shared Traefik network attachment and external declaration.
+Follow [First-Run Setup](services/open-archiver.md#first-run-setup); recovery
+commands are not a shortcut around those gates.
+
+The named-service backup and repair invocations below bypass default profile
+selection even without `--profile open-archiver`; profiles are not
+authorization or risk approval. While blocked, explicit profile selection
+via `--profile open-archiver` or `COMPOSE_PROFILES` is only for approved
+isolated acceptance with synthetic data, never production cron, aliases, or
+`.env`. Unsetting a profile does not stop running containers. The candidate
+guard and Valkey memory changes have not received new runtime validation.
 
 Earlier synthetic PostgreSQL, encrypted archive, and Valkey recovery passed on
 rootless Podman AMD64 using only test credentials. The published GHCR digest

@@ -51,17 +51,19 @@ published derivative image's provenance. The integration is implemented, with
 no TrueNAS deployment; production adoption awaits upstream fixes or explicit,
 narrowly reviewed acceptance.
 Shared Traefik deliberately does **not** attach to `open-archiver-frontend`
-or declare it as an external network. After image clearance, activation
-requires a separate reviewed follow-up adding both entries to the tracked
-Traefik Compose file. Do not improvise host configuration or network changes
-outside Git. The app's Compose definition itself is not disabled; do not
-create its Custom App before completing the prerequisites below.
+or declare it as an external network. All eight services, including init,
+migration, and backup, explicitly declare `profiles: [open-archiver]` as a
+**candidate-only selection guard**. Production activation requires a separate
+reviewed follow-up that removes those profiles and adds the Traefik network
+entries after the [activation prerequisites](#activation-prerequisites).
+Do not improvise host configuration or network changes outside Git.
 
 ### Evidence and Remaining Acceptance
 
 The table records the **earlier implementation**. It does not validate the
 new app-role gate, non-recursive routine init/explicit repair mode, revised
-Dockerfile/publication workflow, or backup runner/freshness-checker changes.
+Dockerfile/publication workflow, backup runner/freshness-checker changes,
+candidate profile guard, or Valkey `maxmemory` behavior under load.
 The Compose-pinned derivative is unchanged; the revised image source has not
 yet been published or runtime tested. Real Entra configuration and host checks
 remain pending.
@@ -282,7 +284,8 @@ It mounts only backup output, not archive/database data or the Docker socket.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
 | App memory              | `${MEM_LIMIT:-4096m}`                                                                                        |
 | PostgreSQL memory       | `${DB_MEM_LIMIT:-1024m}`; shared memory `128mb`                                                              |
-| Valkey memory           | `${VALKEY_MEM_LIMIT:-512m}`                                                                                  |
+| Valkey container memory | `${VALKEY_MEM_LIMIT:-512m}`                                                                                  |
+| Valkey maxmemory        | `--maxmemory ${VALKEY_MAXMEMORY:-192mb}`                                                                     |
 | Meilisearch memory      | `${MEILI_MEM_LIMIT:-1024m}`; indexing memory `512Mb`, two indexing threads                                   |
 | Tika memory             | `${TIKA_MEM_LIMIT:-1536m}`; `-Xmx512m -XX:ActiveProcessorCount=2` per each of two JVMs; `OMP_THREAD_LIMIT=2` |
 | Backup memory           | `${BACKUP_MEM_LIMIT:-512m}`                                                                                  |
@@ -296,6 +299,21 @@ It mounts only backup output, not archive/database data or the Docker socket.
 | Valkey persistence      | RDB `--save 300 1`; AOF enabled with `everysec`; `noeviction` policy                                         |
 | Sessions                | `JWT_EXPIRES_IN=1d`                                                                                          |
 | Shared environment      | All eight containers include `../shared/env/tz.env`                                                          |
+
+Valkey's default `maxmemory` is **192 MiB**, leaving **320 MiB** within the
+default **512 MiB** container limit for allocator overhead, AOF buffers, and
+fork copy-on-write. This reserve is **not an OOM guarantee**: `maxmemory` does
+not cap total process or cgroup memory. With `noeviction`, reaching the limit
+rejects new writes that require memory rather than evicting queue entries;
+producers must handle those errors.
+
+Tune `VALKEY_MAXMEMORY` and `VALKEY_MEM_LIMIT` together, keeping both positive
+and leaving headroom below the container limit. Setting `VALKEY_MAXMEMORY=0`
+disables the Valkey limit; it is not a safe way to resolve write rejections.
+Monitor `INFO MEMORY`, especially `used_memory_rss` and
+`mem_not_counted_for_evict`, plus cgroup peak memory under representative
+imports, queue load, RDB snapshots, and AOF rewrites before accepting the
+limits. See [Valkey memory and eviction guidance](https://valkey.io/topics/lru-cache/).
 
 These are initial limits, not validated capacity guarantees. Test representative
 imports and OCR under the 100-task caps before accepting them. The app health
@@ -356,29 +374,60 @@ of the NAS; never paste secret values into commands, logs, or issues.
     until every image is cleared through verified upstream fixes or an explicit,
     documented, narrowly justified exception.
     Implementation approval alone is not risk acceptance. Do not execute the
-    commands below until the activation prerequisites are complete.
+    production rollout commands below until the activation prerequisites are complete.
     Remediation remains upstream; do not maintain a patched dependency fork here.
+
+### Candidate-Only Profile Guard
+
+With no active profile and no named service target, daemonless
+`docker compose config --services` selects no services;
+`docker compose --profile open-archiver config --services` selects exactly
+the eight services listed above. `dccd.sh` already skips zero-service stacks
+in both TrueNAS and generic modes. These selection checks do not validate
+container startup, Valkey memory behavior, or production readiness.
+
+While the candidate is blocked, use `--profile open-archiver` or
+`COMPOSE_PROFILES=open-archiver` **only for separately approved, isolated
+acceptance with synthetic data**. Do not add this profile to production cron,
+aliases, shell startup files, or `.env`. Production activation removes the
+guard through the reviewed follow-up below; it does not persist a profile
+selector or assume a shell export reaches the TrueNAS UI.
+
+<!-- dprint-ignore -->
+!!! warning "Profiles are selection, not authorization or risk approval"
+    Explicit named-service targeting (including `run` for init or backup) and
+    `--profile '*'` bypass default profile selection. Neither grants permission
+    to run this candidate in production. Unsetting a profile does not stop or
+    remove already-running containers; explicitly stop them and verify their state.
 
 ### Activation Prerequisites
 
 Publish the current-source derivative without activating it and require the
 publish job's checks against its exact pushed digest to pass. Review and record
 adoption clearance for every selected digest, and repeat isolated runtime
-acceptance of the image, role gate, init/repair, and backup changes. Pin that
-approved, published and verified derivative in Compose through a reviewed change;
-retaining the earlier bootstrap digest does not satisfy this prerequisite.
-The earlier smoke evidence does not cover these revisions. No TrueNAS rollout
-or real Entra authorization check has been verified.
+acceptance of the image, role gate, init/repair, backup, and Valkey memory
+changes. The earlier smoke evidence does not cover these revisions. No TrueNAS
+rollout or real Entra authorization check has been verified.
 
-After image clearance, merge a **separate reviewed activation follow-up**
-that adds `open-archiver-frontend` to both the Traefik service's network
-attachments and the external network declarations in
-`services/traefik/compose.yaml`. This candidate intentionally omits those
-shared-infrastructure dependencies. Do not add networks or untracked
-Compose overrides manually. Coordinate that follow-up with the operator:
-suspend scheduled full redeploys before merging the activation change so
-they cannot apply Traefik's new dependency before the Custom App creates its
-network. Resume automation only after the rollout below succeeds.
+After per-image adoption and runtime clearance and the
+[administrator-only Entra role assignment](#bootstrap-access-role), merge a
+**separate reviewed production-activation follow-up** that:
+
+- Pins the approved, current-source, published and digest-verified derivative
+  in Compose; retaining the earlier bootstrap digest does not qualify.
+- Explicitly removes `profiles: [open-archiver]` from **all eight services**,
+  including init, migration, and backup, and updates the candidate-activation
+  tests for the approved default-active definition.
+- Adds `open-archiver-frontend` to both the Traefik service's network
+  attachments and the external network declarations in
+  `services/traefik/compose.yaml`.
+
+This preserves the include-only Custom App YAML with `services: {}` and the
+normal rollout below, without relying on `COMPOSE_PROFILES` reaching the
+TrueNAS UI. Do not add networks or untracked Compose overrides manually.
+Coordinate the follow-up with the operator: suspend scheduled full redeploys
+before merging it so they cannot apply Traefik's new dependency before the
+Custom App creates its network. Resume automation only after rollout succeeds.
 
 ### Bootstrap Access Role
 
@@ -406,6 +455,10 @@ after bootstrap and assign it only to approved archive users after local
 setup is locked and MFA is enabled.
 
 ### Rollout After Approval
+
+Run this unchanged sequence only after the reviewed production-activation
+follow-up has removed all eight profile declarations. Do not enable the
+candidate profile as a substitute.
 
 On `svlnas`, the aliases must already be sourced from
 `/mnt/vm-pool/apps/scripts/aliases.sh`.

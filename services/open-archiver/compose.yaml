@@ -3,6 +3,8 @@ x-app-image: &app-image ghcr.io/devsecninja/truenas-apps/open-archiver:831954bc4
 
 services:
   open-archiver-init:
+    profiles:
+      - open-archiver
     image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
     container_name: open-archiver-init
     env_file:
@@ -79,6 +81,8 @@ services:
       retries: 3
 
   open-archiver-migrate:
+    profiles:
+      - open-archiver
     image: *app-image
     container_name: open-archiver-migrate
     depends_on:
@@ -117,6 +121,8 @@ services:
       retries: 3
 
   open-archiver:
+    profiles:
+      - open-archiver
     image: *app-image
     container_name: open-archiver
     depends_on:
@@ -220,6 +226,8 @@ services:
       - "traefik.http.services.open-archiver-svc.loadbalancer.server.port=3000"
 
   open-archiver-db:
+    profiles:
+      - open-archiver
     # The upstream Alpine entrypoint supports the SQL role-bootstrap hook;
     # DHI PostgreSQL does not process /docker-entrypoint-initdb.d.
     image: docker.io/library/postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
@@ -264,6 +272,8 @@ services:
       start_period: 30s
 
   open-archiver-valkey:
+    profiles:
+      - open-archiver
     # DHI offers this version, but authenticated pulls were unavailable in the
     # validation environment. Keep the tested upstream Alpine runtime.
     image: docker.io/valkey/valkey:8.1.10-alpine3.24@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
@@ -287,6 +297,9 @@ services:
       - "yes"
       - --appendfsync
       - everysec
+      # Leave headroom for allocator overhead, AOF buffers and fork copy-on-write.
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-192mb}
       - --maxmemory-policy
       - noeviction
     restart: on-failure:3
@@ -313,6 +326,8 @@ services:
       start_period: 10s
 
   open-archiver-meilisearch:
+    profiles:
+      - open-archiver
     image: docker.io/getmeili/meilisearch:v1.38.2@sha256:448a5b1b3e9303fabf39b84a2672f184295f665b1cb8eaffb11c738273430e5e
     container_name: open-archiver-meilisearch
     depends_on:
@@ -354,6 +369,8 @@ services:
       start_period: 30s
 
   open-archiver-tika:
+    profiles:
+      - open-archiver
     # Full is required for the explicitly selected Tesseract OCR support.
     image: docker.io/apache/tika:3.2.2.0-full@sha256:ffab324253edc54706e8882dd28190b1e6559c344b5315ae8a74b9efda9e7291
     container_name: open-archiver-tika
@@ -393,6 +410,8 @@ services:
   # Approved one-shot s6 exception: /init rewrites /etc/bash/bashrc and other
   # system configuration. No runtime data or Docker socket is mounted here.
   open-archiver-db-backup:
+    profiles:
+      - open-archiver
     image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
     container_name: open-archiver-db-backup
     depends_on:
