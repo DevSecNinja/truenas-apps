@@ -4,19 +4,25 @@ AdGuard Home is a network-wide DNS filtering and ad-blocking server. This stack 
 
 ## Why
 
-Most home networks rely on the ISP's default DNS, which offers no filtering, no encryption, and full visibility into every domain you visit. Running AdGuard Home locally gives you network-wide ad and tracker blocking without installing anything on individual devices. Pairing it with Unbound adds full recursive resolution — Unbound walks the DNS hierarchy from the root servers itself, so no third-party resolver ever sees your queries. This gives stronger privacy than DNS-over-TLS forwarding to an upstream provider, because there is no upstream provider. Finally, managing the config via GitOps means the DNS setup is reproducible, auditable, and recovers automatically after a redeploy.
+Running AdGuard Home locally gives LAN clients network-wide DNS filtering without
+installing a blocker on each device. Unbound normally resolves public queries
+through the DNS hierarchy rather than sending them all to one upstream provider,
+and serves internal records from tracked local-data templates. AdGuard also has
+public fallback upstreams, so recursive resolution is the normal path, not a
+guarantee that queries never reach a third-party resolver. GitOps makes the
+configuration reproducible and auditable.
 
 ## Compose File
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/adguard/compose.yaml) — primary stack definition
-- [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/adguard/compose.svlazext.yaml) — Azure DNS VM override (svlazext)
+- [compose.svlazext.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/adguard/compose.svlazext.yaml) — retained Azure DNS VM override; cloud instance currently unavailable
 
 ## Access
 
-| URL                                 | Description                                |
-| ----------------------------------- | ------------------------------------------ |
-| `https://adguard.${DOMAINNAME}`     | Web UI (Traefik forward-auth)              |
-| `https://adguard-ext.${DOMAINNAME}` | Web UI on svlazext (Azure DNS VM override) |
+| URL                                 | Description                                             |
+| ----------------------------------- | ------------------------------------------------------- |
+| `https://adguard.${DOMAINNAME}`     | Web UI (Traefik forward-auth)                           |
+| `https://adguard-ext.${DOMAINNAME}` | Retained cloud Web UI definition; currently unavailable |
 
 ## Architecture
 
@@ -30,14 +36,22 @@ Most home networks rely on the ISP's default DNS, which offers no filtering, no 
 
 ```mermaid
 flowchart LR
-    Client -->|":53"| AdGuard["AdGuard Home\n(filtering + blocking)"]
+    Client["LAN client"] -->|":53"| AdGuard["AdGuard Home\n(filtering + blocking)"]
     AdGuard -->|":5335"| Unbound["Unbound\n(recursive resolver)"]
     Unbound -->|"recursive"| Root["Root DNS servers"]
     Unbound -.->|"local-data"| Split["Split-horizon\n(internal records)"]
     Unbound -.->|"cachedb"| Redis["Redis\n(persistent cache)"]
 ```
 
-AdGuard handles DNS filtering and ad blocking. Queries that pass the filter are forwarded to the co-located Unbound instance, which resolves them recursively starting from the root DNS servers. Internal domain names are served from Unbound's local-data records (split-horizon — see below).
+AdGuard handles DNS filtering and ad blocking. Queries that pass the filter
+normally go to co-located Unbound for local-data answers or recursive resolution.
+The tracked `fallback_dns` public DoH upstreams cannot supply Unbound's private
+records and do not provide a second LAN DNS server.
+
+This is the **LAN client path**, not the TrueNAS host's bootstrap path. TrueNAS
+uses the gateway's public upstream plus a small manual infrastructure record set.
+See the canonical [DNS architecture and background](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/ARCHITECTURE.md#networking-dns-resolution)
+and [operator configuration](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/INFRASTRUCTURE.md#dns-configuration-and-record-maintenance).
 
 ### Config Management
 
@@ -115,6 +129,10 @@ Unbound's healthcheck verifies three things in sequence:
 
 AdGuard's healthcheck is a simple HTTP check against its web UI on port 80; it does not test DNS resolution. An `unhealthy` state alone does not cause Docker Engine to restart the container.
 
+Neither check proves client failover or every server-side integration. Use the
+[DNS failure validation](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/INFRASTRUCTURE.md#dns-failure-validation) before
+advertising another resolver.
+
 ## Memory and Recovery
 
 - **Default limit:** `adguard.mem_limit` is `${MEM_LIMIT:-2048m}` (2 GiB). Filter rebuilds require headroom because old and new engines coexist in memory. An explicit, non-empty `MEM_LIMIT` supplied to Compose overrides the default.
@@ -124,7 +142,17 @@ AdGuard's healthcheck is a simple HTTP check against its web UI on port 80; it d
 
 ## Multi-Server Deployment
 
-AdGuard runs on both the TrueNAS host (svlnas) and the Azure DNS VM (svlazext). The `compose.svlazext.yaml` override adjusts Traefik labels to use the `adguard-ext.${DOMAINNAME}` hostname for the external instance.
+The NAS-local stack is the current LAN resolver. The Azure VM became unavailable
+after its credits were exhausted; `compose.svlazext.yaml` and the server mapping
+remain in the repository, but are **not a working backup**. The override retains
+the cloud instance's distinct Traefik routing labels.
+
+A **second local AdGuard is desired, not deployed**. It needs a separate failure
+domain and its own resolving backend, consistent internal records and filtering
+policy, and validation with either server unavailable. No automatic multi-server
+DNS synchronisation has been implemented. See
+[second local resolver configuration](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/INFRASTRUCTURE.md#second-local-resolver-configuration)
+for DHCP, host DNS, shared data, and host-specific settings.
 
 ## Secrets
 
@@ -141,7 +169,11 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 3. Add the required variables to `secret.sops.env` — at minimum `DOMAINNAME`, `DDNS_DOMAIN`, and the `IP_*` addresses referenced in the Unbound A-record template
 4. Encrypt the secrets file: `sops -e -i services/adguard/secret.sops.env`
 5. Deploy: the CD script decrypts secrets and brings the stack up. Verify the template init (`docker logs adguard-unbound-init`) and resolver startup wrapper (`docker logs adguard-unbound`), then confirm AdGuard is resolving queries on port 53
-6. Point your network's DNS to the host IP running AdGuard (router DHCP settings or per-device)
+6. Advertise AdGuard through DHCP on each intended client VLAN, update manual
+   client overrides, and renew leases. Keep TrueNAS host DNS independent of its
+   own DNS containers; follow the
+   [current resolver settings](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/INFRASTRUCTURE.md#current-resolver-settings),
+   rather than pointing the gateway's WAN DNS at this stack.
 
 ## Upgrade Notes
 

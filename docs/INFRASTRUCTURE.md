@@ -21,6 +21,117 @@ The primary TrueNAS server is a compact, passively-cooled build optimised for lo
 | PSU         | 1   | Mini-box PicoPSU-160-XT         | DC-DC picoPSU — very low idle draw |
 | Accessory   | 1   | Mini-box PCI Bracket            | Mounts picoPSU connector to case   |
 
+## DNS Configuration and Record Maintenance
+
+The [DNS architecture](ARCHITECTURE.md#networking-dns-resolution) separates
+TrueNAS recovery from LAN client filtering. The settings below describe the
+operator's chosen configuration and reported gateway records, not independently
+verified live host values.
+
+### Current Resolver Settings
+
+| Configuration surface          | Chosen setting                                                                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Client VLAN DHCP               | Advertise the NAS-local AdGuard address for everyday clients; no unavailable remote or public resolver mixed into this private DNS list |
+| TrueNAS host DNS               | UniFi gateway, with the unavailable remote resolver removed                                                                             |
+| UniFi gateway upstream/WAN DNS | Public resolver (currently Cloudflare), not NAS-local AdGuard                                                                           |
+
+Set host DNS through the persistent **TrueNAS network configuration UI**, never
+by editing the generated `/etc/resolv.conf`. Remove the unavailable remote
+resolver from both host DNS and client DHCP lists.
+
+Configure DHCP DNS on **each client's actual VLAN** in UniFi, not in the WAN DNS
+setting. Automatic DHCP DNS commonly advertises that VLAN's gateway address,
+which would send clients down the host/public path instead of through AdGuard.
+Remove or update manual client DNS overrides and renew DHCP leases; flushing a
+DNS cache alone does not update DHCP configuration. Where applicable, align
+IPv6 RA/RDNSS/DHCPv6 DNS advertisements too, and check browser DoH or VPN DNS
+overrides that can bypass the intended resolver.
+
+### Manual Infrastructure Records
+
+The operator has added this small record set to the gateway. Maintain the exact
+hostname each consumer uses, not just a friendly alias, through UniFi's persistent
+**DNS Records** UI. Never edit generated dnsmasq files.
+
+| Hostname role                   | Destination                                                           | Known consumer                                           |
+| ------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
+| Gatus status hostname           | `${IP_SVLNAS}`                                                        | Host-side `dccd.sh` status reporting                     |
+| Home Assistant webhook hostname | `${IP_HOME}`, not assumed to be the NAS                               | Gatus custom alert webhook                               |
+| JetKVM management hostname      | Existing gateway-owned management record; reuse rather than duplicate | Homepage server-side `siteMonitor`                       |
+| NAS management hostname         | `${IP_SVLNAS}`                                                        | Homepage server-side `siteMonitor` and management access |
+
+Keep the NAS, Gatus, and Home Assistant records in Unbound's tracked
+`services/adguard/config/unbound/conf.d/a-records.conf` as well. Update the gateway
+and Unbound together whenever those names or destination addresses change; no
+automatic sync service has been implemented. JetKVM's management record can
+remain gateway-owned. Keep explicit records during container outages rather than
+deleting them when an app stops: DNS availability does not imply service
+availability.
+
+Important consumer limits:
+
+- Homepage's browser links use client DNS, but `siteMonitor` lookups originate
+  inside its container and need the gateway records on the host-derived path.
+- Gatus's `dns-resolver` under `tcp-udp-defaults` applies only to checks using
+  those defaults; it is not a global resolver for HTTP checks or alert delivery.
+- `dccd.sh` can pre-resolve its status endpoint with an explicit `-r` resolver.
+  Standard deployment aliases do not pass it; do not assume an automatic
+  `IP_DNS_SERVER_1` fallback for status reporting.
+- This record set covers known dependencies in tracked configuration, not every
+  integration. Uninspected SMTP/OAuth environment values and runtime-managed
+  Home Assistant, arr, or camera settings may introduce more internal names.
+  Healthy container/network checks do not validate all those consumers.
+
+### Second Local Resolver Configuration
+
+**Desired state, not deployed:** use a separate always-on host with its own
+AdGuard and independent Unbound or equivalent backend. Neither public resolution
+nor internal answers may depend on the NAS-local resolver being available.
+
+| Area                        | Required configuration                                                                                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared DNS data             | Treat tracked Unbound local-data/templates as the source of truth; distribute the same records, record-address inputs, and selected domain-variable inputs to both backends, including zone/alias and A/AAAA behaviour |
+| Filtering and client policy | Keep AdGuard policy settings and values consistent on both resolvers                                                                                                                                                   |
+| Host-specific configuration | Set each host's IPs, service endpoints, storage, and secret identities separately; do not blindly clone runtime data or keys                                                                                           |
+| Client VLANs                | Advertise both local resolver IPs through DHCP and compatible IPv6 DNS advertisements where applicable; no public/cloud third resolver; refresh leases and manual overrides                                            |
+| TrueNAS host                | Prefer the independent second resolver, optionally listing NAS-local AdGuard as an additional resolver; ordering does not guarantee exclusive use                                                                      |
+| Gateway                     | Keep its public upstream and small manual record set as a recovery path; do not make it depend exclusively on NAS-local DNS again                                                                                      |
+
+Both backends must resolve gateway-owned management names (JetKVM role) through
+replicated address records or narrowly scoped conditional forwarding of the
+management zone to the gateway. The Unbound template contains only the CNAME, not
+the target's A record; distributing it alone is insufficient. Forwarding is valid
+only while the gateway remains independent of NAS-local DNS; the second resolver
+must never rely on the NAS-local backend.
+
+The distribution/synchronisation mechanism remains to be chosen and implemented
+separately. Both resolvers must be complete because clients may use either.
+Retaining the current gateway/public host path plus its small record set is also
+a safe bootstrap alternative. Gateway records can remain for emergency recovery;
+review their consumers before removing them.
+
+### DNS Failure Validation
+
+Before advertising the second resolver, and after relevant DNS changes:
+
+1. Query each resolver directly for infrastructure names, a representative app,
+   and public names. Test cold/uncached queries and both A and AAAA behaviour,
+   including expected `NXDOMAIN` for missing names and `NODATA` for absent
+   record types on existing names.
+2. Stop the primary resolver, then test with the NAS unavailable. Verify the
+   surviving resolver still answers public and internal queries, and that
+   TrueNAS boot/recovery and image-registry resolution do not require its local
+   DNS containers. Separately stop the secondary and verify the primary alone.
+3. Check the DNS actually selected by clients and the effective Docker resolver
+   path; exercise Homepage monitors, Gatus alert delivery, and deployment status
+   reporting. Allow bounded OS-dependent timeouts, not a promise of instant
+   failover.
+4. Verify that the manual gateway records survive a gateway reboot.
+5. Monitor actual DNS queries through each AdGuard, not only web UI health.
+   Independently hosted DNS checks and alerting are preferable so a NAS outage
+   cannot also silence the only monitor.
+
 ## Host Boot-Time Setup
 
 TrueNAS SCALE resets host-level configuration (sysctl values, NIC settings, `/etc/avahi`, Incus network config) on system updates and reboots. Any host tweak required by the containerized services must therefore be re-applied at **every boot**.
@@ -1004,7 +1115,13 @@ servers:
       - traefik-forward-auth
 ```
 
-The `svlazext` server runs DNS filtering (AdGuard + Unbound), telemetry collection (Alloy), and Traefik with forward-auth for any externally-routed services. The Cloudflare Tunnel agent (`cloudflared`) is kept in the repo but commented out until a new public-facing service is added.
+The retained cloud server definition includes DNS filtering (AdGuard + Unbound),
+telemetry collection (Alloy), and Traefik with forward-auth. The Azure VM is
+currently unavailable after its credits were exhausted: these files are retained
+deployment definitions, **not a working DNS backup**.
+The Cloudflare Tunnel agent (`cloudflared`) remains commented out until a new
+public-facing service is added. The desired redundancy is instead a
+[second independent local resolver](#second-local-resolver-configuration).
 
 **TrueNAS (svlnas)** uses TrueNAS mode (`-t`) which has its own app discovery, but is listed in `servers.yaml` for SOPS key scoping.
 
@@ -1049,7 +1166,7 @@ Each server has its own Age keypair for SOPS decryption. The `.sops.yaml` creati
 
 ```yaml
 creation_rules:
-  # adguard runs on svlnas + svlazext
+  # adguard key scope includes the retained cloud deployment
   - path_regex: services/adguard/secret\.sops\.env$
     age: "deploy_key,svlnas_key,svlazext_key"
   # cloudflared runs on svlnas + svlazext

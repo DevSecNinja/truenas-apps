@@ -9,6 +9,12 @@ This document walks through rebuilding the Docker Compose app stack from scratch
 Before starting, ensure you have:
 
 - A working TrueNAS installation with Docker support enabled
+- Host DNS that works before the NAS-local AdGuard/Unbound containers start,
+  including while the apps dataset is locked. Use the gateway/public path and
+  its small infrastructure record set from
+  [DNS configuration](INFRASTRUCTURE.md#dns-configuration-and-record-maintenance)
+  for repository access and image pulls; the unavailable cloud resolver is not
+  a recovery dependency.
 - Access to this git repository (GitHub)
 - The **Age private key** (`age.key`) used for SOPS decryption — without this, secrets cannot be decrypted and no app will deploy. If the key is lost, every `secret.sops.env` must be re-encrypted with a new key
 - (Optional) ZFS snapshots or replication backups of app datasets for data restoration
