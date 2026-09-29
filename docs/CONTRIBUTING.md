@@ -155,33 +155,37 @@ chmod 600 "$key_file"
 
 Dependency updates are managed by Renovate. Only `renovate.json5` lives in this repository — every other file below is a **remote preset** in [`DevSecNinja/.github`](https://github.com/DevSecNinja/.github), pulled in through the `extends` list. There is no `.renovate/` directory here.
 
-| File                                                          | Purpose                                                                               |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `renovate.json5`                                              | Root config — global settings, `extends` index, repo-local digest exceptions          |
-| `github>DevSecNinja/.github//.renovate/autoMerge.json5`       | Auto-merge policy (`pin`, `pinDigest`, `digest`, `minor`, `patch`)                    |
-| `github>DevSecNinja/.github//.renovate/base.json5`            | Shared baseline settings common to all `DevSecNinja` repositories                     |
-| `github>DevSecNinja/.github//.renovate/customManagers.json5`  | Regex managers for SOPS version, mise min_version, workflow versions                  |
-| `github>DevSecNinja/.github//.renovate/groups.json5`          | Grouped updates (postgres, mise)                                                      |
-| `github>DevSecNinja/.github//.renovate/labels.json5`          | PR labels by update type and datasource                                               |
-| `github>DevSecNinja/.github//.renovate/packageRules.json5`    | Release age gates, non-Docker-Hub registry gating, stale flag, linuxserver versioning |
-| `github>DevSecNinja/.github//.renovate/semanticCommits.json5` | Scoped commit messages with version arrows                                            |
+| File                                                          | Purpose                                                                                            |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `renovate.json5`                                              | Root config — global settings, `extends` index, repo-local creation schedule and digest exceptions |
+| `github>DevSecNinja/.github//.renovate/autoMerge.json5`       | Auto-merge policy (`pin`, `pinDigest`, `digest`, `minor`, `patch`)                                 |
+| `github>DevSecNinja/.github//.renovate/base.json5`            | Shared baseline settings common to all `DevSecNinja` repositories                                  |
+| `github>DevSecNinja/.github//.renovate/customManagers.json5`  | Regex managers for SOPS version, mise min_version, workflow versions                               |
+| `github>DevSecNinja/.github//.renovate/groups.json5`          | Grouped updates (postgres, mise)                                                                   |
+| `github>DevSecNinja/.github//.renovate/labels.json5`          | PR labels by update type and datasource                                                            |
+| `github>DevSecNinja/.github//.renovate/packageRules.json5`    | Release age gates, non-Docker-Hub registry gating, stale flag, linuxserver versioning              |
+| `github>DevSecNinja/.github//.renovate/semanticCommits.json5` | Scoped commit messages with version arrows                                                         |
 
 ### Update timing policy
 
-All updates must meet a minimum release age before they can merge, giving time for bad releases to be retracted:
+The root-level `schedule: ["at any time"]` in `renovate.json5` overrides the shared `base.json5` creation window of `["every weekend", "on Friday"]` in timezone `Europe/Amsterdam`. Eligible update candidates may be created on normal hosted Renovate runs any day. This does not change hosted run frequency, rate limits, or concurrency limits; queue bottlenecks can still delay candidate creation.
 
-| Update type   | Manager / datasource                        | Minimum age | Merge        |
-| ------------- | ------------------------------------------- | ----------- | ------------ |
-| minor / patch | `actions/*` GitHub Actions                  | 3 days      | Auto-merged  |
-| minor / patch | All other GitHub Actions                    | 14 days     | Auto-merged  |
-| minor / patch | Docker images                               | 14 days     | Auto-merged  |
-| minor / patch | GitHub Releases                             | 14 days     | Auto-merged  |
-| minor / patch | `mise` tools                                | 14 days     | Auto-merged  |
-| digest        | Docker images pinned to `:latest` / `:beta` | 14 days     | Auto-merged  |
-| digest        | GitHub Actions refs pinned to `main`        | 14 days     | Auto-merged  |
-| major         | Everything                                  | 14 days     | Manual merge |
+Creation timing is separate from merge eligibility. Native `minimumReleaseAge` checks remain in place where configured and trusted release timestamps are available. Independently, the required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer time. The age policies are:
 
-Auto-merged PRs require CI to pass and carry the `[automerge]` commit-message suffix. Most rules use `automergeType: "pr"` with `platformAutomerge: true`, so GitHub merges the PR itself once every required check is green; the 3-day `actions/*` exception uses `automergeType: "branch"` (direct push, no PR). **Major** updates always require a manual merge, regardless of datasource.
+| Update type   | Manager / datasource                                                           | Minimum age           | Merge        |
+| ------------- | ------------------------------------------------------------------------------ | --------------------- | ------------ |
+| minor / patch | `actions/*` GitHub Actions                                                     | 3 days                | Auto-merged  |
+| minor / patch | All other GitHub Actions                                                       | 14 days               | Auto-merged  |
+| minor / patch | Docker images                                                                  | 14 days               | Auto-merged  |
+| minor / patch | GitHub Releases                                                                | 14 days               | Auto-merged  |
+| minor / patch | `mise` tools                                                                   | 14 days               | Auto-merged  |
+| digest        | Docker images pinned to `:latest` / `:beta` or explicitly matched rolling tags | 0 (native; see below) | Auto-merged  |
+| digest        | GitHub Actions refs pinned to `main`                                           | 14 days               | Auto-merged  |
+| major         | Everything                                                                     | 14 days               | Manual merge |
+
+The existing Docker mutable-channel and rolling-tag digest rules set `minimumReleaseAge: "0"`. Docker Hub digest updates covered by these rules are outside the Docker-gated scope and can flow sooner, subject to other required checks and queue limits; not every update waits 14 days. This native age exception does not bypass `pr-cooldown` on Docker-gated branches.
+
+Auto-merged PRs require CI to pass and carry the `[automerge]` commit-message suffix. Most rules use `automergeType: "pr"` with `platformAutomerge: true`, so GitHub merges the PR itself once every required check is green, regardless of the creation window; Renovate's `automergeSchedule` is not enforced with platform automerge. The 3-day `actions/*` exception uses `automergeType: "branch"` (direct push, no PR). **Major** updates always require a manual merge, regardless of datasource.
 
 Digest-only updates are **disabled by the shared preset** to reduce PR noise and to avoid auto-merging a hijacked mutable tag. This repository re-enables them in `renovate.json5` for mutable Docker channels (`:latest` / `:beta`), explicitly matched rolling Docker version tags, and GitHub Actions / reusable-workflow refs pinned to `main` (#636).
 
@@ -192,7 +196,7 @@ Renovate only derives a release timestamp for Docker images from Docker Hub — 
 The 14-day soak is **still enforced** for those images — just by a different mechanism:
 
 1. A rule in `packageRules.json5` matches Docker dependencies whose package name carries an explicit registry host other than Docker Hub (`/^[^/]*\./` combined with `!/^docker\.io\//`).
-2. That rule sets `minimumReleaseAgeBehaviour: "timestamp-optional"` — so Renovate opens the PR immediately instead of blocking on a timestamp it cannot obtain — and stamps the branch via `additionalBranchPrefix: "docker-gated-"`.
+2. That rule sets `minimumReleaseAgeBehaviour: "timestamp-optional"` — so Renovate can open the PR on a normal hosted run instead of blocking on a timestamp it cannot obtain — and stamps the branch via `additionalBranchPrefix: "docker-gated-"`.
 3. `.github/workflows/renovate-pr-cooldown.yml` calls the shared reusable workflow, which posts the required `pr-cooldown` status check on those `renovate/docker-gated-*` branches. The check stays pending until the PR branch HEAD committer date is at least 14 days old, with scheduled reevaluation every six hours. Eligible PRs can then merge via GitHub auto-merge once all required checks pass; major updates still require manual merge.
 
 Because the same rule sets both the behaviour and the branch prefix, and the workflow gates exactly that prefix, the Renovate config and the gate cannot drift apart.
@@ -200,13 +204,13 @@ Because the same rule sets both the behaviour and the branch prefix, and the wor
 Two consequences worth knowing:
 
 - There is **no registry allowlist** (removed in `DevSecNinja/.github` PR #312). Any registry nobody has explicitly configured is gated by default, which is fail-safe. Under the previous allowlist a new registry silently got nothing — `dhi.io` was missing for roughly 3.5 months and those images received no updates at all, including security updates (#634).
-- Bare Docker Hub names (e.g. `nginx`, `library/nginx`) keep the native soak and are not gated. This repository mandates an explicit registry prefix on every image, so bare names should not appear here anyway.
+- Bare Docker Hub names (e.g. `nginx`, `library/nginx`) use native release-age rules and are not Docker-gated. This repository mandates an explicit registry prefix on every image, so bare names should not appear here anyway.
 
 Background: ADR 0005 in `DevSecNinja/.github` (`docs/design-decisions/0005-pr-age-cooldown-for-untrusted-timestamps.md`), which classifies `pr-cooldown` as a load-bearing control. For why `docker.io` is preferred when the same image is available on several registries, see [Architecture § Image Selection: Registry Preference](ARCHITECTURE.md#image-selection-registry-preference).
 
 #### Homepage frozen-candidate pilot
 
-The Homepage pilot now covers an exact five-package cohort. The local `renovate.json5` rule **Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker`, overriding the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` only for:
+The Homepage pilot now covers an exact five-package cohort, expanded in [#793](https://github.com/DevSecNinja/truenas-apps/pull/793). The local `renovate.json5` rule **Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker`, overriding the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` only for:
 
 - **Home Assistant:** `ghcr.io/home-assistant/home-assistant` — churn on the existing `:beta` channel is intentionally included as a low-impact rolling-digest stress test because the container is not actively used.
 - **Homepage:** `ghcr.io/gethomepage/homepage` — single-image update coverage, continuing the original pilot.
@@ -219,7 +223,7 @@ Matching is by exact package name, not by stack or registry. Immich Postgres (`g
 - **Cooldown:** The independent required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer date and reevaluates every six hours. Expanding the rule does not rewrite existing HEADs or reset their elapsed age; current candidates retain time already accrued.
 - **Mutable channels:** Digest updates for `:latest` / `:beta` remain enabled with `minimumReleaseAge: "0"`. That existing Renovate setting is unchanged and does not bypass the independent Docker-gated cooldown.
 - **Merge:** GitHub `platformAutomerge` is already enabled. Non-strict up-to-date protection allows an eligible PR that is behind the base branch but has no conflicts to merge once all required checks pass, without rebasing merely to catch up.
-- **Next candidate:** After merge, the next scheduled Renovate run may propose the latest candidate, which starts a fresh soak. Intermediate versions/digests are not queued individually.
+- **Next candidate:** After merge, a normal hosted Renovate run may propose the latest candidate on any day, subject to unchanged rate/concurrency limits and queue bottlenecks. The new candidate starts a fresh soak. Intermediate versions/digests are not queued individually.
 
 **Operator intervention:** Conflicts, failing builds, and known-bad releases need an operator; the frozen branch will not automatically repair them. Disable automerge for a known-bad candidate before diagnosing it so a passing cooldown cannot cause an unwanted merge. In particular, Traefik is important infrastructure: retain manual rejection or refresh when a candidate is known-bad or a newer release contains a needed security fix. This policy does not force unsafe candidates to finish soaking or merge.
 
