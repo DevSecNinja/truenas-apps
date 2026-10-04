@@ -92,4 +92,4 @@ run = "TERM=${TERM:-dumb} mise exec -- bats \"$PWD/tests/truenas-prep-app/integr
 glob = ["scripts/truenas-prep-app.sh", "truenas-apps.json", "truenas-apps.schema.json", "tests/truenas-prep-app/**", "tests/setup_libs.sh"]
 
 [commit-msg.commands.cocogitto]
-run = "mise exec -- cog verify \"$(cat {1})\""
+run = "mise exec -- cog verify --file '{1}'"

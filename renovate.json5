@@ -14,6 +14,9 @@
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
   ],
   schedule: ["at any time"],
+  // Make room for updates alongside long-lived cooldown branches.
+  // branchConcurrentLimit inherits this cap; the hourly limit is unchanged.
+  prConcurrentLimit: 20,
   packageRules: [
     {
       // The shared config disables digest-only updates to reduce PR noise and
