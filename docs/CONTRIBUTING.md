@@ -155,20 +155,24 @@ chmod 600 "$key_file"
 
 Dependency updates are managed by Renovate. Only `renovate.json5` lives in this repository — every other file below is a **remote preset** in [`DevSecNinja/.github`](https://github.com/DevSecNinja/.github), pulled in through the `extends` list. There is no `.renovate/` directory here.
 
-| File                                                          | Purpose                                                                                            |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `renovate.json5`                                              | Root config — global settings, `extends` index, repo-local creation schedule and digest exceptions |
-| `github>DevSecNinja/.github//.renovate/autoMerge.json5`       | Auto-merge policy (`pin`, `pinDigest`, `digest`, `minor`, `patch`)                                 |
-| `github>DevSecNinja/.github//.renovate/base.json5`            | Shared baseline settings common to all `DevSecNinja` repositories                                  |
-| `github>DevSecNinja/.github//.renovate/customManagers.json5`  | Regex managers for SOPS version, mise min_version, workflow versions                               |
-| `github>DevSecNinja/.github//.renovate/groups.json5`          | Grouped updates (postgres, mise)                                                                   |
-| `github>DevSecNinja/.github//.renovate/labels.json5`          | PR labels by update type and datasource                                                            |
-| `github>DevSecNinja/.github//.renovate/packageRules.json5`    | Release age gates, non-Docker-Hub registry gating, stale flag, linuxserver versioning              |
-| `github>DevSecNinja/.github//.renovate/semanticCommits.json5` | Scoped commit messages with version arrows                                                         |
+| File                                                          | Purpose                                                                                                             |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `renovate.json5`                                              | Root config — global settings, `extends` index, repo-local creation schedule, concurrency cap and digest exceptions |
+| `github>DevSecNinja/.github//.renovate/autoMerge.json5`       | Auto-merge policy (`pin`, `pinDigest`, `digest`, `minor`, `patch`)                                                  |
+| `github>DevSecNinja/.github//.renovate/base.json5`            | Shared baseline settings common to all `DevSecNinja` repositories                                                   |
+| `github>DevSecNinja/.github//.renovate/customManagers.json5`  | Regex managers for SOPS version, mise min_version, workflow versions                                                |
+| `github>DevSecNinja/.github//.renovate/groups.json5`          | Grouped updates (postgres, mise)                                                                                    |
+| `github>DevSecNinja/.github//.renovate/labels.json5`          | PR labels by update type and datasource                                                                             |
+| `github>DevSecNinja/.github//.renovate/packageRules.json5`    | Release age gates, non-Docker-Hub registry gating, stale flag, linuxserver versioning                               |
+| `github>DevSecNinja/.github//.renovate/semanticCommits.json5` | Scoped commit messages with version arrows                                                                          |
 
 ### Update timing policy
 
-The root-level `schedule: ["at any time"]` in `renovate.json5` overrides the shared `base.json5` creation window of `["every weekend", "on Friday"]` in timezone `Europe/Amsterdam`. Eligible update candidates may be created on normal hosted Renovate runs any day. This does not change hosted run frequency, rate limits, or concurrency limits; queue bottlenecks can still delay candidate creation.
+The root-level `schedule: ["at any time"]` in `renovate.json5` overrides the shared `base.json5` creation window of `["every weekend", "on Friday"]` in timezone `Europe/Amsterdam`. Eligible update candidates may be created on normal hosted Renovate runs any day. Hosted run frequency is unchanged.
+
+The repository-local capacity change sets root-level `prConcurrentLimit: 20`. `branchConcurrentLimit` remains unset and inherits `prConcurrentLimit`, raising the effective branch/PR cap from the default 10 to 20. More cooldown candidates can start soaking concurrently, but `prHourlyLimit` remains at its inherited default of 2: creation is still limited to two PRs per hour, subject to hosted run frequency and queue bottlenecks.
+
+This is a capacity-only change: the exact five-package `rebaseWhen: "never"` frozen cohort, grouping, major manual merge policy, and all automerge/digest policies remain unchanged. Increased capacity does not bypass age gates or required checks, fix existing failing checks, reset existing HEADs, or guarantee immediate clearance of the entire backlog.
 
 Creation timing is separate from merge eligibility. Native `minimumReleaseAge` checks remain in place where configured and trusted release timestamps are available. Independently, the required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer time. The age policies are:
 
@@ -223,7 +227,7 @@ Matching is by exact package name, not by stack or registry. Immich Postgres (`g
 - **Cooldown:** The independent required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer date and reevaluates every six hours. Expanding the rule does not rewrite existing HEADs or reset their elapsed age; current candidates retain time already accrued.
 - **Mutable channels:** Digest updates for `:latest` / `:beta` remain enabled with `minimumReleaseAge: "0"`. That existing Renovate setting is unchanged and does not bypass the independent Docker-gated cooldown.
 - **Merge:** GitHub `platformAutomerge` is already enabled. Non-strict up-to-date protection allows an eligible PR that is behind the base branch but has no conflicts to merge once all required checks pass, without rebasing merely to catch up.
-- **Next candidate:** After merge, a normal hosted Renovate run may propose the latest candidate on any day, subject to unchanged rate/concurrency limits and queue bottlenecks. The new candidate starts a fresh soak. Intermediate versions/digests are not queued individually.
+- **Next candidate:** After merge, a normal hosted Renovate run may propose the latest candidate on any day, subject to the rate/concurrency limits described above and queue bottlenecks. The new candidate starts a fresh soak. Intermediate versions/digests are not queued individually.
 
 **Operator intervention:** Conflicts, failing builds, and known-bad releases need an operator; the frozen branch will not automatically repair them. Disable automerge for a known-bad candidate before diagnosing it so a passing cooldown cannot cause an unwanted merge. In particular, Traefik is important infrastructure: retain manual rejection or refresh when a candidate is known-bad or a newer release contains a needed security fix. This policy does not force unsafe candidates to finish soaking or merge.
 
@@ -233,7 +237,7 @@ Matching is by exact package name, not by stack or registry. Immich Postgres (`g
 
 **Observed first cycle:** Homepage [#722](https://github.com/DevSecNinja/truenas-apps/pull/722) retained HEAD `6d3dfe8` (2026-09-10 02:32:56 UTC) and candidate `v2.3.0@sha256:f820276654539cdc2cf0169f28188d135919a7984fad76d83d8d5ff1383f3705` through the newer `v2.4.0` release on 2026-09-17. After 55 pending cooldown status posts, the check succeeded on 2026-09-24 at 04:48:54 UTC and automerge followed at 04:49:22 UTC. This demonstrates one freeze/soak/automerge cycle. As of 2026-09-28, the next `v2.4.0` candidate was only **Rate-Limited** in dashboard [#115](https://github.com/DevSecNinja/truenas-apps/issues/115); no next PR or new soak had been observed.
 
-**Scope and rollback:** This is a repository-local rule expansion, not a global or shared-config change. No workflow, cooldown algorithm/duration, branch naming, grouping, automerge, rate-limit, digest-enabling, or image-pin changes are included. To roll back, remove the local freeze rule from `renovate.json5`; all five packages then inherit the shared `rebaseWhen: "conflicted"` behavior again.
+**Scope and rollback:** The original frozen-cohort expansion was repository-local, not a global or shared-config change. It included no workflow, cooldown algorithm/duration, branch naming, grouping, automerge, rate-limit, digest-enabling, or image-pin changes. To roll back the freeze, remove the local freeze rule from `renovate.json5`; all five packages then inherit the shared `rebaseWhen: "conflicted"` behavior again.
 
 Broader rollout tracking remains open in [#758](https://github.com/DevSecNinja/truenas-apps/issues/758); related: [#759](https://github.com/DevSecNinja/truenas-apps/issues/759).
 
