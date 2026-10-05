@@ -103,7 +103,7 @@ services:
       - ./data/redis:/redis
 
   dawarich:
-    image: docker.io/freikin/dawarich:1.14.5@sha256:11826c67e4b1cfc1049033b5b6ad05f5134bcbfb7807045bd39d3376cbc79d89
+    image: docker.io/freikin/dawarich:1.15.1@sha256:9757df73d3b44e6fb79019b240f50cfd246c847d8883a4c9912cde11fa38618d
     container_name: dawarich
     entrypoint:
       - "web-entrypoint.sh"
@@ -235,7 +235,7 @@ services:
       - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
 
   dawarich-sidekiq:
-    image: docker.io/freikin/dawarich:1.14.5@sha256:11826c67e4b1cfc1049033b5b6ad05f5134bcbfb7807045bd39d3376cbc79d89
+    image: docker.io/freikin/dawarich:1.15.1@sha256:9757df73d3b44e6fb79019b240f50cfd246c847d8883a4c9912cde11fa38618d
     container_name: dawarich-sidekiq
     entrypoint:
       - "sidekiq-entrypoint.sh"
