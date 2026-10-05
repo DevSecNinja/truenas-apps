@@ -358,7 +358,7 @@ services:
 
   open-archiver-tika:
     # Full is required for the explicitly selected Tesseract OCR support.
-    image: docker.io/apache/tika:3.2.2.0-full@sha256:ffab324253edc54706e8882dd28190b1e6559c344b5315ae8a74b9efda9e7291
+    image: docker.io/apache/tika:3.3.1.0-full@sha256:d8e6ed96260ad89307a93195a1b856102987a818ac648502f8efbaf313d32470
     container_name: open-archiver-tika
     user: "35002:35002"
     env_file:
