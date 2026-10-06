@@ -86,7 +86,7 @@ services:
   # See: https://github.com/linuxserver/docker-socket-proxy
   # cap_drop: ALL is therefore omitted.
   homepage-docker-proxy:
-    image: docker.io/linuxserver/socket-proxy:version-3.4.3-r0@sha256:5907a638bb14ee873500f6161dd3aaa4d9b3e67a35912db8c9995e134d990ec0
+    image: docker.io/linuxserver/socket-proxy:version-3.4.4-r0@sha256:a8c700baae19c2fff5b2940b21a748e78cf3b91cc311ad65f990efabdd1361eb
     container_name: homepage-docker-proxy
     env_file:
       - path: ../shared/env/tz.env
