@@ -316,7 +316,7 @@ services:
       start_period: 10s
 
   open-archiver-meilisearch:
-    image: docker.io/getmeili/meilisearch:v1.38.2@sha256:448a5b1b3e9303fabf39b84a2672f184295f665b1cb8eaffb11c738273430e5e
+    image: docker.io/getmeili/meilisearch:v1.54.0@sha256:0bf32debcbfa8ba4e418679025f4935884972171513c92f0584689ff994a61df
     container_name: open-archiver-meilisearch
     depends_on:
       open-archiver-init:
