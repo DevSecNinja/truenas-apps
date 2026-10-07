@@ -35,7 +35,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: "2026.8.14"
+          version: "2026.9.12"
 
       - name: Run PowerShell SOPS tests
         shell: pwsh
@@ -49,7 +49,7 @@ jobs:
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.8.14"
+      mise-version: "2026.9.12"
       test-dirs: "tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration tests/truenas-prep-app/integration"
       check-name: "Unit & Integration Tests"
 
@@ -61,6 +61,6 @@ jobs:
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
-      mise-version: "2026.8.14"
+      mise-version: "2026.9.12"
       test-dirs: "tests/dccd/e2e"
       check-name: "dccd E2E Tests"
