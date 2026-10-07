@@ -13,7 +13,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   bazarr:
-    image: docker.io/linuxserver/bazarr:version-v1.6.0@sha256:84b6f05a7a4194fafe5a0bec062d32f6ae9ea74db33d43d678cb9a3191f31c24
+    image: docker.io/linuxserver/bazarr:version-v1.6.1@sha256:762f802274598da27255b2e5778f262b2b71b355a23e3812d9ee1520f8dbe37c
     container_name: bazarr
     hostname: bazarr
     env_file:
