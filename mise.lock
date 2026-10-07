@@ -400,7 +400,7 @@ url = "https://github.com/pypa/pipx/releases/download/1.16.7/pipx.pyz"
 url_api = "https://api.github.com/repos/pypa/pipx/releases/assets/513588802"
 
 [[tools."pipx:check-jsonschema"]]
-version = "0.38.0"
+version = "0.38.1"
 backend = "pipx:check-jsonschema"
 
 [[tools."pipx:checkov"]]
