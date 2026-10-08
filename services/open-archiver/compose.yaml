@@ -396,7 +396,7 @@ services:
   # Approved one-shot s6 exception: /init rewrites /etc/bash/bashrc and other
   # system configuration. No runtime data or Docker socket is mounted here.
   open-archiver-db-backup:
-    image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
+    image: docker.io/nfrastack/db-backup:5.0.4@sha256:33ba2270f53f66bc69a6941910a1c68663a113042670ef93581fcbd240a01a38
     container_name: open-archiver-db-backup
     depends_on:
       open-archiver:
