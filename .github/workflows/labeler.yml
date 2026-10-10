@@ -7,6 +7,14 @@ on:
     branches:
       - main
 
+# Collapse redundant runs when a PR is updated in quick succession (e.g.
+# Renovate rebases). Labeling is idempotent, so cancelling an in-flight
+# run is safe and saves Actions minutes. See DevSecNinja/.github
+# docs/workflow-trigger-conventions.md.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

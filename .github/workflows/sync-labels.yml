@@ -9,7 +9,11 @@ on:
     paths:
       - .github/labels.yaml
   schedule:
-    - cron: "0 0 * * *"
+    # Weekly drift-correction is enough: the authoritative label set is
+    # applied on every push that changes .github/labels.yaml, so the cron
+    # only needs to catch occasional manual edits made in the UI. Weekly
+    # (instead of daily) trims ~26 scheduled runs per month.
+    - cron: "0 0 * * 1"
 
 permissions:
   contents: read
