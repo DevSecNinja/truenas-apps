@@ -4,12 +4,104 @@ import { readdirSync } from "node:fs";
 import { entry, fields, items, keys, scalar, source } from "./source-helpers.mjs";
 
 const compose = source("services/open-archiver/compose.yaml");
-const services = entry(compose, "services").body;
+const services = imageOnlyServices(compose);
 const app = entry(services, "open-archiver").body;
 const workflow = source(".github/workflows/open-archiver-image.yml");
 const jobs = entry(workflow, "jobs").body;
 const image = entry(jobs, "image").body;
 const publish = entry(jobs, "publish").body;
+
+// This source reader intentionally does NOT support general YAML merges. Only
+// the inspected image-only fragment can be expanded before access checks.
+function imageOnlyServices(text) {
+    text = text.replaceAll("\r\n", "\n");
+    const fragment = entry(text, "x-app");
+    assert.equal(fragment.value, "&app-image", "x-app must declare only &app-image");
+    assert.deepEqual(keys(fragment.body), ["image"], "x-app must contain only image");
+    const reference = entry(fragment.body, "image").value;
+    assert.match(
+        reference,
+        /^ghcr\.io\/devsecninja\/truenas-apps\/open-archiver:[0-9a-f]{40}@sha256:[0-9a-f]{64}$/,
+        "the shared image must retain a full immutable reference",
+    );
+    assert.equal(fragment.body.trim(), `image: ${reference}`, "use a standalone unquoted literal image");
+    assert.equal(
+        text.split("\n").filter((line) => line === "x-app: &app-image").length, 1,
+        "use exactly the supported mapping anchor",
+    );
+    assert.equal((text.match(/&app-image\b/g) ?? []).length, 1, "the shared anchor must not be rebound");
+
+    const rawServices = entry(text, "services").body;
+    const consumers = [];
+    for (const name of keys(rawServices)) {
+        const service = entry(rawServices, name).body;
+        // Anchored to the whole top-level service line: no inline, nested,
+        // quoted, sequence or unknown merges can silently disappear.
+        const resolved = service.replace(/^<<: \*app-image$/gm, () => {
+            consumers.push(name);
+            return `image: ${reference}`;
+        });
+        keys(resolved); // Reject unsupported merges AND duplicate image overrides.
+    }
+    assert.deepEqual(
+        consumers.sort(), ["open-archiver", "open-archiver-migrate"],
+        "only app and migration must consume the shared image exactly once",
+    );
+    return rawServices.replace(/^  <<: \*app-image$/gm, `  image: ${reference}`);
+}
+
+test("image source: one literal image-only fragment supplies both app and migration", () => {
+    const reference = entry(entry(compose, "x-app").body, "image").value;
+    assert.equal(
+        compose.split(/\r?\n/).filter((line) => line.includes(reference)).length, 1,
+        "keep one shared pin, not two independently updatable literals",
+    );
+    for (const name of ["open-archiver", "open-archiver-migrate"]) {
+        assert.equal(entry(entry(services, name).body, "image").value, reference);
+    }
+    assert.throws(() => keys("<<: *app-image"), /unsupported YAML mapping line/);
+});
+
+test("image source: unknown anchors and unsupported merge forms fail closed", () => {
+    for (const merge of ["<<: *unknown", "<<: [*app-image]", '"<<": *app-image', "<<: {ports: [8080]}"]) {
+        assert.throws(
+            () => imageOnlyServices(compose.replace("    <<: *app-image", `    ${merge}`)),
+            /unsupported YAML mapping line/,
+            merge,
+        );
+    }
+    assert.throws(
+        () => imageOnlyServices(compose.replace("x-app: &app-image", "x-app: &unknown")),
+        /x-app must declare only &app-image/,
+    );
+    assert.throws(
+        () => imageOnlyServices(compose.replace("\nservices:", "\nx-other: &app-image\n  ports: [8080]\n\nservices:")),
+        /shared anchor must not be rebound/,
+    );
+});
+
+test("image source: extra fragment fields cannot hide ports or authentication overrides", () => {
+    for (const field of ["ports: [8080]", "labels: {traefik.enable: false}", "network_mode: host"]) {
+        assert.throws(
+            () => imageOnlyServices(compose.replace("x-app: &app-image", `x-app: &app-image\n  ${field}`)),
+            /x-app must contain only image/,
+            field,
+        );
+    }
+    assert.throws(
+        () => imageOnlyServices(compose.replace("x-app: &app-image", "x-app: &app-image\n  <<: *unknown")),
+        /unsupported YAML mapping line/,
+    );
+});
+
+test("image source: duplicate merges and local image overrides fail closed", () => {
+    for (const extra of ["<<: *app-image", "image: example.invalid/override:latest"]) {
+        assert.throws(
+            () => imageOnlyServices(compose.replace("    <<: *app-image", `    <<: *app-image\n    ${extra}`)),
+            /duplicate YAML mapping key: image/,
+        );
+    }
+});
 
 function labels(service) {
     if (!keys(service).includes("labels")) return {};

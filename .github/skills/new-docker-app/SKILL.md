@@ -80,6 +80,45 @@ Create `services/<app>/compose.yaml` following all compose conventions:
 
 Determine the correct PUID/PGID model for this app (media consumer, media producer, photos, or general — see INFRASTRUCTURE.md). If a new shared PGID group is needed, create the corresponding env file in `services/shared/env/`.
 
+#### Anti-pattern: Hidden image scalars
+
+Keep the complete image reference on a literal `image:` source line. Valid Compose alone is not enough: Renovate 44.149.1's Compose `LineMapper` matches `^\s*image:` and needs the resolved image literal on that same line.
+
+**Rejected:** a top-level scalar anchor hides the literal from Renovate, even though Compose resolves the aliases:
+
+```yaml
+---
+x-app-image: &app-image docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+
+services:
+    web:
+        image: *app-image
+    worker:
+        image: *app-image
+```
+
+**Supported:** anchor an extension mapping containing `image:` and merge it into each consumer. This preserves one source of truth and a discoverable literal. Renovate supports `x-*` image mappings; its [44.149.1 extraction tests](https://github.com/renovatebot/renovate/blob/44.149.1/lib/modules/manager/docker-compose/extract.spec.ts) include “extract images from fragments”.
+
+```yaml
+---
+x-app: &app-image
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+
+services:
+    web:
+        <<: *app-image
+    worker:
+        <<: *app-image
+```
+
+These excerpts demonstrate syntax, not image adoption or a runnable stack.
+
+- Name the extension `x-app`, not `x-app-image`: the current repository scanners match any `image:` substring, so a key ending in `image` feeds the anchor declaration into their image inputs.
+- Do not substitute an inline scalar anchor (`image: &app-image ...`). Renovate can discover its literal, but the repository scanners retain anchor and alias tokens. Multiline scalars that move the literal off the `image:` line are unsafe too.
+- Prefer an unquoted image reference without an inline comment. [Trivy scanning](../../../scripts/gha-trivy-image-scan.sh) and [image-age checking](../../../scripts/gha-image-age-check.sh) use grep/sed extraction and strip only single quotes; verify quoting or comments with every consumer rather than relying on YAML validity.
+
+Shared environment mapping anchors remain valid; this is not a blanket ban on anchors. Discovery alone does not make commit-SHA tags ordered versions, guarantee derivative-image rebuilds or pin refreshes, or clear the [adoption gate](#upstream-maintenance-and-adoption-gate).
+
 ### Step 2 — Create and populate the secrets template
 
 Follow the dedicated [SOPS secrets skill](../sops-secrets/SKILL.md) for key preflight, safe editing, generation, and validation.
@@ -487,6 +526,7 @@ Use this as a final review before committing:
 - [ ] Init container uses busybox pattern and only chowns `./data`
 - [ ] `./config` volumes are mounted `:ro`
 - [ ] Image is digest-pinned with explicit registry prefix
+- [ ] [Image discoverability](#anti-pattern-hidden-image-scalars) is verified: Renovate extraction **and update application**, clean repository scanner inputs, and equality between the source literal and every resolved image alias before and after updates; an anchor-only refactor leaves resolved service images unchanged
 - [ ] `secret.sops.env` is encrypted
 - [ ] Random variables used encrypted literal `GENERATE` sentinels as part of the selected Bash or PowerShell workflow
 - [ ] Random secrets were generated once; no generated value uses a `CHANGE_ME` placeholder
