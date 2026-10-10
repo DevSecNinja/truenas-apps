@@ -33,7 +33,7 @@ services:
       - ./data:/output
 
   traefik-forward-auth:
-    image: ghcr.io/italypaleale/traefik-forward-auth:4.14.1@sha256:fc39385b74aba58ed84cd03659bcde371f860378b6d90369d8c7d3e10c7f5295
+    image: ghcr.io/italypaleale/traefik-forward-auth:4.14.2@sha256:8affbf54279bce87ebb306250e602b97482f5f5cf2dbc81b6ecdc22e95233365
     container_name: traefik-forward-auth
     depends_on:
       traefik-forward-auth-init:
