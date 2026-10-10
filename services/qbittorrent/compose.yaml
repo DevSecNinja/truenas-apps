@@ -13,7 +13,7 @@ services:
   # egress network default route. Traefik is NOT joined to arr-egress (macvlan) to avoid
   # assigning Traefik an unnecessary egress network IP.
   qbittorrent:
-    image: docker.io/linuxserver/qbittorrent:5.2.2@sha256:dd24a5f3db32bc1425d3f8dc95e8aca8ac5a35905d798171230edf33f516d9a4
+    image: docker.io/linuxserver/qbittorrent:5.2.3@sha256:caab2ebce30799ab342c374ea268fef4ec063a8ec3733a4e5d4a8e856ee32ce8
     container_name: qbittorrent
     hostname: qbittorrent
     env_file:
