@@ -56,6 +56,7 @@ Source references: Compose v2.39.4 [`getRestartPolicy`](https://github.com/docke
 
 - Images must always include an explicit registry prefix (e.g. `docker.io/library/busybox`, `ghcr.io/gethomepage/homepage`). Bare image names like `busybox` or `user/image` are not allowed — Docker's implicit `docker.io` default is not reliable across runtimes and Renovate cannot enforce the correct registry without it
 - Images are digest-pinned (`@sha256:...`) — Renovate manages updates via PRs
+- Keep the complete image reference on a literal `image:` source line for Renovate and repository scanners. To share an image, use an `x-app` mapping containing `image:` and merge it with `<<: *app-image`, not a scalar image alias; the extension key must not end in `image`. Prefer unquoted references without inline comments and verify extraction and updates — see “Anti-pattern: Hidden image scalars” in `.github/skills/new-docker-app/SKILL.md`.
 - Every imported image must receive an [upstream dependency maintenance review](#image-selection-upstream-dependency-maintenance); pinning, a fresh tag, and runtime hardening do not establish dependency security.
 - When the same image is published on several registries, prefer the `docker.io` copy — see [Image Selection: Registry Preference](#image-selection-registry-preference) below.
 - **Prefer the smallest, most hardened image variant available** for a given version tag. When multiple variants are published, choose according to this priority order:

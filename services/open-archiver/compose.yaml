@@ -1,5 +1,6 @@
 ---
-x-app-image: &app-image ghcr.io/devsecninja/truenas-apps/open-archiver:831954bc4caac4edee212c2bf07cbabca6267c35@sha256:b094239f1eff4a02cc85c68a8def7d8838bd70805705c71a85bf09c6c8aee702
+x-app: &app-image
+  image: ghcr.io/devsecninja/truenas-apps/open-archiver:831954bc4caac4edee212c2bf07cbabca6267c35@sha256:b094239f1eff4a02cc85c68a8def7d8838bd70805705c71a85bf09c6c8aee702
 
 services:
   open-archiver-init:
@@ -79,7 +80,7 @@ services:
       retries: 3
 
   open-archiver-migrate:
-    image: *app-image
+    <<: *app-image
     container_name: open-archiver-migrate
     depends_on:
       open-archiver-db:
@@ -117,7 +118,7 @@ services:
       retries: 3
 
   open-archiver:
-    image: *app-image
+    <<: *app-image
     container_name: open-archiver
     depends_on:
       open-archiver-init:

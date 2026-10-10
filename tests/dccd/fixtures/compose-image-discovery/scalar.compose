@@ -1,0 +1,8 @@
+---
+x-app-image: &app-image ghcr.io/example/open-archiver:fixture@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+services:
+  open-archiver:
+    image: *app-image
+  open-archiver-migrate:
+    image: *app-image

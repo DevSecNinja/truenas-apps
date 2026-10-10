@@ -1,0 +1,14 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Trivy",
+          "rules": [{"id": "fixture-image"}]
+        }
+      },
+      "results": [{"ruleId": "fixture-image", "message": {"text": "offline fixture finding"}}]
+    }
+  ]
+}
