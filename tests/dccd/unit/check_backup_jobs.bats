@@ -141,7 +141,51 @@ mock_project_scoped_backups() {
   refute_output --partial 'label=com.docker.compose.project='
 }
 
-@test "check_backup_jobs: accepts a recent legacy single-job backup without an expected-job label" {
+@test "check_backup_jobs: displays 0m ago for a backup exactly 0 seconds old" {
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z'
+  mock_fixed_date 1000000 1000000
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial "app-db-backup: successful backup confirmed in logs (0m ago)"
+  assert_output --partial "All 1 database backup job(s) completed successfully within 48 hours"
+}
+
+@test "check_backup_jobs: displays 0m ago for a backup exactly 59 seconds old" {
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z'
+  mock_fixed_date 1000000 999941
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial "app-db-backup: successful backup confirmed in logs (0m ago)"
+  assert_output --partial "All 1 database backup job(s) completed successfully within 48 hours"
+}
+
+@test "check_backup_jobs: displays 1m ago for a backup exactly 60 seconds old" {
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z'
+  mock_fixed_date 1000000 999940
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial "app-db-backup: successful backup confirmed in logs (1m ago)"
+  assert_output --partial "All 1 database backup job(s) completed successfully within 48 hours"
+}
+
+@test "check_backup_jobs: displays 59m ago for a backup exactly 3599 seconds old" {
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z'
+  mock_fixed_date 1000000 996401
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial "app-db-backup: successful backup confirmed in logs (59m ago)"
+  assert_output --partial "All 1 database backup job(s) completed successfully within 48 hours"
+}
+
+@test "check_backup_jobs: displays 1h ago for a legacy single-job backup exactly 3600 seconds old without an expected-job label" {
   mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z'
   mock_fixed_date 1000000 996400
 
