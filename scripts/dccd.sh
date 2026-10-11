@@ -862,8 +862,13 @@ check_backup_jobs() {
                 fi
             fi
 
-            local age_hours=$((age_seconds / 60 / 60))
-            log_result "${service_name}: successful backup confirmed in logs (${age_hours}h ago)"
+            local age_display
+            if [ "${age_seconds}" -lt 3600 ]; then
+                age_display="$((age_seconds / 60))m"
+            else
+                age_display="$((age_seconds / 60 / 60))h"
+            fi
+            log_result "${service_name}: successful backup confirmed in logs (${age_display} ago)"
         fi
     done <<<"${backup_containers}"
 
