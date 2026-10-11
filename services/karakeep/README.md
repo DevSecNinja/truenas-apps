@@ -128,7 +128,7 @@ These links are pinned to upstream commit
 
 - **Active images**: `ghcr.io/karakeep-app/karakeep:0.33.2`,
   `dhi.io/playwright:1.63.0-debian13`, `docker.io/ubuntu/squid:7.2-26.04_edge`,
-  `docker.io/getmeili/meilisearch:v1.41.0`, and
+  `docker.io/getmeili/meilisearch:v1.54.0`, and
   `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
   worker, Meilisearch, and database backup processes
@@ -496,16 +496,170 @@ provisioning the mobile proxy token.
 - The web container applies database migrations before startup and uses a
   stop-first update order so the replacement does not serve traffic before
   migrations finish.
-- Before a major upgrade, confirm a fresh `karakeep-db-backup` artifact exists
+- Before a planned upgrade, confirm a fresh `karakeep-db-backup` artifact exists
   and snapshot the complete `vm-pool/apps/services/karakeep` dataset so the
   SQLite database, saved assets, and Meilisearch index have a coordinated
-  rollback point.
+  recovery point. For an already-blocked startup, use the recovery helper
+  below rather than waiting for a new sidecar backup.
 - Preserve the SOPS-encrypted secrets with the backup. The repository's ZFS
   snapshot, replication, and off-site strategy covers the child dataset; see
   [Backup Strategy](../BACKUP.md).
 
-For the existing apps after merge, use the sourced aliases to run
-`dccd-app karakeep`, `dccd-app changedetection`, then `dccd-all`.
-Verify both browser versions, service health, and browser workflows, and
-confirm a fresh successful Karakeep database backup. Do not repeat first-run
-provisioning.
+### Meilisearch Upgrades and Startup Recovery
+
+[PR #823](https://github.com/DevSecNinja/truenas-apps/pull/823)
+(`b50af84`, 2026-10-06) changed Meilisearch from `v1.41.0` to `v1.54.0`.
+The reported logs explicitly rejected the older database format. Healthy
+web, browser, and worker containers did not prove search was working; the
+latest backup remained at October 6 because the startup dependency chain
+blocked a new backup run.
+
+Compose now sets `MEILI_UPGRADE_DB: "true"`. According to the upstream
+[Meilisearch upgrade guide](https://www.meilisearch.com/docs/resources/migration/updating),
+this option is supported since `v1.51` and upgrades databases created by
+`v1.12` or later on startup. The reported `v1.41.0` database is within that
+range. Renovate disables automerge for Meilisearch major, minor, and patch
+updates so an operator can review compatibility and snapshot before deployment.
+
+<!-- dprint-ignore -->
+!!! warning "Snapshot before starting an upgrade"
+    Meilisearch database upgrades are non-atomic. An interruption or failed
+    upgrade can leave the index unusable. A healthy `/health` response is not
+    proof of migration success: verify the `upgradeDatabase` task.
+    Switching only the image back after migration is unsafe.
+
+For this **existing installation**, prefer the generic
+[snapshot-protected recovery helper](../BACKUP.md#snapshot-protected-app-recovery).
+**Before first installing its code**, pause cron, let old DCCD processes
+finish, wait for backup jobs, stop Karakeep, and take a manual protective
+snapshot preserving its old configuration and decrypted secrets. Follow the
+[first-install instructions](../BACKUP.md#first-installation-of-recovery-locking).
+Do not obtain the helper through a normal deployment that could start the
+migration before snapshotting.
+
+Once the reviewed helper and matching locking changes are installed without
+deploying, run as the deployment user, **not** with `sudo bash`:
+
+```sh
+cd /mnt/vm-pool/apps
+bash scripts/truenas-recover-app.sh karakeep
+```
+
+For normal future use, the helper validates current coverage, waits for old
+backup jobs, stops Karakeep's containers, and recursively snapshots its dataset
+**before Git sync or decryption**. It then syncs without deploying, validates
+target coverage, strictly pulls images, persists their IDs before freezing the
+target Git revision, and deploys only Karakeep. It checks container image IDs
+against that inventory, service health, current-run backup completion, and
+Meilisearch's migration task.
+Do not repeat first-run provisioning, recreate the Custom App, or regenerate
+secrets. Other apps keep running, but all other DCCD operations for this
+checkout are excluded; UI/manual Docker changes must not bypass that lock.
+
+On failure, the maintenance marker and any created snapshot remain.
+Before the first deployment attempt, sync, target-coverage, or pull failures
+leave the app **stopped** with its pre-sync snapshot. Default to retrying the
+**same command**, inspecting any active migration task first. Retries reuse
+the original snapshot and may
+resync until a target revision is frozen; afterwards Git revision and target
+image drift are refused and Git sync is skipped. Do not delete `.dccd.lock`
+or blindly remove the marker; see
+[failure handling](../BACKUP.md#run-recovery). There is no automatic rollback.
+Success removes the marker; manually paused bootstrap cron still needs
+explicit re-enabling after acceptance.
+
+Verify bookmark/note search, saved asset access, and a fresh encrypted `.gpg`
+backup with its SHA1 sidecar, not just the October 6 backup. Completion checks
+alone do not prove artifact encryption or recoverability; see
+[backup checks and restore guidance](../BACKUP.md#how-they-run).
+Retain the protective snapshot until acceptance, then use the **exact
+`--cleanup` command printed by the helper**. No snapshot TTL or automatic old
+snapshot deletion is applied. Retain the separate manual bootstrap snapshot;
+helper cleanup does not manage it.
+
+#### Manual Fallback Without the Helper
+
+Use this only when the helper is not available, not to bypass an active
+helper or its maintenance marker:
+
+1. Pause scheduled DCCD and other writers/restart automation. Let active
+   deployments and backup jobs finish, then stop the entire Karakeep app
+   through TrueNAS and confirm all its containers have stopped.
+2. **Before merging/deploying the migration**, create and verify a recursive
+   manual snapshot of `vm-pool/apps/services/karakeep`. Check coverage of
+   `./data/karakeep` (SQLite, WAL/SHM if present, and assets),
+   `./data/meilisearch`, backups, and service configuration. Preserve secrets,
+   snapshot name, repository revision, and previous image references/IDs.
+   Retain earlier known-good snapshots: this protects current state, not a
+   proven healthy index.
+3. Only after verifying the snapshot, install the reviewed changes and deploy
+   **only Karakeep** as the deployment user:
+
+   ```sh
+   cd /mnt/vm-pool/apps
+   bash scripts/dccd.sh -d /mnt/vm-pool/apps \
+       -k /mnt/vm-pool/apps/age.key -t -f -a karakeep -B -w 900
+   ```
+
+   This is an explicit recovery/troubleshooting invocation, not the normal
+   first-run rollout. It does not create the helper's snapshot or maintenance
+   marker; keep automation manually paused.
+4. Verify the migration task, service health, search, assets, and a successful
+   backup from this deployment before resuming automation. Retain the manual
+   snapshot until verification; helper cleanup does not own it.
+
+#### Inspect an Asynchronous Meilisearch Upgrade
+
+The helper checks the latest `upgradeDatabase` task. For a timeout or failure,
+inspect progress without restarting the engine:
+
+1. Inspect Meilisearch startup logs and query its upgrade tasks internally:
+
+   ```sh
+   sudo docker logs --tail 100 karakeep-meilisearch
+   sudo docker exec karakeep-meilisearch sh -ec '
+       printf "Authorization: Bearer %s\n" "$MEILI_MASTER_KEY" |
+           curl --fail --silent --show-error --header @- \
+               "http://127.0.0.1:7700/tasks?types=upgradeDatabase"
+   '
+   ```
+
+   The container shell reads `MEILI_MASTER_KEY` from its existing environment;
+   the header goes to curl over stdin, not in its arguments. Do not enable
+   shell tracing, use verbose HTTP output, print environment variables, or
+   paste the key into the host command line.
+
+   Identify the task for this upgrade by its UID and timestamps, not an older
+   successful task. Require `"type": "upgradeDatabase"` and
+   `"status": "succeeded"`. Wait and recheck while it is `enqueued` or
+   `processing`; investigate `failed`, `canceled`, or an absent expected task.
+   Inspect its error details and startup logs before proceeding. If DCCD
+   times out, check migration progress rather than repeatedly restarting it.
+2. The generic helper accepts no upgrade task when none is needed; that alone
+   does not prove this known old-format database was migrated. Once the
+   expected task succeeds, retry the helper if it timed out, then complete
+   the application and backup acceptance checks above.
+
+Earlier synthetic Podman testing of the `v1.41.0` → `v1.54.0` upgrade
+passed the migration task, search, non-root/read-only operation, and restart
+checks. A subsequent synthetic run also passed the actual
+`recovery_check_meilisearch` function against that real engine upgrade.
+This validates the task check, not the complete helper, a production
+deployment, or recovery against real TrueNAS ZFS.
+
+**If the upgrade task fails:** after the helper exits, keep automation blocked
+and plan operator-led recovery; do not treat a still-processing task as failed.
+Stop the app as part of that reviewed recovery and preserve the failed state
+for diagnosis. Follow the upstream guide to recover from a
+pre-upgrade snapshot **with its matching Meilisearch binary**, or perform the
+documented dump migration using a compatible engine and intact source state.
+Do not start an older binary against the migrated directory.
+
+`./data/meilisearch` is a regeneratable search index; the bookmark database
+`./data/karakeep/db.db` and saved assets are separate, authoritative state.
+Do not delete these directories or restore an older bookmark database merely
+to repair search. Prefer isolated recovery of the index from the snapshot;
+rolling back the entire dataset also rolls back SQLite and assets. If an
+index rebuild is needed, verify Karakeep's version-specific reindex procedure
+before proceeding. These are operator recovery steps, not evidence of a
+completed host deployment or runtime validation.

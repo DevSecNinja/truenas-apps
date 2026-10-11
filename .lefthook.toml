@@ -42,7 +42,8 @@ run = "mise exec -- zizmor {staged_files}"
 glob = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 
 [pre-commit.commands.docker-compose-config]
-run = "for f in {staged_files}; do mise exec -- docker-compose -f \"$f\" config --quiet; done"
+# The locked Aqua package exposes this executable on both Linux and Windows.
+run = "for f in {staged_files}; do mise exec -- docker-cli-plugin-docker-compose -f \"$f\" config --quiet; done"
 glob = ["services/**/compose.yaml", "services/**/compose.yml", "services/**/docker-compose.yaml", "services/**/docker-compose.yml"]
 
 [pre-commit.commands.dprint]
@@ -82,9 +83,9 @@ glob = ["truenas-apps.json", "services/**/compose.yaml"]
 
 [pre-commit.commands.bats]
 # Only unit tests run pre-commit (fast feedback). Integration + e2e run in CI.
-# 120s timeout guards against runaway hangs (e.g. mocks failing to terminate).
+# The full suite takes about 160s on WSL; retain a bounded hang guard with headroom.
 # TERM=dumb prevents tput failures when run from non-interactive contexts (e.g. VS Code git UI).
-run = "TERM=${TERM:-dumb} timeout 120 mise exec -- bats tests/dccd/unit tests/sops-secrets/unit"
+run = "TERM=${TERM:-dumb} timeout 300 mise exec -- bats tests/dccd/unit tests/sops-secrets/unit"
 glob = ["scripts/dccd.sh", "scripts/generate-sops-secrets.sh", "scripts/validate-sops-secrets.sh", "scripts/sops-common.sh", "services/karakeep/compose.yaml", "services/changedetection/compose.yaml", "services/open-archiver/compose.yaml", "tests/dccd/unit/**", "tests/dccd/helpers/**", "tests/sops-secrets/unit/**", "tests/sops-secrets/helpers/**", "tests/setup_libs.sh"]
 
 [pre-commit.commands.truenas-prep-app-tests]

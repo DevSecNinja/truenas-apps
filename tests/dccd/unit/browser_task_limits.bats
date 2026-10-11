@@ -13,12 +13,14 @@ setup_file() {
     for tool in yq jq; do
         command -v "${tool}" || return 1
     done
-    if docker-compose version >/dev/null 2>&1; then
+    if docker-cli-plugin-docker-compose version >/dev/null 2>&1; then
+        export BROWSER_COMPOSE_PROVIDER=docker-cli-plugin-docker-compose
+    elif docker-compose version >/dev/null 2>&1; then
         export BROWSER_COMPOSE_PROVIDER=docker-compose
     elif docker compose version >/dev/null 2>&1; then
         export BROWSER_COMPOSE_PROVIDER=docker
     else
-        printf 'Required working Compose provider missing: docker-compose or docker compose\n' >&2
+        printf 'Required working Compose provider missing: docker-cli-plugin-docker-compose, docker-compose or docker compose\n' >&2
         return 1
     fi
 }

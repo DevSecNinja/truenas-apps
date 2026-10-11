@@ -402,9 +402,13 @@ tag-only, with Renovate digest pinning to follow; no custom image publication
 or new persistent storage is required.
 
 Normal deployment recreates changed browser definitions; no profile-related
-shutdown is required for this transition. For existing apps, use the sourced
-aliases to run `dccd-app karakeep`, `dccd-app changedetection`, then
-`dccd-all`. Verify both browsers meet the version floor without an exception
+shutdown is required for this transition. For existing apps **without a pending
+database migration/recovery**, use the sourced aliases to run
+`dccd-app karakeep`, `dccd-app changedetection`, then `dccd-all`.
+If Karakeep still has the older Meilisearch database, follow
+[snapshot-protected recovery](BACKUP.md#snapshot-protected-app-recovery)
+first; do not use these aliases to install the recovery changes.
+Verify both browsers meet the version floor without an exception
 warning and that service health and browser workflows pass.
 See [Browser Runtime Validation](ARCHITECTURE.md#browser-runtime-validation)
 for historical synthetic checks on the older image and remaining checks.
@@ -500,6 +504,69 @@ Scripts executed directly on TrueNAS must minimize external dependencies:
 
 The `yq` requirement in [Multi-Server Deployment](#multi-server-deployment)
 applies only to explicitly provisioned non-TrueNAS server mode.
+
+#### Existing-App Recovery Helper
+
+`scripts/truenas-recover-app.sh` is separate from the provisioning helper:
+it stops and snapshots an **existing** Custom App before Git sync/decryption,
+then redeploys it, without creating accounts or datasets. Its generic argument
+is the directory name under `services/`; passing a name does not establish
+migration compatibility.
+Follow the [recovery workflow and first-install warning](BACKUP.md#snapshot-protected-app-recovery)
+before running it as the deployment user:
+
+```sh
+cd /mnt/vm-pool/apps
+bash scripts/truenas-recover-app.sh karakeep
+```
+
+The helper needs the usual Git/SOPS/Docker deployment environment, `age.key`,
+sudo access for Docker and ZFS, and host commands including `flock`, `jq`,
+and `zfs`. The operator confirmed those three at `/usr/bin/flock`,
+`/usr/bin/jq`, and `/usr/sbin/zfs`; this is an availability check, not a
+production recovery test. Do not run the entire helper with sudo.
+`RECOVERY_WAIT_TIMEOUT` defaults to 900 seconds; see the recovery workflow
+for overrides, coverage limits, retry behavior, and explicit snapshot cleanup.
+
+**Deployment coordination:** `scripts/lib/deployment-lock.sh` supplies one
+advisory `.dccd.lock` per canonical repository checkout, shared by DCCD and
+the helper. Git, SOPS, and shared configuration make an app-only lock
+insufficient. A competing DCCD operation fails rather than deploying
+concurrently, including sync-only and removal operations. Only the recovery
+helper's selected-app child DCCD is admitted through its maintenance marker;
+the lock descriptor is inherited across that child and DCCD's update re-exec.
+Other apps keep running but cannot be deployed concurrently from this checkout.
+
+All DCCD hosts require `flock`, including non-TrueNAS server-mode (`-S`) hosts;
+missing `flock` fails before sync or deployment. The TrueNAS operator already
+confirmed it is available. On Debian/Ubuntu non-TrueNAS servers, provision
+`util-linux` before updating DCCD (for example, `sudo apt-get install util-linux`).
+Do not install packages on the TrueNAS appliance.
+
+The process lock ends when its last inherited descriptor closes, but
+**`.dccd.lock` intentionally persists**. Never delete it to unlock a deployment:
+replacement would split locks across different inodes. The separate
+`.dccd-maintenance` marker continues blocking ordinary DCCD after failure,
+including initial validation failures before a snapshot exists. Before the
+first deployment attempt, sync, target-coverage, or image-pull failures leave
+the app stopped with its pre-sync snapshot retained. A same-app retry may sync
+again until
+`org.truenas-apps:recovery-target-revision` is set; afterwards the checkout
+and resolved image inventory must match the frozen target; Git sync is skipped.
+The image inventory is persisted in `org.truenas-apps:recovery-target-images`
+before freezing the revision and guards against mutable-tag drift.
+Success clears the marker, not the lock file or retained snapshot. Default to
+a same-app rerun; unsupported storage or deliberately abandoned recovery
+needs operator resolution, not blind marker removal.
+
+**TrueNAS UI actions, manual Docker commands, other tools, and separate
+checkouts do not honor this coordination.** Do not use them to restart,
+deploy, or modify app state during recovery; read-only diagnostics are fine.
+Old pre-lock DCCD processes also cannot participate: first installation
+requires pausing cron, waiting for them to finish, and taking a manual
+protective snapshot **before updating code**. The updated DCCD's `-D` mode
+skips both deployment and orphan cleanup; follow the linked bootstrap procedure
+before using an older installation's `dccd-decrypt` alias to obtain it.
 
 #### Brand-New Custom App Rollout
 
@@ -1370,5 +1437,5 @@ Retirement is the inverse of adding an app. Use the skill at `.github/skills/ret
 Key mechanisms:
 
 - **`dccd-down <app>`** (or `dccd.sh -R <app>`): Server-aware teardown that applies compose overrides and uses the correct project name for each deployment mode.
-- **Auto-cleanup**: When `dccd.sh` pulls new commits that remove a service directory, it automatically detects the orphaned compose project and tears it down — no manual intervention needed on any server.
+- **Auto-cleanup**: During normal deployment, when `dccd.sh` pulls new commits that remove a service directory, it detects the orphaned Compose project and tears it down. Decrypt-only (`-D`) and recovery runs skip this cleanup.
 - **Retired services log**: Add an entry to `docs/RETIRED-SERVICES.md` with the retirement date, reason, and the last active commit hash so the old configuration is easy to find.

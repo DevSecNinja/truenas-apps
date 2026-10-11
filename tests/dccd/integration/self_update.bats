@@ -156,6 +156,32 @@ MOCK
     refute_output --partial "re-executing with the new version"
 }
 
+@test "self_update: sync-only and recovery skip orphan teardown while ordinary deployments retain it" {
+    _create_smart_git_mock
+    cleanup_orphaned_projects() { printf 'ORPHAN_CLEANUP\n'; }
+    decrypt_sops_files() { :; }
+    auto_login_dhi() { :; }
+    check_dhi_login() { :; }
+    redeploy_truenas_apps() { :; }
+    TRUENAS=1
+
+    DECRYPT_ONLY=1
+    run update_compose_files "${BASE_DIR}"
+    assert_success
+    refute_output --partial "ORPHAN_CLEANUP"
+
+    DECRYPT_ONLY=0
+    DCCD_RECOVERY_APP=widget
+    run update_compose_files "${BASE_DIR}"
+    assert_success
+    refute_output --partial "ORPHAN_CLEANUP"
+
+    unset DCCD_RECOVERY_APP
+    run update_compose_files "${BASE_DIR}"
+    assert_success
+    assert_output --partial "ORPHAN_CLEANUP"
+}
+
 # ---------------------------------------------------------------------------
 # Self-update triggered: script tracked AND present in diff
 # ---------------------------------------------------------------------------

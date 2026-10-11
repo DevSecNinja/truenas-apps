@@ -408,6 +408,8 @@ services:
       MEILI_ENV: production
       MEILI_MASTER_KEY: ${KARAKEEP_MEILI_MASTER_KEY}
       MEILI_NO_ANALYTICS: "true"
+      # Version upgrades are non-atomic; snapshot first (see README Upgrade Notes).
+      MEILI_UPGRADE_DB: "true"
     user: "3130:3130" # svc-app-karakeep
     deploy:
       restart_policy:

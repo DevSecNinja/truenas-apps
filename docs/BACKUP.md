@@ -171,6 +171,185 @@ ls /mnt/vm-pool/apps/services/immich/.zfs/snapshot/
 
 Child datasets have their own independent snapshot timelines (accessible via `.zfs/snapshot/` within each dataset mountpoint), so you can restore one app without affecting others.
 
+### Snapshot-Protected App Recovery
+
+`scripts/truenas-recover-app.sh` coordinates recovery of an **existing TrueNAS
+Custom App** using the repository's reviewed Compose configuration. It
+protects the current state **before Git sync or secret decryption**, preserving
+the old service configuration and decrypted secrets within the dataset. It
+does not restore an earlier backup or invent database-major migration
+procedures. For Karakeep's approved Meilisearch migration and manual fallback, see
+[Karakeep startup recovery](services/karakeep.md#meilisearch-upgrades-and-startup-recovery).
+
+**Validation status:** the workflow below describes the implementation, not a
+completed production recovery or a validated TrueNAS ZFS restore.
+
+#### First Installation of Recovery Locking
+
+<!-- dprint-ignore -->
+!!! warning "Old DCCD processes cannot honor the new lock"
+    Before fetching, merging, or installing the helper and locking changes on
+    the host, pause scheduled DCCD jobs and let any existing deployment finish.
+    Take a manual protective snapshot before updating the checkout: the helper
+    cannot protect old configuration until its code is installed.
+    Do not run `dccd-all` or `dccd-app karakeep` to obtain the helper: that
+    could apply the migration before its protective snapshot exists.
+
+1. Pause cron and other deployment automation, wait for active deployments to
+   finish, and prevent manual app restarts.
+2. Let the selected app's backup jobs finish, stop all its containers, and
+   create and verify a recursive manual snapshot of its dedicated dataset.
+   Preserve old configuration, decrypted secrets, data, and backups; record
+   the old Git revision and container image references/IDs. For Karakeep,
+   follow the first two steps of the
+   [manual snapshot-first path](services/karakeep.md#manual-fallback-without-the-helper).
+3. As the deployment user, install the reviewed repository changes **without
+   deploying**. The helper, `scripts/lib/deployment-lock.sh`, and the matching
+   `scripts/dccd.sh` changes must be present together in a clean checkout.
+   After the manual snapshot, the existing alias provides a sync/decrypt-only
+   bootstrap:
+
+   ```bash
+   source /mnt/vm-pool/apps/scripts/aliases.sh
+   dccd-decrypt
+   ```
+
+   The updated `dccd.sh -D` skips deployment **and orphan cleanup**. When
+   starting with older DCCD, this path relies on its built-in re-exec loading
+   the changed `dccd.sh` before cleanup. Confirm that behavior in the version
+   being replaced; otherwise install the reviewed changes through a Git-only
+   update while automation remains paused. Sync/decrypt still changes Git,
+   secrets, and registry login state; it is not read-only.
+4. Run the helper below, retaining the manual bootstrap snapshot: the helper's
+   own snapshot now sees the installed configuration, not the original
+   pre-install files. If the helper remains unavailable, continue the manual
+   fallback only with its verified protective snapshot. If a helper attempt
+   fails, follow the failure handling below rather than bypassing its marker.
+5. Re-enable the manually paused cron jobs only after recovery succeeds and
+   application/backup acceptance checks pass. On failure, leave them paused.
+
+After this one-time bootstrap, normal helper use does **not** require editing
+cron or a separate manual snapshot: the shared lock and maintenance marker
+coordinate DCCD, and the helper snapshots before syncing. Its cleanup command
+does not manage the manual bootstrap snapshot.
+
+#### Run Recovery
+
+Run from the TrueNAS checkout as the **deployment user**, not with `sudo bash`.
+The helper uses `sudo -v` and elevates Docker/ZFS operations itself. It expects
+the existing `age.key`, registry credentials, Custom App configuration, and a
+dedicated ZFS dataset with `mounted=yes` at the selected service directory.
+Ambiguous matches and unrelated nested dataset mounts are rejected.
+
+```sh
+cd /mnt/vm-pool/apps
+bash scripts/truenas-recover-app.sh karakeep
+```
+
+Generic syntax (substitute the service directory name and, for cleanup, the
+exact snapshot printed by the helper):
+
+```text
+bash scripts/truenas-recover-app.sh <app>
+bash scripts/truenas-recover-app.sh --cleanup <app> <exact printed snapshot>
+```
+
+`RECOVERY_WAIT_TIMEOUT` defaults to **900 seconds** and accepts a positive
+integer of at most five digits. It controls bounded waits, not a total runtime
+limit. A longer wait can be selected for Karakeep without changing Compose:
+
+```sh
+RECOVERY_WAIT_TIMEOUT=1800 bash scripts/truenas-recover-app.sh karakeep
+```
+
+The helper's sequence is:
+
+1. Acquire the checkout-wide deployment lock and create a persistent
+   `.dccd-maintenance` marker identifying the app and recovery snapshot.
+2. Validate current storage coverage against the existing Compose model and
+   container mounts, then wait for active selected-app backup jobs.
+   Stop the selected project's containers, including orphaned services, and
+   verify none remain running.
+3. Recursively snapshot the dedicated dataset **before any Git sync or
+   decryption**. `org.truenas-apps:recovery-revision` records the old Git
+   `HEAD`; the snapshot retains the old service configuration and decrypted
+   secrets alongside data and backups. Properties also record the app and
+   pending status.
+   `org.truenas-apps:recovery-images` stores JSON with pre-recovery container
+   service names, image references, and image IDs for manual rollback planning.
+   These records do not implement rollback.
+4. Run an app-scoped DCCD `-D` sync/decrypt pass **without deploying or orphan
+   cleanup**, under the inherited lock. Validate the target's storage coverage
+   and strictly pull its images; a pull failure stops recovery.
+   Resolve and persist the pulled image IDs in
+   `org.truenas-apps:recovery-target-images` before freezing the new Git `HEAD` in
+   `org.truenas-apps:recovery-target-revision`. Git/SOPS/shared configuration
+   remain checkout-wide concerns, not an isolated per-app checkout.
+5. Deploy that frozen source with app-scoped DCCD `-n -B -w` using the
+   configured timeout: no second Git sync or image pull. Compare container
+   image IDs against the retained inventory, not mutable tags. Check
+   running/healthy services, successful one-shot exits, and backup
+   completion from this attempt. Services without health checks receive only
+   running-state verification. Meilisearch migration tasks receive a separate
+   check, including before redeployment on retry. Detection recognizes
+   `getmeili/meilisearch` with Docker Hub registry aliases or short repository
+   spelling, using tags or digests; repository image conventions are unchanged.
+6. Mark the snapshot complete and remove the marker only after those checks
+   pass. Inspect application data/functionality and actual backup artifacts
+   before accepting recovery or deleting the snapshot.
+
+| Outcome                                | Deployment coordination                                                 | Snapshot handling                                                                                 |
+| -------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Success                                | Marker removed; scheduled DCCD may run again                            | Retained indefinitely by the helper; no TTL                                                       |
+| Failure after maintenance begins       | Marker remains; ordinary DCCD stays blocked                             | Any created snapshot is retained; no automatic rollback                                           |
+| Retry before target revision is frozen | Helper may sync again under the shared lock                             | Reuses the original snapshot; target coverage and image pull must pass before freezing a revision |
+| Retry after target revision is frozen  | Git revision and resolved target images must match; Git sync is skipped | Reuses the original snapshot; target validation and image pull are repeated, refusing image drift |
+
+The kernel lock is released when its last inherited file descriptor closes,
+but **`.dccd.lock` intentionally remains on disk**. Never delete it to
+"unlock" recovery: recreating it would split coordination across different
+inodes. A failed run's maintenance marker continues excluding DCCD.
+
+The marker can remain after an initial validation failure before downtime or
+snapshot creation; such a failure provides no recovery point. **Before the
+first deployment attempt, sync, target-coverage, or image-pull failures leave
+the app stopped**, with its pre-sync snapshot and marker retained. A later
+retry can encounter containers already started by a previous deployment
+attempt. Rerunning the same app is the default; it may resync until the target
+revision is frozen.
+Unsupported storage or intentionally abandoned recovery requires an
+operator-reviewed resolution of source, container, and snapshot state, not
+blindly removing the marker or changing the frozen target revision. If a
+Meilisearch task is still processing, inspect/wait rather than interrupting it.
+
+#### Scope and Explicit Cleanup
+
+- Only the selected app is stopped; other apps keep running, but **all other
+  DCCD operations for this checkout** are excluded during recovery.
+  See [deployment coordination](INFRASTRUCTURE.md#existing-app-recovery-helper).
+- The snapshot covers only the dedicated service dataset and its ZFS
+  descendants, not shared configuration elsewhere, TrueNAS app metadata,
+  or external media. Writable external bind mounts, named/anonymous volumes,
+  and unrelated datasets mounted beneath the service directory are rejected.
+  Do not assume this covers Immich's external media.
+- Profile-based setups, local builds, and scaled services are unsupported;
+  use a reviewed app-specific plan instead. Read-only external mounts are
+  not backed up by this snapshot.
+- The helper orchestrates **existing approved migration settings**.
+  Other app-specific migrations still need compatible Compose configuration
+  and manual data/functionality verification.
+- Completion checks do not prove artifact encryption, decryption, integrity,
+  or an isolated restore. Existing database backup policies and the
+  [restore checks](#restore-a-database-dump) are unchanged.
+
+After acceptance, copy the **exact cleanup command printed by the helper**.
+Cleanup requires no active maintenance marker and accepts only a helper-owned
+snapshot marked complete for that app. It removes that snapshot and matching
+child snapshots, not datasets; it performs no rollback or recursive dataset
+destruction. It does not delete older/manual snapshots automatically. Retain
+earlier known-good recovery points and monitor snapshot space separately from
+the database sidecars' 48-hour artifact retention.
+
 ---
 
 ## Layer 2: Local Cross-Pool Replication
@@ -823,8 +1002,8 @@ database sidecars' 48-hour cleanup policy.
 The following stateful databases have application-consistent backup sidecars
 in their compose files today. Dawarich and Open Archiver use maintained
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
-`tiredofit/db-backup` v4. These produce compressed, encrypted dump files
-independent of ZFS snapshots — providing an application-consistent recovery
+`tiredofit/db-backup` v4. These are configured to produce compressed, encrypted
+dump files independent of ZFS snapshots — providing an application-consistent recovery
 point that a raw filesystem snapshot may not guarantee (especially for
 PostgreSQL WAL consistency). **Not every service with an embedded database has
 this layer yet** — see [Persistent State Inventory](#persistent-state-inventory-beyond-application-level-backups)
@@ -839,6 +1018,8 @@ deployment, or storage-layer recovery.
 
 ### Covered Databases
 
+The table describes configured coverage, not proof that the latest run succeeded.
+
 | Service        | Database                                            | Backup sidecar             | Image family    | Encryption | Output path                                  |
 | -------------- | --------------------------------------------------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
 | Bitwarden      | SQLite                                              | `bitwarden-db-backup`      | tiredofit v4    | GPG        | `services/bitwarden/backups/db-backup/`      |
@@ -852,13 +1033,77 @@ deployment, or storage-layer recovery.
 | Outline        | PostgreSQL                                          | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
 | Unifi          | MongoDB                                             | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
 
+### v4 Compatibility Constraint
+
+Dawarich and Open Archiver are restored to the exact prior
+`docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
+pin. Renovate restricts this image to `allowedVersions: /^4\./`.
+Version 5 is not a drop-in replacement for the configured v4 commands,
+environment variables, completion logs, and restore workflow.
+
+Keep this constraint until an intentional migration validates:
+
+- GPG encryption and passphrase decryption, compression, checksums, and retention.
+- Exactly one backup per configured job and a successful isolated restore of
+  every engine's artifact.
+- Job failure propagation and matching freshness-checker log parsing, including
+  duplicate/missing completion detection.
+
+Do not loosen the v4 freshness checker or disable it to accept v5 output.
+Recognizing a new log format alone would not establish encryption or
+recoverability.
+
+### October 2026 Backup Incidents
+
+- **Bitwarden:** user-supplied host evidence from **2026-10-10 (CEST)** shows
+  that retrying the existing backup container at **22:09** still failed its
+  SQLite backup. Earlier failures reported a misleading overall exit code
+  `0`; SMTP errors were secondary because the sidecar has `network_mode: none`.
+  An isolated read-only raw SQLite `.backup` succeeded, followed by a fresh
+  Compose one-off at **22:17** that produced an encrypted `.gpg` artifact
+  and SHA1 sidecar. The user then recreated **only `bitwarden-db-backup`**,
+  using Compose `up` with `--no-deps`, `--force-recreate`,
+  `--abort-on-container-exit`, and `--exit-code-from bitwarden-db-backup`.
+  The **22:18:53 CEST** run succeeded with exit code `0`, producing a
+  **29,017-byte `.sqlite3.zst.gpg`** artifact and SHA1 sidecar. Recreating
+  the backup container recovered the job without a Bitwarden code change.
+  The underlying old-container failure remains unproven; these runs do not
+  establish a vault restore, vault-integrity diagnosis, or global backup
+  freshness-check result.
+- **Dawarich / Open Archiver:** [PR #849](https://github.com/DevSecNinja/truenas-apps/pull/849)
+  (`c334cc4`, 2026-10-10) bumped their backup image to `5.0.4` despite the
+  documented v4 restore workflow. Dawarich's supplied logs show duplicate
+  startup backup runs and completed `.sql.zst` files, not `.gpg` artifacts.
+  The new structured logs also lack the v4 completion records expected by
+  the checker. Restoring the v4 pins addresses configuration compatibility;
+  a fresh encrypted backup and isolated restore still need verification.
+- **Karakeep:** after [PR #823](https://github.com/DevSecNinja/truenas-apps/pull/823)
+  (`b50af84`, 2026-10-06), Meilisearch rejected the older index database.
+  Web/browser/worker health did not prove search readiness, and startup
+  dependencies blocked new backup runs; the reported latest backup remained
+  at October 6. Take an existing-state protective snapshot before deployment
+  and follow [Karakeep startup recovery](services/karakeep.md#meilisearch-upgrades-and-startup-recovery).
+  Repairing the search index does not require wiping the bookmark database.
+
+<!-- dprint-ignore -->
+!!! warning "Treat v5-created dumps as potentially unencrypted sensitive data"
+    ZSTD compression is not encryption. Restrict access to any v5-created
+    dumps and account for copies in snapshots, replication, and off-site
+    storage. Returning to v4 does not encrypt or remove earlier artifacts.
+    Review actual artifact protection and retention separately; no cleanup
+    or encryption of those copies is claimed here.
+
+The earlier v4 synthetic backup/restore results below remain historical
+evidence, not validation of this recovery, a new runtime test, or proof of
+deployment on TrueNAS.
+
 ### How They Run
 
 The db-backup sidecars run their configured backups and exit. They are started
 by each full `dccd.sh` deployment, so backup cadence follows the administrator's dccd cron
 schedule rather than an intrinsic nightly schedule. The documented TrueNAS
 cron runs every 15 minutes with `-f`, so a one-shot backup may run on every
-forced full deployment. Dumps are:
+forced full deployment. The v4 configuration is intended to produce dumps that are:
 
 - Compressed with zstd (gzip for MongoDB — `mongodump --gzip` is invoked directly)
 - SHA1-checksummed
@@ -877,6 +1122,13 @@ retained older-run success markers while allowing final buffered output after
 immediately after the numeric exit code, including the reset `\e[0m`, are
 accepted for both zero and nonzero codes; color formatting does not make a
 valid completion record malformed.
+
+With `-a <app> -B`, discovery is scoped to that Compose project (`ix-<app>`
+in TrueNAS mode). Unscoped `-B` / `dccd-all` retains the full backup check.
+The [recovery helper](#snapshot-protected-app-recovery) additionally requires
+the selected app's backup containers to have started during its current
+attempt; a recent older completion is insufficient. None of these completion
+checks alone proves that an artifact decrypts or restores successfully.
 
 - **All sidecars:** any current-run nonzero or malformed job completion fails
   the check, even if another job succeeds.
@@ -958,8 +1210,8 @@ The mapped-identity synthetic run verified output directory ownership
 these historical results predate the runner/checker changes and do not prove
 target-host backup or storage-layer recovery.
 
-The tiredofit v4 sidecars produce GPG-encrypted backups. Notification behavior
-is configured per app; Karakeep and Memos disable sidecar notifications and
+The tiredofit v4 sidecars are configured to produce GPG-encrypted backups.
+Notification behavior is configured per app; Karakeep and Memos disable sidecar notifications and
 rely on the `dccd.sh -B` freshness check.
 
 Karakeep's hardened backup configuration separately passed a synthetic Podman
@@ -985,8 +1237,9 @@ TrueNAS host.
     Version 5.0.0 was intentionally not selected because runtime restore
     validation failed with an invalid bigint conversion. The maintained
     nfrastack `4.9.2` compatibility release preserves the proven v4 workflow.
-    Runtime testing successfully decrypted its dump and restored it into a fresh
-    PostgreSQL database.
+    Earlier runtime testing successfully decrypted its dump and restored it
+    into a fresh PostgreSQL database; this is historical evidence, not a
+    post-incident validation of the restored pin.
 
 ### Restore a Database Dump
 

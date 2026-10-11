@@ -1,6 +1,8 @@
 # Ignore build artifacts and downloaded files
 bin/**
 site/
+.dccd.lock
+.dccd-maintenance
 
 # Secrets
 *.key

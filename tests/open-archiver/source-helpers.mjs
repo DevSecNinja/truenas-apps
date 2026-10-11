@@ -40,7 +40,11 @@ export function keys(text) {
 
 export function scalar(text) {
     const value = text.trim();
-    if (value.startsWith('"')) return JSON.parse(value);
+    if (value.startsWith('"')) {
+        const quoted = value.match(/^("(?:[^"\\]|\\.)*")(?:\s+#.*)?$/);
+        assert.ok(quoted, "unsupported YAML double-quoted scalar");
+        return JSON.parse(quoted[1]);
+    }
     if (value.startsWith("'")) {
         assert.ok(value.endsWith("'"), "unterminated YAML single-quoted scalar");
         return value.slice(1, -1).replaceAll("''", "'");
