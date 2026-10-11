@@ -168,7 +168,9 @@ docker)
       ;;
     'ps --all --quiet '*)
       service="${*: -1}"
-      if [[ "${RECOVERY_MISSING_SERVICE:-}" != "${service}" ]]; then
+      if [[ "${RECOVERY_DUPLICATE_SERVICE:-}" == "${service}" ]]; then
+        printf 'current-%s-1\ncurrent-%s-2\n' "${service}" "${service}"
+      elif [[ "${RECOVERY_MISSING_SERVICE:-}" != "${service}" ]]; then
         if [[ "${service}" == web && "${RECOVERY_RETAIN_WEB:-0}" == 1 ]]; then
           printf 'live-web\n'
         else

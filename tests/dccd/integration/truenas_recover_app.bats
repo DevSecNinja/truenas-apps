@@ -327,6 +327,30 @@ teardown() {
   assert_recovery_paused
 }
 
+@test "recovery_check_meilisearch: missing container fails before executing the task query" {
+  export RECOVERY_IMAGE=docker.io/getmeili/meilisearch:v1
+  export RECOVERY_MISSING_SERVICE=web
+  export RECOVERY_MEILI_RESPONSE='{"results":[]}'
+  run_recovery widget
+  assert_failure
+  assert_output --partial "Expected exactly one container for web"
+  assert_recovery_event_absent '^meili$'
+  assert_file_exists "${MOCK_LOG}/snapshot-name"
+  assert_recovery_paused
+}
+
+@test "recovery_check_meilisearch: multiple containers fail before executing the task query" {
+  export RECOVERY_IMAGE=docker.io/getmeili/meilisearch:v1
+  export RECOVERY_DUPLICATE_SERVICE=web
+  export RECOVERY_MEILI_RESPONSE='{"results":[]}'
+  run_recovery widget
+  assert_failure
+  assert_output --partial "Expected exactly one container for web"
+  assert_recovery_event_absent '^meili$'
+  assert_file_exists "${MOCK_LOG}/snapshot-name"
+  assert_recovery_paused
+}
+
 @test "recovery_check_meilisearch: newest failed or canceled task cannot be hidden by an earlier success" {
   export RECOVERY_IMAGE=docker.io/getmeili/meilisearch:v1
   local state

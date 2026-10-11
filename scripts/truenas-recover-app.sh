@@ -138,6 +138,8 @@ recovery_check_meilisearch() {
     while IFS= read -r service; do
         [ -n "${service}" ] || continue
         id="$(recovery_compose ps --all --quiet "${service}")"
+        [ -n "${id}" ] && [[ "${id}" != *$'\n'* ]] ||
+            recovery_fail "Expected exactly one container for ${service}"
         while :; do
             # Keep the master key inside the container and off curl's argv.
             tasks="$(sudo docker exec "${id}" sh -ec '
