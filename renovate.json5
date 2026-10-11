@@ -19,6 +19,23 @@
   prConcurrentLimit: 20,
   packageRules: [
     {
+      // v5 is a rewrite: legacy encryption settings, commands, completion
+      // logs, and restore behavior need migration and end-to-end validation.
+      description: "Keep database backup sidecars on the validated v4 compatibility line",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/nfrastack/db-backup"],
+      allowedVersions: "/^4\\./",
+    },
+    {
+      // Startup upgrades are non-atomic. Review release compatibility and
+      // take a snapshot before merging a database-format-changing update.
+      description: "Require operator review for Meilisearch version upgrades",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/getmeili/meilisearch"],
+      matchUpdateTypes: ["major", "minor", "patch"],
+      automerge: false,
+    },
+    {
       // The shared config disables digest-only updates to reduce PR noise and
       // avoid auto-merging potentially hijacked tags. For images pinned to a
       // mutable channel tag like ":latest" or ":beta" the digest is the ONLY

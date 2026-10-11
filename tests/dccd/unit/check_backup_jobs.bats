@@ -2,6 +2,13 @@
 # Unit tests for check_backup_jobs()
 # Command/completion evidence only; archive consistency still requires restore testing.
 
+load '../helpers/diagnostics'
+
+setup_file() {
+  # Keep this suite offline rather than allowing common.bash to fetch libraries.
+  diagnostics_require_helpers
+}
+
 setup() {
   load '../helpers/common'
   load '../helpers/mocks'
@@ -13,6 +20,9 @@ setup() {
   LOG_TIMESTAMP="test"
   BACKUP01_SUCCESS='Backup 01 routines finish time: 2026-09-06 19:00:00 UTC with exit code 0'
   BACKUP02_SUCCESS='Backup 02 routines finish time: 2026-09-06 19:00:00 UTC with exit code 0'
+  # Sanitized logfmt shape from the reported v5 completions, not runtime proof.
+  BACKUP01_V5_COMPLETE='time=2026-09-06T19:00:00Z level=info action=backup job=db01 type=backup status=complete strategy=full file=/backup/synthetic.sql.zst msg="backup complete"'
+  BACKUP02_V5_COMPLETE='time=2026-09-06T19:00:00Z level=info action=backup job=db02 type=backup status=complete strategy=full file=/backup/synthetic.rdb.zst msg="backup complete"'
 }
 
 teardown() {
@@ -98,6 +108,39 @@ MOCK
   chmod +x "${MOCK_BIN}/date"
 }
 
+mock_project_scoped_backups() {
+  cp "${REPO_ROOT}/tests/dccd/fixtures/backup-project-command.bash" "${MOCK_BIN}/docker"
+  chmod +x "${MOCK_BIN}/docker"
+  mock_fixed_date 1000000 996400
+}
+
+@test "check_backup_jobs: optional project filter excludes another project's failed backup" {
+  mock_project_scoped_backups
+
+  run check_backup_jobs ix-widget
+
+  assert_success
+  assert_output --partial "All 1 database backup job(s) completed successfully"
+  refute_output --partial "other-db-backup"
+  assert_mock_called_with docker 'ps -a --filter label=com.docker.compose.service --filter label=com.docker.compose.project=ix-widget --format'
+  run get_mock_call_args docker
+  assert_success
+  refute_output --partial ' other-1'
+}
+
+@test "check_backup_jobs: no project argument still checks backups across all projects" {
+  mock_project_scoped_backups
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "other-db-backup-1: backup failed (state=exited, exit=9)"
+  assert_output --partial "1/2 database backup job(s) failed the freshness check"
+  run get_mock_call_args docker
+  assert_success
+  refute_output --partial 'label=com.docker.compose.project='
+}
+
 @test "check_backup_jobs: accepts a recent legacy single-job backup without an expected-job label" {
   mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z'
   mock_fixed_date 1000000 996400
@@ -121,6 +164,39 @@ MOCK
   assert_failure
   assert_output --partial "app-db-backup-1: no successful backup completion found in logs from the last 48 hours"
   assert_output --partial "1/1 database backup job(s) failed the freshness check"
+  assert_mock_called_with "docker" "logs --since 2026-09-06T18:59:00Z container-1"
+}
+
+@test "check_backup_jobs: rejects unmatched v5 logfmt completions despite exit zero" {
+  local expected_jobs
+  # Neither completion-looking text nor a .sql.zst filename proves a v4 backup.
+  local logs="${BACKUP01_V5_COMPLETE}"$'\n'"${BACKUP02_V5_COMPLETE}"
+  mock_fixed_date 1000000 996400
+
+  for expected_jobs in '' '01,02'; do
+    mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}" 0 "${expected_jobs}"
+
+    run check_backup_jobs
+
+    assert_failure
+    assert_output --partial "app-db-backup-1: no successful backup completion found in logs from the last 48 hours"
+    assert_output --partial "1/1 database backup job(s) failed the freshness check"
+    refute_output --partial "successful backup confirmed"
+    assert_mock_called_with "docker" "logs --since 2026-09-06T18:59:00Z container-1"
+  done
+}
+
+@test "check_backup_jobs: unmatched v5 logfmt job db02 cannot satisfy the two-job label alongside v4 job 01" {
+  local logs="${BACKUP01_SUCCESS}"$'\n'"${BACKUP02_V5_COMPLETE}"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}" 0 '01,02'
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "app-db-backup-1: expected one successful completion for backup routine 02, found 0"
+  assert_output --partial "1/1 database backup job(s) failed the freshness check"
+  refute_output --partial "successful backup confirmed"
   assert_mock_called_with "docker" "logs --since 2026-09-06T18:59:00Z container-1"
 }
 

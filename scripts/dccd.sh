@@ -67,6 +67,8 @@ SOPS_BIN=""            # Path to SOPS binary (set by ensure_sops)
 _DCCD_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/log.sh disable=SC1091
 . "${_DCCD_SCRIPT_DIR}/lib/log.sh"
+# shellcheck source=lib/deployment-lock.sh disable=SC1091
+. "${_DCCD_SCRIPT_DIR}/lib/deployment-lock.sh"
 # log.sh reads LOG_TAG from the shell environment (same scope, no export needed).
 # shellcheck disable=SC2034
 LOG_TAG="dccd"
@@ -678,11 +680,17 @@ dump_project_logs_tail() {
 # Verify every Compose-managed database backup container has exited successfully
 # within the configured freshness window. Active jobs are allowed to finish for
 # up to WAIT_TIMEOUT seconds, shared across all backup containers.
+# Optional $1 scopes discovery to a Compose project; empty checks all projects.
 check_backup_jobs() {
     local all_containers backup_containers
+    local -a project_filter=()
+    if [ -n "${1:-}" ]; then
+        project_filter=(--filter "label=com.docker.compose.project=$1")
+    fi
     if ! all_containers=$(
         ${SUDO} docker ps -a \
             --filter "label=com.docker.compose.service" \
+            "${project_filter[@]}" \
             --format '{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.service"}}\t{{.Label "dccd.backup-jobs"}}' \
             2>/dev/null
     ); then
@@ -1453,7 +1461,9 @@ update_compose_files() {
                 fi
 
                 # Clean up any services that were removed by the incoming commits
-                cleanup_orphaned_projects "${dir}" "${_pre_pull_apps}"
+                if [ -z "${DCCD_RECOVERY_APP:-}" ] && [ "${DECRYPT_ONLY}" -eq 0 ]; then
+                    cleanup_orphaned_projects "${dir}" "${_pre_pull_apps}"
+                fi
             else
                 log_info "Already up-to-date on origin/${REMOTE_BRANCH} (${short_local}) — force mode, redeploying"
             fi
@@ -1695,7 +1705,7 @@ usage() {
     Options:
       -a <name>       Only deploy the specified app (optional - matches directory name)
       -b <name>       Specify the remote branch to track (default: main)
-      -B              Check database backup jobs completed successfully within the last 48 hours
+      -B              Check database backup jobs within 48 hours (scoped to the app when -a is used)
       -d <path>       Specify the base directory of the git repository (required)
       -D              Decrypt-only: git sync then decrypt all SOPS secret files, skip deploying
       -f              Force redeploy, skip the hash comparison check (optional)
@@ -1846,19 +1856,21 @@ if [ -z "${_SCRIPT_PATH}" ]; then
     unset _script_dir _script_name
 fi
 
-# In quiet mode, initialise the output buffer now that options are parsed
-if [ "${QUIET}" -eq 1 ]; then
-    _QUIET_BUF=$(mktemp /tmp/dccd-quiet.XXXXXX)
-    enable_quiet_mode
-fi
-
 # Check if BASE_DIR is provided
 if [ -z "${BASE_DIR}" ]; then
     log_error "The base directory (-d) is required, exiting..."
     usage
-else
-    log_info "Base directory is set to ${BASE_DIR}"
 fi
+
+dccd_acquire_lock || exit $?
+dccd_check_maintenance || exit $?
+
+# Do not buffer coordination failures: cron must report why deployment stopped.
+if [ "${QUIET}" -eq 1 ]; then
+    _QUIET_BUF=$(mktemp /tmp/dccd-quiet.XXXXXX)
+    enable_quiet_mode
+fi
+log_info "Base directory is set to ${BASE_DIR}"
 
 # Check if REMOTE_BRANCH is provided
 if [ -z "${REMOTE_BRANCH}" ]; then
@@ -2053,8 +2065,12 @@ fi
 
 _backup_check_failed=0
 if [ "${CHECK_BACKUPS}" -eq 1 ]; then
+    _backup_project="${APP_FILTER}"
+    if [ -n "${_backup_project}" ] && [ "${TRUENAS}" -eq 1 ]; then
+        _backup_project="ix-${_backup_project#_}"
+    fi
     # shellcheck disable=SC2310  # failure is returned after execution timing is logged
-    if ! check_backup_jobs; then
+    if ! check_backup_jobs "${_backup_project}"; then
         _backup_check_failed=1
     fi
 fi
