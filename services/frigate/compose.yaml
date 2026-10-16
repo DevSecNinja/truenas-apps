@@ -36,7 +36,7 @@ services:
   frigate:
     profiles:
       - surveillance
-    image: ghcr.io/blakeblackshear/frigate:0.18.0@sha256:b1f339cf08ae9148b0fac4295cf59f8e158455f6e72d29af32b773a3d8129851
+    image: ghcr.io/blakeblackshear/frigate:0.18.2@sha256:9ebab4801be69ab4ebc7f6ab1d582c859ff7412d457a3fa550056894e8444dad
     container_name: frigate
     depends_on:
       frigate-init:
