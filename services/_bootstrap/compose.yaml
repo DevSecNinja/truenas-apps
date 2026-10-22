@@ -70,7 +70,7 @@ services:
   # IP. Exits non-zero if the IPs match — blocking all arr apps that depend on
   # this check via the alphabetical deploy order of _bootstrap.
   arr-egress-init:
-    image: docker.io/library/alpine:3.24@sha256:c6b073f8e9e58d881f6ffba6ebf3b9ebd60b9e7d6e8337018c0e68bb5c356873
+    image: docker.io/library/alpine:3.24@sha256:71e9b7bae160ba167fa17414401b94cbcdaf3c32feeab9298bd794a2a0614c35
     container_name: arr-egress-init
     env_file:
       - path: .env
