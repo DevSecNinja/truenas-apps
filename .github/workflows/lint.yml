@@ -59,7 +59,7 @@ jobs:
 
   docker-compose-config:
     name: docker compose config
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
@@ -80,7 +80,7 @@ jobs:
 
   dotenv-linter:
     name: dotenv-linter
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
@@ -106,7 +106,7 @@ jobs:
   validate-manifests:
     # Keep this context stable: the main branch ruleset requires it by name.
     name: validate servers.yaml
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
