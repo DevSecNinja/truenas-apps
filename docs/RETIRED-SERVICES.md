@@ -23,14 +23,15 @@ roll back the whole repository.
 Sonarr, and Spottarr together because they are unused. **Plex remains active.**
 The date above records repository retirement, not a completed production teardown.
 
-| Resource                                           | Retirement policy                                                               |
-| -------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Eight app stacks and their live integrations       | Remove from deployment, routing, discovery, monitoring, and active provisioning |
-| `vm-pool/apps/services/<app>` for each retired app | Retain the dataset, all runtime data, configuration, and backups                |
-| `archive-pool/content`                             | Retain all `media/` and `downloads/` data and the single-filesystem layout      |
-| Plex                                               | Keep its stack, dataset, media access, routing, and monitoring                  |
-| Accounts, groups, and ownership IDs                | Retain existing identities and memberships; never reallocate them               |
-| Existing Docker volumes                            | Retain; no volume cleanup is part of this retirement                            |
+| Resource                                           | Retirement policy                                                                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eight app stacks and their live integrations       | Remove from deployment, routing, discovery, monitoring, and active provisioning                                                                                           |
+| Shared `_bootstrap`                                | Retain `content-init`, `arr-egress-init`, its SOPS/DDNS/egress configuration, and all four networks: `arr-egress`, `arr-stack-backend`, `dawarich-backend`, `iot-backend` |
+| `vm-pool/apps/services/<app>` for each retired app | Retain the dataset, all runtime data, configuration, and backups                                                                                                          |
+| `archive-pool/content`                             | Retain all `media/` and `downloads/` data and the single-filesystem layout                                                                                                |
+| Plex                                               | Keep its stack, dataset, media access, routing, and monitoring                                                                                                            |
+| Accounts, groups, and ownership IDs                | Retain existing identities and memberships; never reallocate them                                                                                                         |
+| Existing Docker volumes                            | Retain; no volume cleanup is part of this retirement                                                                                                                      |
 
 See [retained datasets](INFRASTRUCTURE.md#retained-arr-datasets),
 [account reservations](INFRASTRUCTURE.md#retained-arr-account-reservations),
@@ -81,6 +82,11 @@ steps on TrueNAS, not actions already performed by this documentation change.
     groups, or reassign reserved IDs. Do not run blanket Docker prune or volume
     cleanup commands. Empty retained dataset mount directories are intentional,
     not abandoned storage to remove.
+    Do not remove `_bootstrap`, its SOPS/DDNS/egress configuration, or its
+    shared networks/connectivity. `arr-egress-init` still validates egress
+    and creates networks needed by active Dawarich and IoT services;
+    `content-init` still prepares the shared media tree. See the
+    [retained bootstrap requirements](ARCHITECTURE.md#retired-arr-stack).
 
 ### Automatic Cleanup Alternative
 
@@ -96,6 +102,8 @@ not delete datasets, volumes, accounts, or groups. A network can remain while
 the old Traefik container is still attached; the full rollout removes those
 obsolete attachments. Do not use blanket pruning to resolve a leftover
 network, and do not treat network cleanup success as proof of app shutdown.
+The retained bootstrap networks are not orphaned retired-app networks and must
+not be removed as part of this cleanup.
 
 This detection depends on DCCD seeing the old Compose paths before its pull.
 A separate Git-only pull may bypass it; use the targeted `dccd-down` fallback
@@ -113,8 +121,8 @@ checkout or a whole-repository reset/revert.
 1. Inspect that commit's `services/<app>/` directory and service README.
    Selectively restore the desired app's tracked files from that commit into
    the new branch. Git restores configuration, not the retained runtime data.
-2. Review and selectively reintroduce its shared dependencies: bootstrap
-   networks/egress validation, Traefik networks and middleware, DNS records,
+2. Verify the retained bootstrap networks/egress validation, then selectively
+   reintroduce removed dependencies: Traefik networks and middleware, DNS records,
    dashboard/monitoring integration, and any provisioning entries. Do not
    overwrite current shared files with their historical versions.
 3. Restore service documentation, its MkDocs symlink/navigation entry, and

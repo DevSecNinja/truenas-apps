@@ -4,7 +4,7 @@ Traefik Forward Auth provides single sign-on (SSO) authentication for Traefik-pr
 
 ## Why
 
-Traefik Forward Auth adds a centralized authentication layer for self-hosted services at the reverse proxy level — services using the `chain-auth@file` middleware get SSO via your Microsoft Entra ID tenant. This remains in use after the [arr stack retirement](../RETIRED-SERVICES.md#arr-stack-retirement); retiring those apps does not retire the shared authentication service.
+Traefik Forward Auth adds a centralized authentication layer for self-hosted services at the reverse proxy level — services using the `chain-auth@file` middleware get SSO via your Microsoft Entra ID tenant. This remains in use after the [arr stack retirement](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/RETIRED-SERVICES.md#arr-stack-retirement); retiring those apps does not retire the shared authentication service.
 
 ## Compose File
 

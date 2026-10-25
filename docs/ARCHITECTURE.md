@@ -530,14 +530,22 @@ Services that need Docker API access get a dedicated **internal** backend networ
 
 Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd, Sonarr, and Spottarr
 were retired from the repository on **2026-10-25** because they were unused.
-Their shared `arr-stack-backend` and `arr-egress` networks, egress validation,
-frontend attachments, and app-specific routes are no longer part of the active
-access model. The shared Traefik Forward Auth service remains active.
+Only those eight apps' containers, frontend attachments, and app-specific routes
+are retired. The shared Traefik Forward Auth service and `_bootstrap` remain active.
+
+On full deployment, `_bootstrap` still creates `arr-egress`, `arr-stack-backend`,
+`dawarich-backend`, and `iot-backend` through `arr-egress-init`, which attaches
+to all four networks. Its egress validation still compares the ipify result
+with `${DDNS_DOMAIN}`. Retain its SOPS configuration, `${DDNS_DOMAIN}`,
+`${EGRESS_INIT_IP}`, `${EGRESS_INIT_MAC}`, `${EGRESS_PARENT_INTERFACE}`,
+`${EGRESS_SUBNET}`, `${EGRESS_GATEWAY}`, and the required DNS/internet
+connectivity. Despite its name, this init container also creates networks
+needed by active Dawarich and IoT services; it is not part of the retirement.
 
 **Plex remains active** with its existing frontend network, authentication
-policy, monitoring, and read-only media mount. `_bootstrap` still prepares the
+policy, monitoring, and read-only media mount. `_bootstrap`'s `content-init` still prepares the
 shared content tree for Plex and the other media consumers; dataset retention
-does not require keeping retired arr containers or network attachments.
+does not require keeping the eight retired apps' containers or frontend attachments.
 The shared `tz.env` file remains in use by active services and is not retired.
 
 See [Retired Services](RETIRED-SERVICES.md#arr-stack-retirement) for the
