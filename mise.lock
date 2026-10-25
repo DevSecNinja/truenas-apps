@@ -456,7 +456,7 @@ version = "0.38.2"
 backend = "pipx:check-jsonschema"
 
 [[tools."pipx:checkov"]]
-version = "3.3.26"
+version = "3.3.27"
 backend = "pipx:checkov"
 
 [[tools."pipx:mkdocs-material"]]
