@@ -80,7 +80,7 @@ Important consumer limits:
   `IP_DNS_SERVER_1` fallback for status reporting.
 - This record set covers known dependencies in tracked configuration, not every
   integration. Uninspected SMTP/OAuth environment values and runtime-managed
-  Home Assistant, arr, or camera settings may introduce more internal names.
+  Home Assistant or camera settings may introduce more internal names.
   Healthy container/network checks do not validate all those consumers.
 
 ### Second Local Resolver Configuration
@@ -291,9 +291,6 @@ An SMB password is still required when SSH is public-key-only.
 | 3132    | `svc-app-open-archiver`   | open-archiver, open-archiver-migrate, open-archiver-meilisearch, open-archiver-db-backup; open-archiver-init ownership target | Read-only SQL init hook (`./config`); no runtime writes |
 | 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                                                                       | No                                                      |
 | 3120    | `svc-app-outline`         | outline-db-backup†                                                                                                            | No                                                      |
-| 3113    | `svc-app-prowlarr`        | prowlarr                                                                                                                      | No (`./data/config`)                                    |
-| 3110    | `svc-app-radarr`          | radarr                                                                                                                        | No                                                      |
-| 3117    | `svc-app-spottarr`        | spottarr; spottarr-chown ownership target                                                                                     | No (`./data`)                                           |
 | 3100    | `svc-app-traefik`         | traefik, traefik-init                                                                                                         | Yes (`./config`)                                        |
 | 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                                                                    | No (`./data`)                                           |
 | 3118    | `svc-app-tubesync`        | tubesync                                                                                                                      | No                                                      |
@@ -308,12 +305,6 @@ It does not replace the main application's image-internal identity:
 `outline-init` still uses `docker.io/library/busybox:1.38.0` to chown
 `./data/data` to `1000:1000`. See:
 https://github.com/outline/outline/discussions/9452
-
-Prowlarr and Spottarr use their listed UID as the matching primary GID, with
-no shared-purpose group memberships. Prowlarr selects the dedicated account
-through `PUID`/`PGID`; Spottarr uses `user:`. Its `spottarr-chown` init runs
-`docker.io/library/busybox:1.38.0` as root and assigns `./data` ownership to
-the app's `3117:3117` identity.
 
 The `svc-app-changedetection` account has UID `3131`, primary group
 `svc-app-changedetection` (GID `3131`), and no shared-purpose group memberships.
@@ -370,6 +361,37 @@ PostgreSQL uses image identity `70:70`, Valkey uses `999:1000`, and Tika uses
 `35002:35002`, as declared in Compose. These do not require additional TrueNAS
 service accounts. Use elevated operator access for recovery; do not broaden
 private data permissions or grant shared media/document group access.
+
+### Retained Arr Account Reservations
+
+The eight apps retired on **2026-10-25** are not active service accounts in the
+table above, but their existing users, groups, memberships, and file ownership
+must remain. Do not reuse their UID or matching `svc-app-*` group GID for a new
+app. Values below come from the retired Compose definitions and service READMEs;
+Prowlarr and Spottarr were also recorded in `truenas-apps.json`.
+
+| Retired app | Username              | UID  | Primary group      | Primary GID | Shared memberships | Reserved matching app-group GID |
+| ----------- | --------------------- | ---- | ------------------ | ----------- | ------------------ | ------------------------------- |
+| Bazarr      | `svc-app-bazarr`      | 3111 | `media`            | 3200        | `media` (primary)  | 3111                            |
+| Lidarr      | `svc-app-lidarr`      | 3112 | `media`            | 3200        | `media` (primary)  | 3112                            |
+| Prowlarr    | `svc-app-prowlarr`    | 3113 | `svc-app-prowlarr` | 3113        | None               | 3113                            |
+| qBittorrent | `svc-app-qbittorrent` | 3114 | `media`            | 3200        | `media` (primary)  | 3114                            |
+| Radarr      | `svc-app-radarr`      | 3110 | `media`            | 3200        | `media` (primary)  | 3110                            |
+| SABnzbd     | `svc-app-sabnzbd`     | 3115 | `media`            | 3200        | `media` (primary)  | 3115                            |
+| Sonarr      | `svc-app-sonarr`      | 3116 | `media`            | 3200        | `media` (primary)  | 3116                            |
+| Spottarr    | `svc-app-spottarr`    | 3117 | `svc-app-spottarr` | 3117        | None               | 3117                            |
+
+The listed apps used their identities through `PUID`/`PGID`, except Spottarr,
+which used `user:`. Its retired `spottarr-chown` init used
+`docker.io/library/busybox:1.38.0` as root to chown `./data` to the Spottarr
+UID/primary GID above, never `./config`.
+
+Removal of Prowlarr and Spottarr from active provisioning does **not** release
+their `account_id` reservations or authorize host account deletion. Preserve any
+existing supplementary memberships as well; this table records the documented
+shared-purpose memberships, not a fresh audit of the host.
+The shared `media` group remains necessary for active Plex, MeTube, and TubeSync.
+See [retirement and restoration](RETIRED-SERVICES.md#arr-stack-retirement).
 
 ### Stateless Browser Proxies
 
@@ -430,15 +452,19 @@ These groups have no matching user account. They grant cross-service access to s
 changedetection.io and Open Archiver use only their dedicated primary groups; they require no
 membership in the shared groups below.
 
-| GID  | Group               | Purpose                                      | Used as primary group by                                                                                                                                                       |
-| ---- | ------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 3200 | `media`             | Read/write access to media datasets          | Plex (UID 911), MeTube (UID 3107), Radarr (UID 3110), Bazarr (UID 3111), Lidarr (UID 3112), qBittorrent (UID 3114), SABnzbd (UID 3115), Sonarr (UID 3116), TubeSync (UID 3118) |
-| 3202 | `private-photos`    | Access to private photos (Immich upload dir) | Immich (UID 3106)                                                                                                                                                              |
-| 3203 | `private-documents` | Access to private documents (reserved)       | —                                                                                                                                                                              |
+| GID  | Group               | Purpose                                                                    | Active services using as primary group                 |
+| ---- | ------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 3200 | `media`             | Read/write access to media datasets; retain retired memberships separately | MeTube (UID 3107), Plex (UID 911), TubeSync (UID 3118) |
+| 3202 | `private-photos`    | Access to private photos (Immich upload dir)                               | Immich (UID 3106)                                      |
+| 3203 | `private-documents` | Access to private documents (reserved)                                     | —                                                      |
 
 ### Plex Exception
 
 Plex stays at UID 911 (LinuxServer image default) with PGID 3200 (`media`). The s6-overlay init system manages permissions internally. UID 911 is reserved exclusively for Plex — no other service may use it. For naming consistency, create a `svc-app-plex` user on TrueNAS with UID 911 and primary group `media` (GID 3200).
+
+Retirement does not change this account or its primary `media` membership.
+`plex-init` also prepares `./data/config` and `./backups` for Plex's
+`PUID`/`PGID`; see the [init container inventory](ARCHITECTURE.md#volume-permissions-init-container-pattern).
 
 ### TrueNAS Host Setup
 
@@ -454,10 +480,10 @@ JSON registry and construct TrueNAS API payloads.
 
 #### Registry Coverage
 
-The registry currently enrolls **20 app stacks** using the existing dedicated
+The registry currently enrolls **18 app stacks** using the existing dedicated
 account model: `adguard`, `alloy`, `bitwarden`, `changedetection`, `dawarich`,
 `dozzle`, `drawio`, `gatus`, `homepage`, `karakeep`, `memos`, `mosquitto`,
-`open-archiver`, `openclaw`, `outline`, `prowlarr`, `spottarr`, `traefik`, `unifi`, and
+`open-archiver`, `openclaw`, `outline`, `traefik`, `unifi`, and
 `wmbusmeters`.
 
 Each uses the exact `svc-app-<key>` account/group name and a matching UID and
@@ -928,13 +954,13 @@ Each media service (e.g., MeTube) runs under its own dedicated UID so file owner
 
 ### Dataset Layout
 
-All media and download data lives under a **single** ZFS dataset `archive-pool/content`, mounted at `/mnt/archive-pool/content/`. No child datasets are created beneath it — everything is plain directories.
+All media and download data lives under a **single** ZFS dataset `archive-pool/content`, mounted at `/mnt/archive-pool/content/`. No child datasets are created beneath it — everything is plain directories. The arr retirement leaves this dataset, all media/download files, group ownership, and Plex's read-only media mount intact.
 
 **Why one dataset?** Hardlinks only work within the same filesystem. When an arr app (Radarr, Sonarr) imports a finished download, it can create a hardlink from `downloads/` to `media/` instead of copying the file — but only if both paths are on the same ZFS dataset. Child datasets would act as separate filesystems and break this.
 
-```
+```text
 /mnt/archive-pool/content/
-├── downloads/           ← download clients (arr stack)
+├── downloads/           ← retained staging data from retired download clients
 │   ├── isos/
 │   ├── torrents/        ← torrent client (qBittorrent, Deluge, etc.)
 │   │   ├── movies/
@@ -957,6 +983,31 @@ All media and download data lives under a **single** ZFS dataset `archive-pool/c
 ```
 
 All folder names are lowercase — Linux is case-sensitive and lowercase avoids ambiguity.
+
+### Retained Arr Datasets
+
+Keep the following existing datasets and everything within them, including
+runtime configuration, databases, session state, and backups. They are retained
+storage, **not active deployment or provisioning targets**:
+
+```text
+vm-pool/apps/services/bazarr
+vm-pool/apps/services/lidarr
+vm-pool/apps/services/prowlarr
+vm-pool/apps/services/qbittorrent
+vm-pool/apps/services/radarr
+vm-pool/apps/services/sabnzbd
+vm-pool/apps/services/sonarr
+vm-pool/apps/services/spottarr
+```
+
+Do not delete these mount directories when Git removes the tracked service
+files. DCCD skips directories without Compose files. Preserve
+`archive-pool/content/downloads/` and `archive-pool/content/media/` as ordinary
+directories in the same dataset, including existing hardlinks. Plex's dataset,
+account, and shared `media` group stay in use. Keep the
+[reserved arr identities](#retained-arr-account-reservations) and
+[existing backup scope](BACKUP.md#retained-arr-state).
 
 ### TrueNAS Scale Setup
 
@@ -1021,17 +1072,15 @@ volumes:
 
 ### Service Summary
 
-| Service     | UID               | Primary group  | Media mount | UMASK |
-| ----------- | ----------------- | -------------- | ----------- | ----- |
-| Plex        | 911 (image-fixed) | 3200 (`media`) | `:ro`       | —     |
-| MeTube      | 3107              | 3200 (`media`) | read-write  | `002` |
-| Radarr      | 3110              | 3200 (`media`) | read-write  | `002` |
-| Bazarr      | 3111              | 3200 (`media`) | read-write  | `002` |
-| Lidarr      | 3112              | 3200 (`media`) | read-write  | `002` |
-| qBittorrent | 3114              | 3200 (`media`) | read-write  | `002` |
-| SABnzbd     | 3115              | 3200 (`media`) | read-write  | `002` |
-| Sonarr      | 3116              | 3200 (`media`) | read-write  | `002` |
-| TubeSync    | 3118              | 3200 (`media`) | read-write  | —     |
+| Service  | UID               | Primary group  | Media mount | UMASK |
+| -------- | ----------------- | -------------- | ----------- | ----- |
+| MeTube   | 3107              | 3200 (`media`) | read-write  | `002` |
+| Plex     | 911 (image-fixed) | 3200 (`media`) | `:ro`       | —     |
+| TubeSync | 3118              | 3200 (`media`) | read-write  | —     |
+
+Retired media writers are listed separately under
+[Retained Arr Account Reservations](#retained-arr-account-reservations);
+their absence from this active summary does not release ownership IDs.
 
 ## Private Storage: Access Model
 

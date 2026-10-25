@@ -15,7 +15,7 @@ teardown() {
   prep_common_teardown
 }
 
-@test "load_app_config: loads exactly the 20 approved simple-model accounts" {
+@test "load_app_config: loads exactly the 18 approved simple-model accounts" {
   local row app account_id admin_group_member
   local -a cases=(
     "adguard|3101|false"
@@ -33,8 +33,6 @@ teardown() {
     "open-archiver|3132|false"
     "openclaw|3127|false"
     "outline|3120|false"
-    "prowlarr|3113|false"
-    "spottarr|3117|false"
     "traefik|3100|false"
     "unifi|3108|false"
     "wmbusmeters|3123|false"
@@ -53,6 +51,27 @@ teardown() {
   run jq '.apps | length' "${TEST_REPO_ROOT}/truenas-apps.json"
   assert_success
   assert_output "${#cases[@]}"
+}
+
+@test "load_app_config: rejects all eight retired media apps" {
+  local app
+  for app in bazarr lidarr prowlarr qbittorrent radarr sabnzbd sonarr spottarr; do
+    run load_app_config "${app}"
+
+    assert_failure
+    assert_output --partial "Unsupported app: ${app}"
+  done
+}
+
+@test "load_app_config: does not reuse retained prowlarr and spottarr account IDs" {
+  # Registry removal disables provisioning; it does not free host identities.
+  run jq -c \
+    '[.apps | to_entries[] |
+      select(.value.account_id == 3113 or .value.account_id == 3117)]' \
+    "${TEST_REPO_ROOT}/truenas-apps.json"
+
+  assert_success
+  assert_output "[]"
 }
 
 @test "load_app_config: loads the Memos JSON registry when yq is absent" {

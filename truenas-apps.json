@@ -75,16 +75,6 @@
       "account_id": 3120,
       "admin_group_member": false
     },
-    "prowlarr": {
-      "account_name": "svc-app-prowlarr",
-      "account_id": 3113,
-      "admin_group_member": false
-    },
-    "spottarr": {
-      "account_name": "svc-app-spottarr",
-      "account_id": 3117,
-      "admin_group_member": false
-    },
     "traefik": {
       "account_name": "svc-app-traefik",
       "account_id": 3100,

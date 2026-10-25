@@ -35,7 +35,6 @@ The setup follows
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | [AdGuard Home](https://adguard.com/en/adguard-home/overview.html)                             | DNS filtering and ad blocking with Unbound resolver                                                                 |
 | [Alloy](https://grafana.com/oss/alloy/)                                                       | Telemetry collector — host metrics, container metrics, logs                                                         |
-| [Bazarr](https://www.bazarr.media/)                                                           | Subtitle manager for Sonarr and Radarr                                                                              |
 | [Bitwarden Lite](https://bitwarden.com/help/install-and-deploy-lite/)                         | Self-hosted password manager (SQLite-backed, single container)                                                      |
 | [changedetection.io](https://changedetection.io/)                                             | Website change monitoring with browser fetching and notifications                                                   |
 | [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Cloudflare Tunnel agent for exposing services via edge network                                                      |
@@ -51,7 +50,6 @@ The setup follows
 | [Homepage](https://gethomepage.dev/)                                                          | Customizable dashboard for home lab services                                                                        |
 | [Immich](https://immich.app/)                                                                 | Self-hosted photo and video management                                                                              |
 | [Karakeep](https://karakeep.app/)                                                             | Bookmark manager for links, notes, images, and full-text search                                                     |
-| [Lidarr](https://lidarr.audio/)                                                               | Music collection manager and download automation                                                                    |
 | [Matter Server](https://github.com/home-assistant-libs/python-matter-server)                  | Matter/Thread smart home device bridge                                                                              |
 | [Memos](https://usememos.com/)                                                                | Private note-taking and knowledge service                                                                           |
 | [MeTube](https://github.com/alexta69/metube)                                                  | YouTube downloader via yt-dlp with a web UI                                                                         |
@@ -60,12 +58,6 @@ The setup follows
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                                                                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication                                                                |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                                                                              |
-| [Prowlarr](https://prowlarr.com/)                                                             | Indexer manager for the arr stack                                                                                   |
-| [qBittorrent](https://www.qbittorrent.org/)                                                   | BitTorrent client with web interface                                                                                |
-| [Radarr](https://radarr.video/)                                                               | Movie collection manager and download automation                                                                    |
-| [SABnzbd](https://sabnzbd.org/)                                                               | Usenet download client                                                                                              |
-| [Sonarr](https://sonarr.tv/)                                                                  | TV series collection manager and download automation                                                                |
-| [Spottarr](https://github.com/Spottarr/Spottarr)                                              | Spotnet Usenet indexer                                                                                              |
 | [SQLite Web](https://github.com/coleifer/sqlite-web)                                          | SQLite database browser for Home Assistant                                                                          |
 | [Traefik](https://traefik.io/)                                                                | Reverse proxy with automatic SSL via Cloudflare DNS                                                                 |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth)                  | SSO authentication via Microsoft Entra ID                                                                           |
@@ -87,6 +79,14 @@ The enrollment guard applies only to TrueNAS-mode dccd. Raw Compose and
 generic/unscoped deployment outside TrueNAS mode can start this stack before
 its Custom App exists; do not use those paths before the activation
 prerequisites are complete.
+
+The unused arr stack (Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd,
+Sonarr, and Spottarr) was retired from the repository on **2026-10-25**.
+**Plex stays active.** All datasets, media/download data, service accounts,
+groups, and ownership IDs are retained for a possible restart. See
+[Retired Services](RETIRED-SERVICES.md#arr-stack-retirement)
+for the operator handoff and restoration procedure; production teardown still
+requires operator verification.
 
 ## Personal Home Folders
 
@@ -122,7 +122,6 @@ vm-pool/apps          # root — holds the git repo
 vm-pool/apps/services      # parent for all app datasets
 vm-pool/apps/services/adguard
 vm-pool/apps/services/alloy
-vm-pool/apps/services/bazarr
 vm-pool/apps/services/bitwarden
 vm-pool/apps/services/changedetection
 vm-pool/apps/services/dawarich
@@ -136,7 +135,6 @@ vm-pool/apps/services/home-assistant
 vm-pool/apps/services/homepage
 vm-pool/apps/services/immich
 vm-pool/apps/services/karakeep
-vm-pool/apps/services/lidarr
 vm-pool/apps/services/matter-server
 vm-pool/apps/services/memos
 vm-pool/apps/services/metube
@@ -145,12 +143,6 @@ vm-pool/apps/services/open-archiver
 vm-pool/apps/services/openclaw
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
-vm-pool/apps/services/prowlarr
-vm-pool/apps/services/qbittorrent
-vm-pool/apps/services/radarr
-vm-pool/apps/services/sabnzbd
-vm-pool/apps/services/sonarr
-vm-pool/apps/services/spottarr
 vm-pool/apps/services/sqlite-web
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth
@@ -159,6 +151,27 @@ vm-pool/apps/services/unifi
 vm-pool/apps/services/wmbusmeters
 # ... one dataset per app
 ```
+
+### Retained datasets — retired apps
+
+Keep these existing datasets and their contents; they are not new-app setup
+requirements. Do not recreate Custom Apps just because their dataset mount
+directories remain.
+
+```text
+vm-pool/apps/services/bazarr
+vm-pool/apps/services/lidarr
+vm-pool/apps/services/prowlarr
+vm-pool/apps/services/qbittorrent
+vm-pool/apps/services/radarr
+vm-pool/apps/services/sabnzbd
+vm-pool/apps/services/sonarr
+vm-pool/apps/services/spottarr
+```
+
+Also retain `archive-pool/content`, including all `media/` and `downloads/`
+directories, and the active `vm-pool/apps/services/plex` dataset. Preserve
+existing ownership and the [reserved accounts/groups](INFRASTRUCTURE.md#retained-arr-account-reservations).
 
 ## Documentation
 

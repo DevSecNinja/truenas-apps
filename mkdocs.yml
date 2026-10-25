@@ -73,7 +73,6 @@ nav:
   - Services:
       - AdGuard Home: services/adguard.md
       - Alloy: services/alloy.md
-      - Bazarr: services/bazarr.md
       - Bitwarden Lite: services/bitwarden.md
       - changedetection.io: services/changedetection.md
       - Cloudflared: services/cloudflared.md
@@ -89,7 +88,6 @@ nav:
       - Homepage: services/homepage.md
       - Immich: services/immich.md
       - Karakeep: services/karakeep.md
-      - Lidarr: services/lidarr.md
       - Matter Server: services/matter-server.md
       - Memos: services/memos.md
       - MeTube: services/metube.md
@@ -98,12 +96,6 @@ nav:
       - OpenClaw: services/openclaw.md
       - Outline: services/outline.md
       - Plex: services/plex.md
-      - Prowlarr: services/prowlarr.md
-      - qBittorrent: services/qbittorrent.md
-      - Radarr: services/radarr.md
-      - SABnzbd: services/sabnzbd.md
-      - Sonarr: services/sonarr.md
-      - Spottarr: services/spottarr.md
       - SQLite Web: services/sqlite-web.md
       - Traefik: services/traefik.md
       - Traefik Forward Auth: services/traefik-forward-auth.md
