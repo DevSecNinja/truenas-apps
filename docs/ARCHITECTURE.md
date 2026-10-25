@@ -287,7 +287,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | open-archiver        | `open-archiver-init`        | `docker.io/library/busybox:1.38.0`; chowns directory roots `./data/archive`, `./data/scratch`, `./data/meilisearch` → UID/GID `3132:3132`; `./data/postgres` → `70:70`; `./data/valkey` → `999:1000`; applies `u=rwX,g=,o=` non-recursively by default and mode `0700` to `./data` |
 | openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                                                                    |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                                                                     |
-| spottarr             | `spottarr-chown`            | `./data`                                                                                                                                                                                                                                                                           |
+| plex                 | `plex-init`                 | `docker.io/library/busybox:1.38.0`; chowns `./data/config` (not tracked `./config`) and `./backups` → Plex PUID/PGID `911:3200`                                                                                                                                                    |
 | traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                                                                      |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
@@ -526,9 +526,24 @@ Network-level isolation. With per-service networks, containers cannot communicat
 
 Services that need Docker API access get a dedicated **internal** backend network with a socket proxy (e.g., `homepage-backend`). The same pattern applies to databases and other backing services — they sit on an internal backend network with `internal: true`, preventing external routing and ensuring only the application container can reach them.
 
-### Exception: arr-stack-backend
+### Retired Arr Stack
 
-The arr stack (Radarr, Sonarr, Bazarr, Lidarr, Prowlarr, qBittorrent, SABnzbd, Spottarr) shares a single `arr-stack-backend` internal bridge network so the apps can communicate directly for API calls (e.g., Prowlarr pushing indexer results to Sonarr). This network is created by the `_bootstrap` service and referenced as `external: true` by each arr app. All internet traffic still exits through each app's dedicated VLAN 70 macvlan network — the backend bridge is `internal: true` and carries no internet route.
+Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd, Sonarr, and Spottarr
+were retired from the repository on **2026-10-25** because they were unused.
+Their shared `arr-stack-backend` and `arr-egress` networks, egress validation,
+frontend attachments, and app-specific routes are no longer part of the active
+access model. The shared Traefik Forward Auth service remains active.
+
+**Plex remains active** with its existing frontend network, authentication
+policy, monitoring, and read-only media mount. `_bootstrap` still prepares the
+shared content tree for Plex and the other media consumers; dataset retention
+does not require keeping retired arr containers or network attachments.
+The shared `tz.env` file remains in use by active services and is not retired.
+
+See [Retired Services](RETIRED-SERVICES.md#arr-stack-retirement) for the
+operator shutdown/restore procedure and
+[Infrastructure](INFRASTRUCTURE.md#retained-arr-account-reservations) for
+retained accounts and the historical Spottarr init ownership target.
 
 ### Exception: dawarich-backend
 
@@ -1138,6 +1153,8 @@ All three layers must be defeated for a container on another frontend network to
 **Why not a shared secret header instead of an IP allowlist?** Any container with a socket proxy (Dozzle, Homepage) could read the secret from `docker inspect` labels, so the secret is only as strong as the weakest socket-proxy consumer. The IP allowlist is infrastructure-derived, not stored anywhere a container can read it, and cannot be brute-forced.
 
 **Traffic flow comparison:**
+
+This illustrative example uses the now-retired Sonarr stack; it is not a live integration.
 
 ```text
 Browser request (authenticated):

@@ -1,1 +1,0 @@
-../../services/lidarr/README.md

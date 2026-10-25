@@ -4,7 +4,7 @@ Traefik Forward Auth provides single sign-on (SSO) authentication for Traefik-pr
 
 ## Why
 
-Many self-hosted services (AdGuard, Sonarr, Bazarr, etc.) either lack built-in authentication or have weak auth mechanisms. Instead of configuring separate credentials for each service, Traefik Forward Auth adds a centralized authentication layer at the reverse proxy level — any service using the `chain-auth@file` middleware gets SSO via your Microsoft Entra ID tenant. One login protects all services.
+Traefik Forward Auth adds a centralized authentication layer for self-hosted services at the reverse proxy level — services using the `chain-auth@file` middleware get SSO via your Microsoft Entra ID tenant. This remains in use after the [arr stack retirement](../RETIRED-SERVICES.md#arr-stack-retirement); retiring those apps does not retire the shared authentication service.
 
 ## Compose File
 

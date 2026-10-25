@@ -1816,7 +1816,8 @@ backs up the named database engine, not arbitrary files on the volume).
 
 ### Inventory — Services With No Database Backup Sidecar
 
-Every other service's persistent path, in full:
+Active services' remaining persistent paths are listed below. Retired arr
+datasets are tracked separately under [Retained Arr State](#retained-arr-state).
 
 | Service             | Persistent path                                       | Classification                                                                                        | App-consistent backup?                                         | Storage-layer coverage                     | Notes                                                                                                                                                                                                                                |
 | ------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1825,28 +1826,59 @@ Every other service's persistent path, in full:
 | AdGuard (`adguard`) | `./data/conf/AdGuardHome.yaml`                        | Not app state — overwritten from git-tracked `./config` on every deploy                               | N/A                                                            | N/A — no persistent config to lose         | `adguard-init` always re-applies the repo's `AdGuardHome.yaml`; any in-UI changes are intentionally not durable.                                                                                                                     |
 | AdGuard (`adguard`) | `./data/work`                                         | Regeneratable cache (query log + internal stats DB)                                                   | No                                                             | vm-pool 3-layer                            | Low value; safe to lose.                                                                                                                                                                                                             |
 | Alloy               | `./data`                                              | Regeneratable cache (Prometheus/Loki WAL, remote-write queue, `remotecfg` cache)                      | No                                                             | vm-pool 3-layer                            | Losing it only creates a gap in shipped telemetry history; Alloy resumes scraping/tailing from current state.                                                                                                                        |
-| **Bazarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | Bazarr (Servarr family) defaults to an embedded SQLite database under `/config`. See the [Servarr wiki backup guidance](https://wiki.servarr.com/other-apps#backup).                                                                 |
 | changedetection.io  | `./data` → `/datastore`                               | **Critical mutable file state** (global/watch/tag JSON, `secret.txt`, history snapshots, screenshots) | No automated app-consistent backup; stop before manual capture | vm-pool 3-layer                            | Not SQLite or another formal database; no DB sidecar/dumps. Restore the complete stopped tree; see [file-state restore](#restore-changedetectionio-file-state).                                                                      |
 | Dozzle              | `./data/__default__`                                  | Critical mutable file state (user profile data)                                                       | No                                                             | vm-pool 3-layer                            | Small, low-value, easily recreated.                                                                                                                                                                                                  |
 | ESPHome             | `./data/config`                                       | Critical mutable file state (device YAML configs + compiled firmware artifacts)                       | No                                                             | vm-pool 3-layer                            | No formal database engine; hand-authored device configs are valuable but not a DB.                                                                                                                                                   |
 | Frigate             | `./data/config` (`frigate.db`)                        | **Database**                                                                                          | **No — moderate/high-confidence gap**                          | vm-pool 3-layer                            | Frigate's default SQLite database (recorded event/object metadata) lives under `/config` per the [Frigate configuration reference](https://docs.frigate.video/configuration/reference/).                                             |
 | Frigate             | `./data/storage`                                      | External/media data (recorded clips/snapshots)                                                        | No                                                             | vm-pool 3-layer                            | Distinct from `frigate.db` above; large binary media, not part of the database.                                                                                                                                                      |
-| **Lidarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | Same Servarr SQLite pattern as Bazarr/Radarr/Sonarr/Prowlarr.                                                                                                                                                                        |
 | Matter Server       | `./data`                                              | Critical mutable file state (JSON fabric/device credential storage)                                   | No                                                             | vm-pool 3-layer                            | Not a relational/document DB engine, but losing it requires re-pairing every Matter/Thread device — high operational cost despite the classification.                                                                                |
 | MeTube              | `./data/state`                                        | Regeneratable cache (download history/state)                                                          | No                                                             | vm-pool 3-layer                            | Low value; re-downloadable.                                                                                                                                                                                                          |
 | Mosquitto           | `./data/data`                                         | Critical mutable file state / regeneratable cache (persistence file for retained messages & sessions) | No                                                             | vm-pool 3-layer                            | Low value — retained state is typically re-published by connected IoT devices.                                                                                                                                                       |
 | OpenClaw            | `./data`                                              | Critical mutable file state (gateway config, conversation history, workspace data)                    | No                                                             | vm-pool 3-layer                            | No formal database engine identified.                                                                                                                                                                                                |
 | Plex                | `./data/config` (`com.plexapp.plugins.library.db`)    | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | Plex's central SQLite library database (watch history, metadata, collections) is well documented by Plex support.                                                                                                                    |
 | Plex                | `./backups` (Plex's own "Scheduled Tasks" backup dir) | Application-native backup (Plex's own periodic database-backup task)                                  | No                                                             | vm-pool 3-layer                            | A genuine extra protection layer configured in Plex's own UI (see the [Plex README](services/plex.md)), but it is not independent of the host — same vm-pool dataset, not encrypted or restore-tested here.                          |
-| **Prowlarr**        | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | Same Servarr SQLite pattern.                                                                                                                                                                                                         |
-| qBittorrent         | `./data/config`                                       | Critical mutable file state (session/torrent resume data)                                             | No                                                             | vm-pool 3-layer                            | **Uncertain**: no formal relational database engine was identified for qBittorrent's own core state during this audit; treat as file state pending upstream confirmation rather than assuming SQLite.                                |
-| **Radarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | Same Servarr SQLite pattern.                                                                                                                                                                                                         |
-| SABnzbd             | `./data/config`                                       | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | SABnzbd maintains an internal SQLite database for job history under its config/admin path.                                                                                                                                           |
-| **Sonarr**          | `./data/config` (SQLite)                              | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | Same Servarr SQLite pattern.                                                                                                                                                                                                         |
-| Spottarr            | `./data`                                              | **Database (engine unconfirmed)**                                                                     | **No — uncertain gap**                                         | vm-pool 3-layer                            | The compose file's own comment states the container "can write its database," but the specific engine was not confirmed against upstream Spottarr documentation during this audit.                                                   |
 | Traefik             | `./data/acme`                                         | Critical mutable file state (ACME/Let's Encrypt certificates and private keys)                        | No                                                             | vm-pool 3-layer                            | Automatically re-obtainable from Let's Encrypt, but subject to rate limits and a brief downtime window during reissuance — not zero-cost to lose.                                                                                    |
 | TubeSync            | `./data/config` (SQLite by default)                   | **Database**                                                                                          | **No — high-confidence gap**                                   | vm-pool 3-layer                            | TubeSync (Django) defaults to a local SQLite database unless a `DATABASE_CONNECTION` override is configured; no such override is present in this stack's compose file. See the [TubeSync project](https://github.com/meeb/tubesync). |
 | wmbusmeters         | `./data/logs`, `./data/state`                         | Critical mutable file state / regeneratable cache (meter read-state to prevent duplicate readings)    | No                                                             | vm-pool 3-layer                            | Low value; regenerable from live meter transmissions.                                                                                                                                                                                |
+
+### Retained Arr State
+
+Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd, Sonarr, and Spottarr
+were retired from the repository on **2026-10-25** because they were unused.
+Their datasets and contents remain protected resources, not cleanup candidates.
+Paths below are relative to each retained `vm-pool/apps/services/<app>` dataset;
+preserve the entire dataset, not just the listed paths.
+
+| Retired app | Retained runtime path | Historical state classification                                       |
+| ----------- | --------------------- | --------------------------------------------------------------------- |
+| Bazarr      | `./data/config`       | SQLite database                                                       |
+| Lidarr      | `./data/config`       | SQLite database                                                       |
+| Prowlarr    | `./data/config`       | SQLite database                                                       |
+| qBittorrent | `./data/config`       | Session/torrent resume file state; formal database engine unconfirmed |
+| Radarr      | `./data/config`       | SQLite database                                                       |
+| SABnzbd     | `./data/config`       | SQLite job history and configuration                                  |
+| Sonarr      | `./data/config`       | SQLite database                                                       |
+| Spottarr    | `./data`              | Database state; engine unconfirmed in the prior audit                 |
+
+None had a repository-managed database backup sidecar. Keep the existing
+vm-pool snapshot, replication, and encrypted off-site scope for all eight
+datasets. After shutdown, verify a recoverable stopped-state snapshot and
+actual backup coverage; Git history is not a backup of runtime data. Retirement
+does not retroactively make earlier live snapshots application-consistent or
+resolve the prior database-engine uncertainties.
+
+Retain all `archive-pool/content/media/` and `downloads/` data and the current
+backup policy: media remains in the archive-media off-site scope, while
+downloads retain local snapshot coverage but **no off-site copy** under the
+documented exclusions. Keeping downloads does not imply new off-site coverage.
+Do not remove datasets from backup tasks or change exclusions as part of
+retirement. Preserve TrueNAS configuration backups containing the retained
+accounts/groups and their reserved IDs.
+
+**Plex stays active**, including its dataset, library, scheduled-task backups,
+and the uncovered SQLite consistency gap described in the active inventory.
+See [retained storage and identities](INFRASTRUCTURE.md#retained-arr-datasets)
+and the [operator handoff and restoration procedure](RETIRED-SERVICES.md#arr-stack-retirement).
 
 ### Excluded — No Persistent Writable State to Audit
 
@@ -1865,23 +1897,21 @@ state beyond what is already covered above:
 
 <!-- dprint-ignore -->
 !!! warning "High-confidence uncovered database gaps"
-    Five Servarr-family apps (Bazarr, Lidarr, Prowlarr, Radarr, Sonarr) plus
-    Plex, TubeSync, Frigate, and SABnzbd each embed a database (SQLite in
+    Frigate, Plex, and TubeSync each embed a database (SQLite in
     every identified case) on `vm-pool`, with **no** application-consistent
     backup sidecar — only the vm-pool 3-layer coverage (snapshots +
     replication + off-site Cloud Sync) protects them today. This is a
     **known, undocumented-as-an-exception gap**, not an oversight to be
     silently ignored: these databases are plausibly lower-value/more
     rebuildable than the databases in [Covered Databases](#covered-databases)
-    (their state can largely be reconstructed from the media library and
-    indexer reconfiguration), but that reasoning has not been formally
+    (some state can be reconstructed from media, but watch history and event
+    metadata may not be recoverable), and that reasoning has not been formally
     reviewed and recorded as a reviewed exception per the
     [new-docker-app skill](https://github.com/DevSecNinja/truenas-apps/blob/main/.github/skills/new-docker-app/SKILL.md).
     Treat each as open until either a backup sidecar is added or the exception
     is explicitly reviewed and documented here.
-    Spottarr and qBittorrent are marked **uncertain** — their embedded state
-    was not conclusively classified during this audit. Do not assume these
-    gaps are closed without adding and testing a dedicated backup sidecar.
+    Retired arr state is documented separately; retirement does not
+    validate its backups or close the historical consistency gaps.
 
 <!-- dprint-ignore -->
 !!! note "Covered-database apps still have unbacked-up file state"
