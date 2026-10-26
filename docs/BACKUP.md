@@ -1000,7 +1000,7 @@ database sidecars' 48-hour cleanup policy.
 ## Application-Level Database Backups
 
 The following stateful databases have application-consistent backup sidecars
-in their compose files today. Dawarich and Open Archiver use maintained
+in their compose files today. Dawarich and Open Archiver use
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
 `tiredofit/db-backup` v4. These are configured to produce compressed, encrypted
 dump files independent of ZFS snapshots — providing an application-consistent recovery
@@ -1033,6 +1033,115 @@ The table describes configured coverage, not proof that the latest run succeeded
 | Outline        | PostgreSQL                                          | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
 | Unifi          | MongoDB                                             | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
 
+### Pocket ID Blocked-Candidate Coverage and Future Restore
+
+**Pocket ID is not covered by the active database-backup inventory above.**
+It is a [blocked candidate](services/pocket-id.md), not a deployed or
+deploy-ready identity provider. No production dataset, successful encrypted
+backup/restore, or storage-layer coverage has been verified for it.
+
+The [verified 4.9.2 source](https://github.com/nfrastack/db-backup/blob/4.9.2/rootfs/container/functions/10-dbbackup#L796-L821)
+uses SQLite's `.backup` command (the SQLite Online Backup API), producing a
+**binary SQLite snapshot**, not SQL text or a raw live-file copy, before
+compression/encryption/checksumming. The native pinned-artifact test failed
+before those stages; source behavior is not a successful backup/restore.
+The candidate uses manual mode once per DCCD deployment,
+ZSTD compression, SHA1 checksum and GPG
+encryption, retaining **2880 minutes** at
+`services/pocket-id/backups/db-backup`. The proposed
+`docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
+artifact is an **unsupported tag** with HIGH/CRITICAL findings; see the
+[2026-10-26 exact-image review](services/pocket-id.md#image-evidence-2026-10-26).
+No applicability exception or adoption clearance is approved. Require a
+maintained upstream replacement and same-engine encrypted restore tests.
+Do not recommend a v5/latest substitution without the separately tested
+[compatibility migration](#v4-compatibility-constraint).
+
+**Native ARM64 result — 2026-10-26:** the actual pinned 4.9.2 job could not
+open the read-only SQLite source (`unable to open database file`), skipped
+encrypted output/checksum, and nevertheless reported routine exit code `0`.
+Direct `.backup` and explicit `mode=ro` opens also failed. The same stopped
+synthetic database copied to writable scratch opened in WAL mode; `.backup`
+produced an integrity-checked snapshot containing the seeded record.
+That diagnostic is **not** an encrypted restore or live WAL consistency test.
+
+Follow the [Windows continuation checklist](services/pocket-id.md#windows-continuation-checklist):
+fix consistent SQLite/WAL backup with actual failures propagated, verify
+one-shot output count, and prove encrypted ZSTD/SHA1 seeded-record restore.
+Do not blindly rw-mount the live source, use `immutable` on a live snapshot,
+or trust a newer major without compatibility tests. Use the existing chosen
+runtime on Linux ext4 test storage; Podman/WSL2 is optional and installation
+requires approval. Separate Docker/TrueNAS runtime validation is not a
+premerge prerequisite. Candidate adoption remains blocked.
+
+The candidate uses `DB_CONNECTION_STRING=/app/data/pocket-id.db` and
+`FILE_BACKEND=database`, verified against
+[v2.19.1 `backend/internal/common/env_config.go`](https://github.com/pocket-id/pocket-id/blob/v2.19.1/backend/internal/common/env_config.go).
+Uploads are database-backed, so a consistent SQLite Online Backup API backup
+is a viable path; upstream export need not be the sole supported mechanism.
+Require a representative restore, including uploads and signing-key continuity,
+before claiming complete recovery. Preserve any additional persistent paths
+discovered during runtime review.
+
+<!-- dprint-ignore -->
+!!! danger "Future restore procedure — not a validated recovery"
+    Do not activate this blocked candidate or execute against a live identity provider.
+    SOPS secret provisioning and validation are complete. First clear adoption
+    and establish independent recovery of the original app key and backup
+    passphrase before production recovery. Isolated synthetic rehearsals may
+    proceed without activation; no successful encrypted restore has been obtained.
+
+1. Recover the compatible image/schema revision, a successful backup artifact
+   and checksum, original `ENCRYPTION_KEY`, and the matching
+   `DB_ENC_PASSPHRASE` through independent operator recovery. A fresh app key
+   cannot substitute for the original. Preserve client identities and mappings.
+2. Suspend deployment/backup automation and stop the Pocket ID application
+   before replacing any SQLite state. Ensure no app, backup process or other
+   writer has the database open. Preserve a protective checkpoint of the
+   existing database and its WAL/SHM files together before changing anything;
+   retain this rollback set separately from the replacement.
+3. Verify the selected artifact's checksum according to the backup tool's
+   actual format, then decrypt/decompress **outside the tracked checkout** in
+   a restricted scratch directory, mode `0700`, with plaintext files mode
+   `0600`. Never log passphrases, keys, recovery tokens, or restored identity
+   data. Verify the payload is the expected binary SQLite snapshot; do not
+   run `.read` or import it as SQL. An unexpected format must stop the restore
+   for investigation.
+4. Open the **new scratch binary SQLite snapshot** with a compatible SQLite
+   tool, run integrity checks, and validate representative users, passkey
+   records, OIDC clients, uploads and signing-key continuity. An intact
+   checksum alone is insufficient. Keep plaintext copies in restricted
+   recovery storage only, never Git or tracked configuration.
+5. With the app still stopped, install the verified database at the host path
+   mapped to `/app/data/pocket-id.db`. Never combine it with stale WAL/SHM
+   files from the old database: after preserving the rollback set, remove
+   old sidecars from the replacement's live path while all writers remain
+   stopped. Set recovery/data directories to `0700`, database files to `0600`,
+   and owner/primary group to the approved
+   [Pocket ID identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+   That matching UID/GID is reserved and unavailable for reuse, but remains
+   unprovisioned and outside the active registry until approved activation.
+   Verify the app can create new journal/WAL files; do not recursively chown
+   tracked configuration. The installed database belongs only in its ignored
+   runtime data path, never tracked source files.
+6. Start only the compatible app against the recovered state with the **same
+   `ENCRYPTION_KEY`**, on an isolated origin appropriate for the test.
+   Passkeys are origin/RP-ID bound: an arbitrary scratch hostname does not
+   prove production passkey recovery. Use a controlled origin-correct test
+   plan without exposing a second live issuer or changing production DNS.
+7. Verify native administrator and spare-passkey access, client issuer and
+   signing behavior, explicit identity mappings, denial tests, and a new
+   encrypted backup. Record the actual result before resuming automation.
+   If validation fails, keep the app stopped and preserve evidence; do not
+   reopen enrollment or route production clients to it. Restore the original
+   checkpoint only as a consistent database/WAL recovery set while stopped.
+
+Independently recoverable host access, the original app key, backup passphrase,
+and spare hardware passkeys are prerequisites, not services to protect solely
+behind this identity provider. Future dataset snapshots, replication and
+off-site inclusion must be verified separately; no current recovery objective
+is established for Pocket ID.
+
 ### v4 Compatibility Constraint
 
 Dawarich and Open Archiver are restored to the exact prior
@@ -1040,6 +1149,12 @@ Dawarich and Open Archiver are restored to the exact prior
 pin. Renovate restricts this image to `allowedVersions: /^4\./`.
 Version 5 is not a drop-in replacement for the configured v4 commands,
 environment variables, completion logs, and restore workflow.
+
+Compatibility does not establish upstream support or security: the
+[2026-10-26 Pocket ID image review](services/pocket-id.md#image-evidence-2026-10-26)
+confirms this exact 4.9.2 artifact has HIGH/CRITICAL findings and its tag is
+unsupported under upstream's latest-only fixes policy. Existing restore
+evidence does not clear Pocket ID adoption or establish dependency safety.
 
 Keep this constraint until an intentional migration validates:
 
@@ -1235,7 +1350,7 @@ TrueNAS host.
 <!-- dprint-ignore -->
 !!! note "Why Dawarich remains on the v4 workflow"
     Version 5.0.0 was intentionally not selected because runtime restore
-    validation failed with an invalid bigint conversion. The maintained
+    validation failed with an invalid bigint conversion. The
     nfrastack `4.9.2` compatibility release preserves the proven v4 workflow.
     Earlier runtime testing successfully decrypted its dump and restored it
     into a fresh PostgreSQL database; this is historical evidence, not a
@@ -1400,7 +1515,7 @@ instead of restoring only its SQL dump with this generic procedure.
 
 The `Backup Restore Test` GitHub Actions workflow
 (`scripts/gha-backup-restore-test.sh`) exercises the tiredofit v4 GPG workflow
-for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's maintained
+for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's
 nfrastack `4.9.2` compatibility image uses the same proven v4 GPG workflow; its
 runtime-produced dump has also been decrypted and restored into a fresh
 PostgreSQL database.

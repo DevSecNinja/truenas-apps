@@ -222,7 +222,96 @@ change needs execution-level evidence.
 
 ##### 1. Select a Usable Runtime
 
-Check the daemon and Compose provider, in this order. CLI presence alone is not
+Select the platform branch **before** running engine or Compose commands:
+
+- **Supported Apple-silicon macOS:** prefer Apple's native `container` CLI
+  ([official apple/container documentation](https://github.com/apple/container)).
+  It runs OCI Linux containers in lightweight VMs using Virtualization.framework.
+  Follow the Apple-native procedure below, not the Docker/Podman command blocks.
+  An existing, explicitly user-chosen Docker/Podman environment may use the
+  Compose procedure instead. Never automatically install Docker/Podman on macOS
+  or recommend either as the default there, including when Apple container is
+  unavailable.
+- **Linux/Windows:** keep the Docker/Podman Compose procedure below.
+- **Unsupported macOS host:** report local native testing as blocked and use a
+  suitable Linux runner; do not assume Apple container support.
+
+##### Apple-Native macOS Procedure
+
+1. Check the host against upstream requirements and inspect the installed CLI:
+
+   ```sh
+   container --version
+   container system status
+   container --help
+   container system --help
+   container run --help
+   container image --help
+   ```
+
+   CLI presence alone is insufficient. Confirm the intended local runtime and
+   inspect existing containers, images, networks, and other resources using
+   the installed version's supported listing/inspection commands before
+   creating anything. Stop on conflicts or a shared production environment
+   unless the user explicitly approves testing there.
+2. If installation or startup is needed, obtain **explicit user approval**
+   before either action. Follow the official documentation for the supported
+   release; its signed upstream package may require an operator-run admin
+   installer. Verify `container --version` and `container system status`
+   afterward. If the sandbox denies system writes or runtime access, report
+   the blocker and required operator action; do not bypass it, relocate system
+   installation into a writable directory, or fall back to installing
+   Docker/Podman.
+3. Use a disposable snapshot of the exact source under test, including reviewed
+   worktree changes, as described in Docker/Podman step 2 below. Keep sandbox test files
+   beneath the supplied `$TMPDIR`; do not redirect them to hardcoded `/tmp`
+   paths or broaden permissions to bypass a denial. Use only synthetic
+   secrets: never access production SOPS files, age keys, or 1Password for
+   testing. Review mounts and never attach production paths or sockets.
+4. Apple container is **not a Docker-compatible daemon or Compose replacement**.
+   Do not use `container compose`, set `RUNTIME=container`, or translate
+   Docker/Podman options verbatim. Consult the installed CLI's `--help` for
+   each command and use only verified supported options for native
+   `container run`, image inspection, mounts, networking, logs, and cleanup.
+   Give every test resource a unique test-specific name and record ownership
+   for targeted cleanup. Manually define only the synthetic application and
+   dependency topology actually needed by the native test.
+5. Pull and inspect the exact digest-pinned images from the snapshot. Record
+   both the source/index digest and resolved platform-specific image digest,
+   OS, and architecture actually executed; do not infer identity from a tag.
+   Native `linux/arm64` execution does **not** validate a target TrueNAS
+   `linux/amd64` image. Test the exact target architecture only if the installed
+   release and host demonstrably support the required emulation and inspection
+   confirms the executed image; otherwise require a `linux/amd64` runner.
+   Do not assume emulation is installed or supported.
+6. Exercise readiness and representative application probes with bounded
+   timeouts. Where applicable, seed synthetic state, restart and recreate the
+   native container to test persistence, then run the actual backup path and
+   restore into a fresh disposable database, verifying representative records.
+   Apply the behavior criteria in Docker/Podman step 4 below only to tests actually
+   exercised; native startup does not prove persistence or backup/restore.
+7. Report native evidence separately from Compose coverage. Compose
+   config/schema checks are static, not execution. Docker/TrueNAS-specific
+   Compose lifecycle, profiles, dependencies, networking, security settings,
+   resource limits, and mount UID/GID semantics still require separate Docker
+   CI or disposable Linux Docker host verification. Apple VM isolation does
+   not establish those semantics or TrueNAS ZFS/ACL behavior. Image adoption
+   remains an independent gate even when runtime tests pass.
+8. Capture redacted logs before cleanup and report the source identity, CLI
+   version, actual image digest/platform, probes performed, gaps, and blockers.
+   Remove only recorded test-owned resources and temporary paths using
+   commands verified by `--help`; preserve unrelated resources and any test
+   environment explicitly retained by request. Never prune the whole system,
+   stop shared runtime services, or uninstall the runtime as cleanup.
+
+The following runtime selection and smoke-testing command blocks in steps 2–6
+are **Docker/Podman Compose only**. Apple-native tests reuse their isolation,
+behavior, and evidence requirements, not their runtime command syntax.
+
+##### Docker/Podman Compose Procedure
+
+On Linux/Windows (or an existing explicitly user-chosen macOS environment),
+check the daemon and Compose provider in this order. CLI presence alone is not
 enough:
 
 ```sh
@@ -255,8 +344,9 @@ compose version
 ```
 
 If neither engine is usable, stop runtime testing and report it as blocked.
-Suggest installing or starting Docker or Podman, but **never install software
-without the user's approval**.
+On Linux/Windows, suggest installing or starting Docker or Podman, but **never
+install software without the user's approval**. On macOS, return to the
+Apple-native procedure; do not offer a Docker/Podman install prompt by default.
 
 On Windows, recommend the official Podman package with a rootless WSL2 Podman
 machine. With user approval, the user can install and initialize it explicitly:
@@ -347,7 +437,8 @@ Before rendering or starting the stack:
 
 1. Create only the `.env` files needed by the target stack, with synthetic
    credentials and non-production hostnames.
-2. Never decrypt, copy, or reuse production secrets.
+2. Never decrypt, copy, or reuse production secrets, or access production SOPS
+   files, age keys, or 1Password for testing.
 3. Review every rendered bind mount. Never mount a production dataset, socket,
    backup directory, or other host path.
 4. Inspect existing containers and networks:
@@ -386,7 +477,10 @@ done
 ```
 
 Do not substitute newer tags or locally rebuilt images. Runtime evidence must
-cover the exact digest-pinned images in the source snapshot.
+cover the exact digest-pinned images in the source snapshot. Also inspect and
+record the resolved platform-specific digest, OS, and architecture actually
+executed; a multi-platform index digest alone does not prove target-platform
+coverage.
 
 ##### 4. Start and Exercise the Stack
 
@@ -511,18 +605,18 @@ Report concise evidence:
 
 | Evidence  | Report                                                                            |
 | --------- | --------------------------------------------------------------------------------- |
-| Runtime   | Engine, engine version, and Compose provider/version                              |
+| Runtime   | Engine/version; Compose provider/version for Docker/Podman, native CLI for Apple  |
 | Source    | Commit/worktree identity tested and disposable environment used                   |
-| Images    | Digest-pinned image references actually pulled                                    |
+| Images    | Source/index and resolved image digests, OS, and architecture actually executed   |
 | Startup   | Selective/full startup result and health/status summary                           |
 | Behavior  | Endpoint, database/cache, init, persistence, and backup/restore results           |
-| Hardening | UID/GID, capabilities, read-only root, limits, ports, and network assertions      |
+| Hardening | Assertions actually exercised; unverified Docker/TrueNAS semantics and other gaps |
 | Failure   | Failing command/probe and relevant redacted log excerpt                           |
 | Cleanup   | Test resources removed or intentionally retained for diagnosis or by user request |
 
-When no engine is usable, report **runtime testing blocked**, include the failed
-engine/provider checks, and state which static checks passed. Explicitly say
-that `compose config` did not provide runtime coverage.
+When no selected runtime is usable, report **runtime testing blocked**, include
+the failed runtime/provider checks, and state which static checks passed.
+Explicitly say that `compose config` did not provide runtime coverage.
 
 ##### 6. Clean Up Safely
 
@@ -539,6 +633,7 @@ only after confirming their identity and test label. If a failure is still
 being diagnosed, retain the logs before removal. Never use broad cleanup
 commands such as `system prune`, `container prune`, or `network prune`, and
 never remove an object merely because its name resembles the test project.
+Do not stop shared runtime services or uninstall runtimes as test cleanup.
 Rootless mapped files may require
 `podman unshare rm -rf <exact-disposable-path>`; verify the path before removal.
 Confirm that test containers, networks, listeners, temporary configuration,
