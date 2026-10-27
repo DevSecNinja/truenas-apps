@@ -1,0 +1,231 @@
+---
+# Candidate only: Pocket ID readiness, image adoption, and live SQLite backup
+# validation must clear before removing these profiles or wiring live ingress.
+services:
+  trek-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: trek-init
+    profiles:
+      - trek-candidate
+    env_file:
+      - path: .env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Assign runtime paths to the dedicated app identity.
+      - FOWNER # Tighten permissions after transferring ownership.
+      - DAC_OVERRIDE # Traverse private runtime paths on repeat starts.
+    read_only: true
+    command:
+      - sh
+      - -ec
+      - |-
+        for name in DOMAINNAME ENCRYPTION_KEY DB_ENC_PASSPHRASE OIDC_CLIENT_ID OIDC_CLIENT_SECRET; do
+          value="$(printenv "$${name}" || true)"
+          case "$${value}" in
+            ""|GENERATE|CHANGE_ME)
+              echo "ERROR: TREK requires a populated $${name}" >&2
+              exit 1
+              ;;
+          esac
+        done
+        case "$${ENCRYPTION_KEY}" in
+          *[!0-9a-fA-F]*)
+            echo "ERROR: TREK ENCRYPTION_KEY must be hexadecimal" >&2
+            exit 1
+            ;;
+        esac
+        if [ "$${#ENCRYPTION_KEY}" -ne 64 ]; then
+          echo "ERROR: TREK ENCRYPTION_KEY must contain exactly 32 bytes" >&2
+          exit 1
+        fi
+        umask 077
+        mkdir -p /data/app /data/uploads
+        chown -R 3134:3134 /data/app /data/uploads
+        chmod -R u=rwX,g=,o= /data/app /data/uploads
+        chmod 700 /data
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "test"
+        - "-d"
+        - "/data/app"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  trek:
+    # Upstream's Debian slim variant includes the Kitinerary document parser.
+    image: docker.io/mauriceboe/trek:5.0.0@sha256:0c0a8f5b488fc2967248695e04bb000bb177d0b63d3385089d33dca6fde4daf9
+    container_name: trek
+    profiles:
+      - trek-candidate
+    depends_on:
+      trek-init:
+        condition: service_completed_successfully
+    user: "3134:3134" # Reserved svc-app-trek; separate from Pocket ID's 3133.
+    # Retain dumb-init but bypass the root-only chown/gosu entrypoint script.
+    working_dir: /app/server
+    command:
+      - "node"
+      - "--require"
+      - "tsconfig-paths/register"
+      - "dist/index.js"
+    env_file:
+      - path: ../shared/env/tz.env
+    environment:
+      NODE_ENV: production
+      HOME: /tmp
+      PORT: "3000"
+      APP_URL: https://trek.${DOMAINNAME}
+      ALLOWED_ORIGINS: https://trek.${DOMAINNAME}
+      FORCE_HTTPS: "true"
+      TRUST_PROXY: "1"
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      OIDC_ISSUER: https://id.${DOMAINNAME}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_DISPLAY_NAME: Pocket ID
+      OIDC_ONLY: "true"
+      OIDC_SCOPE: openid email profile
+      OIDC_USERNAME_CLAIM: preferred_username
+      LOG_LEVEL: info
+    restart: on-failure:3
+    networks:
+      - trek-frontend
+    mem_limit: ${MEM_LIMIT:-1024m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=128m
+    volumes:
+      - ./data/app:/app/data
+      - ./data/uploads:/app/uploads
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          require('http').get('http://127.0.0.1:3000/api/health/ready',
+          r=>{r.resume();process.exit(r.statusCode===200?0:1)})
+          .on('error',()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      - homepage.group=Productivity
+      - homepage.name=TREK
+      - homepage.icon=mdi-map-marker-path
+      - homepage.href=https://trek.${DOMAINNAME}
+      - homepage.description=Collaborative Travel Planning
+      - "traefik.enable=true"
+      - "traefik.docker.network=trek-frontend"
+      - "traefik.http.routers.trek-rtr.rule=Host(`trek.${DOMAINNAME}`)"
+      - "traefik.http.routers.trek-rtr.entrypoints=https"
+      # TREK authenticates with Pocket ID; no Entra forward-auth dependency.
+      - "traefik.http.routers.trek-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.trek-rtr.service=trek"
+      - "traefik.http.services.trek.loadbalancer.server.port=3000"
+      - "gatus.url=https://trek.${DOMAINNAME}/api/health/ready"
+      - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
+      - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
+
+  # Unapproved v4 compatibility candidate. s6 rewrites /etc and requires a
+  # writable root; do not adopt this exception or image without review.
+  trek-db-backup:
+    image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
+    container_name: trek-db-backup
+    profiles:
+      - trek-candidate
+    depends_on:
+      trek:
+        condition: service_healthy
+    env_file:
+      - path: ../shared/env/tz.env
+    command:
+      - "bash"
+      - "/trek-config/backup.sh"
+    environment:
+      DBBACKUP_USER: trekbackup
+      DBBACKUP_GROUP: trekbackup
+      CONTAINER_INIT_PRE_COMMAND: >-
+        if ! grep -q '^trekbackup:' /etc/group; then
+          addgroup -g 3134 trekbackup || exit 1;
+        fi;
+        if ! id trekbackup >/dev/null 2>&1; then
+          adduser -D -H -u 3134 -G trekbackup trekbackup || exit 1;
+        fi;
+        if [ "$(id -u trekbackup)" != 3134 ] || [ "$(id -g trekbackup)" != 3134 ]; then
+          echo "ERROR: Invalid TREK backup identity" >&2; exit 1;
+        fi
+      CONTAINER_NAME: trek-db-backup
+      CONTAINER_ENABLE_MONITORING: "FALSE"
+      CONTAINER_ENABLE_SCHEDULING: "FALSE"
+      CHECK_NEW_VERSION: "FALSE"
+      STATS_ENABLED: "FALSE"
+      MODE: MANUAL
+      MANUAL_RUN_FOREVER: "FALSE"
+      ENABLE_NOTIFICATIONS: "FALSE"
+      DEFAULT_CHECKSUM: SHA1
+      DEFAULT_COMPRESSION: ZSTD
+      DEFAULT_CLEANUP_TIME: "2880"
+      DEFAULT_ENCRYPT: "TRUE"
+      DEFAULT_ENCRYPT_PASSPHRASE: ${DB_ENC_PASSPHRASE:-}
+      DB01_TYPE: sqlite3
+      DB01_HOST: /trek-data/travel.db
+    restart: "no"
+    network_mode: none
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # s6 assigns backup output ownership.
+      - FOWNER # s6 tightens permissions after ownership changes.
+      - DAC_OVERRIDE # Access private source and output directories.
+      - SETUID # s6 drops to the dedicated backup user.
+      - SETGID # s6 drops to the dedicated backup group.
+      - KILL # s6 signals supervised processes with another UID.
+    read_only: false
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data/app:/trek-data:ro
+      - ./backups/db-backup:/backup
+      - ./config:/trek-config:ro
+    labels:
+      - "dccd.backup-jobs=01"
+      - "config.watch=config"
+      - "config.sha256=${CONFIG_HASH:-}"
+    healthcheck:
+      test:
+        - "CMD"
+        - "test"
+        - "-r"
+        - "/trek-data/travel.db"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+networks:
+  trek-frontend:
+    name: trek-frontend
+    driver: bridge

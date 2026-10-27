@@ -1407,6 +1407,124 @@ PostgreSQL database.
 
 ---
 
+## TREK Candidate Coverage and Restore
+
+**Blocked candidate, not a covered production database.** TREK has no
+provisioned dataset or active backup schedule. All three services remain
+behind `trek-candidate`; profiles do not prevent explicitly targeted services
+from starting. Do not bypass the [activation gates](services/trek.md#activation-prerequisites).
+The **2026-10-27 native backup failed**: the read-only WAL source hung in
+`sqlite3 .backup`, timed out at 300 seconds, exited `124`, and emitted
+`ERROR`. No encrypted dump was produced and no restore succeeded; the
+[tested wrapper hash](services/trek.md#native-runtime-evidence-and-limits)
+identifies the exact artifact.
+
+| Property        | Candidate implementation                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Job             | `trek-db-backup`, pinned nfrastack `4.9.2`; unsupported tag with fixable HIGH/CRITICAL findings, not approved                                                        |
+| Cadence         | Deployment-triggered one-shot only; no autonomous nightly timer                                                                                                      |
+| Source          | `./data/app:/trek-data:ro`, database `/trek-data/travel.db`                                                                                                          |
+| Output          | `./backups/db-backup`; GPG-encrypted, ZSTD-compressed binary SQLite and SHA1 sidecar                                                                                 |
+| Retention       | `DEFAULT_CLEANUP_TIME=2880` (48 hours)                                                                                                                               |
+| Verification    | Exactly one fresh nonempty dump and matching SHA1 sidecar, no extra fresh files; checksum, decrypt, decompress, `quick_check=ok`, and `users`/`trips` table presence |
+| Not in the dump | Original encryption/JWT keys and `./data/uploads`; preserve a matching storage-layer recovery set                                                                    |
+
+`config/backup.sh` checks every fresh output and verifies decrypted scratch
+in private `/tmp` with `umask 077`, cleaning it on exit. Only the upstream
+invocation uses `umask 022` for root-created scratch compatibility. It fails
+nonzero when output is absent, unlike v4's possible silent success; its schema
+check is not a row-level recovery test. The backup command receives TERM at
+300 seconds, then KILL after a 10-second grace period if needed.
+Native testing used a **quiesced** Linux disk volume, not concurrent
+writer/shared-volume access. The source remained read-only, with no SQLite
+immutable override. Working backup, live WAL coverage, and restore remain gates.
+After activation, verify actual recursive snapshots, replicas, and off-site
+recovery before claiming dataset coverage or an RPO.
+
+### Conditional TREK Restore — DO NOT EXECUTE Until All Gates Clear
+
+The v4 SQLite `.backup` operation produces a **binary SQLite database**, not
+SQL text. Do not feed the decrypted file to a SQL import command. Select a
+coordinated recovery point containing the dump, original `ENCRYPTION_KEY`,
+persisted encryption/JWT key material under `./data/app`, and matching
+`./data/uploads`. A dump alone is insufficient.
+
+1. Validate the selected dump in private scratch, never over live data. In
+   the example below, `DUMP` is a placeholder for the selected absolute
+   artifact path. Supply the matching `DB_ENC_PASSPHRASE` at GPG's prompt;
+   do not put it in command history.
+
+   ```sh
+   umask 077
+   DUMP=/path/to/selected.sqlite3.zst.gpg
+   SCRATCH=$(mktemp -d /tmp/trek-restore.XXXXXX)
+   mkdir -m 700 "${SCRATCH}/gnupg"
+   (
+       cd "$(dirname "${DUMP}")" &&
+       sha1sum --check "$(basename "${DUMP}").sha1"
+   )
+   gpg --homedir "${SCRATCH}/gnupg" \
+       --output "${SCRATCH}/travel.db.zst" --decrypt "${DUMP}"
+   zstd --decompress --output "${SCRATCH}/travel.db" "${SCRATCH}/travel.db.zst"
+   sqlite3 "${SCRATCH}/travel.db" \
+       'PRAGMA integrity_check; SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+   ```
+
+   Stop on any error. Require integrity `ok` and expected user/trip counts;
+   inspect representative records against the selected recovery point.
+   SHA1 detects accidental corruption, not authenticity.
+2. Pause scheduled/manual deployment and finish backup work. Stop the writer
+   and all other TREK containers, then take and verify a protective snapshot
+   of the current dataset, configuration, and original keys:
+
+   ```sh
+   cd /mnt/vm-pool/apps
+   sudo docker compose --project-name ix-trek -f services/trek/compose.yaml down
+   ```
+
+   Do not restore over a live WAL or copy only the live `travel.db`.
+   Preserve the stopped database, WAL/SHM, keys, and uploads together.
+3. Restore the matching original application secret through the established
+   SOPS workflow before restart; do not generate or rotate encryption/JWT
+   keys. Stage the matching `data/app` key material and `data/uploads` under
+   `RECOVERY_SET` (a placeholder below). Keep the entire old data tree for
+   rollback; choose another preservation name if `data.before-restore`
+   already exists.
+
+   ```sh
+   RECOVERY_SET=/path/to/verified-matching-state
+   sudo mv services/trek/data services/trek/data.before-restore
+   sudo cp -a "${RECOVERY_SET}/data" services/trek/data
+
+   # All writers are stopped; these sidecars belong to the replaced DB.
+   sudo rm -f services/trek/data/app/travel.db-wal \
+       services/trek/data/app/travel.db-shm
+   sudo cp "${SCRATCH}/travel.db" services/trek/data/app/travel.db
+   sudo chown -R svc-app-trek:svc-app-trek \
+       services/trek/data/app services/trek/data/uploads
+   sudo chmod -R u=rwX,g=,o= services/trek/data/app services/trek/data/uploads
+   sudo chmod 700 services/trek/data
+   sudo sqlite3 services/trek/data/app/travel.db \
+       'PRAGMA integrity_check; SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+   ```
+
+4. Only after integrity, records, keys, uploads, ownership, and the reviewed
+   recovery image are verified, restart the approved stack:
+
+   ```sh
+   sudo docker compose --project-name ix-trek -f services/trek/compose.yaml up -d
+   ```
+
+   Verify readiness, existing SSO users and administrator status, authorized
+   and denied trip access, and readable uploaded documents. Create and
+   validate a fresh encrypted backup before resuming deployment automation.
+   Remove private decrypted scratch when validation completes; retain the
+   protective snapshot and old state until recovery is accepted.
+
+This procedure is conditional guidance, not a completed restore drill.
+[Image and runtime evidence](services/trek.md#image-evidence) does not clear
+backup adoption or authorize activation.
+
 ## Restore Open Archiver
 
 **Known security risk: production adoption is not yet approved.** A live

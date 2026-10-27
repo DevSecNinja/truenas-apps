@@ -43,19 +43,21 @@ jobs:
 
   unit-integration:
     # uses: DevSecNinja/.github/.github/workflows/bats.yml@  # after extraction
-    uses: ./.github/workflows/bats.yml
+    uses: ./.github/workflows/bats.yml # zizmor: ignore[self-repository] Pinned actionlint 1.7.12 rejects $/ syntax; retain the same-commit workflow.
     permissions:
       contents: read
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.10.8"
-      test-dirs: "tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration tests/truenas-prep-app/integration"
+      test-dirs: >-
+        tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration
+        tests/truenas-prep-app/integration tests/trek/integration
       check-name: "Unit & Integration Tests"
 
   e2e:
     # uses: DevSecNinja/.github/.github/workflows/bats-e2e.yml@  # after extraction
-    uses: ./.github/workflows/bats-e2e.yml
+    uses: ./.github/workflows/bats-e2e.yml # zizmor: ignore[self-repository] Pinned actionlint 1.7.12 rejects $/ syntax; retain the same-commit workflow.
     permissions:
       contents: read
       checks: write
