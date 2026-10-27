@@ -171,7 +171,7 @@ services:
   # See: https://github.com/linuxserver/docker-socket-proxy
   # cap_drop: ALL is therefore omitted.
   traefik-docker-proxy:
-    image: docker.io/linuxserver/socket-proxy:version-3.4.5-r0@sha256:ca6c0301a652232d02cb0ff9f1c5d20d9b339f391e1c1dffaae6ef3bfc59d009
+    image: docker.io/linuxserver/socket-proxy:version-3.4.6-r0@sha256:8c059dcb7f496212967dcf1d4136f727f2a23eea4da881945c12b1414aafdf4c
     container_name: traefik-docker-proxy
     deploy:
       update_config:
