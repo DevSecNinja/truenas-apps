@@ -400,7 +400,11 @@ files exist because they require explicit review before inclusion:
 ```sh
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 COMMIT="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
-TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/truenas-apps-smoke.XXXXXX")"
+if [ -z "${TMPDIR:-}" ] || [ ! -d "${TMPDIR}" ]; then
+    printf '%s\n' "BLOCKED: TMPDIR must be supplied, nonempty, and an existing approved disposable directory; no /tmp fallback." >&2
+    exit 1
+fi
+TEST_ROOT="$(mktemp -d "${TMPDIR%/}/truenas-apps-smoke.XXXXXX")" || exit 1
 PROJECT="smoke-$(printf '%.12s' "${COMMIT}")-$$"
 
 if [ -n "$(git -C "${REPO_ROOT}" ls-files --others --exclude-standard)" ]; then
@@ -467,20 +471,67 @@ compose -p "${PROJECT}" -f "${COMPOSE_FILE}" config --images
 compose -p "${PROJECT}" -f "${COMPOSE_FILE}" pull
 ```
 
-Every rendered image must contain an `@sha256:` digest. Inspect the pulled
-images and record their repository digests:
+Every rendered image must contain an `@sha256:` digest. Record that exact source
+reference, local config/image ID, OS, architecture, and registry manifest JSON.
+The read-only registry commands below require an already available
+[Docker Buildx](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect/)
+or [Skopeo](https://github.com/containers/skopeo/blob/main/docs/skopeo-inspect.1.md)
+(for Podman). If unavailable, report manifest evidence as blocked; do not install
+tools automatically. `RepoDigests` alone does not identify the executed platform.
+Registry lookups below remove the optional tag (required by Skopeo's Docker
+transport) while retaining the exact digest and any registry port.
 
 ```sh
-for image in $(compose -p "${PROJECT}" -f "${COMPOSE_FILE}" config --images); do
-    runtime image inspect "${image}" --format '{{json .RepoDigests}}'
+inspect_manifest() {
+    manifest_repo="${1%@*}"
+    case "${manifest_repo##*/}" in
+        *:*) manifest_repo="${manifest_repo%:*}" ;;
+    esac
+    manifest_ref="${manifest_repo}@${1##*@}"
+    case "${RUNTIME}" in
+        docker) mise exec -- docker buildx imagetools inspect --raw "${manifest_ref}" ;;
+        podman) mise exec -- skopeo inspect --raw "docker://${manifest_ref}" ;;
+        *) printf '%s\n' "ERROR: unsupported manifest-inspection runtime" >&2; return 1 ;;
+    esac
+}
+
+images="$(compose -p "${PROJECT}" -f "${COMPOSE_FILE}" config --images)" || exit 1
+for image in ${images}; do
+    printf 'source=%s source_digest=%s\n' "${image}" "${image##*@}"
+    runtime image inspect "${image}" --format 'image_id={{.Id}} os={{.Os}} architecture={{.Architecture}} repo_digests={{json .RepoDigests}}' || exit 1
+    inspect_manifest "${image}" || exit 1
 done
 ```
 
+For each image, distinguish these identities:
+
+- **Source/index digest:** the digest after `@` in the rendered reference.
+  If the registry JSON contains `manifests`, it identifies an index/list, not
+  a platform image. Record the matching descriptor's `platform` (including
+  `variant`, when present) and `digest`; ignore attestation descriptors.
+- **Platform manifest digest:** the matching descriptor's `digest`. If the
+  source is already a single image manifest with `config` and `layers`, its
+  source digest is also the platform manifest digest.
+- **Config/image ID:** the selected manifest's `config.digest`, not its manifest
+  digest. Match it to local image inspection and, after startup, the container's
+  image ID. OS/architecture must agree with the selected platform descriptor;
+  do not infer them from the host or tag.
+
+Inspect each selected platform manifest by digest to record its `config.digest`.
+Set `IMAGE` to that exact rendered source reference and `MANIFEST_DIGEST` from
+the descriptor above (or the source pin for a single manifest):
+
+```sh
+: "${IMAGE:?Set IMAGE to the exact rendered digest-pinned reference}"
+: "${MANIFEST_DIGEST:?Set MANIFEST_DIGEST to the selected platform manifest digest}"
+inspect_manifest "${IMAGE%@*}@${MANIFEST_DIGEST}" || exit 1
+```
+
 Do not substitute newer tags or locally rebuilt images. Runtime evidence must
-cover the exact digest-pinned images in the source snapshot. Also inspect and
-record the resolved platform-specific digest, OS, and architecture actually
-executed; a multi-platform index digest alone does not prove target-platform
-coverage.
+cover the exact digest-pinned images in the source snapshot. Registry inspection
+is not execution evidence; complete the container correlation in step 4. If the
+manifest-to-config match is missing or ambiguous, report platform coverage as
+unresolved rather than claiming a resolved digest.
 
 ##### 4. Start and Exercise the Stack
 
@@ -498,6 +549,27 @@ compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps
 If the selected Podman Compose provider does not support `--wait`, use a
 bounded status/health polling loop and report that substitution. Never report a
 successful `up -d` alone as a passed health test.
+
+**Executed-image identity (separate from runtime hardening):** inspect every
+test container, including exited init and backup jobs, then inspect its image
+by the recorded ID rather than by tag:
+
+```sh
+container_ids="$(compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps --all --quiet)" || exit 1
+for container in ${container_ids}; do
+    runtime container inspect "${container}" --format 'container={{.Id}} image_ref={{.Config.Image}} image_id={{.Image}} started={{.State.StartedAt}} status={{.State.Status}}' || exit 1
+    image_id="$(runtime container inspect "${container}" --format '{{.Image}}')" || exit 1
+    runtime image inspect "${image_id}" --format 'image_id={{.Id}} os={{.Os}} architecture={{.Architecture}}' || exit 1
+done
+```
+
+Container `.Image` and local image `.Id` identify the config, not the index or
+manifest. Compare with step 3's `config.digest`, normalizing only an omitted
+`sha256:` prefix (Podman may print bare hex IDs). Record the resulting chain:
+source/index digest → platform manifest digest → config ID → container image ID,
+plus the image OS/architecture and startup result. A container that never started
+does not establish execution coverage; successful ARM64 execution is not AMD64
+coverage. Continue with the independent behavior and hardening checks below.
 
 Validate all applicable behavior:
 

@@ -32,7 +32,7 @@ provisioned and validated. This does not authorize candidate activation.
 The [dated image review](#image-evidence-2026-10-26) records verified
 exact-artifact inventories and findings. A fix on an upstream branch is not
 evidence that a published image contains it. Follow the
-[image-adoption policy](../ARCHITECTURE.md#image-selection-upstream-dependency-maintenance);
+[image-adoption policy](https://homelab.devsecninja.com/ARCHITECTURE/#image-selection-upstream-dependency-maintenance);
 do not maintain downstream patched dependency locks or forks as a workaround.
 Completed secret provisioning does not clear image adoption or any remaining
 deployment gate.
@@ -51,6 +51,10 @@ Source links target the default branch and require the candidate changes to
 be merged. After approval and creation of the app network, merge the fragment's
 entries into active `services/traefik/compose.yaml` through review. Do not apply
 the fragment as a raw ad-hoc production override.
+
+Guide links use the published documentation URLs so they work from both this
+GitHub README and its documentation-site copy. New candidate sections become
+available after merge and documentation publication.
 
 ## Access
 
@@ -96,7 +100,7 @@ to make it reachable.
 Proposed account `svc-app-pocket-id` has no shared-purpose group memberships.
 Its UID and matching primary GID are **reserved for this inactive candidate,
 not provisioned or available for reuse**. This is not an active registry account;
-see [Infrastructure](../INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+see [Infrastructure](https://homelab.devsecninja.com/INFRASTRUCTURE/#pocket-id-candidate-identity-reservation).
 Init runs as root with narrowly declared capabilities and changes only the
 data root, not its contents. The backup's writable-root s6 supervisor starts as
 root and creates an image-local `pocketbackup` identity matching the app.
@@ -112,7 +116,7 @@ artifact is not established and remains a follow-up before any registry change.
 The image supports the explicit proposed runtime user; this does not establish
 full-stack runtime, recovery, or production acceptance.
 
-### Native Runtime Evidence — 2026-10-26
+### Native Runtime Evidence 2026-10-26
 
 Isolated tests used **Apple container 1.6.1**, `linux/arm64`, and native ext4
 volumes with the pinned app and backup artifacts above. No production secrets
@@ -138,7 +142,7 @@ acceptance evidence. The operator explicitly does **not** require a separate
 Docker/TrueNAS runtime validation as a premerge gate; image adoption and
 encrypted restore remain blocked independently.
 
-### Image Evidence — 2026-10-26
+### Image Evidence 2026-10-26
 
 **Decision: BLOCKED for every image; no applicability exception or adoption
 clearance is approved.** This review summarizes parent-verified Trivy JSON and
@@ -202,6 +206,46 @@ do
 done
 ```
 
+### Windows Continuation Status 2026-10-28
+
+- **Runtime status:** Docker CLI absent. With explicit approval, the existing
+  rootless Podman WSL machine started; `podman info` reports server **5.8.6**
+  (`linux/amd64`), with Windows client **5.8.3**. No containers were running;
+  prior unrelated exited test resources were left untouched. No candidate
+  containers or recovery tests were started. No runtime installation or
+  production access was authorized.
+- **Static validation:** Compose **v5.5.1** `config` passed with synthetic
+  inputs. The default profile selected zero services; the explicit
+  `pocket-id-candidate` profile selected all three. This is configuration
+  evidence only, not candidate execution or restore evidence.
+- **Upstream releases:** GitHub latest remained Pocket ID
+  [v2.19.1](https://github.com/pocket-id/pocket-id/releases/tag/v2.19.1)
+  (**2026-10-22**) and nfrastack/db-backup
+  [5.0.6](https://github.com/nfrastack/db-backup/releases/tag/5.0.6)
+  (**2026-10-26**). The SQLite-specific release note only adds a warning about
+  an unwritable WAL directory; it does not establish v4 compatibility or clear
+  adoption.
+- **Selected tag unchanged:** public registry GET for
+  `ghcr.io/pocket-id/pocket-id:v2-distroless` still returned
+  `Docker-Content-Digest: sha256:d035c9c229304cfd25f97a79b2da00bde9cf942abbd70430d452a95420e2836b`,
+  exactly the current pin. No upstream rebuilt artifact was delivered through
+  this selected tag; this metadata check is not a fresh artifact scan.
+- **Concrete replacement blocker — source review, not runtime proof or an
+  exploitability assessment:** in the
+  [5.0.6 SQLite implementation](https://github.com/nfrastack/db-backup/blob/5.0.6/src/internal/database/engine/sqlite/sqlite.go),
+  `Dump` → `listTables` selects only `sqlite_master` entries with `type='table'`,
+  then loops through `dumpTable` using independent `*sql.DB` `Query` calls
+  without a shared read transaction or Online Backup snapshot. This path emits
+  SQL text rather than v4's binary SQLite snapshot and omits indexes, views,
+  and triggers. It is not an approved drop-in for coherent live-writer,
+  full-schema recovery.
+- **Unchanged:** no service versions, pins, Compose, secrets, or integrations
+  changed. Production secrets remain provisioned and were not accessed for
+  these checks. The **2026-10-26** evidence above remains distinct. Engine
+  availability adds no candidate execution, fresh artifact scan, recovery, or
+  production evidence. Candidate gates remain blocked; future rollout remains
+  **DO NOT EXECUTE**.
+
 ### Persistent State Classification
 
 | Path / input                         | Classification                                                       | Recovery requirement                                                                      |
@@ -244,9 +288,9 @@ SQLite/WAL backup and failure propagation; verify one-shot output count,
 freshness, encrypted output, restrictive permissions, and seeded-record restore
 before adoption. Do not blindly make the live source writable or use SQLite
 `immutable` against a live database/snapshot without proving consistency. See the
-[blocked-candidate backup scope and future restore procedure](../BACKUP.md#pocket-id-blocked-candidate-coverage-and-future-restore).
+[blocked-candidate backup scope and future restore procedure](https://homelab.devsecninja.com/BACKUP/#pocket-id-blocked-candidate-coverage-and-future-restore).
 Do not substitute v5 or a moving latest tag: the
-[v4 compatibility constraint](../BACKUP.md#v4-compatibility-constraint)
+[v4 compatibility constraint](https://homelab.devsecninja.com/BACKUP/#v4-compatibility-constraint)
 requires a separately tested migration.
 
 ## Secrets
@@ -311,7 +355,7 @@ Init's minimum-length check is not proof of the required random key generation.
       completed: no rotation or unnecessary re-encryption. Establish
       independent recovery of the original app key and backup passphrase.
 - [ ] **Only after clearance and approval**, integrate registry key `pocket-id`
-      with the [reserved account](../INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation),
+      with the [reserved account](https://homelab.devsecninja.com/INFRASTRUCTURE/#pocket-id-candidate-identity-reservation),
       distinct from TREK's reservation; recheck host allocation, server scope,
       and SOPS rules only if needed. Review DNS `id.${DOMAINNAME}`, active
       Traefik frontend attachment, app/dataset/init/env/identity inventories,
@@ -449,8 +493,8 @@ rollback independently. Existing Entra sessions are not Pocket ID sessions.
 | Outline              | Prove supported migration from Azure auth to the selected OIDC integration while retaining workspace, internal user IDs, documents/collections, ownership, memberships, permissions and admin access. Test native app login separately from its TFA gate; email login is currently disabled. Require an isolated database/config rollback rehearsal before any production switch                                                 |
 | Traefik Forward Auth | First verify the selected TFA release supports the intended Pocket ID provider and claim conditions. Future clients must be server-isolated, with separate credentials, callbacks, cookie prefixes and test portal/routes; leave active Entra `main` unchanged. Prove authorization and session isolation per host, not just a successful OIDC redirect                                                                          |
 
-See the existing [Immich](immich.md), [Open Archiver](open-archiver.md),
-[Outline](outline.md), and [Traefik Forward Auth](traefik-forward-auth.md)
+See the existing [Immich](https://homelab.devsecninja.com/services/immich/), [Open Archiver](https://homelab.devsecninja.com/services/open-archiver/),
+[Outline](https://homelab.devsecninja.com/services/outline/), and [Traefik Forward Auth](https://homelab.devsecninja.com/services/traefik-forward-auth/)
 guides. No active integration change or automatic failover is provided here.
 
 ## Upgrade Notes
