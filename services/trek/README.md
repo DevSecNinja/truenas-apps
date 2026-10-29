@@ -2,9 +2,12 @@
 
 [TREK](https://github.com/liketrek/TREK) is a collaborative travel planner.
 **Blocked candidate for [issue #948](https://github.com/DevSecNinja/truenas-apps/issues/948);
-not deployed or approved.** This integration depends on completion of Pocket ID
-[PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949), reviewed at
-commit `a383ae2`. Do not merge TREK before Pocket ID is complete.
+not deployed or approved.** This integration depends on operational completion
+of Pocket ID [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949).
+As of 2026-10-28, Pocket ID's latest confirmed signed continuation is commit
+`3297d0b1115ea8dfea50c51aec69590849c8faca`. No operational or image-adoption
+gates have cleared, and no TREK client has been issued. Do not merge TREK
+before Pocket ID is complete.
 
 ## Why
 
@@ -142,11 +145,11 @@ Never replace original application keys merely to make a restore start.
 
 ### Windows Continuation Checklist
 
-This PR is a candidate handoff, **not deployment approval**.
+Candidate continuation on branch `devsecninja-trek-service` began on Windows
+on **2026-10-28**. **This is not deployment approval.** Production encrypted
+secrets and original application/backup keys remain preserved; do not rotate
+or regenerate them. All operational and adoption gates remain open.
 
-- [ ] Resume branch `devsecninja-trek-service` on Windows. Preserve the
-      encrypted secrets and original application/backup keys; do not rotate or
-      regenerate them.
 - [ ] Complete Pocket ID #949 operationally, not merely merge it. Verify the
       issuer, dedicated confidential client, exact callback, claims, and
       bootstrap-admin-only assignment; enter the issued `OIDC_CLIENT_ID` and
@@ -155,9 +158,17 @@ This PR is a candidate handoff, **not deployment approval**.
       compatible backup replacement; record current exact-artifact scans and
       reviewed pins. No downstream dependency patching or blind v5 upgrade.
 - [ ] Resolve consistent backup from the read-only SQLite WAL source and
-      validate live-writer/shared-volume behavior. Re-test the 300-second TERM /
-      10-second KILL grace and fail-closed missing/invalid-output checks; do not
-      make the source writable or use an immutable override.
+      validate live-writer/shared-volume behavior; do not make the source
+      writable or use an immutable override.
+- [x] Complete [focused wrapper tests](#focused-wrapper-evidence-2026-10-28)
+      with mocked upstream/database/crypto operations and real process signals.
+- [ ] Validate every [backup stage](#backup) in real backup/sidecar execution:
+      independent TERM at 300 seconds, KILL after a 10-second grace if needed,
+      stage-named errors, and preserved nonzero status. Verify pipeline
+      `pipefail`, fail-closed missing/invalid and extra-output checks, exactly
+      one real matching output pair, 48-hour retention, and private scratch
+      cleanup on success and failure. These are per-stage limits, not a
+      whole-job deadline; real backup validation remains blocked.
 - [ ] Demonstrate a synthetic encrypted restore with representative
       `users`/`trips`, uploads, and original encryption/JWT key material; retain
       integrity and record-level evidence, not just table presence.
@@ -216,7 +227,7 @@ reviewed activation changes are available:
 
 ## Backup
 
-**Candidate coverage only; native backup failed on 2026-10-27.** The read-only
+**Candidate coverage only; native ARM64 backup failed on 2026-10-27.** The read-only
 WAL source hung in `sqlite3 .backup`; the bounded invocation timed out after
 300 seconds, exited `124`, and emitted `ERROR`. No encrypted dump was produced
 and no restore succeeded.
@@ -230,8 +241,30 @@ a passing checksum/decrypt/decompress cycle, SQLite `quick_check=ok`, and both
 `users` and `trips` tables. Private verification scratch retains `umask 077`
 and is cleaned on exit; `umask 022` applies only to the upstream invocation
 for root-created scratch compatibility. Table presence is not a row-level
-restore drill. The backup command receives TERM at 300 seconds, then KILL
-after a 10-second grace period if needed.
+restore drill.
+
+The revised `run_stage` helper applies
+`timeout --signal=TERM --kill-after=10s 300s` **separately to each stage**:
+
+| Stage        | Command / check                                   |
+| ------------ | ------------------------------------------------- |
+| `dump`       | `backup01-now now`                                |
+| `discovery`  | `find` for fresh output files                     |
+| `checksum`   | `sha1sum --check`                                 |
+| `decrypt`    | `gpg --decrypt`                                   |
+| `decompress` | `zstd --decompress --stdout`                      |
+| `integrity`  | `sqlite3` with `PRAGMA quick_check;`              |
+| `schema`     | `sqlite3` counting the `users` and `trips` tables |
+
+Each stage receives TERM at 300 seconds, then KILL after a 10-second grace
+period if needed. **This is not a 300-second whole-job deadline.** Decrypt
+and decompress run in a pipeline with independent timers; `pipefail` remains
+enabled. Each helper error names the failed stage and returns its nonzero
+status. The exactly-one output requirements and private scratch cleanup are
+unchanged. [Focused wrapper tests](#focused-wrapper-evidence-2026-10-28)
+passed on 2026-10-28; their mocked operations and real signal checks do not
+establish encrypted backup or recovery.
+
 Native disk-volume testing used a quiesced source, not concurrent sharing
 with a live writer. The source stayed read-only; no SQLite immutable override
 was used. Working backup and restore remain activation gates.
@@ -239,6 +272,39 @@ was used. Working backup and restore remain activation gates.
 See [TREK candidate coverage and conditional restore](../BACKUP.md#trek-candidate-coverage-and-restore)
 for binary SQLite recovery, WAL precautions, and the matching keys/uploads set.
 No production database or storage-layer backup coverage is claimed.
+
+### Focused Wrapper Evidence (2026-10-28)
+
+**Runtime signal proof only, not encrypted backup/recovery proof or deployment
+readiness.** Database, crypto, and upstream operations were **mocked**; no real
+backup or full-sidecar lifecycle was exercised.
+
+- **59 tests passed with exact BATS 1.14.0:** 41 backup tests on Linux rootless
+  Podman 5.8.6 and 18 Compose/init/activation tests on Windows.
+- **Linux isolation:** the 41 backup tests ran offline in an isolated named
+  volume using the exact existing `nfrastack/db-backup:4.9.2` index and
+  `linux/amd64` artifact [listed below](#image-evidence). The image entrypoint
+  was bypassed to Bash 5.3.9 and GNU coreutils `timeout` 9.11; this does not
+  validate s6 startup or approve the image. The test container and volume were
+  removed.
+- **Wrapper checks:** all seven stage deadlines, stage-named nonzero failures,
+  pipeline `pipefail`, missing/invalid/extra-output rejection, exactly-one
+  matching output checks, and private scratch cleanup passed with mocks.
+- **Real process signals:** TERM reached a cooperative parent and child;
+  KILL escalation stopped a TERM-ignoring parent and child, with no leftover
+  live test processes. The test harness first validates the production
+  `--signal=TERM --kill-after=10s 300s` arguments, then substitutes a test-only
+  2-second deadline / 1-second KILL grace.
+- **Negative control:** six verification-timeout tests failed against an
+  isolated reconstruction of the prior unbounded verification wrapper.
+- **Validated wrapper SHA256:**
+  `6b59bb8de430c5de31fb016ccd048a734522f60db7f421242c0d7f29d9d0d42b`.
+
+The handoff also recorded a successful strict MkDocs build of the actual docs
+using 32 materialized tracked symlink targets in an isolated copy; repository
+links were unchanged. Targeted ShellCheck, shfmt, and dprint passed.
+The full pre-commit hooks also passed. These results do not clear the image,
+Pocket ID, real-output/48-hour retention, live-WAL, or full recovery gates.
 
 ## Image Evidence
 
@@ -289,7 +355,8 @@ Exact artifacts (all digests use SHA256):
   fix `3.5.7-r0` → `3.5.8-r0`. Bundled unrelated database engines do not
   establish that every finding is reachable. Require a supported,
   compatible upstream image, not downstream dependency patches or a blind
-  v5 upgrade.
+  v5 upgrade. As of 2026-10-28, no supported compatible backup has been
+  selected; latest `5.0.6` is not approved as a drop-in replacement.
 
 ### Native Runtime Evidence and Limits
 

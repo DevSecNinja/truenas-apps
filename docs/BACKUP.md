@@ -1413,11 +1413,18 @@ PostgreSQL database.
 provisioned dataset or active backup schedule. All three services remain
 behind `trek-candidate`; profiles do not prevent explicitly targeted services
 from starting. Do not bypass the [activation gates](services/trek.md#activation-prerequisites).
-The **2026-10-27 native backup failed**: the read-only WAL source hung in
+The **2026-10-27 native ARM64 backup failed**: the read-only WAL source hung in
 `sqlite3 .backup`, timed out at 300 seconds, exited `124`, and emitted
 `ERROR`. No encrypted dump was produced and no restore succeeded; the
 [tested wrapper hash](services/trek.md#native-runtime-evidence-and-limits)
 identifies the exact artifact.
+
+Candidate continuation began on Windows on **2026-10-28**; production keys
+remain preserved. No operational or adoption gates have cleared, and no TREK
+OIDC client has been issued; see the [continuation checklist](services/trek.md#windows-continuation-checklist).
+No supported compatible backup has been selected. The pinned `4.9.2` remains
+unsupported with fixable HIGH/CRITICAL findings; latest `5.0.6` is not an
+approved drop-in replacement.
 
 | Property        | Candidate implementation                                                                                                                                             |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1433,8 +1440,29 @@ identifies the exact artifact.
 in private `/tmp` with `umask 077`, cleaning it on exit. Only the upstream
 invocation uses `umask 022` for root-created scratch compatibility. It fails
 nonzero when output is absent, unlike v4's possible silent success; its schema
-check is not a row-level recovery test. The backup command receives TERM at
-300 seconds, then KILL after a 10-second grace period if needed.
+check is not a row-level recovery test.
+
+The revised `run_stage` helper applies
+`timeout --signal=TERM --kill-after=10s 300s` separately to `dump`
+(`backup01-now now`), `discovery` (`find`), `checksum` (`sha1sum`), `decrypt`
+(`gpg`), `decompress` (`zstd`), `integrity` (`sqlite3` `quick_check`), and
+`schema` (`sqlite3` counting the `users` and `trips` tables). **Each stage**
+receives TERM at 300 seconds and KILL after a 10-second grace if needed;
+**there is no 300-second whole-job deadline**. Decrypt and decompress have
+independent timers within the pipeline, which retains `pipefail`. Helper
+errors name the failed stage and return its nonzero status. Exactly-one
+output-pair checks and private scratch cleanup remain unchanged.
+
+**2026-10-28 focused tests passed:** 59 tests with exact BATS 1.14.0
+(41 backup tests on Linux rootless Podman 5.8.6; 18 Compose/init/activation
+tests on Windows). See [focused wrapper evidence](services/trek.md#focused-wrapper-evidence-2026-10-28)
+for exact-artifact context, mocked verification checks, real TERM/KILL
+parent/child behavior, and the negative control. This is runtime signal
+proof only: database/crypto/upstream operations were mocked, with no real
+backup or full-sidecar lifecycle. Exactly one real encrypted output pair,
+48-hour retention, and encrypted backup/recovery remain unproven; the
+historical failed run is unchanged. The full pre-commit hooks also passed.
+
 Native testing used a **quiesced** Linux disk volume, not concurrent
 writer/shared-volume access. The source remained read-only, with no SQLite
 immutable override. Working backup, live WAL coverage, and restore remain gates.
@@ -1489,14 +1517,14 @@ persisted encryption/JWT key material under `./data/app`, and matching
    keys. Stage the matching `data/app` key material and `data/uploads` under
    `RECOVERY_SET` (a placeholder below). Keep the entire old data tree for
    rollback; choose another preservation name if `data.before-restore`
-   already exists.
+   already exists. With all writers stopped, remove the WAL/SHM sidecars
+   belonging to the replaced database before installing the verified dump.
 
    ```sh
    RECOVERY_SET=/path/to/verified-matching-state
    sudo mv services/trek/data services/trek/data.before-restore
    sudo cp -a "${RECOVERY_SET}/data" services/trek/data
 
-   # All writers are stopped; these sidecars belong to the replaced DB.
    sudo rm -f services/trek/data/app/travel.db-wal \
        services/trek/data/app/travel.db-shm
    sudo cp "${SCRATCH}/travel.db" services/trek/data/app/travel.db

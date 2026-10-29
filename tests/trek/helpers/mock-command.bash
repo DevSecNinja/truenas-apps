@@ -9,6 +9,102 @@ bad_call() {
   exit 97
 }
 
+# Shared by simulated timeout and its real-timeout mode. Validate before
+# injecting a failure or accelerating anything; never accept arbitrary commands.
+trek_validate_deadline() {
+  [[ $# -ge 4 && "$1" == --signal=TERM && "$2" == --kill-after=10s &&
+    "$3" == 300s ]] || bad_call
+  shift 3
+  case "$1" in
+  backup01-now)
+    [[ $# == 2 && "$2" == now ]] || bad_call
+    deadline_stage=dump
+    ;;
+  find)
+    [[ $# == 7 && "$2" == /backup && "$3" == -type && "$4" == f &&
+      "$5" == -newer && "$6" == "${WORK_ROOT}/"*/started && "$7" == -print ]] || bad_call
+    deadline_stage=discovery
+    ;;
+  sha1sum)
+    [[ $# == 3 && "$2" == --check &&
+      "$3" == sqlite3_travel_current.sqlite3.zst.gpg.sha1 &&
+      "${PWD}" == "${BACKUP_ROOT}" ]] || bad_call
+    deadline_stage=checksum
+    ;;
+  gpg)
+    [[ $# == 10 && "$2" == --batch && "$3" == --homedir &&
+      "$4" == "${WORK_ROOT}/"*/gnupg && "$5" == --pinentry-mode &&
+      "$6" == loopback && "$7" == --passphrase-fd && "$8" == 0 &&
+      "$9" == --decrypt && "${10}" == "${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg" ]] || bad_call
+    deadline_stage=decrypt
+    ;;
+  zstd)
+    [[ $# == 3 && "$2" == --decompress && "$3" == --stdout ]] || bad_call
+    deadline_stage=decompress
+    ;;
+  sqlite3)
+    [[ $# == 3 && "$2" == "${WORK_ROOT}/"*/restored.sqlite3 ]] || bad_call
+    case "$3" in
+    'PRAGMA quick_check;') deadline_stage=integrity ;;
+    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('users','trips');")
+      deadline_stage=schema
+      ;;
+    *) bad_call ;;
+    esac
+    ;;
+  *) bad_call ;;
+  esac
+  # A separate directory per invocation detects duplicates even in the pipeline.
+  mkdir "${MOCK_LOG}/deadline-${deadline_stage}" || bad_call
+}
+
+trek_tree_worker() {
+  # Synthetic find replacement: no database, encryption, network, or Docker.
+  # The child self-exits even if the stage deadline and test watchdog both break.
+  local role="${1:?parent or child required}" child_pid=''
+  case "${role}:${BACKUP_SCENARIO}" in
+  parent:tree-cooperative | child:tree-cooperative | parent:tree-ignoring | child:tree-ignoring) ;;
+  *) bad_call ;;
+  esac
+
+  # shellcheck disable=SC2329 # Invoked indirectly by the TERM trap.
+  on_term() {
+    "${REAL_TOUCH}" "${MOCK_LOG}/tree-${role}-term"
+    if [[ -n "${child_pid}" ]]; then
+      # Reap the TERM-cooperative child before the monitored parent exits.
+      wait "${child_pid}" || true
+    fi
+    exit 0
+  }
+
+  if [[ "${BACKUP_SCENARIO}" == tree-cooperative ]]; then
+    trap on_term TERM
+  else
+    # Keep the monitored parent alive too, so timeout must escalate the group.
+    trap '' TERM
+  fi
+  "${REAL_TOUCH}" "${MOCK_LOG}/tree-${role}-pid-${BASHPID}"
+  "${REAL_TOUCH}" "${MOCK_LOG}/tree-${role}-ready"
+
+  if [[ "${role}" == parent ]]; then
+    "${BASH}" "${MOCK_BIN}/tree-worker" child &
+    child_pid=$!
+    # set -e is enabled in this dispatcher; capture a nonzero wait explicitly.
+    if wait "${child_pid}"; then
+      exit 0
+    else
+      exit "$?"
+    fi
+  fi
+
+  SECONDS=0
+  while ((SECONDS < 7)); do
+    sleep 0.05
+  done
+  "${REAL_TOUCH}" "${MOCK_LOG}/tree-self-limit"
+  exit 88
+}
+
 "${REAL_TOUCH}" "${MOCK_LOG}/${command_name}"
 
 case "${TREK_MOCK_CONTEXT}:${command_name}" in
@@ -56,13 +152,24 @@ dump="${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg"
 
 case "${command_name}" in
 timeout)
-  [[ $# == 5 && "$1" == --signal=TERM && "$2" == --kill-after=10s &&
-    "$3" == 300s && "$4" == backup01-now && "$5" == now ]] || bad_call
+  trek_validate_deadline "$@"
   if [[ "${BACKUP_SCENARIO}" == timeout ]]; then
+    [[ "${deadline_stage}" == dump ]] || bad_call
     printf '%s\n' 'mock upstream timed out' >&2
     exit 124
   fi
   shift 3
+  if [[ "${BACKUP_SCENARIO}" == "timeout-${deadline_stage}" ]]; then
+    # Leave realistic partial/success-shaped stdout and private state behind.
+    # The caller must reject the exit status, not merely inspect that output.
+    "$@"
+    exit 124
+  fi
+  if [[ "${BACKUP_SCENARIO}" == tree-* && "${deadline_stage}" == discovery ]]; then
+    # Test-only acceleration, AFTER validating every production argument.
+    "${REAL_TOUCH}" "${MOCK_LOG}/real-deadline"
+    exec "${REAL_TIMEOUT}" --signal=TERM --kill-after=1s 2s "$@"
+  fi
   exec "$@"
   ;;
 touch)
@@ -73,9 +180,26 @@ touch)
 find)
   [[ $# == 6 && "$1" == /backup && "$2" == -type && "$3" == f &&
     "$4" == -newer && "$5" == "${WORK_ROOT}/"*/started && "$6" == -print ]] || bad_call
+  case "${BACKUP_SCENARIO}" in
+  discovery-partial-failure)
+    printf '%s\n' "${dump}"
+    exit 36
+    ;;
+  discovery-pair-failure)
+    printf '%s\n' "${dump}" "${dump}.sha1"
+    exit 36
+    ;;
+  tree-cooperative | tree-ignoring)
+    exec "${BASH}" "${MOCK_BIN}/tree-worker" parent
+    ;;
+  *) ;;
+  esac
   shift
   # The only path substitution: execute the unmodified production script.
   exec "${REAL_FIND}" "${BACKUP_ROOT}" "$@"
+  ;;
+tree-worker)
+  trek_tree_worker "$@"
   ;;
 backup01-now)
   [[ "$*" == now ]] || bad_call
@@ -141,7 +265,7 @@ gpg)
   mkdir -p "$3/private-keys-v1.d"
   cp "${FIXTURE_DIR}/dump.txt" "$3/private-keys-v1.d/test-state"
   printf '%s\n' 'test-only zstd stream'
-  if [[ "${BACKUP_SCENARIO}" == gpg-failure ]]; then
+  if [[ "${BACKUP_SCENARIO}" == gpg-failure || "${BACKUP_SCENARIO}" == pipeline-failure ]]; then
     printf '%s\n' 'mock GPG failure' >&2
     exit 32
   fi
@@ -150,10 +274,11 @@ zstd)
   compressed_input="$(cat)"
   [[ "$*" == '--decompress --stdout' && "${compressed_input}" == 'test-only zstd stream' ]] || bad_call
   printf '%s\n' 'test-only restored SQLite'
-  if [[ "${BACKUP_SCENARIO}" == zstd-failure ]]; then
+  if [[ "${BACKUP_SCENARIO}" == zstd-failure || "${BACKUP_SCENARIO}" == pipeline-failure ]]; then
     printf '%s\n' 'mock ZSTD failure' >&2
     exit 33
   fi
+  "${REAL_TOUCH}" "${MOCK_LOG}/zstd-completed"
   ;;
 sqlite3)
   [[ $# == 2 && "$1" == "${WORK_ROOT}/"*/restored.sqlite3 ]] || bad_call

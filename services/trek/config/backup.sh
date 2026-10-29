@@ -8,6 +8,18 @@ fail() {
     exit 1
 }
 
+run_stage() {
+    local stage="${1}" status
+    shift
+    if timeout --signal=TERM --kill-after=10s 300s "$@"; then
+        return 0
+    else
+        status=$?
+        printf 'ERROR: TREK backup: %s failed (exit %s)\n' "${stage}" "${status}" >&2
+        return "${status}"
+    fi
+}
+
 case "${DEFAULT_ENCRYPT_PASSPHRASE:-}" in
 "" | GENERATE | CHANGE_ME) fail "a populated encryption passphrase is required" ;;
 *) ;;
@@ -28,10 +40,10 @@ touch "${work}/started"
     # v4 creates SQLite scratch as root, then reads it as the backup user.
     # Its private temporary directory protects that intermediate file.
     umask 022
-    timeout --signal=TERM --kill-after=10s 300s backup01-now now
+    run_stage dump backup01-now now
 )
 
-find /backup -type f -newer "${work}/started" -print >"${work}/outputs"
+run_stage discovery find /backup -type f -newer "${work}/started" -print >"${work}/outputs"
 dumps=()
 checksums=()
 while IFS= read -r output; do
@@ -52,17 +64,17 @@ output_count="$(wc -l <"${work}/outputs")"
 
 (
     cd "$(dirname "${dump}")"
-    sha1sum --check "$(basename "${dump}").sha1"
+    run_stage checksum sha1sum --check "$(basename "${dump}").sha1"
 )
 mkdir -m 700 "${work}/gnupg"
 printf '%s\n' "${DEFAULT_ENCRYPT_PASSPHRASE}" |
-    gpg --batch --homedir "${work}/gnupg" --pinentry-mode loopback \
+    run_stage decrypt gpg --batch --homedir "${work}/gnupg" --pinentry-mode loopback \
         --passphrase-fd 0 --decrypt "${dump}" |
-    zstd --decompress --stdout >"${work}/restored.sqlite3"
-integrity="$(sqlite3 "${work}/restored.sqlite3" 'PRAGMA quick_check;')"
+    run_stage decompress zstd --decompress --stdout >"${work}/restored.sqlite3"
+integrity="$(run_stage integrity sqlite3 "${work}/restored.sqlite3" 'PRAGMA quick_check;')"
 [[ "${integrity}" == "ok" ]] ||
     fail "restored SQLite integrity check failed"
-tables="$(sqlite3 "${work}/restored.sqlite3" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('users','trips');")"
+tables="$(run_stage schema sqlite3 "${work}/restored.sqlite3" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('users','trips');")"
 [[ "${tables}" == "2" ]] ||
     fail "restored database is missing TREK tables"
 

@@ -23,7 +23,8 @@ trek_setup() {
   WORK_ROOT="${TEST_ROOT}/work"
   FIXTURE_DIR="${TREK_REPO_ROOT}/tests/trek/fixtures"
   TREK_COMPOSE="${TREK_REPO_ROOT}/services/trek/compose.yaml"
-  TREK_BACKUP="${TREK_REPO_ROOT}/services/trek/config/backup.sh"
+  # Only the mutation test sets this, to an isolated copy; no production bypass.
+  TREK_BACKUP="${TREK_TEST_BACKUP:-${TREK_REPO_ROOT}/services/trek/config/backup.sh}"
   REAL_FIND="$(command -v find)"
   REAL_TOUCH="$(command -v touch)"
   REAL_SH="$(command -v sh)"
@@ -52,7 +53,7 @@ trek_mock() {
 
 trek_backup_setup() {
   trek_setup
-  trek_mock timeout backup01-now find touch sha1sum gpg zstd sqlite3
+  trek_mock timeout backup01-now find touch sha1sum gpg zstd sqlite3 tree-worker
   # Old outputs must neither count as new nor be removed by cleanup.
   cp "${FIXTURE_DIR}/dump.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg"
   cp "${FIXTURE_DIR}/sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
@@ -61,15 +62,20 @@ trek_backup_setup() {
 
 run_backup() {
   # No inherited startup hooks, credentials, GNUPGHOME, or real output paths.
-  local -a passphrase=()
+  local -a passphrase=() watchdog=()
   if [[ "${DEFAULT_ENCRYPT_PASSPHRASE+x}" == x ]]; then
     passphrase=("DEFAULT_ENCRYPT_PASSPHRASE=${DEFAULT_ENCRYPT_PASSPHRASE}")
   fi
+  if [[ "${BACKUP_SCENARIO}" == tree-* ]]; then
+    # Independent bound if the script under test loses its discovery deadline.
+    watchdog=("${REAL_TIMEOUT}" --signal=TERM --kill-after=1s 10s)
+  fi
   run env -i PATH="${MOCK_BIN}:${ORIGINAL_PATH}" HOME="${TEST_ROOT}" TMPDIR="${WORK_ROOT}" \
-    MOCK_LOG="${MOCK_LOG}" BACKUP_ROOT="${BACKUP_ROOT}" WORK_ROOT="${WORK_ROOT}" \
+    MOCK_BIN="${MOCK_BIN}" MOCK_LOG="${MOCK_LOG}" BACKUP_ROOT="${BACKUP_ROOT}" WORK_ROOT="${WORK_ROOT}" \
     FIXTURE_DIR="${FIXTURE_DIR}" REAL_FIND="${REAL_FIND}" REAL_TOUCH="${REAL_TOUCH}" \
+    REAL_TIMEOUT="${REAL_TIMEOUT:-}" \
     TREK_MOCK_CONTEXT=backup BACKUP_SCENARIO="${BACKUP_SCENARIO}" \
-    "${passphrase[@]}" "${BASH}" "${TREK_BACKUP}"
+    "${passphrase[@]}" "${watchdog[@]}" "${BASH}" "${TREK_BACKUP}"
 }
 
 assert_called() {
@@ -87,14 +93,110 @@ assert_backup_cleaned() {
   assert_output ""
   assert_file_exists "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg"
   assert_file_exists "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
+  run cmp "${FIXTURE_DIR}/dump.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg"
+  assert_success
+  run cmp "${FIXTURE_DIR}/sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
+  assert_success
 }
 
 assert_backup_rejected() {
   assert_failure
   refute_output --partial 'TREK encrypted backup verified:'
   refute_output --partial 'Unexpected TREK mock invocation:'
+  refute_output --partial "${DEFAULT_ENCRYPT_PASSPHRASE:-trek-test-only-passphrase}"
   assert_output --partial "${1}"
   assert_backup_cleaned
+}
+
+assert_no_backup_plaintext() {
+  run "${REAL_FIND}" "${BACKUP_ROOT}" -type f \
+    ! -name '*.sqlite3.zst.gpg' ! -name '*.sqlite3.zst.gpg.sha1' -print
+  assert_success
+  assert_output ""
+}
+
+assert_stage_rejected() {
+  local stage="${1}" expected_status="${2}"
+  assert_failure "${expected_status}"
+  assert_output --partial "ERROR: TREK backup: ${stage} failed (exit ${expected_status})"
+  assert_output --partial 'ERROR: TREK backup or verification command failed'
+  assert_dir_exists "${MOCK_LOG}/deadline-${stage}"
+  assert_backup_rejected "ERROR: TREK backup: ${stage} failed (exit ${expected_status})"
+  assert_no_backup_plaintext
+}
+
+trek_tree_setup_file() {
+  trek_setup_file || return 1
+  if ((BASH_VERSINFO[0] < 4)); then
+    printf '%s\n' 'Process-tree fixtures require Bash 4+ for BASHPID.' >&2
+    return 1
+  fi
+  local version
+  REAL_TIMEOUT="$(command -v timeout)" || return 1
+  version="$("${REAL_TIMEOUT}" --version)" || return 1
+  if [[ "${version}" != *'GNU coreutils'* ]]; then
+    printf '%s\n' 'Process-tree tests require GNU timeout (Git Bash on Windows).' >&2
+    return 1
+  fi
+  export REAL_TIMEOUT
+}
+
+trek_tree_alive() {
+  local pid="${1}" state _
+  kill -0 "${pid}" 2>/dev/null || return 1
+  # Linux can briefly retain an orphan zombie after group KILL. It cannot run
+  # or hold file handles; Git Bash may have no Linux-compatible /proc entry.
+  if [[ -r "/proc/${pid}/stat" ]] &&
+    read -r _ _ state _ <"/proc/${pid}/stat"; then
+    [[ "${state}" != Z ]] || return 1
+  fi
+  return 0
+}
+
+trek_wait_tree_stopped() {
+  local attempt marker pid live
+  for ((attempt = 0; attempt < 40; attempt++)); do
+    live=false
+    for marker in "${MOCK_LOG}"/tree-*-pid-*; do
+      [[ -f "${marker}" ]] || continue
+      pid="${marker##*-}"
+      [[ "${pid}" =~ ^[0-9]+$ ]] || return 97
+      if trek_tree_alive "${pid}"; then
+        live=true
+      fi
+    done
+    if [[ "${live}" == false ]]; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  printf '%s\n' 'Synthetic timeout worker is still running.' >&2
+  return 1
+}
+
+trek_tree_cleanup() {
+  local marker pid
+  # Only PIDs recorded by this test's own synthetic workers, never broad pkill.
+  for marker in "${MOCK_LOG}"/tree-*-pid-*; do
+    [[ -f "${marker}" ]] || continue
+    pid="${marker##*-}"
+    [[ "${pid}" =~ ^[0-9]+$ ]] || return 97
+    if trek_tree_alive "${pid}"; then
+      kill -KILL "${pid}" 2>/dev/null || true
+    fi
+  done
+  trek_wait_tree_stopped
+}
+
+assert_tree_started_and_stopped() {
+  assert_called real-deadline
+  assert_called tree-parent-ready
+  assert_called tree-child-ready
+  assert_not_called tree-self-limit
+  # Check before teardown's defensive kill, so cleanup cannot hide a failure.
+  run trek_wait_tree_stopped
+  assert_success
+  assert_output ""
 }
 
 assert_compose_value() {
