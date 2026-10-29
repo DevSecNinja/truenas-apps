@@ -18,7 +18,7 @@ permissions:
 jobs:
   # --- Centralized reusable lint workflow from DevSecNinja/.github ---
   lint:
-    uses: DevSecNinja/.github/.github/workflows/lint.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+    uses: DevSecNinja/.github/.github/workflows/lint.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
     permissions:
       contents: read
       security-events: write

@@ -91,6 +91,16 @@ groups, and ownership IDs are retained for a possible restart. See
 for the operator handoff and restoration procedure; production teardown still
 requires operator verification.
 
+## Blocked Candidates
+
+[TREK](services/trek/README.md) ([#948](https://github.com/DevSecNinja/truenas-apps/issues/948))
+is a travel-planning candidate, **not an active app or dataset**. Pocket ID
+[#949](https://github.com/DevSecNinja/truenas-apps/pull/949) must complete before
+TREK merges. All three services remain behind `trek-candidate`, with no active
+DNS, Traefik attachment, or provisioning registry entry. Image adoption,
+target-runtime, OIDC, and backup/restore gates remain open. Profiles are not a
+security boundary; do not bypass the gate by targeting services explicitly.
+
 ## Personal Home Folders
 
 [Personal Home Folders](docs/HOME-FOLDERS.md) documents the approved native

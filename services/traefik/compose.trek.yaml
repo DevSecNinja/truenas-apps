@@ -1,0 +1,12 @@
+---
+# Inert candidate fragment. Do not include before TREK's adoption and recovery
+# gates clear; integrate the attachment into compose.yaml during activation.
+services:
+  traefik:
+    networks:
+      trek-frontend:
+
+networks:
+  trek-frontend:
+    name: trek-frontend
+    external: true

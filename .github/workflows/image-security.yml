@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,7 +67,7 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -107,10 +107,10 @@ jobs:
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
 
       - name: Notify Grafana IRM
-        uses: DevSecNinja/.github/.github/actions/notify-irm@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+        uses: DevSecNinja/.github/.github/actions/notify-irm@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
         with:
           webhook-url: ${{ secrets.GRAFANA_IRM_WEBHOOK_URL }}
           # `needs.*.result` is system-controlled, safe to interpolate.
