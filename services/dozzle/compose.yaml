@@ -28,7 +28,7 @@ services:
       - ./data:/data
 
   dozzle:
-    image: docker.io/amir20/dozzle:v11.3.1@sha256:ba65da5af3d2147cfc2ee68ea5a6e35b75d2dff7eeff226151a65c9d77831c02
+    image: docker.io/amir20/dozzle:v11.3.2@sha256:0d8cf9702f422d65a7e8ad238785dc6b05b2b9c43c945f6bbdf3358ad5da5f6c
     container_name: dozzle
     # Dozzle is a scratch-based Go binary — no shell or wget inside the image.
     # The binary ships a built-in "healthcheck" subcommand that calls /healthcheck
@@ -113,7 +113,7 @@ services:
   # See: https://github.com/linuxserver/docker-socket-proxy
   # cap_drop: ALL is therefore omitted.
   dozzle-docker-proxy:
-    image: docker.io/linuxserver/socket-proxy:version-3.4.5-r0@sha256:ca6c0301a652232d02cb0ff9f1c5d20d9b339f391e1c1dffaae6ef3bfc59d009
+    image: docker.io/linuxserver/socket-proxy:version-3.4.6-r0@sha256:8c059dcb7f496212967dcf1d4136f727f2a23eea4da881945c12b1414aafdf4c
     container_name: dozzle-docker-proxy
     deploy:
       update_config:
