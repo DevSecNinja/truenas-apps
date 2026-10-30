@@ -6,7 +6,7 @@ services:
   # and other internal paths. read_only and user: are therefore omitted.
   # cap_drop: ALL is still applied; CHOWN/SETUID/SETGID are not needed.
   esphome:
-    image: ghcr.io/esphome/esphome:2026.9.1@sha256:55e24cac77eed45a128aadf1ebfaeb754322f4d752aa9dfc91051eda48270b48
+    image: ghcr.io/esphome/esphome:2026.10.1@sha256:19a1b5e8968e1503fef388a8a45106876feefc6de5207c45afd69b3075686d29
     container_name: esphome
     env_file:
       - path: .env # Decrypted from secret.sops.env
