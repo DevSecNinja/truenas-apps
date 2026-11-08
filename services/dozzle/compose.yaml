@@ -28,7 +28,7 @@ services:
       - ./data:/data
 
   dozzle:
-    image: docker.io/amir20/dozzle:v11.3.2@sha256:0d8cf9702f422d65a7e8ad238785dc6b05b2b9c43c945f6bbdf3358ad5da5f6c
+    image: docker.io/amir20/dozzle:v11.3.5@sha256:dd09e6aaa9d5ad686b6017427a502c40dc862ba28445609813e5ea1f66f6dbdf
     container_name: dozzle
     # Dozzle is a scratch-based Go binary — no shell or wget inside the image.
     # The binary ships a built-in "healthcheck" subcommand that calls /healthcheck
