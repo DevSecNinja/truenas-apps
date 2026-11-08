@@ -1037,23 +1037,31 @@ The table describes configured coverage, not proof that the latest run succeeded
 
 **Pocket ID is not covered by the active database-backup inventory above.**
 It is a [blocked candidate](services/pocket-id.md), not a deployed or
-deploy-ready identity provider. No production dataset, successful encrypted
-backup/restore, or storage-layer coverage has been verified for it.
+deploy-ready identity provider. Exact-image encrypted synthetic restore passed
+on **2026-10-29** and again with the final **v2.19.2** image on **2026-11-08**;
+no production dataset or storage-layer coverage is verified, and recovery
+acceptance remains incomplete.
 
 The [verified 4.9.2 source](https://github.com/nfrastack/db-backup/blob/4.9.2/rootfs/container/functions/10-dbbackup#L796-L821)
 uses SQLite's `.backup` command (the SQLite Online Backup API), producing a
 **binary SQLite snapshot**, not SQL text or a raw live-file copy, before
-compression/encryption/checksumming. The native pinned-artifact test failed
-before those stages; source behavior is not a successful backup/restore.
+compression/encryption/checksumming. The dated ARM64 failure and later AMD64
+success below are distinct evidence, not proof of permanent v4 incompatibility.
 The candidate uses manual mode once per DCCD deployment,
 ZSTD compression, SHA1 checksum and GPG
 encryption, retaining **2880 minutes** at
 `services/pocket-id/backups/db-backup`. The proposed
 `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
-artifact is an **unsupported tag** with HIGH/CRITICAL findings; see the
-[2026-10-26 exact-image review](services/pocket-id.md#image-evidence-2026-10-26).
-No applicability exception or adoption clearance is approved. Require a
-maintained upstream replacement and same-engine encrypted restore tests.
+artifact is an **unsupported tag**; the
+[November 8 scan](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
+still reports raw HIGH/CRITICAL findings. The
+[October 29 tool-path review](services/pocket-id.md#image-evidence-2026-10-29)
+remains dated evidence, not a complete fresh applicability review. The fresh
+shared-backup review rates runtime musl `CVE-2026-107891` HIGH (previously
+UNKNOWN); affected libc is present, but untrusted-regexp reachability is unproven.
+No exception or clearance is approved. Upstream support is a separate policy
+blocker, not evidence of functional incompatibility. Review maintained artifacts
+and retest replacements.
 Do not recommend a v5/latest substitution without the separately tested
 [compatibility migration](#v4-compatibility-constraint).
 
@@ -1063,33 +1071,68 @@ encrypted output/checksum, and nevertheless reported routine exit code `0`.
 Direct `.backup` and explicit `mode=ro` opens also failed. The same stopped
 synthetic database copied to writable scratch opened in WAL mode; `.backup`
 produced an integrity-checked snapshot containing the seeded record.
-That diagnostic is **not** an encrypted restore or live WAL consistency test.
+That diagnostic alone was **not** an encrypted restore or live WAL test;
+the precise ARM64 failure cause remains unproven.
 
-Follow the [Windows continuation checklist](services/pocket-id.md#windows-continuation-checklist):
-fix consistent SQLite/WAL backup with actual failures propagated, verify
-one-shot output count, and prove encrypted ZSTD/SHA1 seeded-record restore.
-Do not blindly rw-mount the live source, use `immutable` on a live snapshot,
-or trust a newer major without compatibility tests. Use the existing chosen
-runtime on Linux ext4 test storage; Podman/WSL2 is optional and installation
-requires approval. Separate Docker/TrueNAS runtime validation is not a
-premerge prerequisite. Candidate adoption remains blocked.
+**Exact-image AMD64 result — 2026-10-29:** rootless Podman with native named
+Linux volumes, no network/ports, a healthy real app, and genuinely read-only
+source passed the original `/init` → `backup01-now now` job. Exit `0` accompanied
+exactly one dump start/completion and one `.sqlite3.zst.gpg` + SHA1 set, with
+reserved app ownership, file mode `0600`, and output root `0700`. Independent
+checksum/decrypt/decompress, SQLite integrity/FKs, full seeded schema/records,
+and exact encrypted signing/session KV bytes passed. A fresh app using the same
+synthetic key became healthy after natural Francis host-lease expiry, without
+snapshot edits or key regeneration. The current thin guard also passed; actual
+source/restored HTTP `/.well-known/jwks.json` responses matched exactly,
+including key IDs. See [exact identities and test scope](services/pocket-id.md#exact-image-diagnostic-2026-10-29).
+
+**Final-image AMD64 regression — 2026-11-08:** isolated rootless Podman with
+named Linux volumes passed healthy initialization, guarded backup with read-only
+source/configuration, one dump/completion and one GPG/ZSTD ciphertext + SHA1 pair.
+Independent decryption, integrity/FKs, diagnostic linked rows/schema, and exact
+encrypted signing/session KV bytes passed. Restore into the same **v2.19.2**
+image with the same synthetic key became healthy after the copied lease's
+95-second test wait; actual HTTP public JWKS/key IDs matched. Missing SHM
+still failed closed. No ports or production secrets were used, and all
+test-owned resources were cleaned up. See the
+[current artifact and test scope](services/pocket-id.md#image-and-recovery-evidence-2026-11-08);
+this is not browser/passkey/full OIDC acceptance or a production startup sleep.
+
+In the October 29 diagnostic, default `sqlite3` and `-readonly` both worked live
+and backup passed after a graceful stop that retained WAL/SHM.
+Deliberately omitting SHM from a stopped
+DB/WAL copy under a read-only mount reproduced the open failure in both modes:
+a conditional missing-metadata cause, not a proven ARM64 diagnosis.
+The existing `depends_on: service_healthy` is sufficient startup ordering.
+The [thin verification guard](services/pocket-id.md#database-backup) retains the
+original engine, uses private verification scratch, and fails closed on invalid
+source/output; no rw/`immutable` fallback or arbitrary sleep is introduced.
+The 66 guard/DCCD passes remain October 29 evidence. The required 281-test BATS
+suite passed from a November 8 staged-index Linux snapshot, with the documented
+legacy `format_duration` assertion caveat; full pre-commit validation passed on **2026-11-08**.
+The final-image retention rerun passed on **November 8 at 14:11:40 UTC**:
+with `DEFAULT_CLEANUP_TIME=2880` unchanged, the valid 49h ciphertext/SHA1 pair
+was removed, the 47h pair retained and checksum-verified, and exactly one new
+encrypted pair verified.
+Separate Docker/TrueNAS runtime validation is not a premerge prerequisite.
 
 The candidate uses `DB_CONNECTION_STRING=/app/data/pocket-id.db` and
 `FILE_BACKEND=database`, verified against
 [v2.19.1 `backend/internal/common/env_config.go`](https://github.com/pocket-id/pocket-id/blob/v2.19.1/backend/internal/common/env_config.go).
 Uploads are database-backed, so a consistent SQLite Online Backup API backup
 is a viable path; upstream export need not be the sole supported mechanism.
-Require a representative restore, including uploads and signing-key continuity,
-before claiming complete recovery. Preserve any additional persistent paths
-discovered during runtime review.
+Encrypted KV-byte and public JWKS continuity do not prove actual passkeys/login,
+OIDC issuance/token signing, mobile acceptance, or uploads/client recovery. Those
+remain gates before production reliance; preserve any additional persistent
+paths discovered during runtime review.
 
 <!-- dprint-ignore -->
-!!! danger "Future restore procedure — not a validated recovery"
+!!! danger "Future restore procedure — not production-validated"
     Do not activate this blocked candidate or execute against a live identity provider.
     SOPS secret provisioning and validation are complete. First clear adoption
     and establish independent recovery of the original app key and backup
     passphrase before production recovery. Isolated synthetic rehearsals may
-    proceed without activation; no successful encrypted restore has been obtained.
+    proceed without activation; the successful synthetic restore is not rollout approval.
 
 1. Recover the compatible image/schema revision, a successful backup artifact
    and checksum, original `ENCRYPTION_KEY`, and the matching
@@ -1129,6 +1172,13 @@ discovered during runtime review.
    Passkeys are origin/RP-ID bound: an arbitrary scratch hostname does not
    prove production passkey recovery. Use a controlled origin-correct test
    plan without exposing a second live issuer or changing production DNS.
+   If startup reports “already one instance Pocket ID running” from the copied
+   Francis host lease, use bounded readiness checks/retries while it naturally
+   expires: up to the configured **90 seconds** after the snapshot host's last
+   heartbeat. The diagnostic's **95-second** wait was a test observation, not a
+   generic deployment sleep. If the known refusal persists beyond that bound,
+   stop and investigate. Do not edit the snapshot, delete Francis tables,
+   regenerate keys, or weaken the single-instance guard.
 7. Verify native administrator and spare-passkey access, client issuer and
    signing behavior, explicit identity mappings, denial tests, and a new
    encrypted backup. Record the actual result before resuming automation.
@@ -1151,10 +1201,11 @@ Version 5 is not a drop-in replacement for the configured v4 commands,
 environment variables, completion logs, and restore workflow.
 
 Compatibility does not establish upstream support or security: the
-[2026-10-26 Pocket ID image review](services/pocket-id.md#image-evidence-2026-10-26)
-confirms this exact 4.9.2 artifact has HIGH/CRITICAL findings and its tag is
-unsupported under upstream's latest-only fixes policy. Existing restore
-evidence does not clear Pocket ID adoption or establish dependency safety.
+[2026-11-08 Pocket ID image review](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
+reports raw HIGH/CRITICAL findings and incomplete scoped applicability review.
+This exact 4.9.2 tag remains unsupported under upstream's latest-only fixes
+policy. Successful guarded synthetic restore does not clear Pocket ID
+adoption or establish dependency safety.
 
 Keep this constraint until an intentional migration validates:
 

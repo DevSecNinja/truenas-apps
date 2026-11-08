@@ -368,8 +368,12 @@ private data permissions or grant shared media/document group access.
 account, shared-group, registry, and dataset inventories. The proposed username
 is `svc-app-pocket-id`, with a matching private primary group and no
 shared-purpose memberships. The intended consumers are the rootless app,
-backup process, and init's `./data` ownership target; the backup supervisor's
-actual identity mapping remains a runtime acceptance gate.
+backup process, and init's `./data` ownership target. The **2026-10-29**
+isolated rootless Podman AMD64 diagnostic verified the backup's image-local
+`pocketbackup` mapping to the reserved identity: encrypted output and checksum
+ownership matched, files were `0600`, and the output root was `0700`.
+This is not evidence of TrueNAS account provisioning or ACL behavior;
+adoption and reviewed activation remain blocked.
 
 | Proposed username   | Reserved UID | Proposed primary group | Reserved primary GID | Planned shared memberships | Intended services                          |
 | ------------------- | ------------ | ---------------------- | -------------------- | -------------------------- | ------------------------------------------ |

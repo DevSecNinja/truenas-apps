@@ -86,10 +86,17 @@ active app/dataset entry or integration changes. Its
 [UID/primary GID reservation](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation)
 is inactive and not available for reuse; no account is provisioned or active
 in the registry. SOPS secret provisioning and validation are complete.
-Native Apple ARM64 init/startup/health and SQLite persistence passed; the
-pinned backup failed and encrypted restore remains blocked. Image adoption and
-reviewed activation are still blocked; separate Docker/TrueNAS runtime validation
-is not a premerge prerequisite. See the
+Earlier native Apple ARM64 init/startup/health and SQLite persistence passed.
+The [November 8 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
+confirms supported `v2.19.2-distroless` delivers the Go-jose, zod, and x/net
+fixes. Final-image AMD64 guarded read-only-source backup, encrypted synthetic
+restore with identical public JWKS/key IDs, and 49h/47h retention passed.
+The required 281-test BATS suite passed from a staged-index Linux snapshot,
+with a legacy `format_duration` assertion caveat; full pre-commit validation
+passed on **2026-11-08**. Unsupported backup 4.9.2, remaining
+applicability review, and BusyBox/glibc security/maintenance gaps still block
+adoption and activation. Separate Docker/TrueNAS runtime validation is not a
+premerge prerequisite. See the
 [Windows continuation checklist](services/pocket-id.md#windows-continuation-checklist).
 Passkey/client acceptance is required before production reliance; no Entra
 migration is included.

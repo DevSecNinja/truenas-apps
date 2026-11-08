@@ -211,6 +211,25 @@ mock_project_scoped_backups() {
   assert_mock_called_with "docker" "logs --since 2026-09-06T18:59:00Z container-1"
 }
 
+@test "check_backup_jobs: accepts Pocket ID verified v4 receipt once for job 01" {
+  local receipt='2026-10-29.18:53:58 [INFO] ** [01_pocket-id-data_pocket-id.db] Backup 01 routines finish time: 2026-10-29 18:53:58 UTC with exit code 0'
+  local verified='Pocket ID backup verified: one GPG/ZSTD/SHA1 snapshot, SQLite integrity and keys present'
+  mock_fixed_date 1000000 996400
+  mock_backup_container 'exited|0|2026-10-29T18:53:47Z|2026-10-29T18:54:35Z' 0 \
+    "${receipt}"$'\n'"${verified}" 0 '01'
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial 'All 1 database backup job(s) completed successfully'
+
+  mock_backup_container 'exited|0|2026-10-29T18:53:47Z|2026-10-29T18:54:35Z' 0 \
+    "${receipt}"$'\n'"${receipt}"$'\n'"${verified}" 0 '01'
+  run check_backup_jobs
+  assert_failure
+  assert_output --partial 'expected one successful completion for backup routine 01, found 2'
+}
+
 @test "check_backup_jobs: rejects unmatched v5 logfmt completions despite exit zero" {
   local expected_jobs
   # Neither completion-looking text nor a .sql.zst filename proves a v4 backup.

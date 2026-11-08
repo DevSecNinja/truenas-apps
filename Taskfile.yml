@@ -55,7 +55,7 @@ tasks:
       - install:bats-libs
     cmds:
       - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/dccd/integration/ {{.TESTS_DIR}}/dccd/e2e/ {{.TESTS_DIR}}/sops-secrets/unit/
-        {{.TESTS_DIR}}/sops-secrets/integration/ {{.TESTS_DIR}}/truenas-prep-app/integration/
+        {{.TESTS_DIR}}/sops-secrets/integration/ {{.TESTS_DIR}}/truenas-prep-app/integration/ {{.TESTS_DIR}}/pocket-id/
       - pwsh -NoProfile -File ./tests/sops-secrets/powershell/New-SopsEncryptedEnvFile.Tests.ps1
 
   test:unit:
@@ -63,7 +63,7 @@ tasks:
     deps:
       - install:bats-libs
     cmds:
-      - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/sops-secrets/unit/
+      - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/sops-secrets/unit/ {{.TESTS_DIR}}/pocket-id/
       - pwsh -NoProfile -File ./tests/sops-secrets/powershell/New-SopsEncryptedEnvFile.Tests.ps1
 
   test:integration:
@@ -97,7 +97,7 @@ tasks:
       - mkdir -p {{.REPO_ROOT}}/test-results
       - pwsh -NoProfile -File ./tests/sops-secrets/powershell/New-SopsEncryptedEnvFile.Tests.ps1
       - mise exec -- bats {{.TESTS_DIR}}/dccd/unit/ {{.TESTS_DIR}}/dccd/integration/ {{.TESTS_DIR}}/sops-secrets/unit/ {{.TESTS_DIR}}/sops-secrets/integration/
-        {{.TESTS_DIR}}/truenas-prep-app/integration/ --formatter junit -T > {{.REPO_ROOT}}/test-results/results.xml
+        {{.TESTS_DIR}}/truenas-prep-app/integration/ {{.TESTS_DIR}}/pocket-id/ --formatter junit -T > {{.REPO_ROOT}}/test-results/results.xml
 
   test:powershell:
     desc: Run native PowerShell SOPS tests

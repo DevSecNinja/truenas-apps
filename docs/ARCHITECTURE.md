@@ -1065,13 +1065,31 @@ the candidate gate.
 Init uses `docker.io/library/busybox:1.38.0` to protect/chown only the `./data`
 root to the reserved, unprovisioned app PUID/PGID, never `./config`. Native
 Apple ARM64 tests passed repeated init ownership/mode `0700`, app startup,
-health, and SQLite persistence after recreation. The pinned read-only-source
-backup failed and reported routine exit `0`; encrypted restore remains blocked.
-The helper reported `NoNewPrivs=0`: Docker `no-new-privileges`, Compose PID
-limits, and TrueNAS ACLs were not exercised. This is not full-stack hardening
-or production acceptance, and a separate Docker/TrueNAS runtime test is not a
-premerge prerequisite. See the
-[native evidence and continuation](services/pocket-id.md#native-runtime-evidence-2026-10-26).
+health, and SQLite persistence after recreation. The **2026-10-26** ARM64
+backup failed with routine exit `0`; its precise cause remains unproven.
+The **2026-10-29** exact-image rootless Podman AMD64 diagnostic passed the
+original engine and thin verification guard against a live read-only source,
+then an encrypted synthetic restore with exact signing/session KV bytes and
+identical public JWKS/key IDs from actual source/restored HTTP endpoints.
+Missing SHM reproduced a conditional read-only open failure, not permanent v4
+incompatibility. Existing `depends_on: service_healthy` needs no arbitrary
+sleep; 66 guard/DCCD regressions and Pocket ID's synthetic 49h/47h retention
+boundary passed on October 29.
+The [November 8 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
+confirms supported `v2.19.2-distroless` delivers Go-jose `4.1.6`, zod `4.6.7`,
+and x/net `0.62.0`, fixing the former app dependency versions. Final-image
+guarded encrypted synthetic restore, actual public JWKS/key-ID equality, and
+49h/47h retention passed again. Unsupported backup 4.9.2, remaining
+applicability review, and BusyBox/glibc security/maintenance gaps still block
+adoption. Residual UNKNOWN `GO-2026-5932` has OpenPGP symbols present in the
+actual app binary; call-path reachability/use remains unresolved, not exempted.
+The required 281-test BATS
+suite passed from a staged-index Linux snapshot, with the documented legacy
+`format_duration` assertion caveat; full pre-commit validation passed on **2026-11-08**.
+The earlier helper reported `NoNewPrivs=0`; these tests do not establish
+full-stack hardening, TrueNAS ACL behavior, or production acceptance.
+A separate Docker/TrueNAS runtime test is not a premerge prerequisite. See
+[dated diagnostic evidence](services/pocket-id.md#exact-image-diagnostic-2026-10-29).
 `DOMAINNAME` is a nonsecret deployment domain
 copied from Memos in memory into the provisioned per-app encrypted dotenv,
 not supplied by shared Docker Hub credentials. SOPS provisioning and canonical

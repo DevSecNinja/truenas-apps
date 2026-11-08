@@ -57,8 +57,7 @@ services:
       retries: 3
 
   pocket-id:
-    # Shell-free upstream variant; the pinned image labels version 2.19.1.
-    image: ghcr.io/pocket-id/pocket-id:v2-distroless@sha256:d035c9c229304cfd25f97a79b2da00bde9cf942abbd70430d452a95420e2836b
+    image: ghcr.io/pocket-id/pocket-id:v2.19.2-distroless@sha256:a21166a4eb513d2ffcbf815398480998d996a9e719cfba029395517658626f9e
     container_name: pocket-id
     profiles:
       - pocket-id-candidate
@@ -140,8 +139,14 @@ services:
         required: false
       - path: ../shared/env/tz.env
     command:
-      - backup01-now
-      - now
+      - timeout
+      - --signal=TERM
+      - --kill-after=10s
+      - 180s
+      - bash
+      - /config/verify-backup.sh
+    labels:
+      - "dccd.backup-jobs=01"
     environment:
       DBBACKUP_USER: pocketbackup
       DBBACKUP_GROUP: pocketbackup
@@ -186,6 +191,7 @@ services:
       - SETGID # s6 switches the backup process to the dedicated group.
       - KILL # s6 must terminate supervised processes with another UID.
     volumes:
+      - ./config/verify-backup.sh:/config/verify-backup.sh:ro
       - ./data:/pocket-id-data:ro
       - ./backups/db-backup:/backup
     healthcheck:
