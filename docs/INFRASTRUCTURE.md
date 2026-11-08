@@ -973,17 +973,33 @@ The future `vm-pool/apps/services/trek` dataset is **not provisioned** and
 does not belong in the active setup dataset list. The tracked candidate files
 do not establish storage-layer backup coverage.
 
-| Path                  | Candidate role                                                                                                                                                       |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `./backups/db-backup` | Intended encrypted SQLite output and SHA1 sidecars; deployment-triggered, 48-hour retention; native backup timed out with no dump, so backup/restore remains blocked |
-| `./config`            | Read-only Git-tracked backup wrapper; never chowned by init                                                                                                          |
-| `./data/app`          | SQLite `travel.db`, WAL/SHM, and persisted encryption/JWT key material                                                                                               |
-| `./data/uploads`      | Private travel documents, separate from the database dump                                                                                                            |
+| Path                  | Candidate role                                                                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `./backups/db-backup` | GPG/ZSTD binary SQLite and SHA1 sidecars; deployment-triggered, 48-hour retention; `5.1.0` synthetic live-WAL backup, full recovery, and retention verified 2026-11-08, not production coverage |
+| `./config`            | Read-only Git-tracked backup wrapper; never chowned by init                                                                                                                                     |
+| `./data/app`          | SQLite `travel.db`, WAL/SHM, and persisted encryption/JWT key material                                                                                                                          |
+| `./data/uploads`      | Private travel documents, separate from the database dump                                                                                                                                       |
 
 `trek-init` recursively assigns both data children to the
 [reserved identity](#trek-candidate-identity), applies `u=rwX,g=,o=`, and
 restricts `./data` to mode `0700`. The backup image manages its output
 ownership separately. Do not share these paths through media groups or SMB.
+The current `5.1.0` Linux AMD64 run on 2026-11-08 verified full synthetic
+recovery of all 550 schema objects, original keys, encrypted values, uploads,
+and pre-backup sessions; all assertions passed again after force-recreation.
+The source was inspected as `RW=false`, and both successful sidecar runs
+produced encrypted output with the reserved ownership and mode `0600`.
+Retention deleted the 49-hour pair and preserved the 47-hour pair. All labeled
+test containers, volumes, and networks were removed with empty label queries.
+Historical `5.0.1` recreation/retention checks also completed on 2026-10-29;
+its resources retained through sleep were removed on 2026-11-08.
+Historical `5.0.0` additionally verified repeat init with reserved ownership
+and private paths at `0700`. These successes supersede a blanket read-only
+backup incompatibility claim from the 2026-10-27 ARM64 timeout, not that
+historical observation. Keys/uploads were unchanged while the live writers
+changed only database records; this is not a coordinated backup of changing uploads.
+Target-host operator acceptance and storage recovery
+coordination remain pending, as do image adoption and live provider/proxy/SSO.
 After approved activation, verify recursive snapshots, replication, and
 off-site recovery for the actual child dataset before claiming protection.
 Restore the database, original keys, and uploads as one consistent set; see

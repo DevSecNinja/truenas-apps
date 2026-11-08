@@ -45,6 +45,11 @@ teardown() {
 	assert_compose_value '.networks."trek-frontend".external // false' false
 }
 
+@test "compose: upstream hosted services are off without a supplied services key" {
+	assert_compose_value '.services.trek.environment.TREK_SERVICES' off
+	assert_compose_value '.services.trek.environment | has("TREK_SERVICES_KEY")' false
+}
+
 @test "compose: native OIDC-only uses Pocket ID at id.DOMAINNAME without credential defaults" {
 	assert_compose_value '.services.trek.environment.OIDC_ISSUER' 'https://id.${DOMAINNAME}'
 	assert_compose_value '.services.trek.environment.OIDC_ONLY' true

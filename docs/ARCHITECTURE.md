@@ -1064,9 +1064,12 @@ alone are not a coordinated archive backup.
 
 ### TREK Candidate Network and Access Model
 
-[TREK](services/trek.md) is blocked on Pocket ID completion, image adoption,
-target-runtime validation, and backup/restore evidence. No active DNS,
-Traefik network attachment, or provisioning registry entry exists.
+[TREK](services/trek.md) remains blocked on Pocket ID operational/adoption
+readiness, image adoption, live provider/proxy/SSO checks, target-host operator
+acceptance, and storage recovery coordination. Synthetic live-WAL backup and
+full recovery passed for the current `5.1.0` candidate on 2026-11-08;
+they are not production approval.
+No active DNS, Traefik network attachment, or provisioning registry entry exists.
 `services/traefik/compose.trek.yaml` is an inert fragment, not an active include.
 Its contents must move into active Compose through reviewed activation after
 the app network exists.
@@ -1076,6 +1079,11 @@ the app network exists.
 | `trek`           | `trek-frontend`; no host ports; direct non-root Node, read-only root, dropped capabilities, private `/tmp`; native Pocket ID OIDC only |
 | `trek-db-backup` | No network; `./data/app:ro` source and writable backup output; writable-root s6/capability exception is not approved                   |
 | `trek-init`      | No network; validates secrets, then prepares only runtime data paths with `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                            |
+
+The candidate explicitly sets `TREK_SERVICES: "off"` to opt out of `5.1.0`'s
+default automatic enrollment in upstream hosted map services. The tested app
+accepted the setting and booted in `off` mode; no community-sharing consent
+has been granted. This opt-out is not a network-egress control.
 
 Planned request flow, **not an exposed service**:
 
@@ -1098,8 +1106,30 @@ Profiles are **not a security boundary**: explicitly targeted services can
 start despite default exclusion. Do not use profile overrides, targeted
 Compose, or generic deployment to bypass the
 [activation prerequisites](services/trek.md#activation-prerequisites).
-Native ARM64 testing does not validate target AMD64, Compose enforcement,
-Traefik/OIDC, or live SQLite backup. No gate has cleared.
+The current `5.1.0`
+[2026-11-08 Linux AMD64 run](services/trek.md#live-linux-backup-and-recovery-evidence)
+verified `CapEff=0`, `NoNewPrivs=1`, read-only root with an actual write denied,
+writable `/tmp`, 1 GiB memory, PID limit `100`, and no host ports.
+The original sidecar and unchanged wrapper proved encrypted backup from a
+read-only live-WAL source, retention, and full synthetic recovery of all
+550 schema objects. Key, decryption, pre-backup JWT, owner/nonmember/anonymous,
+and file-download assertions passed again after force-recreation; runtime
+cleanup was verified. These are direct-app checks, not real provider login
+or Traefik/SSO validation. Historical `5.0.1` and `5.0.0` recreation/retention
+checks also completed; real wrong-schema/sentinel tests remain attributed
+only to `5.0.0`. All 19 Compose/init/activation tests passed with exact
+BATS 1.14.0 on 2026-11-08, including the new hosted-services opt-out assertion;
+the 41 historical mocked backup tests were not rerun that day.
+Keys/uploads were unchanged during the database writer tests; a coherent
+storage-layer recovery set is still required. Common
+backup/BusyBox adoption remains with Pocket's coordinator; the
+[supplied shared review](services/trek.md#shared-image-review-pocket-coordinator-2026-11-08)
+was updated on 2026-11-08: musl `CVE-2026-107891` (`regcomp`) is now HIGH,
+not the historical UNKNOWN, with untrusted-regexp reachability unproven.
+It retains the historical partial BusyBox inventory/provenance and does not
+waive unsupported-tag or unresolved-applicability concerns. The fresh
+[TREK image scan](services/trek.md#image-evidence) likewise leaves adoption
+blocked; functional recovery does not approve parser/base findings.
 
 ### Dawarich Split Authentication Routers
 

@@ -66,7 +66,7 @@ services:
 
   trek:
     # Upstream's Debian slim variant includes the Kitinerary document parser.
-    image: docker.io/mauriceboe/trek:5.0.0@sha256:0c0a8f5b488fc2967248695e04bb000bb177d0b63d3385089d33dca6fde4daf9
+    image: docker.io/mauriceboe/trek:5.1.0@sha256:23bf3fa6a134dc38a3b4f40ef8f7e8040abc96965105dffdcfcf5f202fb5d0b7
     container_name: trek
     profiles:
       - trek-candidate
@@ -85,6 +85,7 @@ services:
       - path: ../shared/env/tz.env
     environment:
       NODE_ENV: production
+      TREK_SERVICES: "off" # Do not auto-enroll this candidate in upstream hosted services.
       HOME: /tmp
       PORT: "3000"
       APP_URL: https://trek.${DOMAINNAME}
