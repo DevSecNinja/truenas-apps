@@ -1,0 +1,13 @@
+---
+# Blocked candidate only. Not selected by DCCD or the active TrueNAS include.
+# After approval, merge these network entries into compose.yaml; do not apply
+# this fragment to a running proxy before the Pocket ID network exists.
+services:
+  traefik:
+    networks:
+      pocket-id-frontend:
+
+networks:
+  pocket-id-frontend:
+    name: pocket-id-frontend
+    external: true

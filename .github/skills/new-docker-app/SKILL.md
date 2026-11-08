@@ -408,11 +408,24 @@ any explicit exception. Compose validation and runtime/restore tests do not
 replace this gate. If it remains blocked, label the implementation a candidate
 and do not proceed to deployment.
 
+Run this static check on an existing approved Docker environment or Docker CI;
+it is not a reason to install Docker on macOS:
+
 ```sh
 docker compose -f services/<app>/compose.yaml config --quiet
 ```
 
 Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are decrypted at deploy time. Warnings are fine; errors are not.
+
+For execution evidence, follow the platform-aware
+[runtime smoke-testing procedure](../code-testing/SKILL.md#container-runtime-smoke-testing):
+prefer Apple `container` on supported Apple-silicon macOS, without installing
+Docker/Podman by default. Native tests are not Compose execution or proof of
+the target `linux/amd64` image. Separately verify Docker/TrueNAS semantics on
+Docker CI or a disposable Linux Docker host. For stateful databases, require
+the representative synthetic backup **and restore** from Step 3 before merge;
+static validation, successful startup, and generic backup CI are not substitutes.
+Use synthetic secrets only, with no production SOPS or key access in testing.
 
 ### Step 11 — Document post-merge host steps
 

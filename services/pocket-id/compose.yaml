@@ -1,0 +1,205 @@
+---
+# BLOCKED CANDIDATE: adoption and runtime/restore evidence
+# are incomplete. Keep every service profiled and all live integrations absent.
+services:
+  pocket-id-init:
+    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    container_name: pocket-id-init
+    profiles:
+      - pocket-id-candidate
+    env_file:
+      - path: .env
+        required: false
+      - path: ../shared/env/tz.env
+    restart: "no"
+    network_mode: none
+    mem_limit: 64m
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Assign the runtime directory to the dedicated app identity.
+      - FOWNER # Tighten permissions after transferring ownership.
+      - DAC_OVERRIDE # Traverse the private directory on subsequent starts.
+    read_only: true
+    command:
+      - sh
+      - -ec
+      - |-
+        for name in DOMAINNAME ENCRYPTION_KEY DB_ENC_PASSPHRASE; do
+          value="$(printenv "$${name}" || true)"
+          case "$${value}" in
+            ""|GENERATE|CHANGE_ME)
+              echo "ERROR: Pocket ID requires a populated $${name}" >&2
+              exit 1
+              ;;
+          esac
+        done
+        if [ "$${#ENCRYPTION_KEY}" -lt 16 ]; then
+          echo "ERROR: Pocket ID ENCRYPTION_KEY must contain at least 16 bytes" >&2
+          exit 1
+        fi
+        umask 077
+        chown 3133:3133 /data
+        chmod 700 /data
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test:
+        - CMD
+        - test
+        - -d
+        - /data
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  pocket-id:
+    # Shell-free upstream variant; the pinned image labels version 2.19.1.
+    image: ghcr.io/pocket-id/pocket-id:v2-distroless@sha256:d035c9c229304cfd25f97a79b2da00bde9cf942abbd70430d452a95420e2836b
+    container_name: pocket-id
+    profiles:
+      - pocket-id-candidate
+    depends_on:
+      pocket-id-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env
+        required: false
+      - path: ../shared/env/tz.env
+    user: "3133:3133" # Proposed svc-app-pocket-id; not provisioned yet.
+    environment:
+      APP_URL: https://id.${DOMAINNAME}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      DB_CONNECTION_STRING: /app/data/pocket-id.db
+      FILE_BACKEND: database
+      # Only the dedicated Traefik bridge may reach this unexposed listener.
+      TRUST_PROXY: "true"
+      ALLOW_INSECURE_CALLBACK_URLS: "false"
+      ANALYTICS_DISABLED: "true"
+      VERSION_CHECK_DISABLED: "true"
+      ICON_LIBRARY_URL: disabled
+      LOG_LEVEL: info
+      LOG_JSON: "true"
+      LOG_QUERY_ARGS: "false"
+      ACTORS_HOST: 127.0.0.1
+    restart: on-failure:3
+    networks:
+      - pocket-id-frontend
+    mem_limit: ${MEM_LIMIT:-256m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - /app/pocket-id
+        - healthcheck
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=Pocket ID
+      - homepage.icon=pocket-id.svg
+      - homepage.href=https://id.${DOMAINNAME}
+      - homepage.description=Independent Passkey Identity Provider
+      - "traefik.enable=true"
+      - "traefik.docker.network=pocket-id-frontend"
+      - "traefik.http.routers.pocket-id-rtr.rule=Host(`id.${DOMAINNAME}`)"
+      - "traefik.http.routers.pocket-id-rtr.entrypoints=https"
+      # OIDC and account recovery must not depend on Entra or forward-auth.
+      - "traefik.http.routers.pocket-id-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.pocket-id-rtr.service=pocket-id"
+      - "traefik.http.services.pocket-id.loadbalancer.server.port=1411"
+
+  # BLOCKED: this compatibility image needs an approved upstream replacement.
+  # s6 rewrites system configuration, so its root filesystem remains writable.
+  # The root supervisor needs only ownership, identity-switching, and signal
+  # capabilities; the database source is read-only and the job has no network.
+  pocket-id-db-backup:
+    image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
+    container_name: pocket-id-db-backup
+    profiles:
+      - pocket-id-candidate
+    depends_on:
+      pocket-id:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+      - path: ../shared/env/tz.env
+    command:
+      - backup01-now
+      - now
+    environment:
+      DBBACKUP_USER: pocketbackup
+      DBBACKUP_GROUP: pocketbackup
+      CONTAINER_INIT_PRE_COMMAND: >-
+        if ! grep -q '^pocketbackup:' /etc/group; then
+          addgroup -g 3133 pocketbackup || exit 1;
+        fi;
+        if ! id pocketbackup >/dev/null 2>&1; then
+          adduser -D -H -u 3133 -G pocketbackup pocketbackup || exit 1;
+        fi;
+        if [ "$(id -u pocketbackup)" != 3133 ] || [ "$(id -g pocketbackup)" != 3133 ]; then
+          echo "ERROR: Invalid Pocket ID backup identity" >&2; exit 1;
+        fi
+      CONTAINER_NAME: pocket-id-db-backup
+      CONTAINER_ENABLE_MONITORING: "FALSE"
+      CONTAINER_ENABLE_SCHEDULING: "FALSE"
+      CHECK_NEW_VERSION: "FALSE"
+      STATS_ENABLED: "FALSE"
+      MODE: MANUAL
+      MANUAL_RUN_FOREVER: "FALSE"
+      ENABLE_NOTIFICATIONS: "FALSE"
+      DEFAULT_CHECKSUM: SHA1
+      DEFAULT_COMPRESSION: ZSTD
+      DEFAULT_CLEANUP_TIME: "2880"
+      DEFAULT_ENCRYPT: "TRUE"
+      DEFAULT_ENCRYPT_PASSPHRASE: ${DB_ENC_PASSPHRASE:-}
+      DB01_TYPE: sqlite3
+      DB01_HOST: /pocket-id-data/pocket-id.db
+    restart: "no"
+    network_mode: none
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges=true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # Prepare private backup ownership.
+      - FOWNER # Tighten permissions on paths after ownership changes.
+      - DAC_OVERRIDE # Read the private app database and prepare backup output.
+      - SETUID # s6 switches the backup process to pocketbackup.
+      - SETGID # s6 switches the backup process to the dedicated group.
+      - KILL # s6 must terminate supervised processes with another UID.
+    volumes:
+      - ./data:/pocket-id-data:ro
+      - ./backups/db-backup:/backup
+    healthcheck:
+      test:
+        - CMD
+        - test
+        - -r
+        - /pocket-id-data/pocket-id.db
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  pocket-id-frontend:
+    name: pocket-id-frontend
+    driver: bridge

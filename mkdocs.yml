@@ -96,6 +96,7 @@ nav:
       - OpenClaw: services/openclaw.md
       - Outline: services/outline.md
       - Plex: services/plex.md
+      - Pocket ID (blocked candidate): services/pocket-id.md
       - SQLite Web: services/sqlite-web.md
       - Traefik: services/traefik.md
       - Traefik Forward Auth: services/traefik-forward-auth.md

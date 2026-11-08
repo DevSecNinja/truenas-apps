@@ -1049,6 +1049,41 @@ operator validation under
 See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
 alone are not a coordinated archive backup.
 
+### Pocket ID Candidate Isolation
+
+[Pocket ID](services/pocket-id.md) is a **blocked candidate**, not deployed or
+deploy-ready. Its proposed `pocket-id-init`, `pocket-id`, and
+`pocket-id-db-backup` services all require profile `pocket-id-candidate`.
+The candidate stack-owned `pocket-id-frontend` bridge has no published host
+ports. The `services/traefik/compose.pocket-id.yaml` network fragment is inert;
+normal `dccd` does not apply it. After approval and network creation, merge
+its entries into active Traefik Compose through review, not an ad-hoc override.
+No active Traefik, DNS, registry, server placement, or Entra integration is
+changed. Do not activate the profile or explicitly target services to bypass
+the candidate gate.
+
+Init uses `docker.io/library/busybox:1.38.0` to protect/chown only the `./data`
+root to the reserved, unprovisioned app PUID/PGID, never `./config`. Native
+Apple ARM64 tests passed repeated init ownership/mode `0700`, app startup,
+health, and SQLite persistence after recreation. The pinned read-only-source
+backup failed and reported routine exit `0`; encrypted restore remains blocked.
+The helper reported `NoNewPrivs=0`: Docker `no-new-privileges`, Compose PID
+limits, and TrueNAS ACLs were not exercised. This is not full-stack hardening
+or production acceptance, and a separate Docker/TrueNAS runtime test is not a
+premerge prerequisite. See the
+[native evidence and continuation](services/pocket-id.md#native-runtime-evidence-2026-10-26).
+`DOMAINNAME` is a nonsecret deployment domain
+copied from Memos in memory into the provisioned per-app encrypted dotenv,
+not supplied by shared Docker Hub credentials. SOPS provisioning and canonical
+validation are complete for `DOMAINNAME`, `ENCRYPTION_KEY`, and
+`DB_ENC_PASSPHRASE`; this does not authorize activation. These are not
+entries in the active init/shared-environment inventory.
+
+Future native passkey authentication must remain independent of Entra/TFA.
+Any per-app OIDC or Forward Auth cutover needs separately reviewed identity
+mapping, equivalent authorization and rollback; no automatic switching is
+provided.
+
 ### Dawarich Split Authentication Routers
 
 Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth

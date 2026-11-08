@@ -362,6 +362,31 @@ PostgreSQL uses image identity `70:70`, Valkey uses `999:1000`, and Tika uses
 service accounts. Use elevated operator access for recovery; do not broaden
 private data permissions or grant shared media/document group access.
 
+#### Pocket ID Candidate Identity Reservation
+
+[Pocket ID](services/pocket-id.md) is a **blocked candidate** outside the active
+account, shared-group, registry, and dataset inventories. The proposed username
+is `svc-app-pocket-id`, with a matching private primary group and no
+shared-purpose memberships. The intended consumers are the rootless app,
+backup process, and init's `./data` ownership target; the backup supervisor's
+actual identity mapping remains a runtime acceptance gate.
+
+| Proposed username   | Reserved UID | Proposed primary group | Reserved primary GID | Planned shared memberships | Intended services                          |
+| ------------------- | ------------ | ---------------------- | -------------------- | -------------------------- | ------------------------------------------ |
+| `svc-app-pocket-id` | 3133         | `svc-app-pocket-id`    | 3133                 | None                       | App, backup process, init ownership target |
+
+The matching UID/primary GID above are **reserved for this inactive candidate
+and unavailable for reuse**, as explicitly coordinated on **2026-10-26** with
+the concurrent TREK work in
+[issue #948](https://github.com/DevSecNinja/truenas-apps/issues/948).
+This reservation is **not provisioning or an active registry account**.
+The candidate Compose source uses the reserved identity; verify live TrueNAS
+state before future registry activation. Do not create the account/group or
+provision a dataset now. Future storage would be
+app-private identity-provider state and encrypted recovery artifacts, not
+shared media/private-content group access. See the
+[persistent state classification](services/pocket-id.md#persistent-state-classification).
+
 ### Retained Arr Account Reservations
 
 The eight apps retired on **2026-10-25** are not active service accounts in the

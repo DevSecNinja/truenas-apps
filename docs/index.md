@@ -80,6 +80,20 @@ generic/unscoped deployment outside TrueNAS mode can start this stack before
 its Custom App exists; do not use those paths before the activation
 prerequisites are complete.
 
+[Pocket ID](services/pocket-id.md) is a **blocked candidate**, not
+deployed or deploy-ready. The proposed side-by-side Entra alternative has no
+active app/dataset entry or integration changes. Its
+[UID/primary GID reservation](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation)
+is inactive and not available for reuse; no account is provisioned or active
+in the registry. SOPS secret provisioning and validation are complete.
+Native Apple ARM64 init/startup/health and SQLite persistence passed; the
+pinned backup failed and encrypted restore remains blocked. Image adoption and
+reviewed activation are still blocked; separate Docker/TrueNAS runtime validation
+is not a premerge prerequisite. See the
+[Windows continuation checklist](services/pocket-id.md#windows-continuation-checklist).
+Passkey/client acceptance is required before production reliance; no Entra
+migration is included.
+
 The unused arr stack (Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd,
 Sonarr, and Spottarr) was retired from the repository on **2026-10-25**.
 **Plex stays active.** All datasets, media/download data, service accounts,
