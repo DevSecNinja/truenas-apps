@@ -292,6 +292,19 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
 
+**Blocked candidate init reservation — not provisioned:**
+
+| Service | Init container | Image, ownership target, and permissions                                                                                                                                                                              |
+| ------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TREK    | `trek-init`    | `docker.io/library/busybox:1.38.0`; recursively chowns `./data/app` and `./data/uploads` under `/data` to reserved PUID/PGID `3134:3134`; applies `u=rwX,g=,o=` and mode `0700` to `/data`; never modifies `./config` |
+
+`trek-init` rejects empty or sentinel-valued required secrets, including both
+currently empty OIDC credentials, before changing permissions. It validates
+the encryption key's 32-byte hex encoding. The app uses a direct `user:`
+identity, not PUID/PGID environment variables. All three TREK services retain
+the `trek-candidate` profile; see the
+[candidate access model](#trek-candidate-network-and-access-model).
+
 `changedetection-init` validates that `DOMAINNAME` is populated and is neither
 `CHANGE_ME` nor `GENERATE` before touching permissions. It runs without a
 network and retains only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE` for ownership,
@@ -1049,6 +1062,75 @@ operator validation under
 See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
 alone are not a coordinated archive backup.
 
+### TREK Candidate Network and Access Model
+
+[TREK](services/trek.md) remains blocked on Pocket ID operational/adoption
+readiness, image adoption, live provider/proxy/SSO checks, target-host operator
+acceptance, and storage recovery coordination. Synthetic live-WAL backup and
+full recovery passed for the current `5.1.0` candidate on 2026-11-08;
+they are not production approval.
+No active DNS, Traefik network attachment, or provisioning registry entry exists.
+`services/traefik/compose.trek.yaml` is an inert fragment, not an active include.
+Its contents must move into active Compose through reviewed activation after
+the app network exists.
+
+| Component        | Candidate access and isolation                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `trek`           | `trek-frontend`; no host ports; direct non-root Node, read-only root, dropped capabilities, private `/tmp`; native Pocket ID OIDC only |
+| `trek-db-backup` | No network; `./data/app:ro` source and writable backup output; writable-root s6/capability exception is not approved                   |
+| `trek-init`      | No network; validates secrets, then prepares only runtime data paths with `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                            |
+
+The candidate explicitly sets `TREK_SERVICES: "off"` to opt out of `5.1.0`'s
+default automatic enrollment in upstream hosted map services. The tested app
+accepted the setting and booted in `off` mode; no community-sharing consent
+has been granted. This opt-out is not a network-egress control.
+
+Planned request flow, **not an exposed service**:
+
+```mermaid
+flowchart LR
+    User --> Proxy["Traefik: chain-no-auth"]
+    Proxy --> App["TREK: native OIDC + authorization"]
+    App <-->|OIDC| ID["Pocket ID: dedicated client"]
+```
+
+Use issuer `https://id.${DOMAINNAME}`, exact callback
+`https://trek.${DOMAINNAME}/api/auth/oidc/callback`, a confidential dedicated
+client, scopes `openid email profile`, and username claim `preferred_username`.
+No Entra TFA or inferred admin-group mapping applies. Restrict Pocket ID
+client assignment to the bootstrap administrator before the first SSO login,
+which becomes TREK administrator per the upstream v5 wiki. Then set TREK's
+invitation/SSO auto-provisioning policy before widening access.
+
+Profiles are **not a security boundary**: explicitly targeted services can
+start despite default exclusion. Do not use profile overrides, targeted
+Compose, or generic deployment to bypass the
+[activation prerequisites](services/trek.md#activation-prerequisites).
+The current `5.1.0`
+[2026-11-08 Linux AMD64 run](services/trek.md#live-linux-backup-and-recovery-evidence)
+verified `CapEff=0`, `NoNewPrivs=1`, read-only root with an actual write denied,
+writable `/tmp`, 1 GiB memory, PID limit `100`, and no host ports.
+The original sidecar and unchanged wrapper proved encrypted backup from a
+read-only live-WAL source, retention, and full synthetic recovery of all
+550 schema objects. Key, decryption, pre-backup JWT, owner/nonmember/anonymous,
+and file-download assertions passed again after force-recreation; runtime
+cleanup was verified. These are direct-app checks, not real provider login
+or Traefik/SSO validation. Historical `5.0.1` and `5.0.0` recreation/retention
+checks also completed; real wrong-schema/sentinel tests remain attributed
+only to `5.0.0`. All 19 Compose/init/activation tests passed with exact
+BATS 1.14.0 on 2026-11-08, including the new hosted-services opt-out assertion;
+the 41 historical mocked backup tests were not rerun that day.
+Keys/uploads were unchanged during the database writer tests; a coherent
+storage-layer recovery set is still required. Common
+backup/BusyBox adoption remains with Pocket's coordinator; the
+[supplied shared review](services/trek.md#shared-image-review-pocket-coordinator-2026-11-08)
+was updated on 2026-11-08: musl `CVE-2026-107891` (`regcomp`) is now HIGH,
+not the historical UNKNOWN, with untrusted-regexp reachability unproven.
+It retains the historical partial BusyBox inventory/provenance and does not
+waive unsupported-tag or unresolved-applicability concerns. The fresh
+[TREK image scan](services/trek.md#image-evidence) likewise leaves adoption
+blocked; functional recovery does not approve parser/base findings.
+
 ### Dawarich Split Authentication Routers
 
 Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
@@ -1235,6 +1317,8 @@ workloads, such as `surveillance`. Do not automatically add a staging,
 adoption, or onboarding profile to normal TrueNAS apps. Initial enrollment
 uses manual Custom App creation through the
 [existing app-first rollout](INFRASTRUCTURE.md#brand-new-custom-app-rollout).
+TREK's explicitly requested temporary candidate profile is an exception,
+not a new onboarding convention; removing it requires reviewed activation.
 
 TrueNAS mode (`dccd.sh -t`) skips an app when
 `/mnt/.ix-apps/app_configs/<app>/versions` is missing. This enrollment guard
@@ -1254,9 +1338,10 @@ explicit named-service targeting and `--profile '*'` bypass default selection.
 
 **Services using profiles:**
 
-| Profile        | Services                  | Purpose                               |
-| -------------- | ------------------------- | ------------------------------------- |
-| `surveillance` | `frigate-init`, `frigate` | NVR — only needed when away from home |
+| Profile          | Services                              | Purpose                                                             |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| `surveillance`   | `frigate-init`, `frigate`             | NVR — only needed when away from home                               |
+| `trek-candidate` | `trek`, `trek-db-backup`, `trek-init` | Blocked TREK candidate only; do not activate before all gates clear |
 
 ### Activating a Profile
 
@@ -1403,9 +1488,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include                                                                                                     |
-| -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers |
+| File     | Purpose                    | When to include                                                                                                                                          |
+| -------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; all three TREK candidate containers |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 

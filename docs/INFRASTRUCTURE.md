@@ -362,6 +362,25 @@ PostgreSQL uses image identity `70:70`, Valkey uses `999:1000`, and Tika uses
 service accounts. Use elevated operator access for recovery; do not broaden
 private data permissions or grant shared media/document group access.
 
+#### TREK Candidate Identity
+
+**Reservation only — no host provisioning or registry enrollment.** The
+candidate Compose uses the allocation below, separate from Pocket ID's
+reserved UID/GID `3133` in PR #949 (reviewed at `a383ae2`).
+
+| App            | Username       | UID  | Primary group  | Primary GID | Shared memberships | Services using the identity                                           |
+| -------------- | -------------- | ---- | -------------- | ----------- | ------------------ | --------------------------------------------------------------------- |
+| TREK (blocked) | `svc-app-trek` | 3134 | `svc-app-trek` | 3134        | None               | `trek`, `trek-db-backup` backup process, `trek-init` ownership target |
+
+Init and the backup supervisor start as root; they do not run as the host
+account. Backup's pre-init creates and checks image-local `trekbackup` using
+the reserved identity, selected by `DBBACKUP_USER`/`DBBACKUP_GROUP`.
+Future registry key `trek` must use `account_name: svc-app-trek`,
+`account_id: 3134`, and `admin_group_member: false`; do not add it or run
+preparation before the [activation gates](services/trek.md#activation-prerequisites)
+clear. Keep administrative recovery elevated, not enabled by broader group
+access.
+
 ### Retained Arr Account Reservations
 
 The eight apps retired on **2026-10-25** are not active service accounts in the
@@ -451,6 +470,8 @@ These groups have no matching user account. They grant cross-service access to s
 
 changedetection.io and Open Archiver use only their dedicated primary groups; they require no
 membership in the shared groups below.
+TREK's blocked identity reservation likewise requires **no shared-purpose
+group membership**; no membership has been provisioned.
 
 | GID  | Group               | Purpose                                                                    | Active services using as primary group                 |
 | ---- | ------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -491,6 +512,10 @@ primary GID from the registry. `admin_group_member` is `false` for every
 enrolled app except Dawarich, whose existing administrative-access requirement
 remains enabled. Enrollment does not change Compose runtime identities or
 make every container use the host account.
+
+TREK is deliberately absent: its identity and dataset are candidate
+reservations, not helper-supported enrollment. Pocket ID completion and all
+TREK activation gates must precede a reviewed registry addition.
 
 A registry key identifies an app stack under `services/`, not an individual
 init, browser, database, or backup container. Outline is enrolled because its
@@ -941,6 +966,44 @@ backup. Follow [Restore Open Archiver](BACKUP.md#restore-open-archiver) for a
 quiesced checkpoint, matching queue recovery, and preservation of the original
 encryption keys. Do not export these private paths through shared media or SMB
 datasets.
+
+### TREK Candidate Storage
+
+The future `vm-pool/apps/services/trek` dataset is **not provisioned** and
+does not belong in the active setup dataset list. The tracked candidate files
+do not establish storage-layer backup coverage.
+
+| Path                  | Candidate role                                                                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `./backups/db-backup` | GPG/ZSTD binary SQLite and SHA1 sidecars; deployment-triggered, 48-hour retention; `5.1.0` synthetic live-WAL backup, full recovery, and retention verified 2026-11-08, not production coverage |
+| `./config`            | Read-only Git-tracked backup wrapper; never chowned by init                                                                                                                                     |
+| `./data/app`          | SQLite `travel.db`, WAL/SHM, and persisted encryption/JWT key material                                                                                                                          |
+| `./data/uploads`      | Private travel documents, separate from the database dump                                                                                                                                       |
+
+`trek-init` recursively assigns both data children to the
+[reserved identity](#trek-candidate-identity), applies `u=rwX,g=,o=`, and
+restricts `./data` to mode `0700`. The backup image manages its output
+ownership separately. Do not share these paths through media groups or SMB.
+The current `5.1.0` Linux AMD64 run on 2026-11-08 verified full synthetic
+recovery of all 550 schema objects, original keys, encrypted values, uploads,
+and pre-backup sessions; all assertions passed again after force-recreation.
+The source was inspected as `RW=false`, and both successful sidecar runs
+produced encrypted output with the reserved ownership and mode `0600`.
+Retention deleted the 49-hour pair and preserved the 47-hour pair. All labeled
+test containers, volumes, and networks were removed with empty label queries.
+Historical `5.0.1` recreation/retention checks also completed on 2026-10-29;
+its resources retained through sleep were removed on 2026-11-08.
+Historical `5.0.0` additionally verified repeat init with reserved ownership
+and private paths at `0700`. These successes supersede a blanket read-only
+backup incompatibility claim from the 2026-10-27 ARM64 timeout, not that
+historical observation. Keys/uploads were unchanged while the live writers
+changed only database records; this is not a coordinated backup of changing uploads.
+Target-host operator acceptance and storage recovery
+coordination remain pending, as do image adoption and live provider/proxy/SSO.
+After approved activation, verify recursive snapshots, replication, and
+off-site recovery for the actual child dataset before claiming protection.
+Restore the database, original keys, and uploads as one consistent set; see
+[TREK candidate coverage and restore](BACKUP.md#trek-candidate-coverage-and-restore).
 
 ## Media Access
 

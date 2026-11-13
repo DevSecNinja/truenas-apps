@@ -1407,6 +1407,222 @@ PostgreSQL database.
 
 ---
 
+## TREK Candidate Coverage and Restore
+
+**Blocked candidate, not a covered production database.** TREK has no
+provisioned dataset or active backup schedule. All three services remain
+behind `trek-candidate`; profiles do not prevent explicitly targeted services
+from starting. Do not bypass the [activation gates](services/trek.md#activation-prerequisites).
+The **2026-10-27 native ARM64 backup failed**: the read-only WAL source hung in
+`sqlite3 .backup`, timed out at 300 seconds, exited `124`, and emitted
+`ERROR`. That run produced no encrypted dump or successful restore; the
+[tested wrapper hash](services/trek.md#native-runtime-evidence-and-limits)
+identifies the historical artifact. **The successful Linux AMD64 runs,
+latest `5.1.0` on 2026-11-08, supersede the blanket failure claim:** the
+unchanged current wrapper and original `/init` sidecar proved encrypted
+live-WAL backup and full synthetic recovery with the source inspected as
+`RW=false`.
+
+Candidate continuation began on Windows on **2026-10-28**; production keys
+and ciphertext remain preserved, and no TREK OIDC client has been issued;
+see the [continuation checklist](services/trek.md#windows-continuation-checklist).
+Image adoption remains blocked. The
+[shared review updated 2026-11-08](services/trek.md#shared-image-review-pocket-coordinator-2026-11-08),
+supplied by Pocket's coordinator rather than independently rechecked by the
+TREK parent run, now rates musl `CVE-2026-107891` (`regcomp`) **HIGH**:
+installed `1.2.6-r2`, fixed in `1.2.6-r3`; the 2026-10-29 UNKNOWN rating is
+historical. No untrusted-regexp reachability has been proven, not excluded.
+The historical exercised-tool review did not clear musl/sudo applicability
+or the whole image.
+Pinned `4.9.2` remains unsupported: require a maintained compatible artifact
+or an explicit, narrow, dated exception; none is granted. A replacement is
+not required merely for assumed read-only incompatibility. Current upstream
+`5.0.10` (2026-11-04) includes SQLite schema fixes but has not been tested
+for this TREK candidate; consistent live-backup compatibility remains unproven,
+and it is not an approved drop-in replacement.
+
+| Property        | Candidate implementation                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Job             | `trek-db-backup`, pinned nfrastack `4.9.2`; unsupported tag, incomplete vulnerability applicability review, not approved                                             |
+| Cadence         | Deployment-triggered one-shot only; no autonomous nightly timer                                                                                                      |
+| Source          | `./data/app:/trek-data:ro`, database `/trek-data/travel.db`                                                                                                          |
+| Output          | `./backups/db-backup`; GPG-encrypted, ZSTD-compressed binary SQLite and SHA1 sidecar                                                                                 |
+| Retention       | `DEFAULT_CLEANUP_TIME=2880` (48 hours)                                                                                                                               |
+| Verification    | Exactly one fresh nonempty dump and matching SHA1 sidecar, no extra fresh files; checksum, decrypt, decompress, `quick_check=ok`, and `users`/`trips` table presence |
+| Not in the dump | Original encryption/JWT keys and `./data/uploads`; preserve a matching storage-layer recovery set                                                                    |
+
+`config/backup.sh` checks every fresh output and verifies decrypted scratch
+in private `/tmp` with `umask 077`, cleaning it on exit. Only the upstream
+invocation uses `umask 022` for root-created scratch compatibility. It fails
+nonzero when output is absent, unlike v4's possible silent success; its schema
+check is not a row-level recovery test.
+
+The revised `run_stage` helper applies
+`timeout --signal=TERM --kill-after=10s 300s` separately to `dump`
+(`backup01-now now`), `discovery` (`find`), `checksum` (`sha1sum`), `decrypt`
+(`gpg`), `decompress` (`zstd`), `integrity` (`sqlite3` `quick_check`), and
+`schema` (`sqlite3` counting the `users` and `trips` tables). **Each stage**
+receives TERM at 300 seconds and KILL after a 10-second grace if needed;
+**there is no 300-second whole-job deadline**. Decrypt and decompress have
+independent timers within the pipeline, which retains `pipefail`. Helper
+errors name the failed stage and return its nonzero status. Exactly-one
+output-pair checks and private scratch cleanup remain unchanged.
+
+**2026-10-28 focused tests passed:** 59 tests with exact BATS 1.14.0
+(41 backup tests on Linux rootless Podman 5.8.6; 18 Compose/init/activation
+tests on Windows). See [focused wrapper evidence](services/trek.md#focused-wrapper-evidence-2026-10-28)
+for exact-artifact context, mocked verification checks, real TERM/KILL
+parent/child behavior, and the negative control. That suite used mocked
+database/crypto/upstream operations, not a real backup or full-sidecar lifecycle.
+The full pre-commit hooks and eight main-sync validator checks also passed
+historically; these are not current rerun claims. On **2026-11-08**, all
+**19 Compose/init/activation tests** passed with exact BATS 1.14.0, including
+the new `TREK_SERVICES: "off"` assertion. The prior 41 mocked backup tests
+were not rerun that day.
+
+**Latest actual runtime, 2026-11-08:** rootless Podman 5.8.6,
+Compose 5.5.1, Linux AMD64, the unchanged official `5.1.0` image with
+host-verified index/child/blob SHA256s, synthetic secrets, internal no-egress
+networking, no published ports, and owned Linux named storage with child
+bind paths. See [live Linux evidence](services/trek.md#live-linux-backup-and-recovery-evidence)
+for exact pins, schema hashes, hardening, and version-specific results.
+
+| App / date                       | Full recovered schema                                                                     | Live writer / consistent snapshot revision | Recreation and retention                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------- |
+| `5.1.0`, 2026-11-08 — current    | 550 objects; three added tables and five indexes, no other SQL schema change from `5.0.1` | 929 transactions / `115`                   | All recovery assertions repeated after force-recreation; retention passed |
+| `5.0.1`, 2026-10-29 — historical | 542 objects, including two additive nullable plugin columns                               | 798 transactions / `182`                   | All recovery assertions repeated after force-recreation; retention passed |
+| `5.0.0`, 2026-10-29 — historical | 542 objects                                                                               | 1,522 transactions / `235`                 | All recovery assertions repeated after force-recreation; retention passed |
+
+The current `5.1.0` run verified:
+
+- The original `4.9.2` `/init` sidecar and unchanged bounded wrapper exited
+  `0` with exactly one encrypted GPG/ZSTD dump and SHA1 sidecar while the
+  writer was active. Source inspection confirmed `RW=false`.
+- Checksum, decrypt, decompress, SQLite integrity, and foreign-key checks
+  passed. A fresh exact app became healthy after restoring the binary
+  database and copying the original `.encryption_key`, `.jwt_secret`,
+  and uploads. All 550 schema objects matched the fresh manifest; keys,
+  native AES-GCM decryption, and the upload/database reference survived.
+- Pre-backup native HS256 JWTs and server-side sessions survived recovery:
+  `/api/auth/me`, owner-trip access, and upload download returned `200`,
+  nonmember access `404`, and anonymous access `401`. All schema, key,
+  decryption, JWT, access, and download assertions passed again after
+  force-recreating the restored app. These were direct-app checks with
+  forwarded-HTTPS headers, not Pocket ID login or real proxy/SSO coverage.
+- A second original `/init` run exited `0`. Both success logs contained
+  exactly one start, one `Backup 01` zero-exit receipt, and one
+  wrapper-success message. Retention at `2880` minutes deleted the
+  49-hour encrypted pair and preserved the 47-hour pair; all output files
+  used the reserved app identity and mode `0600`.
+
+**Historical negative cases, `5.0.0` only:** a valid wrong-schema database
+encrypted/decrypted successfully, but the unchanged wrapper exited `1` for
+missing `users`/`trips` despite upstream's exit-`0` receipt. A `GENERATE`
+passphrase exited `1` before backup, with no start, completion receipt, or
+wrapper-success message. Neither case is claimed as a `5.0.1`/`5.1.0` rerun.
+
+The `5.0.1` one-day tokens returned `200` during the 2026-10-29 checks and
+correctly returned `401` on 2026-11-08 after real wall-clock expiry. This
+was not clock manipulation or a restore defect.
+
+This supersedes the earlier quiesced-source limitation, not the remaining
+production gates. The live writer changed **only the database**; keys/uploads
+were unchanged, so this is not a synchronized backup of changing uploads.
+Coherent storage-layer recovery, target-host operator acceptance, image
+adoption, Pocket ID readiness, and live provider/proxy/SSO checks remain pending.
+Runtime cleanup is verified for all three runs: `5.0.0` resources were removed
+on 2026-10-29. Both the `5.0.1` resources retained through sleep and the latest
+`5.1.0` resources were removed on 2026-11-08: four labeled containers, four
+named volumes, and two networks per run, with empty label queries afterward.
+After activation, verify actual recursive snapshots, replicas, and off-site
+recovery before claiming dataset coverage or an RPO.
+
+### Conditional TREK Restore — DO NOT EXECUTE Until All Gates Clear
+
+The v4 SQLite `.backup` operation produces a **binary SQLite database**, not
+SQL text. Do not feed the decrypted file to a SQL import command. Select a
+coordinated recovery point containing the dump, original `ENCRYPTION_KEY`,
+persisted encryption/JWT key material under `./data/app`, and matching
+`./data/uploads`. A dump alone is insufficient.
+
+1. Validate the selected dump in private scratch, never over live data. In
+   the example below, `DUMP` is a placeholder for the selected absolute
+   artifact path. Supply the matching `DB_ENC_PASSPHRASE` at GPG's prompt;
+   do not put it in command history.
+
+   ```sh
+   umask 077
+   DUMP=/path/to/selected.sqlite3.zst.gpg
+   SCRATCH=$(mktemp -d /tmp/trek-restore.XXXXXX)
+   mkdir -m 700 "${SCRATCH}/gnupg"
+   (
+       cd "$(dirname "${DUMP}")" &&
+       sha1sum --check "$(basename "${DUMP}").sha1"
+   )
+   gpg --homedir "${SCRATCH}/gnupg" \
+       --output "${SCRATCH}/travel.db.zst" --decrypt "${DUMP}"
+   zstd --decompress --output "${SCRATCH}/travel.db" "${SCRATCH}/travel.db.zst"
+   sqlite3 "${SCRATCH}/travel.db" \
+       'PRAGMA integrity_check; SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+   ```
+
+   Stop on any error. Require integrity `ok` and expected user/trip counts;
+   inspect representative records against the selected recovery point.
+   SHA1 detects accidental corruption, not authenticity.
+2. Pause scheduled/manual deployment and finish backup work. Stop the writer
+   and all other TREK containers, then take and verify a protective snapshot
+   of the current dataset, configuration, and original keys:
+
+   ```sh
+   cd /mnt/vm-pool/apps
+   sudo docker compose --project-name ix-trek -f services/trek/compose.yaml down
+   ```
+
+   Do not restore over a live WAL or copy only the live `travel.db`.
+   Preserve the stopped database, WAL/SHM, keys, and uploads together.
+3. Restore the matching original application secret through the established
+   SOPS workflow before restart; do not generate or rotate encryption/JWT
+   keys. Stage the matching `data/app` key material and `data/uploads` under
+   `RECOVERY_SET` (a placeholder below). Keep the entire old data tree for
+   rollback; choose another preservation name if `data.before-restore`
+   already exists. With all writers stopped, remove the WAL/SHM sidecars
+   belonging to the replaced database before installing the verified dump.
+
+   ```sh
+   RECOVERY_SET=/path/to/verified-matching-state
+   sudo mv services/trek/data services/trek/data.before-restore
+   sudo cp -a "${RECOVERY_SET}/data" services/trek/data
+
+   sudo rm -f services/trek/data/app/travel.db-wal \
+       services/trek/data/app/travel.db-shm
+   sudo cp "${SCRATCH}/travel.db" services/trek/data/app/travel.db
+   sudo chown -R svc-app-trek:svc-app-trek \
+       services/trek/data/app services/trek/data/uploads
+   sudo chmod -R u=rwX,g=,o= services/trek/data/app services/trek/data/uploads
+   sudo chmod 700 services/trek/data
+   sudo sqlite3 services/trek/data/app/travel.db \
+       'PRAGMA integrity_check; SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+   ```
+
+4. Only after integrity, records, keys, uploads, ownership, and the reviewed
+   recovery image are verified, restart the approved stack:
+
+   ```sh
+   sudo docker compose --project-name ix-trek -f services/trek/compose.yaml up -d
+   ```
+
+   Verify readiness, existing SSO users and administrator status, authorized
+   and denied trip access, and readable uploaded documents. Create and
+   validate a fresh encrypted backup before resuming deployment automation.
+   Remove private decrypted scratch when validation completes; retain the
+   protective snapshot and old state until recovery is accepted.
+
+This production procedure remains conditional guidance. The latest 2026-11-08
+synthetic full recovery succeeded, but did not exercise production storage
+recovery or live provider/proxy/SSO.
+[Image and runtime evidence](services/trek.md#image-evidence) does not clear
+backup adoption or authorize activation.
+
 ## Restore Open Archiver
 
 **Known security risk: production adoption is not yet approved.** A live
