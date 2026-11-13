@@ -5,6 +5,7 @@
     "helpers:pinGitHubActionDigests",
     ":dependencyDashboard",
     ":semanticCommits",
+    ":semanticCommitTypeAll(build)",
     "github>DevSecNinja/.github//.renovate/autoMerge.json5",
     "github>DevSecNinja/.github//.renovate/base.json5",
     "github>DevSecNinja/.github//.renovate/customManagers.json5",
@@ -12,104 +13,5 @@
     "github>DevSecNinja/.github//.renovate/labels.json5",
     "github>DevSecNinja/.github//.renovate/packageRules.json5",
     "github>DevSecNinja/.github//.renovate/semanticCommits.json5",
-  ],
-  schedule: ["at any time"],
-  // Make room for updates alongside long-lived cooldown branches.
-  // branchConcurrentLimit inherits this cap; the hourly limit is unchanged.
-  prConcurrentLimit: 20,
-  packageRules: [
-    {
-      // v5 is a rewrite: legacy encryption settings, commands, completion
-      // logs, and restore behavior need migration and end-to-end validation.
-      description: "Keep database backup sidecars on the validated v4 compatibility line",
-      matchDatasources: ["docker"],
-      matchPackageNames: ["docker.io/nfrastack/db-backup"],
-      allowedVersions: "/^4\\./",
-    },
-    {
-      // Startup upgrades are non-atomic. Review release compatibility and
-      // take a snapshot before merging a database-format-changing update.
-      description: "Require operator review for Meilisearch version upgrades",
-      matchDatasources: ["docker"],
-      matchPackageNames: ["docker.io/getmeili/meilisearch"],
-      matchUpdateTypes: ["major", "minor", "patch"],
-      automerge: false,
-    },
-    {
-      // The shared config disables digest-only updates to reduce PR noise and
-      // avoid auto-merging potentially hijacked tags. For images pinned to a
-      // mutable channel tag like ":latest" or ":beta" the digest is the ONLY
-      // way it ever gets updated, so re-enable digest updates for those. Placed
-      // here so it wins over the shared "Disable digest-only updates" rule.
-      description: "Re-enable digest updates for images pinned to mutable channel tags",
-      matchDatasources: ["docker"],
-      matchUpdateTypes: ["digest"],
-      matchCurrentValue: "/^(?:latest|beta)$/",
-      enabled: true,
-      // Digest updates do not reliably carry a release timestamp. Without
-      // this override the shared strict 14-day soak leaves them in
-      // "Pending Status Checks" forever.
-      minimumReleaseAge: "0",
-    },
-    {
-      // These images intentionally use rolling major/minor tags. Their
-      // publishers replace the tag when a patch release is published, so
-      // disabling digest updates silently freezes the deployed patch version.
-      description: "Re-enable digest updates for explicitly rolling version tags",
-      matchDatasources: ["docker"],
-      matchPackageNames: [
-        "docker.io/library/alpine",
-        "docker.io/library/redis",
-        "docker.io/valkey/valkey",
-      ],
-      matchUpdateTypes: ["digest"],
-      matchCurrentValue: "/^\\d+(?:\\.\\d+)?(?:-alpine)?$/",
-      enabled: true,
-      minimumReleaseAge: "0",
-    },
-    {
-      // Same reasoning as the mutable-channel rule above, for reusable workflows
-      // pinned to a commit SHA with a "# main" comment. The digest is the only
-      // way those ever advance, so the shared "Disable digest-only updates"
-      // rule freezes them at whatever SHA they were pinned at. That matters
-      // most for renovate-pr-cooldown.yml, which provides the required
-      // `pr-cooldown` check enforcing the 14-day soak for registries without a
-      // trusted release timestamp (DevSecNinja/.github ADR 0005) — a
-      // load-bearing control that must not be stuck on a stale revision.
-      description: "Re-enable digest updates for reusable workflows pinned to main",
-      matchManagers: ["github-actions"],
-      matchUpdateTypes: ["digest"],
-      matchCurrentValue: "main",
-      enabled: true,
-    },
-    {
-      // Docker versioning treats the numeric suffix after the hyphen as
-      // compatibility, so 1.25.1-1 can never advance to 1.25.1-2 or a newer
-      // Unbound release with a different package revision.
-      description: "Parse madnuttah/unbound package revisions as build numbers",
-      matchDatasources: ["docker"],
-      matchPackageNames: ["docker.io/madnuttah/unbound"],
-      versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<build>\\d+)(?:-(?<compatibility>quic))?$",
-    },
-    {
-      // The release- prefix is not parsed by Docker versioning, so Renovate
-      // detects the dependency but misses newer release-* tags.
-      description: "Parse wmbusmeters release tags",
-      matchDatasources: ["docker"],
-      matchPackageNames: ["docker.io/wmbusmeters/wmbusmeters"],
-      versioning: "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
-    },
-    {
-      description: "Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown",
-      matchDatasources: ["docker"],
-      matchPackageNames: [
-        "ghcr.io/gethomepage/homepage",
-        "dhi.io/traefik",
-        "ghcr.io/immich-app/immich-server",
-        "ghcr.io/immich-app/immich-machine-learning",
-        "ghcr.io/home-assistant/home-assistant",
-      ],
-      rebaseWhen: "never",
-    },
   ],
 }
