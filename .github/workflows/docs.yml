@@ -27,7 +27,7 @@ permissions:
 jobs:
   build:
     name: Build docs
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
@@ -53,7 +53,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: build
     if: github.event_name == 'push'
     permissions:
@@ -78,7 +78,7 @@ jobs:
       - build
       - deploy
     if: ${{ always() && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
