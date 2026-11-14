@@ -103,7 +103,7 @@ services:
       - ./data/redis:/redis
 
   dawarich:
-    image: docker.io/freikin/dawarich:1.16.0@sha256:b533e6eac4464d55479d030229cf9487f338972cdb88924e8060ca759d0e28b8
+    image: docker.io/freikin/dawarich:1.20.0@sha256:18945f609942056e55fb24988229499be7bbe4703177fac662225dad465b021f
     container_name: dawarich
     entrypoint:
       - "web-entrypoint.sh"
@@ -235,7 +235,7 @@ services:
       - "gatus.alerts=[{\"type\": \"email\"}, {\"type\": \"custom\"}]"
 
   dawarich-sidekiq:
-    image: docker.io/freikin/dawarich:1.16.0@sha256:b533e6eac4464d55479d030229cf9487f338972cdb88924e8060ca759d0e28b8
+    image: docker.io/freikin/dawarich:1.20.0@sha256:18945f609942056e55fb24988229499be7bbe4703177fac662225dad465b021f
     container_name: dawarich-sidekiq
     entrypoint:
       - "sidekiq-entrypoint.sh"
@@ -296,7 +296,7 @@ services:
   # Redis is started directly as its non-root image user. Persistence protects
   # queued GPS processing jobs during controlled shutdowns and host restarts.
   dawarich-redis:
-    image: docker.io/library/redis:8.10-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    image: docker.io/library/redis:8.10-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
     container_name: dawarich-redis
     command:
       - "redis-server"
