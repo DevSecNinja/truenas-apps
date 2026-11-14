@@ -5,7 +5,7 @@ services:
   # files, which are world-readable from the git checkout (644).
 
   homepage:
-    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
+    image: ghcr.io/gethomepage/homepage:v2.6.0@sha256:3e38fe788223cb46a3ce1f046ef11667b40f7707fdca0dcbfa3f86c5c42bf1e8
     container_name: homepage
     env_file:
       - path: .env # Decrypted from secret.sops.env
@@ -86,7 +86,7 @@ services:
   # See: https://github.com/linuxserver/docker-socket-proxy
   # cap_drop: ALL is therefore omitted.
   homepage-docker-proxy:
-    image: docker.io/linuxserver/socket-proxy:version-3.4.5-r0@sha256:ca6c0301a652232d02cb0ff9f1c5d20d9b339f391e1c1dffaae6ef3bfc59d009
+    image: docker.io/linuxserver/socket-proxy:version-3.4.6-r0@sha256:8c059dcb7f496212967dcf1d4136f727f2a23eea4da881945c12b1414aafdf4c
     container_name: homepage-docker-proxy
     env_file:
       - path: ../shared/env/tz.env
