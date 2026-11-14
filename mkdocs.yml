@@ -64,6 +64,7 @@ nav:
       - Performance: PERFORMANCE.md
   - Guides:
       - Backup Strategy: BACKUP.md
+      - Container Maintenance: CONTAINER-MAINTENANCE.md
       - Contributing: CONTRIBUTING.md
       - Database Upgrades: DATABASE-UPGRADES.md
       - Disaster Recovery: DISASTER-RECOVERY.md
