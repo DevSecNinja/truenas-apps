@@ -16,7 +16,7 @@ pocket_require_helpers() {
     printf 'verify-backup.sh requires Bash 4 or newer\n' >&2
     return 1
   fi
-  for tool in sha1sum sed bash; do
+  for tool in sha1sum stat sed bash; do
     command -v "${tool}" >/dev/null || return 1
   done
 }
@@ -29,6 +29,9 @@ pocket_setup() {
   # Reuse stdout/stderr assertions, not dccd's source/setup or auto-download path.
   load "${POCKET_REPO_ROOT}/tests/dccd/helpers/diagnostics"
   ORIGINAL_PATH="${PATH}"
+  # Capture before installing PATH mocks; freshness checks need real metadata.
+  export POCKET_REAL_STAT
+  POCKET_REAL_STAT="$(command -v stat)"
   ORIGINAL_TMPDIR="${TMPDIR-}"
   ORIGINAL_TMPDIR_SET="${TMPDIR+x}"
   TEST_ROOT="$(mktemp -d "${BATS_TMPDIR}/dccd-test.XXXXXX")"
@@ -81,6 +84,16 @@ run_verify_with_umask() {
   # shellcheck disable=SC2016
   run --separate-stderr env LC_ALL=C bash -c \
     'umask "$1"; exec bash "$2"' -- "$1" "${VERIFY_SCRIPT}"
+}
+
+seed_verified_pair() {
+  run_verify
+  assert_success
+  assert_output --partial 'Pocket ID backup verified:'
+  assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}"
+  assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}.sha1"
+  # Keep per-file generations, but require fresh evidence from the next job.
+  rm -- "${MOCK_LOG}"/*.called
 }
 
 assert_recorded_umask() {

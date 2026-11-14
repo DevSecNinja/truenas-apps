@@ -393,12 +393,21 @@ Compose mounts `config/verify-backup.sh` read-only and runs it with a
 This thin guard retains `backup01-now now` and its engine, checking:
 
 - Initialized read-only SQLite access; one dump and successful upstream completion.
-- Exactly one new matching ciphertext/SHA1 pair, reserved app ownership,
-  files `0600`, output root `0700`, and SHA1 verification before decryption.
+- Exactly one fresh matching ciphertext/SHA1 pair: both files must be new or
+  changed according to pre/post metadata (device, inode, size, and mtime/ctime
+  at full `stat` precision). Overwriting an existing timestamped pair is accepted
+  only when both files change and all checks pass; unchanged stale output and
+  partial pair updates fail.
+- Reserved app ownership, files `0600`, output root `0700`, and SHA1 verification
+  before decryption.
 - GPG/ZSTD recovery in private `077`-umask scratch, integrity/FKs, matching clean
   migration version, and nonempty signing/session keys; failures close the job.
 
-The upstream child retains its inherited umask. Exact key bytes, full seeded
+The upstream child uses a fixed `022` umask, independent of the caller, so a
+caller umask of `0077` cannot make root-created SQLite scratch unreadable by
+`pocketbackup`; private verification scratch keeps `077`.
+
+Exact key bytes, full seeded
 schema/records, and public JWKS equality were independently tested, not checked
 by the guard. Existing `depends_on: service_healthy` needs no arbitrary sleep;
 unreadable/missing source or WAL metadata must fail closed, not use rw/`immutable`

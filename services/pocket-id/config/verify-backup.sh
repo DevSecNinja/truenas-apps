@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-upstream_umask=$(umask)
 umask 077
 
 fail() {
@@ -46,14 +45,15 @@ source_version=$("${as_backup[@]}" sqlite3 -batch -bail -readonly -cmd '.timeout
 shopt -s nullglob
 declare -A previous=()
 for file in /backup/sqlite3_pocket-id_*; do
-    previous["${file}"]=1
+    previous["${file}"]=$(stat -c '%d:%i:%s:%y:%z' "${file}") ||
+        fail "cannot inspect previous output"
 done
 
 status=0
-# The upstream root-created SQLite scratch is read by pocketbackup. Preserve
-# its original umask; our private verification scratch still uses 077.
+# The upstream root-created SQLite scratch must be readable by pocketbackup.
+# Only that child uses 022; private verification scratch keeps 077.
 (
-    umask "${upstream_umask}"
+    umask 022
     backup01-now now
 ) >"${work}/job.log" 2>&1 || status=$?
 cat "${work}/job.log"
@@ -68,7 +68,9 @@ fi
 
 new_files=()
 for file in /backup/sqlite3_pocket-id_*; do
-    [[ -n "${previous[${file}]:-}" ]] || new_files+=("${file}")
+    file_state=$(stat -c '%d:%i:%s:%y:%z' "${file}") ||
+        fail "cannot inspect current output"
+    [[ "${previous[${file}]:-}" == "${file_state}" ]] || new_files+=("${file}")
 done
 [[ "${#new_files[@]}" == 2 ]] || fail "expected exactly one new encrypted/checksum pair"
 cipher=

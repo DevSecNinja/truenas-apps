@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Regression coverage for the ORIGINAL backup01-now post-validation guard.
-# All fixtures are synthetic. Only sha1sum is real; no crypto/SQLite/runtime proof.
+# Synthetic fixtures, real SHA1/stat metadata; no crypto/SQLite/runtime proof.
 
 load 'helpers/common'
 
@@ -17,8 +17,6 @@ teardown() {
 }
 
 @test "verify-backup: accepts one original dump/completion and validates every stage" {
-  local inherited
-  inherited="$(umask)"
   run_verify
   assert_success
   assert_stderr ''
@@ -32,36 +30,34 @@ teardown() {
   for stage in source backup01-now gpg zstd integrity foreign-key migration keys; do
     assert_file_exists "${MOCK_LOG}/${stage}.called"
   done
-  assert_recorded_umask backup01-now "${inherited}"
+  assert_recorded_umask backup01-now 0022
   assert_verification_umasks_private
   run find "${TMPDIR}" -mindepth 1 -print
   assert_success
   assert_output ''
 }
 
-@test "verify-backup: restores caller umask 0022 only for the original upstream job" {
-  local expected
-  expected="$(
-    umask 0022
-    umask
-  )"
+@test "verify-backup: uses child umask 0022 with caller 0022 and private verification" {
   run_verify_with_umask 0022
   assert_success
   assert_output --partial 'Pocket ID backup verified:'
-  assert_recorded_umask backup01-now "${expected}"
+  assert_recorded_umask backup01-now 0022
   assert_verification_umasks_private
 }
 
-@test "verify-backup: preserves nondefault caller umask 0027 without leaking it to verification" {
-  local expected
-  expected="$(
-    umask 0027
-    umask
-  )"
+@test "verify-backup: uses child umask 0022 with caller 0027 and private verification" {
   run_verify_with_umask 0027
   assert_success
   assert_output --partial 'Pocket ID backup verified:'
-  assert_recorded_umask backup01-now "${expected}"
+  assert_recorded_umask backup01-now 0022
+  assert_verification_umasks_private
+}
+
+@test "verify-backup: uses child umask 0022 with caller 0077 and private verification" {
+  run_verify_with_umask 0077
+  assert_success
+  assert_output --partial 'Pocket ID backup verified:'
+  assert_recorded_umask backup01-now 0022
   assert_verification_umasks_private
 }
 
@@ -247,16 +243,69 @@ teardown() {
 }
 
 @test "verify-backup: a prior successful pair cannot mask a current job with no output" {
-  run_verify
-  assert_success
-  assert_output --partial 'Pocket ID backup verified:'
-  assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}.sha1"
-  rm -- "${MOCK_LOG}/gpg.called"
+  seed_verified_pair
 
   export POCKET_CASE=no-output
   run_verify
   assert_guard_failure 'expected exactly one new encrypted/checksum pair'
+  assert_file_exists "${MOCK_LOG}/backup01-now.called"
   assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}"
   assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}.sha1"
   assert_file_not_exist "${MOCK_LOG}/gpg.called"
+}
+
+@test "verify-backup: freshly overwritten same-name pair passes every validation stage" {
+  seed_verified_pair
+
+  run_verify
+  assert_success
+  assert_stderr ''
+  assert_line "${POCKET_ARTIFACT}: OK"
+  assert_line 'Pocket ID backup verified: one GPG/ZSTD/SHA1 snapshot, SQLite integrity and keys present'
+  assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}"
+  assert_file_exists "${POCKET_BACKUP}/${POCKET_ARTIFACT}.sha1"
+  local stage
+  for stage in source backup01-now gpg zstd integrity foreign-key migration keys; do
+    assert_file_exists "${MOCK_LOG}/${stage}.called"
+  done
+  assert_recorded_umask backup01-now 0022
+  assert_verification_umasks_private
+}
+
+@test "verify-backup: real SHA1 rejects a corrupt replacement at the same pair paths" {
+  seed_verified_pair
+
+  export POCKET_CASE=bad-checksum
+  run_verify
+  assert_guard_failure 'encrypted artifact checksum failed'
+  assert_line "${POCKET_ARTIFACT}: FAILED"
+  assert_file_exists "${MOCK_LOG}/backup01-now.called"
+  assert_file_not_exist "${MOCK_LOG}/gpg.called"
+}
+
+@test "verify-backup: same-name ciphertext update cannot reuse an unchanged checksum" {
+  seed_verified_pair
+
+  export POCKET_CASE=cipher-only
+  run_verify
+  assert_guard_failure 'expected exactly one new encrypted/checksum pair'
+  assert_file_exists "${MOCK_LOG}/backup01-now.called"
+  assert_file_not_exist "${MOCK_LOG}/gpg.called"
+  # The pair still matches: rejection must be freshness, not checksum failure.
+  run bash -c 'cd "$1" && sha1sum -c "$2"' -- "${POCKET_BACKUP}" "${POCKET_ARTIFACT}.sha1"
+  assert_success
+  assert_line "${POCKET_ARTIFACT}: OK"
+}
+
+@test "verify-backup: same-name checksum update cannot reuse unchanged ciphertext" {
+  seed_verified_pair
+
+  export POCKET_CASE=checksum-only
+  run_verify
+  assert_guard_failure 'expected exactly one new encrypted/checksum pair'
+  assert_file_exists "${MOCK_LOG}/backup01-now.called"
+  assert_file_not_exist "${MOCK_LOG}/gpg.called"
+  run bash -c 'cd "$1" && sha1sum -c "$2"' -- "${POCKET_BACKUP}" "${POCKET_ARTIFACT}.sha1"
+  assert_success
+  assert_line "${POCKET_ARTIFACT}: OK"
 }

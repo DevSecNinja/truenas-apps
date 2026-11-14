@@ -11,9 +11,22 @@ unexpected() {
 }
 
 write_pair() {
-  local name="$1"
-  printf '%s\n' 'synthetic ciphertext; not encrypted data' >"${POCKET_BACKUP}/${name}"
-  (cd "${POCKET_BACKUP}" && sha1sum "${name}" >"${name}.sha1")
+  local name="$1" generation=0
+  if [[ -f "${MOCK_LOG}/pair.generation" ]]; then
+    generation="$(<"${MOCK_LOG}/pair.generation")"
+  fi
+  generation=$((generation + 1))
+  printf '%s\n' "${generation}" >"${MOCK_LOG}/pair.generation"
+  # Identical contents keep partial updates checksum-valid. Only written files
+  # advance generation, so a stale mate must not count as fresh job output.
+  if [[ "${POCKET_CASE}" != checksum-only ]]; then
+    printf '%s\n' 'synthetic ciphertext; not encrypted data' >"${POCKET_BACKUP}/${name}"
+    printf '%s\n' "${generation}" >"${MOCK_LOG}/${name}.generation"
+  fi
+  if [[ "${POCKET_CASE}" != cipher-only ]]; then
+    (cd "${POCKET_BACKUP}" && sha1sum "${name}" >"${name}.sha1")
+    printf '%s\n' "${generation}" >"${MOCK_LOG}/${name}.sha1.generation"
+  fi
 }
 
 case "${command_name}" in
@@ -70,7 +83,17 @@ backup01-now)
   if [[ "${POCKET_CASE}" == job-exit ]]; then exit 23; fi
   ;;
 stat)
-  [[ $# == 3 && $1 == -c && $2 == '%u:%g:%a' ]] || unexpected
+  [[ $# == 3 && $1 == -c ]] || unexpected
+  if [[ $2 == '%d:%i:%s:%y:%z' ]]; then
+    [[ $3 == "${POCKET_BACKUP}"/sqlite3_pocket-id_* && -f $3 ]] || unexpected
+    metadata="$("${POCKET_REAL_STAT}" -c "$2" "$3")"
+    generation="$(<"${MOCK_LOG}/${3##*/}.generation")"
+    # The guard compares opaque metadata. Retain real stat fields and append
+    # deterministic per-file freshness; no sleeps or clock-resolution races.
+    printf '%s:fixture-generation=%s\n' "${metadata}" "${generation}"
+    exit 0
+  fi
+  [[ $2 == '%u:%g:%a' ]] || unexpected
   case "$3" in
   "${POCKET_BACKUP}")
     if [[ "${POCKET_CASE}" == directory-mode ]]; then
