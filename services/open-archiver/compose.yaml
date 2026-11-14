@@ -267,7 +267,7 @@ services:
   open-archiver-valkey:
     # DHI offers this version, but authenticated pulls were unavailable in the
     # validation environment. Keep the tested upstream Alpine runtime.
-    image: docker.io/valkey/valkey:9.1.2-alpine3.24@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    image: docker.io/valkey/valkey:9.1.3-alpine3.24@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     container_name: open-archiver-valkey
     depends_on:
       open-archiver-init:
@@ -317,7 +317,7 @@ services:
       start_period: 10s
 
   open-archiver-meilisearch:
-    image: docker.io/getmeili/meilisearch:v1.54.0@sha256:0bf32debcbfa8ba4e418679025f4935884972171513c92f0584689ff994a61df
+    image: docker.io/getmeili/meilisearch:v1.56.0@sha256:1f578fa865f8251894b3bf38d6668d6209a3f451f8f65ab953e129d4c1db5ef4
     container_name: open-archiver-meilisearch
     depends_on:
       open-archiver-init:
