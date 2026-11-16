@@ -18,7 +18,7 @@ permissions:
 jobs:
   # --- Centralized reusable lint workflow from DevSecNinja/.github ---
   lint:
-    uses: DevSecNinja/.github/.github/workflows/lint.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+    uses: DevSecNinja/.github/.github/workflows/lint.yml@5cee546e22e862a82f74e8dda800d439b9af537c # v4.1.0
     permissions:
       contents: read
       security-events: write
