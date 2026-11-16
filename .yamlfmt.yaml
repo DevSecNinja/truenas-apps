@@ -19,3 +19,8 @@ exclude:
   - apm.yml
   - apm.lock.yaml
   - apm_modules/**
+  # Spec Kit output and Python virtual environments. Listed explicitly rather
+  # than through gitignore_excludes: without a .gitignore, yamlfmt then lints
+  # nothing and still exits 0.
+  - .specify/**
+  - .venv*/**
