@@ -45,12 +45,12 @@
 /poetry.lock
 /uv.lock
 /Pipfile.lock
-/requirements*.txt
+/*requirements*.txt
 **/pyproject.toml
 **/poetry.lock
 **/uv.lock
 **/Pipfile.lock
-**/requirements*.txt
+**/*requirements*.txt
 
 # Go
 /go.mod

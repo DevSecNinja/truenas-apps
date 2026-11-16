@@ -1,43 +1,50 @@
 ---
-# Conventional Commit type prefixes (from cog/cliff config)
+# Rules for github/issue-labeler v3 (see .github/workflows/labeler.yml).
+#
+# - Write case-insensitive patterns as '/pattern/i'. The action builds a
+#   JavaScript RegExp, which rejects inline flags such as '(?i)'.
+# - The action ANDs the entries listed under a label, so each label has one
+#   pattern and "either/or" lives in a single alternation.
+# - The issue title and body are matched together, title first. Without the
+#   'm' flag, '^' anchors at the start of the title.
+#
+# Tests: tests/issue-labeler-config.py
+
+# Conventional Commit type prefix, or a keyword (from cog/cliff config)
 feat:
-  - '^feat(\(.+\))?:'
-  - '(?i)(feature request|enhancement|add support|would be (nice|great)|request)'
+  - '/^feat(\(.+\))?!?:|\b(feature request|enhancement|add support|would be (nice|great))/i'
 
 fix:
-  - '^fix(\(.+\))?:'
-  - '(?i)(error|crash|fail|broken|not work|doesn.t work|bug)'
+  - '/^fix(\(.+\))?!?:|\b(errors?|crash(es|ed|ing)?|fail(s|ed|ing|ures?)?|broken|not work(s|ing)?|doesn.t work|bugs?)\b/i'
 
 perf:
-  - '^perf(\(.+\))?:'
+  - '/^perf(\(.+\))?!?:/i'
 
 refactor:
-  - '^refactor(\(.+\))?:'
+  - '/^refactor(\(.+\))?!?:/i'
 
 docs:
-  - '^docs(\(.+\))?:'
-  - '(?i)(doc|readme|wiki|guide|tutorial|documentation)'
+  - '/^docs(\(.+\))?!?:|\b(docs?|readme|wiki|guides?|tutorials?|documentation)\b/i'
 
 ci:
-  - '^ci(\(.+\))?:'
-  - '(?i)(github action|workflow|pipeline|\.github)'
+  - '/^ci(\(.+\))?!?:|\b(github actions?|workflows?|pipelines?)\b|\.github\b/i'
 
 chore:
-  - '^chore(\(.+\))?:'
+  - '/^chore(\(.+\))?!?:/i'
 
 # Area labels
 area/apps:
-  - '(?i)(app|service|container|docker)'
+  - '/\b(apps?|services?|containers?)\b|\bdocker/i'
 
 area/github:
-  - '(?i)(github action|workflow|ci|pipeline|\.github)'
+  - '/\b(github actions?|workflows?|ci|pipelines?)\b|\.github\b/i'
 
 area/renovate:
-  - '(?i)(renovate|dependency|dependenc|update.*package|package.*update)'
+  - '/\b(renovate|dependenc|update.*package|package.*update)/i'
 
 area/scripts:
-  - '(?i)(script|automation|bash|shell|cron)'
+  - '/\b(scripts?|automation|bash|shell)\b|\bcron/i'
 
-# General
+# General: a question mark in the title, or a question keyword
 question:
-  - '(?i)(how (do|to|can)|question|\?)'
+  - '/^[^\n]*\?|\b(how (do|to|can)|question)\b/i'
