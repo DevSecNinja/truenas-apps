@@ -8,13 +8,13 @@ on:
 
 permissions:
   contents: write
-  issues: write
   pull-requests: write
 
 jobs:
   sync:
-    uses: DevSecNinja/.github/.github/workflows/config-sync.yml@24acc67adf1be33089e73b2fdbdb4be8c12d145b # v3.2.0
+    uses: DevSecNinja/.github/.github/workflows/config-sync.yml@e28a49a14d4530962b165e0d35a8a331b2b42f23 # v3.7.1
     permissions:
       contents: write
-      issues: write
       pull-requests: write
+    secrets:
+      AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
