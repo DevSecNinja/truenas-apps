@@ -143,7 +143,7 @@ services:
   # It runs as non-root and supports user: directly.
   # Hardware acceleration is enabled via the OpenVINO extends profile (Intel iGPU).
   immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:v3.2.4-openvino@sha256:ee28c9419670b7f4c17765fb089527eff977deb8e8fb83e714aa1fa57aa89736
+    image: ghcr.io/immich-app/immich-machine-learning:v3.4.1-openvino@sha256:97f60b06c5938c326d3ba416bcf24bc94d233f34554c05f3b76336f98ffd5ea9
     container_name: immich-machine-learning
     depends_on:
       immich-init:
