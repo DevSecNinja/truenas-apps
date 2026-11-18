@@ -19,6 +19,19 @@
   prConcurrentLimit: 20,
   packageRules: [
     {
+      // DHI prunes superseded tags. Under the shared rangeStrategy "pin",
+      // Renovate takes the current version only from the registry's tag
+      // list, so once a pinned tag is pruned it finds none, marks the image
+      // skipReason "invalid-value" and drops it from the dashboard without
+      // a warning (#634). With "replace" it falls back to the pinned tag
+      // itself, so the image stays tracked and still updates to the newest
+      // tag. Docker tags have no ranges, so nothing else changes.
+      description: "Keep dhi.io images tracked after DHI prunes their pinned tag",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["dhi.io/**"],
+      rangeStrategy: "replace",
+    },
+    {
       // v5 is a rewrite: legacy encryption settings, commands, completion
       // logs, and restore behavior need migration and end-to-end validation.
       description: "Keep database backup sidecars on the validated v4 compatibility line",
