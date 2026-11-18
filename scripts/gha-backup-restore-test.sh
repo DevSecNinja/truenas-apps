@@ -49,7 +49,7 @@ set -euo pipefail
 # renovate: datasource=docker depName=docker.io/library/postgres
 POSTGRES_IMAGE="docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911"
 # renovate: datasource=docker depName=docker.io/library/mongo
-MONGO_IMAGE="docker.io/library/mongo:8.2.6@sha256:eea8506335198f8b359865b32004036310854a935fbd317083817c614152818f"
+MONGO_IMAGE="docker.io/library/mongo:9.0.4@sha256:452bdaf2127b8ff851e31410a267809b9829eded219979f2210e7c7efb85a058"
 # renovate: datasource=docker depName=docker.io/tiredofit/db-backup
 DB_BACKUP_IMAGE="docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab"
 
