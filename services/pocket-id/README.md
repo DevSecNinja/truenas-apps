@@ -1,7 +1,7 @@
 # Pocket ID
 
 **Blocked candidate — not deployed, deploy-ready, or approved for production.**
-Evidence updated: **2026-11-08**; image adoption remains blocked.
+Evidence updated: **2026-11-21**; image adoption remains blocked.
 Tracked in [issue #941](https://github.com/DevSecNinja/truenas-apps/issues/941).
 
 ## Why
@@ -19,18 +19,18 @@ provisioned and validated. This does not authorize candidate activation.
 
 ## Candidate Blockers
 
-| Gate                 | Status / required evidence                                                                                                                                                                                                                                                                                        |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Image selection      | Supported `v2.19.2-distroless` is now pinned and exact-artifact reviewed; backup and BusyBox pins are unchanged, with maintenance/security gates still open                                                                                                                                                       |
-| Dependency security  | Go-jose `4.1.6`, zod `4.6.7`, and x/net `0.62.0` fixes are delivered. Residual UNKNOWN `GO-2026-5932`: OpenPGP symbols are present in the binary; call-path/applicability assessment remains open                                                                                                                 |
-| Backup artifact      | `docker.io/nfrastack/db-backup:4.9.2` remains unsupported; the November 8 scan still reports raw HIGH/CRITICAL findings. Functional restore success does not clear maintenance/adoption                                                                                                                           |
-| Encrypted secrets    | SOPS provisioning and canonical validation completed for `DOMAINNAME`, `ENCRYPTION_KEY`, and `DB_ENC_PASSPHRASE`; independent recovery remains to be established                                                                                                                                                  |
-| Activation           | No registry allocation, dataset provisioning, active Traefik attachment, DNS wiring, or Custom App enrollment is authorized                                                                                                                                                                                       |
-| Runtime and recovery | November 8 final-image AMD64 synthetic recovery, public JWKS/key-ID equality, and 49h/47h retention passed; required 281-test BATS suite passed with the legacy-assertion caveat below. Full mandatory pre-commit validation passed November 8; separate Docker/TrueNAS validation is not a premerge prerequisite |
-| Passkeys and clients | Browser/passkey, recovery, and client authorization acceptance remain required before production reliance; Entra migration is outside this candidate                                                                                                                                                              |
+| Gate                 | Status / required evidence                                                                                                                                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Image selection      | Supported `v2.19.3-distroless` is pinned and exact-artifact reviewed; v3/dev/latest are not selected. Backup and BusyBox pins are unchanged; maintenance/security gates remain open                                                                                                                                             |
+| Dependency security  | Go `1.27.4`, x/crypto `0.59.0`, Go-jose `4.1.6`, zod `4.6.7`, and x/net `0.62.0` delivered. UNKNOWN `GO-2026-5932` remains in the separate deprecated OpenPGP module; source tracing narrows use, not adoption clearance                                                                                                        |
+| Backup artifact      | `docker.io/nfrastack/db-backup:4.9.2` remains unsupported; November 21 raw HIGH/CRITICAL findings and scoped review below do not clear maintenance/adoption                                                                                                                                                                     |
+| Encrypted secrets    | SOPS provisioning and canonical validation completed for `DOMAINNAME`, `ENCRYPTION_KEY`, and `DB_ENC_PASSPHRASE`; independent recovery remains to be established                                                                                                                                                                |
+| Activation           | No registry allocation, dataset provisioning, active Traefik attachment, DNS wiring, or Custom App enrollment is authorized                                                                                                                                                                                                     |
+| Runtime and recovery | November 21 v2.19.3 AMD64 synthetic recovery, actual public JWKS/key-ID equality, and 49h/47h retention passed; full pre-commit (286 BATS) and 71 separate targeted tests passed. November 8 passes remain historical; legacy-assertion caveat below remains. Separate Docker/TrueNAS validation is not a premerge prerequisite |
+| Passkeys and clients | Browser/passkey, recovery, and client authorization acceptance remain required before production reliance; Entra migration is outside this candidate                                                                                                                                                                            |
 
-The [November 8 evidence](#image-and-recovery-evidence-2026-11-08) records
-the supported release's exact-artifact fixes and synthetic recovery results.
+The [November 21 evidence](#image-and-recovery-evidence-2026-11-21) records current findings and synthetic recovery.
+The [November 8 evidence](#image-and-recovery-evidence-2026-11-08) is historical v2.19.2 proof.
 The [October 29 review](#image-evidence-2026-10-29) remains historical evidence
 for the old app pin, not the current artifact. Follow the
 [image-adoption policy](https://homelab.devsecninja.com/ARCHITECTURE/#image-selection-upstream-dependency-maintenance);
@@ -92,11 +92,11 @@ to make it reachable.
 
 ### Services
 
-| Service               | Image status                                                                                                                                        | Proposed role and identity                                                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pocket-id`           | `ghcr.io/pocket-id/pocket-id:v2.19.2-distroless@sha256:a21166a4eb513d2ffcbf815398480998d996a9e719cfba029395517658626f9e`; candidate remains blocked | Shell-free, nonroot Debian 13 image; explicitly select the proposed app UID/primary GID rather than PUID remapping                           |
-| `pocket-id-db-backup` | `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`; blocked                              | One-shot SQLite Online Backup API job; identity mapping and private output permissions verified in the isolated AMD64 diagnostic             |
-| `pocket-id-init`      | `docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d`; inventory/review gap                    | Validate required inputs, chown only the `./data` root to the proposed app PUID/PGID, set root directory mode `0700`; never chown `./config` |
+| Service               | Image status                                                                                                                                                    | Proposed role and identity                                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pocket-id`           | `ghcr.io/pocket-id/pocket-id:v2.19.3-distroless@sha256:6a0045a89b80fa6624c091786e7be132a4dde880ca64727a6b019c056b091982`; candidate remains blocked             | Shell-free, nonroot Debian 13 image; explicitly select the proposed app UID/primary GID rather than PUID remapping                           |
+| `pocket-id-db-backup` | `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`; blocked                                          | One-shot SQLite Online Backup API job; identity mapping and private output permissions verified in the isolated AMD64 diagnostic             |
+| `pocket-id-init`      | `docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d`; known binaries, partial security/maintenance review | Validate required inputs, chown only the `./data` root to the proposed app PUID/PGID, set root directory mode `0700`; never chown `./config` |
 
 Proposed account `svc-app-pocket-id` has no shared-purpose group memberships.
 Its UID and matching primary GID are **reserved for this inactive candidate,
@@ -109,19 +109,76 @@ The isolated AMD64 run verified matching output ownership and restrictive
 permissions; this does not establish TrueNAS provisioning or ACL behavior.
 Separately review any recursive ownership/permission repair operation.
 
-The selected distroless artifact reports version `2.19.2` and revision
-`2b2750ed61e0016f4c15630322d15ca22143cdb6` in its labels. On November 8,
-`v2.19.2-distroless` and `v2-distroless` resolved to the same index digest
-listed above; retain the version-specific tag and exact digest.
+The selected distroless artifact reports version `2.19.3` and revision
+`c0abd9322d0a67e200434baacc662e9c7cde1389` in its labels; retain the version-specific tag and exact digest.
 GHCR was selected for the verified shell-free variant; cross-registry equality
 for this distroless artifact is not established and remains a follow-up before
 any registry change.
 The image supports the explicit proposed runtime user; this does not establish
 full-stack runtime, recovery, or production acceptance.
 
+### Image and Recovery Evidence 2026-11-21
+
+**Candidate remains blocked; scoped evidence, not formal approval or a policy waiver.**
+[Release v2.19.3](https://github.com/pocket-id/pocket-id/releases/tag/v2.19.3), published **2026-11-15 at 19:10:25 UTC**, delivers Go/stdlib **1.27.4** and x/crypto **0.59.0**; Go-jose **4.1.6**, zod **4.6.7**, and x/net **0.62.0** remain delivered.
+[Patch d6a0563](https://github.com/pocket-id/pocket-id/commit/d6a056355a3238b0d0c624d4788e8118dafed7f6) changes device-authorization approval from `BindOptionalJSON` to `BindJSON`: `{}` remains allowed, but a missing JSON body is rejected.
+Upstream includes a unit regression; no local browser/device-approval ceremony was exercised.
+
+Exact AMD64 identities (`sha256`) for the current app index in the services table:
+
+- Manifest: `523271bff6390c33f149117915f63a375e49c6856695f3da71f9405954b7bb24`
+- Config: `0de135f603004c51f81e2fa3734fc38070f1bf7401e8d8c8080769bfdff210a1`
+
+Trivy **0.76.0**, November 21 UTC: DB updated **18:38:32**, downloaded **20:12:08**;
+scans: app **20:12:19**, backup **20:12:22**, init **20:12:24**. Raw counts are not exploitability judgments.
+
+| Artifact / component                               | Inventory                                                                                 | Findings                                                                                     |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| BusyBox init                                       | No Trivy package database; manually reconfirmed BusyBox `1.38.0`, glibc `2.41-12+deb13u3` | Not scanned-clean                                                                            |
+| nfrastack/db-backup 4.9.2 — OS                     | 166 Alpine 3.24.1 packages                                                                | 4 CRITICAL / 167 HIGH / 152 MEDIUM / 90 LOW / 5 UNKNOWN                                      |
+| nfrastack/db-backup 4.9.2 — Python                 | 15 packages                                                                               | 3 MEDIUM                                                                                     |
+| nfrastack/db-backup 4.9.2 — inactive engines/tools | `age`; `influx`; `influxd`                                                                | HIGH/CRITICAL subset: age 14 HIGH; influx 28 HIGH / 2 CRITICAL; influxd 61 HIGH / 2 CRITICAL |
+| Pocket ID — OS / npm                               | 6 Debian 13.7 OS packages; 44 npm entries                                                 | 0 findings in either inventory                                                               |
+| Pocket ID — Go                                     | 194 modules                                                                               | Only UNKNOWN `GO-2026-5932`, separate `golang.org/x/crypto/openpgp v0.1.0-deprecated`        |
+
+**Maintenance flags / confidence:** Pocket ID **partial / medium** (supported v2 dependency fixes delivered; deprecated transitive dependency remains);
+backup 4.9.2 **unmaintained tag / high** (latest-only policy; upstream project actively released 5.0.11);
+BusyBox **partial / medium** (upstream glibc u5 support exists; pinned artifact remains u3, with a package-database gap).
+
+**Narrow OpenPGP source finding:** x/crypto `0.59.0` does not fix/remove the separate deprecated module.
+Pocket ID v2.19.3 `bootstrap/db_bootstrap.go` blank-imports golang-migrate **4.20.1** `source/github`.
+The [migration utility](https://github.com/pocket-id/pocket-id/blob/v2.19.3/backend/internal/utils/db_migration_util.go) defaults to embedded `iofs` (lines 22–74); the GitHub path (119+) requires a newer database and `ALLOW_DOWNGRADE=true`.
+The [versioned GitHub migration source](https://github.com/golang-migrate/migrate/blob/v4.20.1/source/github/github.go) uses google/go-github **39.2.0** `Repositories.GetContents`/`DownloadContents`.
+That package's only non-test OpenPGP call is [git_commits.go](https://github.com/google/go-github/blob/v39.2.0/github/git_commits.go): `CreateCommit` → `createSignature` → `ArmoredDetachSign`, alongside the `SigningKey` type.
+No `Git.CreateCommit`/OpenPGP call was found in Pocket ID or the GitHub migration source: this is a source-traced unused commit-signing dependency, not demonstrated authentication/backup-crypto exposure.
+Deprecated upstream dependency hygiene remains open; this is not proof of binary-symbol absence, an exploit, or an applicability exception.
+
+**Shared backup:** active upstream's latest [5.0.11 release](https://github.com/nfrastack/db-backup/releases/tag/5.0.11) is dated **November 12**.
+Its [latest-only security policy](https://github.com/nfrastack/db-backup/blob/5.0.11/SECURITY.md) leaves pinned **4.9.2 unsupported (high confidence)**, not the project abandoned.
+The [5.0.11 SQLite source](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go) still queries `*sql.DB` without a source `BEGIN`/transaction; `BEGIN`/`COMMIT` appear only in output SQL.
+Empty-table autoincrement and positional-argument fixes do not establish live-source consistency or v4 snapshot/receipt compatibility. Keep the working **4.9.2** pin; no v5 substitution is approved.
+Used musl **1.2.6-r2** has HIGH **CVE-2026-107891** (`regcomp`, fixed **-r3**): reviewed SQLite-pipeline patterns are fixed scripts/job `01` configuration, not database values; no crafted-regex precondition was identified.
+sudo **1.9.17_p2-r1** HIGH **CVE-2026-96512** requires time-based policy absent from inspected `/etc/sudoers` and its empty include directory.
+These narrow findings do not approve the whole image. A maintained compatible artifact or a separately approved narrow policy decision is still needed; **no exception is approved**.
+
+**BusyBox:** actual glibc remains **2.41-12+deb13u3**; the [Debian tracker](https://security-tracker.debian.org/tracker/source-package/glibc) now lists **2.41-12+deb13u5**.
+[CVE-2026-86805](https://security-tracker.debian.org/tracker/CVE-2026-86805) and [CVE-2026-95818](https://security-tracker.debian.org/tracker/CVE-2026-95818) are fixed there; reviewed prerequisites concern setuid/setgid, `AT_SECURE`, and `$ORIGIN` RPATH.
+No setuid/setgid files were found under actual `/bin`, `/usr`, or `/lib`; init's numeric `chown`/`chmod`/`printenv` needs no NSS network invocation and has no network/ports.
+[CVE-2026-97399](https://security-tracker.debian.org/tracker/CVE-2026-97399) concerns Power8, not AMD64. Known binary inventory narrows these cases, not zero CVEs or blanket clearance.
+The u3-to-u5 dependency-delivery lag remains; review is **partial, medium-confidence**. Init pin/profile are unchanged.
+
+**New-artifact AMD64 recovery passed today:** named Linux volumes, synthetic keys, no host ports; unchanged guard/v4 engine against a live healthy app with read-only source produced one GPG/ZSTD ciphertext + SHA1 pair.
+Independent decrypt/checksum, SQLite integrity/FKs, diagnostic linked rows/BLOB/index/view/trigger, and exact encrypted signing/session KV bytes passed.
+A fresh **same-v2.19.3-image/same-key** restore became healthy after a **95-second test wait** for copied lease expiry; actual HTTP public JWKS/key IDs matched. Missing-SHM copies still rejected.
+No production startup sleep, browser/passkey ceremony, token issuance, or production acceptance is claimed.
+**Retention passed at 20:18:14 UTC:** exact v2.19.3/current guard, healthy app, one completion, exit `0`; valid 49h pair removed, 47h pair retained and SHA1-verified, exactly one new valid pair (two total). All test-owned resources were cleaned up.
+**Full required validation passed on 2026-11-21:** `mise exec -- lefthook run pre-commit`, all **11 applicable validators**, including **286 BATS tests (174 seconds)** and native format/schema/directory/Compose, Gitleaks, Trivy, Checkov, and MkDocs checks.
+Separately, **71 targeted tests passed (32 guard + 39 DCCD)**. Baseline `format_duration` command-not-found warnings remain: suite success does **not** make those legacy assertions meaningful; no scope fix is claimed.
+November 8 retention/BATS/full-hook passes below remain dated historical evidence, not tests of v2.19.3.
+
 ### Image and Recovery Evidence 2026-11-08
 
-**Candidate remains blocked; no activation or applicability exception.**
+**Historical v2.19.2 evidence — candidate remained blocked; no activation or applicability exception.**
 Supported [release v2.19.2](https://github.com/pocket-id/pocket-id/releases/tag/v2.19.2)
 was published **2026-11-02 at 20:18:20 UTC**, including PR #1872 and
 vulnerable-dependency fixes. The selected artifact delivers **Go-jose 4.1.6**,
@@ -129,7 +186,9 @@ vulnerable-dependency fixes. The selected artifact delivers **Go-jose 4.1.6**,
 Go-jose HIGH and the older zod/x/net versions are fixed in this image,
 not merely on an unreleased branch.
 
-Verified AMD64 identities (`sha256`), using the index pins in the services table:
+Historical app index: `ghcr.io/pocket-id/pocket-id:v2.19.2-distroless@sha256:a21166a4eb513d2ffcbf815398480998d996a9e719cfba029395517658626f9e`, not today's services-table pin.
+Labels were `2.19.2` / revision `2b2750ed61e0016f4c15630322d15ca22143cdb6`; `v2-distroless` resolved to this same index on November 8.
+Verified AMD64 identities (`sha256`); backup/init pins are unchanged:
 
 - App manifest: `7b1231ff19150d2003ab4e2f26c363c812e051ac5df6f27e5e3835f9781890fb`
 - App config: `7db4825f42e30135683fcfc5197ed36f041944f35177ad0148d429251760a6a4`
@@ -249,7 +308,7 @@ package inventory. These historical raw counts are not current applicability dec
 adoption clearance.** These Trivy **0.75.0** scans used the old app index pin
 `ghcr.io/pocket-id/pocket-id:v2-distroless@sha256:d035c9c229304cfd25f97a79b2da00bde9cf942abbd70430d452a95420e2836b`
 (label `v2.19.1`, revision `23c7f07f7ef80cd14b991541784f1182dbdaf249`),
-not the current v2.19.2 pin; backup/init pins are unchanged.
+not the current v2.19.3 pin; backup/init pins are unchanged.
 Counts are raw, not deduplicated or proof that every affected package/path executes.
 All times UTC on **2026-10-29**: database updated **13:09:46**, downloaded
 **18:48:53**; scans: app **18:49:07**, backup **18:49:23**, BusyBox **18:49:17**.
@@ -457,11 +516,11 @@ Init's minimum-length check is not proof of the required random key generation.
 
 - [x] Run isolated exact-image diagnostics on the approved rootless Podman
       runtime with native Linux volumes, synthetic state, and test-only secrets.
-- [x] Verify supported `v2.19.2-distroless` delivers Go-jose **4.1.6**,
+- [x] Verify supported `v2.19.3-distroless` delivers Go-jose **4.1.6**,
       zod **4.6.7**, and x/net **0.62.0** in the exact pinned artifact.
 - [ ] Review maintained upstream **exact artifacts** and retain dated
       inventories/applicability decisions. Complete `GO-2026-5932` OpenPGP
-      call-path/applicability assessment (binary symbols are present),
+      dependency review after the November 21 unused commit-signing source trace,
       scoped backup/libc and BusyBox review, and resolve the
       unsupported backup artifact; fixed app dependencies do not clear adoption.
 - [x] Execute the thin fail-closed guard around the original backup engine;
@@ -476,7 +535,7 @@ Init's minimum-length check is not proof of the required random key generation.
       and records, exact encrypted signing/session KV bytes, and fresh app health
       with the same test key after natural Francis lease expiry; actual source
       and restored HTTP endpoints returned identical public JWKS/key IDs;
-      final `v2.19.2` image rerun passed November 8.
+      `v2.19.2` rerun passed November 8; `v2.19.3` rerun passed November 21.
 - [x] Complete full mandatory pre-commit validation on November 8;
       all 15 selected validators passed, including the required 281-test BATS suite.
 - [ ] Prove representative uploads/client recovery and actual passkey/OIDC

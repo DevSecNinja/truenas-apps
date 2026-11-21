@@ -1075,17 +1075,19 @@ Missing SHM reproduced a conditional read-only open failure, not permanent v4
 incompatibility. Existing `depends_on: service_healthy` needs no arbitrary
 sleep; 66 guard/DCCD regressions and Pocket ID's synthetic 49h/47h retention
 boundary passed on October 29.
+The [November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+records pinned `v2.19.3-distroless`, Go `1.27.4` / x/crypto `0.59.0`, and retained
+Go-jose `4.1.6`, zod `4.6.7`, and x/net `0.62.0` fixes. Current-artifact guarded
+encrypted synthetic restore, actual HTTP public JWKS/key-ID equality, and
+49h/47h retention passed. Residual UNKNOWN `GO-2026-5932` now belongs to the
+separate deprecated OpenPGP module; source tracing found an unused commit-signing
+dependency, not demonstrated authentication/backup-crypto exposure or clearance.
+Unsupported backup 4.9.2 and partial BusyBox/glibc review still block adoption.
 The [November 8 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
-confirms supported `v2.19.2-distroless` delivers Go-jose `4.1.6`, zod `4.6.7`,
-and x/net `0.62.0`, fixing the former app dependency versions. Final-image
-guarded encrypted synthetic restore, actual public JWKS/key-ID equality, and
-49h/47h retention passed again. Unsupported backup 4.9.2, remaining
-applicability review, and BusyBox/glibc security/maintenance gaps still block
-adoption. Residual UNKNOWN `GO-2026-5932` has OpenPGP symbols present in the
-actual app binary; call-path reachability/use remains unresolved, not exempted.
-The required 281-test BATS
-suite passed from a staged-index Linux snapshot, with the documented legacy
-`format_duration` assertion caveat; full pre-commit validation passed on **2026-11-08**.
+retains historical v2.19.2 recovery/retention, required 281-test BATS with the
+legacy `format_duration` caveat, and full pre-commit passes. On **November 21**,
+all 11 applicable pre-commit validators (286 BATS) and 71 separate targeted tests
+passed; baseline `format_duration` warnings and the legacy-assertion caveat remain.
 The earlier helper reported `NoNewPrivs=0`; these tests do not establish
 full-stack hardening, TrueNAS ACL behavior, or production acceptance.
 A separate Docker/TrueNAS runtime test is not a premerge prerequisite. See

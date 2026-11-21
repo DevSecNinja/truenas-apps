@@ -90,15 +90,18 @@ active app/dataset entry or integration changes. Its
 is inactive and not available for reuse; no account is provisioned or active
 in the registry. SOPS secret provisioning and validation are complete.
 Earlier native Apple ARM64 init/startup/health and SQLite persistence passed.
-The [November 8 evidence](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-08)
-confirms supported `v2.19.2-distroless` delivers the Go-jose, zod, and x/net
-fixes. Final-image AMD64 guarded read-only-source backup, encrypted synthetic
+The [November 21 evidence](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-21)
+records pinned `v2.19.3-distroless` and delivered Go/x/crypto updates.
+Current-artifact AMD64 guarded read-only-source backup, encrypted synthetic
 restore with identical public JWKS/key IDs, and 49h/47h retention passed.
-The required 281-test BATS suite passed from a staged-index Linux snapshot,
-with a legacy `format_duration` assertion caveat; full pre-commit validation
-passed on **2026-11-08**. Unsupported backup 4.9.2, remaining
-applicability review, and BusyBox/glibc security/maintenance gaps still block
-adoption and activation. Separate Docker/TrueNAS runtime validation is not a
+OpenPGP is source-traced to an unused commit-signing dependency, not demonstrated
+authentication/backup-crypto exposure; dependency hygiene, unsupported backup
+4.9.2, and partial BusyBox/glibc review still block adoption and activation.
+The [November 8 evidence](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-08)
+retains historical v2.19.2 recovery, 281-test BATS (including the legacy
+`format_duration` caveat), and full pre-commit passes. On **November 21**, full
+pre-commit (286 BATS) and 71 separate targeted tests passed; the legacy caveat remains.
+Separate Docker/TrueNAS runtime validation is not a
 premerge prerequisite. See the
 [Windows continuation checklist](services/pocket-id/README.md#windows-continuation-checklist).
 Passkey/client acceptance is required before production reliance; no Entra

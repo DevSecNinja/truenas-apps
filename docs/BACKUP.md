@@ -1037,10 +1037,11 @@ The table describes configured coverage, not proof that the latest run succeeded
 
 **Pocket ID is not covered by the active database-backup inventory above.**
 It is a [blocked candidate](services/pocket-id.md), not a deployed or
-deploy-ready identity provider. Exact-image encrypted synthetic restore passed
-on **2026-10-29** and again with the final **v2.19.2** image on **2026-11-08**;
-no production dataset or storage-layer coverage is verified, and recovery
-acceptance remains incomplete.
+deploy-ready identity provider. The [November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+records **v2.19.3** guarded read-only-source encrypted synthetic restore,
+actual public JWKS/key-ID equality, and 49h/47h retention passes.
+October 29 (**v2.19.1**) and November 8 (**v2.19.2**) results below remain historical;
+no production dataset/storage-layer coverage or recovery acceptance is established.
 
 The [verified 4.9.2 source](https://github.com/nfrastack/db-backup/blob/4.9.2/rootfs/container/functions/10-dbbackup#L796-L821)
 uses SQLite's `.backup` command (the SQLite Online Backup API), producing a
@@ -1053,15 +1054,17 @@ encryption, retaining **2880 minutes** at
 `services/pocket-id/backups/db-backup`. The proposed
 `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
 artifact is an **unsupported tag**; the
-[November 8 scan](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
-still reports raw HIGH/CRITICAL findings. The
+[November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+records fresh raw HIGH/CRITICAL counts and narrowed musl/sudo preconditions,
+not whole-image approval. The
 [October 29 tool-path review](services/pocket-id.md#image-evidence-2026-10-29)
-remains dated evidence, not a complete fresh applicability review. The fresh
-shared-backup review rates runtime musl `CVE-2026-107891` HIGH (previously
-UNKNOWN); affected libc is present, but untrusted-regexp reachability is unproven.
-No exception or clearance is approved. Upstream support is a separate policy
-blocker, not evidence of functional incompatibility. Review maintained artifacts
-and retest replacements.
+remains historical. Latest upstream **5.0.11** (November 12) still uses independent
+source queries; its output-SQL `BEGIN`/`COMMIT` and schema fixes do not prove
+live-source consistency or v4 compatibility. The working 4.9.2 pin is unchanged.
+Upstream's latest-only support policy is a separate blocker, not evidence of
+functional incompatibility or project abandonment. A maintained compatible
+artifact or separately approved narrow policy decision is still needed;
+no exception or clearance is approved.
 Do not recommend a v5/latest substitution without the separately tested
 [compatibility migration](#v4-compatibility-constraint).
 
@@ -1086,7 +1089,7 @@ snapshot edits or key regeneration. The current thin guard also passed; actual
 source/restored HTTP `/.well-known/jwks.json` responses matched exactly,
 including key IDs. See [exact identities and test scope](services/pocket-id.md#exact-image-diagnostic-2026-10-29).
 
-**Final-image AMD64 regression — 2026-11-08:** isolated rootless Podman with
+**Historical v2.19.2 AMD64 regression — 2026-11-08:** isolated rootless Podman with
 named Linux volumes passed healthy initialization, guarded backup with read-only
 source/configuration, one dump/completion and one GPG/ZSTD ciphertext + SHA1 pair.
 Independent decryption, integrity/FKs, diagnostic linked rows/schema, and exact
@@ -1095,7 +1098,7 @@ image with the same synthetic key became healthy after the copied lease's
 95-second test wait; actual HTTP public JWKS/key IDs matched. Missing SHM
 still failed closed. No ports or production secrets were used, and all
 test-owned resources were cleaned up. See the
-[current artifact and test scope](services/pocket-id.md#image-and-recovery-evidence-2026-11-08);
+[historical artifact and test scope](services/pocket-id.md#image-and-recovery-evidence-2026-11-08);
 this is not browser/passkey/full OIDC acceptance or a production startup sleep.
 
 In the October 29 diagnostic, default `sqlite3` and `-readonly` both worked live
@@ -1201,7 +1204,7 @@ Version 5 is not a drop-in replacement for the configured v4 commands,
 environment variables, completion logs, and restore workflow.
 
 Compatibility does not establish upstream support or security: the
-[2026-11-08 Pocket ID image review](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
+[2026-11-21 Pocket ID image review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
 reports raw HIGH/CRITICAL findings and incomplete scoped applicability review.
 This exact 4.9.2 tag remains unsupported under upstream's latest-only fixes
 policy. Successful guarded synthetic restore does not clear Pocket ID
