@@ -1067,7 +1067,7 @@ alone are not a coordinated archive backup.
 [TREK](services/trek.md) remains blocked on Pocket ID operational/adoption
 readiness, image adoption, live provider/proxy/SSO checks, target-host operator
 acceptance, and storage recovery coordination. Synthetic live-WAL backup and
-full recovery passed for the current `5.1.0` candidate on 2026-11-08;
+full recovery passed for the current `5.1.4` candidate on 2026-11-21;
 they are not production approval.
 No active DNS, Traefik network attachment, or provisioning registry entry exists.
 `services/traefik/compose.trek.yaml` is an inert fragment, not an active include.
@@ -1080,7 +1080,7 @@ the app network exists.
 | `trek-db-backup` | No network; `./data/app:ro` source and writable backup output; writable-root s6/capability exception is not approved                   |
 | `trek-init`      | No network; validates secrets, then prepares only runtime data paths with `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                            |
 
-The candidate explicitly sets `TREK_SERVICES: "off"` to opt out of `5.1.0`'s
+The candidate explicitly sets `TREK_SERVICES: "off"` to opt out of upstream's
 default automatic enrollment in upstream hosted map services. The tested app
 accepted the setting and booted in `off` mode; no community-sharing consent
 has been granted. This opt-out is not a network-egress control.
@@ -1106,7 +1106,7 @@ Profiles are **not a security boundary**: explicitly targeted services can
 start despite default exclusion. Do not use profile overrides, targeted
 Compose, or generic deployment to bypass the
 [activation prerequisites](services/trek.md#activation-prerequisites).
-The current `5.1.0`
+The historical `5.1.0`
 [2026-11-08 Linux AMD64 run](services/trek.md#live-linux-backup-and-recovery-evidence)
 verified `CapEff=0`, `NoNewPrivs=1`, read-only root with an actual write denied,
 writable `/tmp`, 1 GiB memory, PID limit `100`, and no host ports.
@@ -1123,11 +1123,9 @@ the 41 historical mocked backup tests were not rerun that day.
 Keys/uploads were unchanged during the database writer tests; a coherent
 storage-layer recovery set is still required. Common
 backup/BusyBox adoption remains with Pocket's coordinator; the
-[supplied shared review](services/trek.md#shared-image-review-pocket-coordinator-2026-11-08)
-was updated on 2026-11-08: musl `CVE-2026-107891` (`regcomp`) is now HIGH,
-not the historical UNKNOWN, with untrusted-regexp reachability unproven.
-It retains the historical partial BusyBox inventory/provenance and does not
-waive unsupported-tag or unresolved-applicability concerns. The fresh
+[supplied shared review](services/trek.md#shared-image-review-pocket-coordinator)
+was updated on 2026-11-21. Its narrow local-pipeline applicability findings
+do not waive backup support or broader init-maintenance review. The current
 [TREK image scan](services/trek.md#image-evidence) likewise leaves adoption
 blocked; functional recovery does not approve parser/base findings.
 

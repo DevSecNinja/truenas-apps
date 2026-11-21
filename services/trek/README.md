@@ -6,7 +6,7 @@ not deployed or approved.** This integration depends on operational completion
 of Pocket ID [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949).
 Pocket ID operational readiness and adoption remain gated; no provider
 deployment, TREK client issuance, or activation is confirmed.
-The latest 2026-11-08 synthetic backup/recovery proof below is not activation approval.
+The latest 2026-11-21 synthetic upgrade/backup/recovery proof below is not activation approval.
 Do not merge TREK before Pocket ID is complete.
 
 ## Why
@@ -55,7 +55,7 @@ flowchart TD
 
 | Service          | Image                                 | Role and isolation                                                                                                                        |
 | ---------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `trek`           | `docker.io/mauriceboe/trek:5.1.0`     | Direct non-root Node process with dumb-init; bypasses root-only chown/gosu startup; read-only root, no capabilities, private `/tmp` tmpfs |
+| `trek`           | `docker.io/mauriceboe/trek:5.1.4`     | Direct non-root Node process with dumb-init; bypasses root-only chown/gosu startup; read-only root, no capabilities, private `/tmp` tmpfs |
 | `trek-db-backup` | `docker.io/nfrastack/db-backup:4.9.2` | Unapproved writable-root s6 compatibility candidate; no network; read-only database source                                                |
 | `trek-init`      | `docker.io/library/busybox:1.38.0`    | Root, one-shot, no network; only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                                                                        |
 
@@ -63,11 +63,11 @@ All three services use `trek-candidate`, shared `tz.env`,
 `no-new-privileges=true`, and a PID limit of 100. Memory declarations are
 `64m` for init, `${MEM_LIMIT:-1024m}` for the app, and
 `${BACKUP_MEM_LIMIT:-512m}` for backup. The app's default memory and PID limits
-were verified in the current `5.1.0` and historical `5.0.1`/`5.0.0`
+were verified in the current `5.1.4` and historical `5.1.0`/`5.0.1`/`5.0.0`
 [Linux AMD64 runs](#live-linux-backup-and-recovery-evidence);
 this does not validate every service's resource limit.
 
-`TREK_SERVICES: "off"` explicitly opts out of `5.1.0`'s default automatic
+`TREK_SERVICES: "off"` explicitly opts out of upstream's default automatic
 enrollment in upstream hosted map services. The environment schema accepts
 `auto`/`off`, and the tested app booted in `off` mode. This preserves the
 unenrolled candidate; no community-sharing consent has been granted.
@@ -138,9 +138,13 @@ Never replace original application keys merely to make a restore start.
   with incomplete applicability review: require a maintained compatible
   artifact or an explicit, narrow, dated exception; none is granted.
   Replacement is not required merely for assumed read-only incompatibility.
+- Review first-run add-on policy before deployment: `5.1.4` enables journeys
+  and collections by default on new installs, but preserves existing choices.
+  Keep hosted-service enrollment off and require explicit operator decisions
+  for add-ons and community sharing; the upgrade test preserved both add-ons off.
 - Obtain target-host operator acceptance and coordinate storage-layer recovery
-  of the database, original keys, and uploads. The 2026-11-08 Linux AMD64 run
-  proved synthetic live-WAL backup, full recovery, and app hardening; it did
+  of the database, original keys, and uploads. The 2026-11-21 Linux AMD64 run
+  proved synthetic upgrade, live-WAL backup, full recovery, and app hardening; it did
   not exercise changing uploads or production TrueNAS recovery.
 - Through review, add registry key `trek` to `truenas-apps.json` with
   `account_name: svc-app-trek`, `account_id: 3134`, and
@@ -156,11 +160,12 @@ Never replace original application keys merely to make a restore start.
 ### Windows Continuation Checklist
 
 Candidate continuation on branch `devsecninja-trek-service` began on Windows
-on **2026-10-28** and resumed on **2026-11-08** after the host slept.
+on **2026-10-28** and resumed on **2026-11-08** after the host slept;
+the latest evidence refresh is **2026-11-21**.
 **This is not deployment approval.** Production encrypted
 secrets and original application/backup keys remain preserved; do not rotate
 or regenerate them. The dated Linux evidence below distinguishes completed
-historical checks from the current `5.1.0` run; it does not clear production
+historical checks from the current `5.1.4` run; it does not clear production
 or adoption gates. Any eventual commit requires 1Password-only signing.
 
 - [ ] Complete Pocket ID #949 operationally, not merely merge it. Verify the
@@ -194,6 +199,13 @@ or adoption gates. Any eventual commit requires 1Password-only signing.
 - [x] Run the new Compose opt-out regression for `TREK_SERVICES: "off"`;
       all 19 Compose/init/activation tests passed with exact BATS 1.14.0
       on 2026-11-08, including the new assertion.
+- [x] Rerun all 19 existing Compose/init/activation tests against the final
+      `5.1.4` pin: passed with exact BATS 1.14.0 on 2026-11-21, without
+      production test changes. Current receipts and cleanup are also verified.
+- [x] Complete required validation on 2026-11-21: all 10 selected pre-commit
+      checks passed, as did a separate strict MkDocs build of the actual docs
+      with 32 materialized tracked link targets. Earlier full-suite passes
+      remain historical, not rerun claims.
 - [ ] Obtain target-host operator acceptance and coordinate a coherent
       database/keys/uploads storage recovery set.
 - [ ] Complete live provider/proxy/SSO allow/deny validation; synthetic
@@ -251,8 +263,8 @@ reviewed activation changes are available:
 
 ## Backup
 
-**Candidate coverage only; real synthetic live-WAL backup and full recovery
-passed for `5.1.0` on 2026-11-08.** The unchanged wrapper and original `/init` sidecar
+**Candidate coverage only; real synthetic upgrade, live-WAL backup, and full recovery
+passed for `5.1.4` on 2026-11-21.** The unchanged wrapper and original `/init` sidecar
 succeeded on Linux AMD64 with the source inspected as `RW=false`.
 Historically, the **2026-10-27 native ARM64 run failed**: `sqlite3 .backup`
 hung, timed out after 300 seconds, exited `124`, and emitted `ERROR`, with no
@@ -298,10 +310,10 @@ No production database or storage-layer backup coverage is claimed.
 
 ### Live Linux Backup and Recovery Evidence
 
-The latest run on **2026-11-08** used rootless **Podman 5.8.6**,
-**Compose 5.5.1**, and Linux AMD64, as did the historical 2026-10-29 runs.
-The host SHA256-verified the official `5.1.0` OCI index, AMD64 child, and every
-blob before loading the unchanged image; no rebuild or substitution occurred.
+The latest run on **2026-11-21** used rootless **Podman 5.8.6**,
+**Compose 5.5.1**, and Linux AMD64, as did the historical November 8 and
+October 29 runs. Podman pulled the exact official `5.1.4` index/AMD64 child
+and verified the image config digest; no rebuild or substitution occurred.
 The backup artifact and bounded wrapper remain unchanged from source `589cd19`,
 with wrapper SHA256
 `6b59bb8de430c5de31fb016ccd048a734522f60db7f421242c0d7f29d9d0d42b`.
@@ -311,17 +323,39 @@ Exact version-specific pins are retained in [Image Evidence](#image-evidence).
 All secrets were synthetic, with isolated internal/no-egress networking,
 no published ports, and labeled Linux named storage. The runs used child
 bind paths within the owned named volume because Podman Compose ignored
-`volume.subpath`. Tracked configuration changes are limited to the candidate app pin
-and explicit `TREK_SERVICES: "off"`; secrets, profiles, and activation gates
-are unchanged.
+`volume.subpath`. This refresh changes only the app pin to `5.1.4`; the existing
+`TREK_SERVICES: "off"`, secrets, profiles, and activation gates are unchanged.
+
+#### November 21 — Current Candidate
+
+Verified runtime evidence, **not deployment approval**:
+
+| Check                       | November 21 result / limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Upgrade                     | Started `5.1.0` on empty synthetic state, then seeded admin/nonmember users, trips, OIDC subject/issuer, a native AES-GCM maps API value, trip file/text upload, server-side sessions and native HS256 JWTs **before upgrade**, deleted/live chat rows, and journeys/collections off. Exact `5.1.4` became healthy without manual database repair; key/decryption/upload/session and access checks below passed before backup too.                                                                                                                                                                           |
+| Schema and data             | 550 → 554 SQL objects: only `storage_reclaim_marks`, `storage_release_queue`, and their two autoindexes added; no prior SQL objects modified. Geography data also changes. The [deleted-chat migration](https://github.com/liketrek/TREK/blob/v5.1.4/server/src/db/migrations/Migration20200101046370_a_deleted_chat_message_keeps_no_text.ts) blanked old deleted text, retained live text; the [new-install defaults migration](https://github.com/liketrek/TREK/blob/v5.1.4/server/src/db/migrations/Migration20200101046360_a_new_install_starts_with_more_addons_on.ts) preserved existing add-ons off. |
+| Live backup                 | Original `4.9.2` `/init` and unchanged bounded wrapper exited `0` while the writer completed 417 transactions. Binary snapshot had coherent `users.display_name` / `trips.description` revision `211`; live database/WAL/SHM stayed readable on the `RW=false` source, and a source write failed. Each successful cycle had one fresh GPG/ZSTD + SHA1 pair, reserved ownership/mode `0600`, and exactly one start, `Backup 01` zero-exit receipt, and wrapper-success message.                                                                                                                               |
+| Full restore and recreation | Actual checksum/decrypt/decompress/integrity/foreign-key checks passed; restored into a fresh `5.1.4` volume with original `.encryption_key`, `.jwt_secret`, and uploads. Healthy; all 554 schema objects matched. Original keys, AES-GCM decryption, upload HTTP `200`, **pre-upgrade** session `/api/auth/me` `200`, owner `200`, nonmember `404`, anonymous `401`, cleared deleted chat, retained live chat, and add-ons off all passed again after force-recreation. No expiry/clock workaround.                                                                                                         |
+| Retention and hardening     | Second actual sidecar cycle exited `0`; 49-hour pair removed, 47-hour pair preserved. App used the [reserved identity](../INFRASTRUCTURE.md#trek-candidate-identity), `CapEff=0`, `NoNewPrivs=1`, read-only root, 1 GiB memory, PID limit `100`, data paths `0700`, and keys `0600`. Root-filesystem write failed; `/tmp` write passed.                                                                                                                                                                                                                                                                      |
+| Cleanup / remaining checks  | Four test containers, four named volumes, and two networks removed November 21; all label queries empty. All 19 existing Compose/init/activation tests passed with exact BATS 1.14.0 against the final pin, without production test changes. All 10 selected required pre-commit checks and a separate strict MkDocs build with 32 materialized tracked link targets passed. ARM64, hardware/mobile, live Pocket ID/proxy/SSO, changing-upload coordination, and production TrueNAS recovery are not proven by this run. No regression code fix was needed beyond the pin.                                   |
+
+Full `5.1.4` schema SHA256:
+`650c87774045a75e222f31d24d07ef1ef9845eb358fc57baa63be638ba8dcf44`.
+Chat text removal is logical deletion, not physical secure erasure or removal
+from older backups. These direct-app tests do not issue an OIDC client.
+
+#### Historical Run Summary
 
 | Run                              | Live writer / consistent snapshot revision | Full recovered schema                            | Restored-app recreation / retention                                            | Runtime cleanup                                                                                |
 | -------------------------------- | ------------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `5.1.0`, 2026-11-08 — current    | 929 transactions / `115`                   | All 550 objects match the fresh `5.1.0` manifest | All recovery assertions repeated; 49-hour pair deleted, 47-hour pair preserved | Four containers, four volumes, two networks removed 2026-11-08; empty label queries verified   |
+| `5.1.0`, 2026-11-08 — historical | 929 transactions / `115`                   | All 550 objects match the fresh `5.1.0` manifest | All recovery assertions repeated; 49-hour pair deleted, 47-hour pair preserved | Four containers, four volumes, two networks removed 2026-11-08; empty label queries verified   |
 | `5.0.1`, 2026-10-29 — historical | 798 transactions / `182`                   | All 542 objects match the `5.0.1` manifest       | All recovery assertions repeated; 49-hour pair deleted, 47-hour pair preserved | Four containers, four volumes, two networks removed 2026-11-08; empty label queries verified   |
 | `5.0.0`, 2026-10-29 — historical | 1,522 transactions / `235`                 | All 542 objects match the original manifest      | All recovery assertions repeated; 49-hour pair deleted, 47-hour pair preserved | Seven containers, seven volumes, two networks removed 2026-10-29; empty label queries verified |
 
-#### TREK 5.1.0 — Current Candidate
+#### TREK 5.1.0 — Historical Proof (2026-11-08)
+
+The host SHA256-verified that run's official OCI index, AMD64 child, and
+every blob before loading the unchanged image.
 
 - **Init and app:** the unchanged init ran, and the exact app became healthy
   with `TREK_SERVICES=off` confirmed in the environment and boot mode.
@@ -403,7 +437,7 @@ database encrypted/decrypted successfully, but the unchanged wrapper exited
 `1` for missing `users`/`trips` despite upstream's exit-`0` receipt.
 `GENERATE` as the passphrase exited `1` before backup, without a start,
 completion receipt, or wrapper-success message. These are not claimed as
-`5.0.1` or `5.1.0` reruns.
+`5.0.1`, `5.1.0`, or `5.1.4` reruns.
 
 The `5.0.1` resources persisted through the host's sleep until their verified
 2026-11-08 cleanup in the table above. Tokens minted on 2026-10-29 had a
@@ -460,20 +494,40 @@ None of these runs grants image adoption or Pocket ID readiness.
 
 ## Image Evidence
 
-Fresh exact-TREK-artifact review on **2026-11-08** used Trivy **0.76.0**,
-vulnerability DB `UpdatedAt=2026-11-08T06:39:21.614725497Z`,
-`NextUpdate=2026-11-09T06:39:21.614725236Z`. This is not adoption approval.
-The shared backup/BusyBox review below was supplied by Pocket's coordinator,
-with a **2026-11-08 musl update** to the 2026-10-29 review,
-**not independently rechecked by the TREK parent run**. It is not a blanket
-approval; it narrows
-applicability claims without granting adoption or clearing TREK's parser gate.
+The **2026-11-21** exact-artifact review used Trivy **0.76**,
+DB `UpdatedAt=2026-11-21T18:38:32.889609542Z`,
+`NextUpdate=2026-11-22T18:38:32Z`: 254 Debian 13.7 packages, 473 npm entries,
+and four Go entries; **146 raw OS HIGH/CRITICAL entries / 51 unique CVEs,
+zero fixed-distro HIGH/CRITICAL entries, zero npm/Go HIGH/CRITICAL**.
+Raw counts are not applicability findings or a global zero-CVE gate.
 
-| Image                       | Maintenance / confidence    | Decision and gaps                                                                                                                                                                                             |
-| --------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BusyBox `1.38.0`            | **unknown / medium**        | Empty scanner results; partial manual inventory/provenance now available, but pinned-build/libc applicability and delivery remain unreviewed; not approved                                                    |
-| nfrastack/db-backup `4.9.2` | **unmaintained tag / high** | Unsupported under [latest-only policy](https://github.com/nfrastack/db-backup/blob/main/SECURITY.md); demonstrated pipeline review narrows exposure but leaves unresolved applicability; no exception granted |
-| TREK `5.1.0`                | **partial / medium**        | Current candidate passed live backup/recovery; parser/base packages remain unchanged, with fixed-version findings and unresolved applicability; not approved                                                  |
+| Image                       | Maintenance / confidence    | Decision and gaps                                                                                                                                                                                                               |
+| --------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BusyBox `1.38.0`            | **unknown / medium**        | Narrow libc findings do not block this deployment path; broader exact-build maintenance/delivery review remains incomplete. Empty scanner output is not clearance.                                                              |
+| nfrastack/db-backup `4.9.2` | **unmaintained tag / high** | Functionally proven but unsupported under [latest-only policy](https://github.com/nfrastack/db-backup/blob/main/SECURITY.md). Require maintained compatible backup or an explicit narrow dated support exception; none granted. |
+| TREK `5.1.4`                | **partial / medium**        | Upstream delivered apt/zlib and AirTrail security fixes; parser/base coverage remains incomplete. Exact reachability and residual-risk review still required; not approved.                                                     |
+
+Actual `dpkg` verified `apt`/`libapt-pkg7.0=3.0.4` and
+`zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1`; the earlier
+`CVE-2026-109518`, `CVE-2026-76844`, and `CVE-2026-85091` findings are absent.
+They are **delivered fixes, not current blockers**.
+`libxml2` remains `2.12.7+dfsg+really2.9.14-2.1+deb13u3`; actual `ldd`
+confirmed the extractor links libxml2, zlib, Qt, and TIFF; it parses uploads.
+[CVE-2026-6653](https://security-tracker.debian.org/tracker/CVE-2026-6653)
+(use-after-free; trixie vulnerable, `no-dsa`/minor) and
+[CVE-2026-86138](https://security-tracker.debian.org/tracker/CVE-2026-86138)
+(heap overflow; trixie vulnerable) remain affected. Upstream fixed versions
+do not clear this Debian package. This is not dormant tooling, but neither
+is every raw finding proven exploitable. Parser/base residual risk and init
+maintenance remain adoption gates.
+
+[v5.1.4](https://github.com/liketrek/TREK/releases/tag/v5.1.4) was released
+`2026-11-12T19:56:12Z`; OCI revision
+`2bcfc1bfcbbff0affd097c0f789c835396389572`, created `2026-11-12T19:51:42Z`.
+The exact config digest below was verified on the pulled artifact.
+The verified [versioned security policy](https://raw.githubusercontent.com/liketrek/TREK/v5.1.4/SECURITY.md)
+retains latest-only support, Dependabot, and a 48-hour response target;
+these do not establish complete vulnerability coverage.
 
 Exact artifacts (all digests use SHA256):
 
@@ -482,8 +536,12 @@ Exact artifacts (all digests use SHA256):
 | Backup Compose index                                                | `cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412` |
 | Backup scanned `linux/amd64`                                        | `af1a483f04a19427be307c356645adc887352f1e3432bb21bd8b60ccf12c4012` |
 | BusyBox Compose index                                               | `fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d` |
-| TREK `5.1.0` current Compose index                                  | `23bf3fa6a134dc38a3b4f40ef8f7e8040abc96965105dffdcfcf5f202fb5d0b7` |
-| TREK `5.1.0` current scanned/tested `linux/amd64`                   | `15a8e9842367884d98de8c40ad72616cb59bb1f02e2f28334cd568508496e4aa` |
+| TREK `5.1.4` current Compose index                                  | `991ff5aa53244b25d5a8ea40361dc286cfc8211638044eabe12b9926729db5cc` |
+| TREK `5.1.4` current scanned/tested `linux/amd64`                   | `d0ece755ef4cc365fe656d42ffbb274d9880df4616fce7ed0d2d4ac7a20bc349` |
+| TREK `5.1.4` `linux/arm64` manifest (not runtime-tested)            | `3746d03d47e1c8e996dffd31135dfecc8955dbdabde2d13dbd1acac49fa8dad3` |
+| TREK `5.1.4` AMD64 image config                                     | `0b71074b57edbb0c45eab14e7c6635f95d13a25ccce78b9c6e39889842496cc9` |
+| TREK `5.1.0` historical index                                       | `23bf3fa6a134dc38a3b4f40ef8f7e8040abc96965105dffdcfcf5f202fb5d0b7` |
+| TREK `5.1.0` historical scanned/tested `linux/amd64`                | `15a8e9842367884d98de8c40ad72616cb59bb1f02e2f28334cd568508496e4aa` |
 | TREK `5.0.1` historical index                                       | `6f590b97c09158e92e9bc7d914ea1af207077735f07f7b622b1f6fb690442bc3` |
 | TREK `5.0.1` historical scanned/tested `linux/amd64`                | `425993143173a8475a9ce7847bff28fd4d850711407aba3a070fdfc2f9627189` |
 | TREK `5.0.1` historical `linux/arm64` manifest (not runtime-tested) | `8ff3c7ec0110431353495fb9bbc6c0bd8edd91db25794024663362c7e1ef84f2` |
@@ -492,7 +550,14 @@ Exact artifacts (all digests use SHA256):
 | TREK `5.0.0` historical scanned/tested `linux/amd64`                | `9d74cf9f4be6be29e452b00a0ac0525208dd0e9aaeb62605271b53bb4b83fa5c` |
 | TREK `5.0.0` historical native-tested `linux/arm64`                 | `ea5318f44cc989799848ec17e9b135611a87f2b073a035ea9b1b599830a12dfd` |
 
-- **Current TREK artifact:** [v5.1.0](https://github.com/liketrek/TREK/releases/tag/v5.1.0)
+### Historical Image Review (November 8 and Earlier)
+
+The **2026-11-08** review used Trivy **0.76.0**,
+DB `UpdatedAt=2026-11-08T06:39:21.614725497Z`,
+`NextUpdate=2026-11-09T06:39:21.614725236Z`. Findings and decisions below
+describe those artifacts on those dates, not the current `5.1.4` package state.
+
+- **Historical TREK artifact:** [v5.1.0](https://github.com/liketrek/TREK/releases/tag/v5.1.0)
   was published 2026-10-31; OCI revision
   `dc36c21c08f681fd2806764fad8e17b270f6f175`, created
   `2026-10-31T11:13:23Z`. The 2026-11-08 scan inventoried 254 Debian 13.7
@@ -506,14 +571,14 @@ Exact artifacts (all digests use SHA256):
   `a0943f8226269bc192c1cda992fbac33333337a1`, created
   `2026-10-28T10:48:25Z`. Its 2026-10-29 scan reported 76 raw distro
   HIGH/CRITICAL entries / 28 unique CVEs and no fixed-version entries;
-  those counts are superseded by the fresh scan above.
+  those counts were superseded by the November 8 scan above.
   The historical 54-commit `5.0.0` → `5.0.1` comparison changed only the
   three TREK version entries in package inventory, with no Dockerfile
   change and only lockfile version bumps; it was not a parser security fix.
   `5.0.0` was published 2026-10-25, OCI revision
   `bd1de9e1d50a0ef74adabcc86119178d017fc85d`.
 
-Fixed-version OS findings in the **2026-11-08** scan:
+Fixed-version OS findings in the **2026-11-08** scan, since fixed in `5.1.4`:
 
 | Packages / entries                   | Installed version             | CVE               | Fixed version                      |
 | ------------------------------------ | ----------------------------- | ----------------- | ---------------------------------- |
@@ -550,7 +615,7 @@ Fixed-version OS findings in the **2026-11-08** scan:
   [CVE-2026-74860](https://security-tracker.debian.org/tracker/CVE-2026-74860)
   concerns Python libxml2 SAX bindings; the exact `5.0.0` artifact checks
   found neither Python 3 nor `python3-libxml2`, excluding **that specific
-  path**, not libxml2 as a whole. No finding is silently excepted. TREK remains
+  path**, not libxml2 as a whole. No finding was silently excepted. TREK was
   **partial / medium**, requiring an upstream-fixed rebuilt artifact or an
   explicitly approved narrow exception for relevant findings and unknown
   reachability before adoption. **No exception is granted.**
@@ -568,13 +633,43 @@ Fixed-version OS findings in the **2026-11-08** scan:
   `libkitinerary` explains Debian slim rather than Alpine for document
   parsing. No alternate hardened application artifact was verified.
 
-### Shared Image Review (Pocket Coordinator, 2026-11-08)
+### Shared Image Review (Pocket Coordinator)
 
-- **Current coordinator update, 2026-11-08:** installed musl `1.2.6-r2`
-  has **HIGH** `CVE-2026-107891` (`regcomp`), fixed in `1.2.6-r3`.
-  No untrusted-regexp reachability has been proven; that is not proof of
-  unreachability. Unsupported `4.9.2` still requires scoped applicability
-  review and an adoption decision; **no exception is granted**.
+The **2026-11-21** coordinator result applies **only to the demonstrated
+local SQLite pipeline**, not every deployment of these shared images:
+
+- **Backup `4.9.2`:** same November 21 Trivy DB, 166 Alpine packages;
+  raw counts **4 CRITICAL / 167 HIGH / 152 MEDIUM / 90 LOW / 5 UNKNOWN**.
+  Musl `regcomp` inputs are fixed scripts/job IDs, not database rows;
+  actual sudoers **and includes** lack `NOTBEFORE`/`NOTAFTER` policies.
+  Those particular preconditions are absent, not automatic deployment
+  blockers. Broader applicability and unsupported-tag adoption remain open.
+- **Latest backup `5.0.11`:** the
+  [versioned SQLite implementation](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go)
+  still uses independent source queries through `*sql.DB`; `BEGIN`/`COMMIT`
+  wrap output, not a hot source snapshot. The empty-table autoincrement fix
+  does not establish live consistency or TREK compatibility. No blind
+  replacement of functionally proven but unsupported `4.9.2`, and no
+  implicit support exception.
+- **BusyBox `1.38.0`:** manual inventory found glibc
+  `2.41-12+deb13u3`, versus Debian's current `2.41-12+deb13u5`
+  ([tracker](https://security-tracker.debian.org/tracker/source-package/glibc)).
+  `CVE-2026-95818` / `CVE-2026-86805` require `AT_SECURE`, setuid/setgid,
+  and `$ORIGIN` RPATH; no elevated executables were found.
+  `CVE-2026-97399` targets Power8, not tested AMD64. These narrow findings
+  are not deployment blockers; broader exact-build maintenance/delivery
+  review is incomplete. Empty Trivy output is not evidence of a clean image.
+
+Provider recovery/JWKS evidence belongs to
+[Pocket ID PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949),
+not this TREK test. It does not establish a deployed issuer or issued client.
+
+#### Historical Shared Review
+
+- **Coordinator update, 2026-11-08:** installed musl `1.2.6-r2`
+  had **HIGH** `CVE-2026-107891` (`regcomp`), fixed in `1.2.6-r3`;
+  untrusted-regexp reachability was then unresolved. The scoped November 21
+  review above supersedes that uncertainty for this pipeline only.
 - **Historical backup inventory and exercised tools, 2026-10-29:** coordinator-supplied Trivy
   **0.75**, DB updated `2026-10-29T13:09:46Z`, inventoried 166 Alpine 3.24.1
   packages in the unchanged `4.9.2` artifact. Exercised Bash `5.3.9-r1`,
@@ -582,7 +677,7 @@ Fixed-version OS findings in the **2026-11-08** scan:
   `1.5.7-r2` had zero HIGH/CRITICAL findings in that scan; this is not
   whole-image clearance.
 - **Historical applicability review, 2026-10-29:** musl
-  `CVE-2026-107891` was then UNKNOWN; the HIGH rating above supersedes it.
+  `CVE-2026-107891` was then UNKNOWN; the November 8 HIGH rating superseded it.
   The HIGH sudo finding requires `NOTBEFORE`/`NOTAFTER` policy. Examined
   sudoers lacked those settings, but includes were not fully reviewed.
   OpenSSL QUIC-server, curl HTTP/2-upload, Brotli, Perl-regex, and unused
@@ -591,18 +686,18 @@ Fixed-version OS findings in the **2026-11-08** scan:
 - **Backup adoption:** [latest-only support](https://github.com/nfrastack/db-backup/blob/main/SECURITY.md)
   still leaves `4.9.2` unsupported. Require a maintained compatible artifact
   or an explicit, narrow, dated exception; **none is granted**. No downstream
-  dependency patching or blind v5 upgrade. Current upstream
-  [5.0.10](https://github.com/nfrastack/db-backup/releases/tag/5.0.10),
-  released 2026-11-04, includes SQLite schema fixes but has not been tested
-  for this TREK candidate. Consistent live-backup compatibility remains
-  unproven; it is not an approved drop-in replacement.
+  dependency patching or blind v5 upgrade. Then-current upstream
+  [5.0.10](https://github.com/nfrastack/db-backup/releases/tag/5.0.10)
+  was latest on November 8; released 2026-11-04, it included SQLite schema
+  fixes but had not been tested for this TREK candidate. Consistent
+  live-backup compatibility was unproven, not an approved drop-in replacement.
 - **BusyBox partial inventory/provenance, 2026-10-29:** scanner output was empty,
   but manual inspection identified BusyBox `1.38.0` (2026-05-13) and GNU
   libc Debian `2.41-12+deb13u3`, with dynamic `ld-linux`, `libc`, `libm`,
   `libnss`, and `libresolv`, and no package database.
   [Official Images provenance](https://github.com/docker-library/official-images/blob/master/library/busybox)
   maps `1.38.0` AMD64 to `latest`/`glibc` and a source commit. The pinned
-  build, libc applicability, and delivery remain unreviewed; neither empty
+  build, libc applicability, and delivery were then unreviewed; neither empty
   scanner output nor this partial inventory is approval.
 
 ### Native Runtime Evidence and Limits
@@ -632,3 +727,27 @@ Keep the candidate blocked while reviewing new upstream artifacts and exact
 digests under the [adoption policy](../ARCHITECTURE.md#adoption-gate-and-remediation-ownership).
 After approval, preserve a coordinated database/keys/uploads recovery point
 before upgrades and repeat OIDC, permissions, backup, and restore checks.
+
+Version-specific `5.1.4` review:
+
+- **AirTrail:** LOW
+  [GHSA-mwf5-5px8-c9h5](https://github.com/liketrek/TREK/security/advisories/GHSA-mwf5-5px8-c9h5)
+  affects `>=4.0.0` through `5.1.3`, fixed in `5.1.4`. A new host URL with a
+  masked/blank key now atomically clears the persisted key and requires a new
+  key; a same-origin path change retains it. Actual compiled `AirtrailService`
+  checks used repository/unit-of-work/audit stubs and real cryptography,
+  proving three transaction calls. No outbound calls or add-on enablement:
+  **not a full outbound integration test**.
+- **OIDC:** compiled `refreshLinkedUser` negative checks rejected unverified
+  email, self-asserted email, and a changed subject at the same issuer before
+  linking; verified email alone is **not sufficient**. Actual HTTP
+  `DELETE /api/admin/users/:id/sso` rejected non-admin (`403`) and self-unlink
+  (`400`). Admin removal of an SSO link is not blanket automatic email
+  relinking: confirm identity, verified email, and operator policy before
+  intentional unlinking. No real Pocket ID issuer/client was exercised.
+- **Native apps:** upstream closed testing now requires `5.1.4`; no
+  hardware/mobile tests or enablement are claimed.
+- **Migrations:** review [schema/data and add-on results](#november-21-current-candidate)
+  before deployment. Existing choices stay intact; explicitly review fresh
+  install defaults, and retain coordinated recovery sets rather than assuming
+  deleted chat was erased from older backups.

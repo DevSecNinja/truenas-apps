@@ -1418,7 +1418,7 @@ The **2026-10-27 native ARM64 backup failed**: the read-only WAL source hung in
 `ERROR`. That run produced no encrypted dump or successful restore; the
 [tested wrapper hash](services/trek.md#native-runtime-evidence-and-limits)
 identifies the historical artifact. **The successful Linux AMD64 runs,
-latest `5.1.0` on 2026-11-08, supersede the blanket failure claim:** the
+latest `5.1.4` on 2026-11-21, supersede the blanket failure claim:** the
 unchanged current wrapper and original `/init` sidecar proved encrypted
 live-WAL backup and full synthetic recovery with the source inspected as
 `RW=false`.
@@ -1427,19 +1427,19 @@ Candidate continuation began on Windows on **2026-10-28**; production keys
 and ciphertext remain preserved, and no TREK OIDC client has been issued;
 see the [continuation checklist](services/trek.md#windows-continuation-checklist).
 Image adoption remains blocked. The
-[shared review updated 2026-11-08](services/trek.md#shared-image-review-pocket-coordinator-2026-11-08),
-supplied by Pocket's coordinator rather than independently rechecked by the
-TREK parent run, now rates musl `CVE-2026-107891` (`regcomp`) **HIGH**:
-installed `1.2.6-r2`, fixed in `1.2.6-r3`; the 2026-10-29 UNKNOWN rating is
-historical. No untrusted-regexp reachability has been proven, not excluded.
-The historical exercised-tool review did not clear musl/sudo applicability
-or the whole image.
+[shared November 21 review](services/trek.md#shared-image-review-pocket-coordinator),
+supplied by Pocket's coordinator, applies only to the demonstrated local
+SQLite pipeline. Fixed script/job-ID regex inputs and sudoers **including
+includes** lack the particular musl/sudo exploit preconditions; those are not
+automatic blockers or whole-image clearance.
 Pinned `4.9.2` remains unsupported: require a maintained compatible artifact
 or an explicit, narrow, dated exception; none is granted. A replacement is
-not required merely for assumed read-only incompatibility. Current upstream
-`5.0.10` (2026-11-04) includes SQLite schema fixes but has not been tested
-for this TREK candidate; consistent live-backup compatibility remains unproven,
-and it is not an approved drop-in replacement.
+not required merely for assumed read-only incompatibility. Latest upstream
+`5.0.11` still uses independent `*sql.DB` source queries in its
+[SQLite engine](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go);
+`BEGIN`/`COMMIT` apply to output, not a hot source snapshot. Its empty-table
+autoincrement fix does not establish consistency or TREK compatibility;
+it is not an approved drop-in replacement.
 
 | Property        | Candidate implementation                                                                                                                                             |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1479,21 +1479,44 @@ historically; these are not current rerun claims. On **2026-11-08**, all
 **19 Compose/init/activation tests** passed with exact BATS 1.14.0, including
 the new `TREK_SERVICES: "off"` assertion. The prior 41 mocked backup tests
 were not rerun that day.
+On **2026-11-21**, all **19 existing Compose/init/activation tests** passed
+against the final `5.1.4` pin with exact BATS 1.14.0, without production test
+changes. All **10 selected required pre-commit checks** also passed:
+Compose, YAML formatting/lint, dprint, server validation, registry directories,
+gitleaks, Trivy, Checkov, and MkDocs. A separate strict MkDocs build of the
+actual docs with **32 materialized tracked link targets** passed.
+These November 21 results are not a rerun claim for the earlier full suites.
 
-**Latest actual runtime, 2026-11-08:** rootless Podman 5.8.6,
-Compose 5.5.1, Linux AMD64, the unchanged official `5.1.0` image with
-host-verified index/child/blob SHA256s, synthetic secrets, internal no-egress
+**Latest actual runtime, 2026-11-21:** rootless Podman 5.8.6,
+Compose 5.5.1, Linux AMD64, the pulled immutable official `5.1.4` index/child
+with verified config digest, synthetic secrets, internal no-egress
 networking, no published ports, and owned Linux named storage with child
 bind paths. See [live Linux evidence](services/trek.md#live-linux-backup-and-recovery-evidence)
 for exact pins, schema hashes, hardening, and version-specific results.
 
-| App / date                       | Full recovered schema                                                                     | Live writer / consistent snapshot revision | Recreation and retention                                                  |
-| -------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------- |
-| `5.1.0`, 2026-11-08 — current    | 550 objects; three added tables and five indexes, no other SQL schema change from `5.0.1` | 929 transactions / `115`                   | All recovery assertions repeated after force-recreation; retention passed |
-| `5.0.1`, 2026-10-29 — historical | 542 objects, including two additive nullable plugin columns                               | 798 transactions / `182`                   | All recovery assertions repeated after force-recreation; retention passed |
-| `5.0.0`, 2026-10-29 — historical | 542 objects                                                                               | 1,522 transactions / `235`                 | All recovery assertions repeated after force-recreation; retention passed |
+| App / date                       | Full recovered schema                                                                                                           | Live writer / consistent snapshot revision | Recreation and retention                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `5.1.4`, 2026-11-21 — current    | 554 objects; two tables and two autoindexes added to populated `5.1.0`, no prior SQL objects modified; data migrations also ran | 417 transactions / `211`                   | All recovery assertions repeated after force-recreation; retention, receipt counts, and cleanup verified |
+| `5.1.0`, 2026-11-08 — historical | 550 objects; three added tables and five indexes, no other SQL schema change from `5.0.1`                                       | 929 transactions / `115`                   | All recovery assertions repeated after force-recreation; retention passed                                |
+| `5.0.1`, 2026-10-29 — historical | 542 objects, including two additive nullable plugin columns                                                                     | 798 transactions / `182`                   | All recovery assertions repeated after force-recreation; retention passed                                |
+| `5.0.0`, 2026-10-29 — historical | 542 objects                                                                                                                     | 1,522 transactions / `235`                 | All recovery assertions repeated after force-recreation; retention passed                                |
 
-The current `5.1.0` run verified:
+**November 21:** upgraded populated `5.1.0` without manual database repair;
+the unchanged `4.9.2` sidecar/wrapper passed with live read-only database/WAL/SHM.
+Fresh binary recovery passed checksum, decrypt, decompress, integrity, and
+foreign-key checks. All 554 schema objects, original keys, native encrypted
+value, uploads, **pre-upgrade** sessions and direct-app authorization,
+deleted-chat clearing/live-chat retention, and existing add-ons off passed
+again after restored-app force-recreation, without clock/expiry workarounds.
+Both sidecar cycles exited `0`, each with one fresh encrypted pair at reserved
+ownership/mode `0600`; 49-hour output was removed, 47-hour output retained.
+Both logs confirmed exactly one start, `Backup 01` zero-exit receipt, and
+wrapper-success message. Live SQLite/WAL/SHM remained readable; source and
+root-filesystem writes failed, while `/tmp` writes passed.
+See the [compact current evidence](services/trek.md#november-21-current-candidate).
+Logical chat deletion does not erase older backup copies or physical storage.
+
+The historical `5.1.0` run on **2026-11-08** verified:
 
 - The original `4.9.2` `/init` sidecar and unchanged bounded wrapper exited
   `0` with exactly one encrypted GPG/ZSTD dump and SHA1 sidecar while the
@@ -1519,7 +1542,7 @@ The current `5.1.0` run verified:
 encrypted/decrypted successfully, but the unchanged wrapper exited `1` for
 missing `users`/`trips` despite upstream's exit-`0` receipt. A `GENERATE`
 passphrase exited `1` before backup, with no start, completion receipt, or
-wrapper-success message. Neither case is claimed as a `5.0.1`/`5.1.0` rerun.
+wrapper-success message. Neither case is claimed as a `5.0.1`/`5.1.0`/`5.1.4` rerun.
 
 The `5.0.1` one-day tokens returned `200` during the 2026-10-29 checks and
 correctly returned `401` on 2026-11-08 after real wall-clock expiry. This
@@ -1530,10 +1553,12 @@ production gates. The live writer changed **only the database**; keys/uploads
 were unchanged, so this is not a synchronized backup of changing uploads.
 Coherent storage-layer recovery, target-host operator acceptance, image
 adoption, Pocket ID readiness, and live provider/proxy/SSO checks remain pending.
-Runtime cleanup is verified for all three runs: `5.0.0` resources were removed
-on 2026-10-29. Both the `5.0.1` resources retained through sleep and the latest
+Runtime cleanup is verified for the three historical runs: `5.0.0` resources were removed
+on 2026-10-29. Both the `5.0.1` resources retained through sleep and the
 `5.1.0` resources were removed on 2026-11-08: four labeled containers, four
 named volumes, and two networks per run, with empty label queries afterward.
+November 21 cleanup also removed four test containers, four named volumes,
+and two networks, with all label queries empty.
 After activation, verify actual recursive snapshots, replicas, and off-site
 recovery before claiming dataset coverage or an RPO.
 
@@ -1617,7 +1642,7 @@ persisted encryption/JWT key material under `./data/app`, and matching
    Remove private decrypted scratch when validation completes; retain the
    protective snapshot and old state until recovery is accepted.
 
-This production procedure remains conditional guidance. The latest 2026-11-08
+This production procedure remains conditional guidance. The latest 2026-11-21
 synthetic full recovery succeeded, but did not exercise production storage
 recovery or live provider/proxy/SSO.
 [Image and runtime evidence](services/trek.md#image-evidence) does not clear

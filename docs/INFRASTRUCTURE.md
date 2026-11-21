@@ -975,7 +975,7 @@ do not establish storage-layer backup coverage.
 
 | Path                  | Candidate role                                                                                                                                                                                  |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `./backups/db-backup` | GPG/ZSTD binary SQLite and SHA1 sidecars; deployment-triggered, 48-hour retention; `5.1.0` synthetic live-WAL backup, full recovery, and retention verified 2026-11-08, not production coverage |
+| `./backups/db-backup` | GPG/ZSTD binary SQLite and SHA1 sidecars; deployment-triggered, 48-hour retention; `5.1.4` synthetic live-WAL backup, full recovery, and retention verified 2026-11-21, not production coverage |
 | `./config`            | Read-only Git-tracked backup wrapper; never chowned by init                                                                                                                                     |
 | `./data/app`          | SQLite `travel.db`, WAL/SHM, and persisted encryption/JWT key material                                                                                                                          |
 | `./data/uploads`      | Private travel documents, separate from the database dump                                                                                                                                       |
@@ -984,7 +984,7 @@ do not establish storage-layer backup coverage.
 [reserved identity](#trek-candidate-identity), applies `u=rwX,g=,o=`, and
 restricts `./data` to mode `0700`. The backup image manages its output
 ownership separately. Do not share these paths through media groups or SMB.
-The current `5.1.0` Linux AMD64 run on 2026-11-08 verified full synthetic
+The historical `5.1.0` Linux AMD64 run on 2026-11-08 verified full synthetic
 recovery of all 550 schema objects, original keys, encrypted values, uploads,
 and pre-backup sessions; all assertions passed again after force-recreation.
 The source was inspected as `RW=false`, and both successful sidecar runs
