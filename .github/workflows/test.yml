@@ -23,7 +23,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,19 +43,21 @@ jobs:
 
   unit-integration:
     # uses: DevSecNinja/.github/.github/workflows/bats.yml@  # after extraction
-    uses: ./.github/workflows/bats.yml
+    uses: ./.github/workflows/bats.yml # zizmor: ignore[self-repository] Pinned actionlint 1.7.12 rejects $/ syntax; retain the same-commit workflow.
     permissions:
       contents: read
       checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.10.13"
-      test-dirs: "tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration tests/truenas-prep-app/integration"
+      test-dirs: >-
+        tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration
+        tests/truenas-prep-app/integration tests/trek/integration
       check-name: "Unit & Integration Tests"
 
   e2e:
     # uses: DevSecNinja/.github/.github/workflows/bats-e2e.yml@  # after extraction
-    uses: ./.github/workflows/bats-e2e.yml
+    uses: ./.github/workflows/bats-e2e.yml # zizmor: ignore[self-repository] Pinned actionlint 1.7.12 rejects $/ syntax; retain the same-commit workflow.
     permissions:
       contents: read
       checks: write

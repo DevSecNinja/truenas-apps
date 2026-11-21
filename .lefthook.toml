@@ -70,8 +70,8 @@ run = "mise exec -- check-jsonschema --schemafile servers.schema.json servers.ya
 glob = ["servers.yaml", "servers.schema.json"]
 
 [pre-commit.commands.validate-servers-apps]
-run = "mise exec -- yq -r '.servers[].apps // [] | .[]' servers.yaml | sort -u | while IFS= read -r app; do if [ ! -d \"services/${app}\" ]; then echo \"ERROR: App '${app}' in servers.yaml has no services/${app}/ directory\"; exit 1; fi; done"
-glob = ["servers.yaml", "services/**/compose.yaml"]
+run = "bash scripts/validate-server-apps.sh"
+glob = ["servers.yaml", "services/**/compose.yaml", "scripts/validate-server-apps.sh"]
 
 [pre-commit.commands.validate-truenas-apps-schema]
 run = "mise exec -- check-jsonschema --schemafile truenas-apps.schema.json truenas-apps.json"
