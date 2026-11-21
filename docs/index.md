@@ -58,6 +58,7 @@ The setup follows
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                                                                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication                                                                |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                                                                              |
+| [Pocket ID](services/pocket-id.md)                                                            | Passkey OIDC provider alongside Entra — **controlled post-merge pilot; not deployed**                               |
 | [SQLite Web](https://github.com/coleifer/sqlite-web)                                          | SQLite database browser for Home Assistant                                                                          |
 | [Traefik](https://traefik.io/)                                                                | Reverse proxy with automatic SSL via Cloudflare DNS                                                                 |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth)                  | SSO authentication via Microsoft Entra ID                                                                           |
@@ -79,6 +80,25 @@ The enrollment guard applies only to TrueNAS-mode dccd. Raw Compose and
 generic/unscoped deployment outside TrueNAS mode can start this stack before
 its Custom App exists; do not use those paths before the activation
 prerequisites are complete.
+
+[Pocket ID](services/pocket-id.md) is implemented for a user-approved
+**controlled post-merge pilot**, not a production deployment or merged PR.
+The registry account and dataset are declared, not provisioned; DNS
+`id.${DOMAINNAME}` → `${IP_SVLNAS}` and the active Traefik frontend attachment
+are configured, and all three candidate profiles are removed.
+The [November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+clears the exact app and scoped AMD64 init operation. Backup 4.9.2 remains
+conditional on its [backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21),
+accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**
+and no automatic renewal. Review must complete before use on or after expiry.
+Follow the [post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff):
+sync/decrypt with `dccd-app pocket-id`, prepare, create the Custom App/network,
+then `dccd-all`. Coordinate cron so Traefik deploys only after that network exists.
+Independent original-key recovery, first-admin/passkey setup and client acceptance
+remain operator requirements before production reliance. New scoped proxy/config
+checks are recorded separately; real DNS, production TLS, Docker-provider and
+browser/passkey validation remain operator acceptance requirements. No Entra
+migration is included.
 
 The unused arr stack (Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd,
 Sonarr, and Spottarr) was retired from the repository on **2026-10-25**.
@@ -143,6 +163,7 @@ vm-pool/apps/services/open-archiver
 vm-pool/apps/services/openclaw
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
+vm-pool/apps/services/pocket-id
 vm-pool/apps/services/sqlite-web
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth

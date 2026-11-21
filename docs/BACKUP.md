@@ -1000,7 +1000,7 @@ database sidecars' 48-hour cleanup policy.
 ## Application-Level Database Backups
 
 The following stateful databases have application-consistent backup sidecars
-in their compose files today. Dawarich and Open Archiver use maintained
+in their compose files today. Dawarich, Open Archiver, and Pocket ID use
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
 `tiredofit/db-backup` v4. These are configured to produce compressed, encrypted
 dump files independent of ZFS snapshots — providing an application-consistent recovery
@@ -1018,7 +1018,8 @@ deployment, or storage-layer recovery.
 
 ### Covered Databases
 
-The table describes configured coverage, not proof that the latest run succeeded.
+The table describes configured coverage, not proof of deployment or that the
+latest run succeeded. Pocket ID is a controlled post-merge pilot, not deployed.
 
 | Service        | Database                                            | Backup sidecar             | Image family    | Encryption | Output path                                  |
 | -------------- | --------------------------------------------------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
@@ -1031,7 +1032,187 @@ The table describes configured coverage, not proof that the latest run succeeded
 | Memos          | SQLite                                              | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
 | Open Archiver  | PostgreSQL (DB01), Valkey via Redis protocol (DB02) | `open-archiver-db-backup`  | nfrastack 4.9.2 | GPG        | `services/open-archiver/backups/db-backup/`  |
 | Outline        | PostgreSQL                                          | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
+| Pocket ID      | SQLite                                              | `pocket-id-db-backup`      | nfrastack 4.9.2 | GPG        | `services/pocket-id/backups/db-backup/`      |
 | Unifi          | MongoDB                                             | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
+
+### Pocket ID Blocked-Candidate Coverage and Future Restore
+
+This heading retains the historical link anchor. **Pocket ID now has configured
+coverage for the [controlled post-merge pilot](services/pocket-id.md), not a
+production deployment.** App/init review is cleared for the documented scope;
+backup acceptance remains conditional on the exact exception below.
+The [November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+records **v2.19.3** guarded read-only-source encrypted synthetic restore,
+actual public JWKS/key-ID equality, and 49h/47h retention passes.
+October 29 (**v2.19.1**) and November 8 (**v2.19.2**) results below remain historical;
+no production dataset/storage-layer coverage or recovery acceptance is established.
+
+The [verified 4.9.2 source](https://github.com/nfrastack/db-backup/blob/4.9.2/rootfs/container/functions/10-dbbackup#L796-L821)
+uses SQLite's `.backup` command (the SQLite Online Backup API), producing a
+**binary SQLite snapshot**, not SQL text or a raw live-file copy, before
+compression/encryption/checksumming. The dated ARM64 failure and later AMD64
+success below are distinct evidence, not proof of permanent v4 incompatibility.
+The configured job uses manual mode once per DCCD deployment,
+ZSTD compression, SHA1 checksum and GPG
+encryption, retaining **2880 minutes** at
+`services/pocket-id/backups/db-backup`. The pinned
+`docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
+artifact is an **unsupported tag**; the
+[November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+records fresh raw HIGH/CRITICAL counts and narrowed musl/sudo preconditions,
+not whole-image approval. The
+[October 29 tool-path review](services/pocket-id.md#image-evidence-2026-10-29)
+remains historical. Latest upstream **5.0.11** (November 12) still uses independent
+source queries; its output-SQL `BEGIN`/`COMMIT` and schema fixes do not prove
+live-source consistency or v4 compatibility. The working 4.9.2 pin is unchanged.
+Upstream's latest-only policy still leaves this tag unsupported; that alone
+establishes neither functional incompatibility nor project abandonment. The
+[temporary backup risk exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
+records @DevSecNinja's **2026-11-21** acceptance and the coordinator-defined
+**2026-12-21** review/expiry: only Pocket ID's exact tested `linux/amd64`
+artifact/configuration and unchanged local SQLite one-shot guard/retention
+scope receive conditional backup-gate acceptance. No automatic renewal,
+digest/platform carry-over, or future-findings waiver applies; newly relevant
+findings or changed assumptions require immediate review. Expiry removes
+exception clearance for activation or continued use.
+**TREK, all other 4.9.2 stacks, and Pocket ID's app/init are excluded.**
+The exception does not itself authorize activation or extend to app/init:
+their scoped clearance and the controlled implementation were approved separately.
+No deployment or merge occurred. Independent original-key recovery,
+first-admin/passkey setup and client authorization remain operator requirements
+before production reliance, not claims already completed. Follow the
+[post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff)
+only after merge and readiness; if use begins on or after **2026-12-21**,
+complete review first. There is no new or broadened waiver.
+Do not recommend a v5/latest substitution without the separately tested
+[compatibility migration](#v4-compatibility-constraint).
+
+**Historical native ARM64 result — 2026-10-26:** the actual pinned 4.9.2 job could not
+open the read-only SQLite source (`unable to open database file`), skipped
+encrypted output/checksum, and nevertheless reported routine exit code `0`.
+Direct `.backup` and explicit `mode=ro` opens also failed. The same stopped
+synthetic database copied to writable scratch opened in WAL mode; `.backup`
+produced an integrity-checked snapshot containing the seeded record.
+That diagnostic alone was **not** an encrypted restore or live WAL test;
+the precise ARM64 failure cause remains unproven.
+
+**Historical exact-image AMD64 result — 2026-10-29:** rootless Podman with native named
+Linux volumes, no network/ports, a healthy real app, and genuinely read-only
+source passed the original `/init` → `backup01-now now` job. Exit `0` accompanied
+exactly one dump start/completion and one `.sqlite3.zst.gpg` + SHA1 set, with
+reserved app ownership, file mode `0600`, and output root `0700`. Independent
+checksum/decrypt/decompress, SQLite integrity/FKs, full seeded schema/records,
+and exact encrypted signing/session KV bytes passed. A fresh app using the same
+synthetic key became healthy after natural Francis host-lease expiry, without
+snapshot edits or key regeneration. The current thin guard also passed; actual
+source/restored HTTP `/.well-known/jwks.json` responses matched exactly,
+including key IDs. See [exact identities and test scope](services/pocket-id.md#exact-image-diagnostic-2026-10-29).
+
+**Historical v2.19.2 AMD64 regression — 2026-11-08:** isolated rootless Podman with
+named Linux volumes passed healthy initialization, guarded backup with read-only
+source/configuration, one dump/completion and one GPG/ZSTD ciphertext + SHA1 pair.
+Independent decryption, integrity/FKs, diagnostic linked rows/schema, and exact
+encrypted signing/session KV bytes passed. Restore into the same **v2.19.2**
+image with the same synthetic key became healthy after the copied lease's
+95-second test wait; actual HTTP public JWKS/key IDs matched. Missing SHM
+still failed closed. No ports or production secrets were used, and all
+test-owned resources were cleaned up. See the
+[historical artifact and test scope](services/pocket-id.md#image-and-recovery-evidence-2026-11-08);
+this is not browser/passkey/full OIDC acceptance or a production startup sleep.
+
+In the October 29 diagnostic, default `sqlite3` and `-readonly` both worked live
+and backup passed after a graceful stop that retained WAL/SHM.
+Deliberately omitting SHM from a stopped
+DB/WAL copy under a read-only mount reproduced the open failure in both modes:
+a conditional missing-metadata cause, not a proven ARM64 diagnosis.
+The existing `depends_on: service_healthy` is sufficient startup ordering.
+The [thin verification guard](services/pocket-id.md#database-backup) retains the
+original engine, uses private verification scratch, and fails closed on invalid
+source/output; no rw/`immutable` fallback or arbitrary sleep is introduced.
+The 66 guard/DCCD passes remain October 29 evidence. The required 281-test BATS
+suite passed from a November 8 staged-index Linux snapshot, with the documented
+legacy `format_duration` assertion caveat; full pre-commit validation passed on **2026-11-08**.
+The final-image retention rerun passed on **November 8 at 14:11:40 UTC**:
+with `DEFAULT_CLEANUP_TIME=2880` unchanged, the valid 49h ciphertext/SHA1 pair
+was removed, the 47h pair retained and checksum-verified, and exactly one new
+encrypted pair verified.
+Separate Docker/TrueNAS runtime validation is not a premerge prerequisite.
+
+The app uses `DB_CONNECTION_STRING=/app/data/pocket-id.db` and
+`FILE_BACKEND=database`, verified against
+[v2.19.1 `backend/internal/common/env_config.go`](https://github.com/pocket-id/pocket-id/blob/v2.19.1/backend/internal/common/env_config.go).
+Uploads are database-backed, so a consistent SQLite Online Backup API backup
+is a viable path; upstream export need not be the sole supported mechanism.
+Encrypted KV-byte and public JWKS continuity do not prove actual passkeys/login,
+OIDC issuance/token signing, mobile acceptance, or uploads/client recovery. Those
+remain gates before production reliance; preserve any additional persistent
+paths discovered during runtime review.
+
+<!-- dprint-ignore -->
+!!! warning "Controlled restore procedure — not production-validated"
+    Execute pilot operations only after PR #949 is merged and the operator is ready,
+    with valid backup exception clearance. Establish independent recovery of
+    the original app key and backup passphrase before relying on recovery.
+    Stop all writers before replacing live state. Successful synthetic restore
+    does not establish first-admin, passkey or client acceptance.
+
+1. Recover the compatible image/schema revision, a successful backup artifact
+   and checksum, original `ENCRYPTION_KEY`, and the matching
+   `DB_ENC_PASSPHRASE` through independent operator recovery. A fresh app key
+   cannot substitute for the original. Preserve client identities and mappings.
+2. Suspend deployment/backup automation and stop the Pocket ID application
+   before replacing any SQLite state. Ensure no app, backup process or other
+   writer has the database open. Preserve a protective checkpoint of the
+   existing database and its WAL/SHM files together before changing anything;
+   retain this rollback set separately from the replacement.
+3. Verify the selected artifact's checksum according to the backup tool's
+   actual format, then decrypt/decompress **outside the tracked checkout** in
+   a restricted scratch directory, mode `0700`, with plaintext files mode
+   `0600`. Never log passphrases, keys, recovery tokens, or restored identity
+   data. Verify the payload is the expected binary SQLite snapshot; do not
+   run `.read` or import it as SQL. An unexpected format must stop the restore
+   for investigation.
+4. Open the **new scratch binary SQLite snapshot** with a compatible SQLite
+   tool, run integrity checks, and validate representative users, passkey
+   records, OIDC clients, uploads and signing-key continuity. An intact
+   checksum alone is insufficient. Keep plaintext copies in restricted
+   recovery storage only, never Git or tracked configuration.
+5. With the app still stopped, install the verified database at the host path
+   mapped to `/app/data/pocket-id.db`. Never combine it with stale WAL/SHM
+   files from the old database: after preserving the rollback set, remove
+   old sidecars from the replacement's live path while all writers remain
+   stopped. Set recovery/data directories to `0700`, database files to `0600`,
+   and owner/primary group to the approved
+   [Pocket ID identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+   That matching UID/GID is declared in the registry and unavailable for reuse;
+   host provisioning is an operator step in the post-merge handoff, not completed evidence.
+   Verify the app can create new journal/WAL files; do not recursively chown
+   tracked configuration. The installed database belongs only in its ignored
+   runtime data path, never tracked source files.
+6. Start only the compatible app against the recovered state with the **same
+   `ENCRYPTION_KEY`**, on an isolated origin appropriate for the test.
+   Passkeys are origin/RP-ID bound: an arbitrary scratch hostname does not
+   prove production passkey recovery. Use a controlled origin-correct test
+   plan without exposing a second live issuer or changing production DNS.
+   If startup reports “already one instance Pocket ID running” from the copied
+   Francis host lease, use bounded readiness checks/retries while it naturally
+   expires: up to the configured **90 seconds** after the snapshot host's last
+   heartbeat. The diagnostic's **95-second** wait was a test observation, not a
+   generic deployment sleep. If the known refusal persists beyond that bound,
+   stop and investigate. Do not edit the snapshot, delete Francis tables,
+   regenerate keys, or weaken the single-instance guard.
+7. Verify native administrator and spare-passkey access, client issuer and
+   signing behavior, explicit identity mappings, denial tests, and a new
+   encrypted backup. Record the actual result before resuming automation.
+   If validation fails, keep the app stopped and preserve evidence; do not
+   reopen enrollment or route production clients to it. Restore the original
+   checkpoint only as a consistent database/WAL recovery set while stopped.
+
+Independently recoverable host access, the original app key, backup passphrase,
+and spare hardware passkeys are prerequisites, not services to protect solely
+behind this identity provider. Future dataset snapshots, replication and
+off-site inclusion must be verified separately; no current recovery objective
+is established for Pocket ID.
 
 ### v4 Compatibility Constraint
 
@@ -1040,6 +1221,16 @@ Dawarich and Open Archiver are restored to the exact prior
 pin. Renovate restricts this image to `allowedVersions: /^4\./`.
 Version 5 is not a drop-in replacement for the configured v4 commands,
 environment variables, completion logs, and restore workflow.
+
+Compatibility does not establish upstream support or security: the
+[2026-11-21 Pocket ID image review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+reports raw HIGH/CRITICAL findings and incomplete scoped applicability review.
+This exact 4.9.2 tag remains unsupported under upstream's latest-only fixes
+policy. Successful guarded synthetic restore alone does not establish
+dependency safety or production acceptance. Pocket ID's
+[dated backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
+does not cover Dawarich, Open Archiver, TREK or any other 4.9.2 stack,
+and does not approve v5 migration.
 
 Keep this constraint until an intentional migration validates:
 
@@ -1235,7 +1426,7 @@ TrueNAS host.
 <!-- dprint-ignore -->
 !!! note "Why Dawarich remains on the v4 workflow"
     Version 5.0.0 was intentionally not selected because runtime restore
-    validation failed with an invalid bigint conversion. The maintained
+    validation failed with an invalid bigint conversion. The
     nfrastack `4.9.2` compatibility release preserves the proven v4 workflow.
     Earlier runtime testing successfully decrypted its dump and restored it
     into a fresh PostgreSQL database; this is historical evidence, not a
@@ -1400,7 +1591,7 @@ instead of restoring only its SQL dump with this generic procedure.
 
 The `Backup Restore Test` GitHub Actions workflow
 (`scripts/gha-backup-restore-test.sh`) exercises the tiredofit v4 GPG workflow
-for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's maintained
+for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's
 nfrastack `4.9.2` compatibility image uses the same proven v4 GPG workflow; its
 runtime-produced dump has also been decrypted and restored into a fresh
 PostgreSQL database.

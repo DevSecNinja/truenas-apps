@@ -288,6 +288,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                                                                    |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                                                                     |
 | plex                 | `plex-init`                 | `docker.io/library/busybox:1.38.0`; chowns `./data/config` (not tracked `./config`) and `./backups` → Plex PUID/PGID `911:3200`                                                                                                                                                    |
+| pocket-id            | `pocket-id-init`            | `docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4`; validates required inputs, chowns only `./data` → PUID/PGID `3133:3133`, mode `0700`; never `./config`; controlled post-merge pilot                                    |
 | traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                                                                      |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
@@ -1049,6 +1050,64 @@ operator validation under
 See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
 alone are not a coordinated archive backup.
 
+### Pocket ID Candidate Isolation
+
+This heading retains the historical anchor. [Pocket ID](services/pocket-id.md)
+now implements the approved **controlled post-merge pilot**, not a deployed
+production service. All three services are profile-free; the registry declares
+the private identity, DNS maps `id.${DOMAINNAME}` to `${IP_SVLNAS}`, and active
+`services/traefik/compose.yaml` attaches Traefik to the external
+`pocket-id-frontend` network. The separate inert fragment was removed.
+
+```mermaid
+flowchart LR
+    Client["Client: id.${DOMAINNAME}"] --> Traefik["HTTPS Traefik: chain-no-auth"]
+    Traefik --> App["Pocket ID: native passkeys"]
+```
+
+The app creates the dedicated frontend bridge; Traefik must deploy **after**
+that network exists. Use the [ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff),
+coordinating cron during initial sync/enrollment, not an ad-hoc override or
+manual network connection. There are no host-published ports or shared backend
+networks. The app bridge is not an air gap or an outbound-egress restriction.
+Native authentication/recovery remains independent of Entra/TFA:
+`chain-no-auth@file` must not be replaced with a dependent Forward Auth chain.
+
+Init uses the exact BusyBox pin in the inventory above, a read-only root,
+no network, and only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`. It validates secrets
+before chown/chmod of only `./data` to the
+[declared app identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+The **November 21** exact AMD64 init validation passed twice: private root mode
+`0700`, unchanged child ownership/mode, five invalid-input failures before
+ownership changes, `NoNewPrivs=1`, expected capabilities, rejected root writes,
+64 MiB memory and 100-PID limits. This does not establish TrueNAS ACL behavior.
+
+The [November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+clears pinned `v2.19.3-distroless` for normal app use and the rebuilt glibc
+BusyBox artifact only for this fixed init operation. It is not an all-feature
+image-clean claim or a new exception. Backup 4.9.2 remains conditional on the
+[exact AMD64 backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21),
+accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**
+and no automatic renewal. Review must complete before use on or after expiry.
+Historical October/November runtime and synthetic recovery evidence remains
+dated. Scoped config/proxy checks passed on **November 21** using the
+file-provider fixture and cached Docker Hub Traefik, not the production DHI
+image. Current **November 21** verification passed all **15 selected pre-commit
+checks** (**113.67 seconds**), **293 BATS tests** plus **29 registry/provisioning
+integration tests**, and strict indexed MkDocs. Docker-provider discovery/network
+attachment, real DNS, public-certificate TLS and browser/passkey flows remain
+operator acceptance requirements.
+
+All three services load `../shared/env/tz.env` and per-app `.env`.
+`DOMAINNAME`, `ENCRYPTION_KEY`, and `DB_ENC_PASSPHRASE` are provisioned in the
+unchanged encrypted dotenv; domain substitution does not come from shared
+Docker Hub credentials. The initial `dccd-app pocket-id` must create the raw
+`.env` before Custom App enrollment. Server/SOPS scoping is unchanged.
+Independent original-key recovery, first-admin/passkey and client acceptance
+remain operator first-run requirements before production reliance.
+Entra and existing client integrations are unchanged; any cutover needs
+separate identity mapping, authorization and rollback review.
+
 ### Dawarich Split Authentication Routers
 
 Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
@@ -1403,9 +1462,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include                                                                                                     |
-| -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers |
+| File     | Purpose                    | When to include                                                                                                                                      |
+| -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; Pocket ID app, init, and backup |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 
