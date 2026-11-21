@@ -1000,7 +1000,7 @@ database sidecars' 48-hour cleanup policy.
 ## Application-Level Database Backups
 
 The following stateful databases have application-consistent backup sidecars
-in their compose files today. Dawarich and Open Archiver use
+in their compose files today. Dawarich, Open Archiver, and Pocket ID use
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
 `tiredofit/db-backup` v4. These are configured to produce compressed, encrypted
 dump files independent of ZFS snapshots — providing an application-consistent recovery
@@ -1018,7 +1018,8 @@ deployment, or storage-layer recovery.
 
 ### Covered Databases
 
-The table describes configured coverage, not proof that the latest run succeeded.
+The table describes configured coverage, not proof of deployment or that the
+latest run succeeded. Pocket ID is a controlled post-merge pilot, not deployed.
 
 | Service        | Database                                            | Backup sidecar             | Image family    | Encryption | Output path                                  |
 | -------------- | --------------------------------------------------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
@@ -1031,13 +1032,16 @@ The table describes configured coverage, not proof that the latest run succeeded
 | Memos          | SQLite                                              | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
 | Open Archiver  | PostgreSQL (DB01), Valkey via Redis protocol (DB02) | `open-archiver-db-backup`  | nfrastack 4.9.2 | GPG        | `services/open-archiver/backups/db-backup/`  |
 | Outline        | PostgreSQL                                          | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
+| Pocket ID      | SQLite                                              | `pocket-id-db-backup`      | nfrastack 4.9.2 | GPG        | `services/pocket-id/backups/db-backup/`      |
 | Unifi          | MongoDB                                             | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
 
 ### Pocket ID Blocked-Candidate Coverage and Future Restore
 
-**Pocket ID is not covered by the active database-backup inventory above.**
-It is a [blocked candidate](services/pocket-id.md), not a deployed or
-deploy-ready identity provider. The [November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+This heading retains the historical link anchor. **Pocket ID now has configured
+coverage for the [controlled post-merge pilot](services/pocket-id.md), not a
+production deployment.** App/init review is cleared for the documented scope;
+backup acceptance remains conditional on the exact exception below.
+The [November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
 records **v2.19.3** guarded read-only-source encrypted synthetic restore,
 actual public JWKS/key-ID equality, and 49h/47h retention passes.
 October 29 (**v2.19.1**) and November 8 (**v2.19.2**) results below remain historical;
@@ -1048,10 +1052,10 @@ uses SQLite's `.backup` command (the SQLite Online Backup API), producing a
 **binary SQLite snapshot**, not SQL text or a raw live-file copy, before
 compression/encryption/checksumming. The dated ARM64 failure and later AMD64
 success below are distinct evidence, not proof of permanent v4 incompatibility.
-The candidate uses manual mode once per DCCD deployment,
+The configured job uses manual mode once per DCCD deployment,
 ZSTD compression, SHA1 checksum and GPG
 encryption, retaining **2880 minutes** at
-`services/pocket-id/backups/db-backup`. The proposed
+`services/pocket-id/backups/db-backup`. The pinned
 `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
 artifact is an **unsupported tag**; the
 [November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
@@ -1072,13 +1076,18 @@ digest/platform carry-over, or future-findings waiver applies; newly relevant
 findings or changed assumptions require immediate review. Expiry removes
 exception clearance for activation or continued use.
 **TREK, all other 4.9.2 stacks, and Pocket ID's app/init are excluded.**
-App/init review, independent key recovery, passkey/client authorization and
-operational gates remain open; this is not deployment, merge or profile-change
-authorization. The candidate and future **DO NOT EXECUTE** handoff stay blocked.
+The exception does not itself authorize activation or extend to app/init:
+their scoped clearance and the controlled implementation were approved separately.
+No deployment or merge occurred. Independent original-key recovery,
+first-admin/passkey setup and client authorization remain operator requirements
+before production reliance, not claims already completed. Follow the
+[post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff)
+only after merge and readiness; if use begins on or after **2026-12-21**,
+complete review first. There is no new or broadened waiver.
 Do not recommend a v5/latest substitution without the separately tested
 [compatibility migration](#v4-compatibility-constraint).
 
-**Native ARM64 result — 2026-10-26:** the actual pinned 4.9.2 job could not
+**Historical native ARM64 result — 2026-10-26:** the actual pinned 4.9.2 job could not
 open the read-only SQLite source (`unable to open database file`), skipped
 encrypted output/checksum, and nevertheless reported routine exit code `0`.
 Direct `.backup` and explicit `mode=ro` opens also failed. The same stopped
@@ -1087,7 +1096,7 @@ produced an integrity-checked snapshot containing the seeded record.
 That diagnostic alone was **not** an encrypted restore or live WAL test;
 the precise ARM64 failure cause remains unproven.
 
-**Exact-image AMD64 result — 2026-10-29:** rootless Podman with native named
+**Historical exact-image AMD64 result — 2026-10-29:** rootless Podman with native named
 Linux volumes, no network/ports, a healthy real app, and genuinely read-only
 source passed the original `/init` → `backup01-now now` job. Exit `0` accompanied
 exactly one dump start/completion and one `.sqlite3.zst.gpg` + SHA1 set, with
@@ -1129,7 +1138,7 @@ was removed, the 47h pair retained and checksum-verified, and exactly one new
 encrypted pair verified.
 Separate Docker/TrueNAS runtime validation is not a premerge prerequisite.
 
-The candidate uses `DB_CONNECTION_STRING=/app/data/pocket-id.db` and
+The app uses `DB_CONNECTION_STRING=/app/data/pocket-id.db` and
 `FILE_BACKEND=database`, verified against
 [v2.19.1 `backend/internal/common/env_config.go`](https://github.com/pocket-id/pocket-id/blob/v2.19.1/backend/internal/common/env_config.go).
 Uploads are database-backed, so a consistent SQLite Online Backup API backup
@@ -1140,12 +1149,12 @@ remain gates before production reliance; preserve any additional persistent
 paths discovered during runtime review.
 
 <!-- dprint-ignore -->
-!!! danger "Future restore procedure — not production-validated"
-    Do not activate this blocked candidate or execute against a live identity provider.
-    SOPS secret provisioning and validation are complete. First clear adoption
-    and establish independent recovery of the original app key and backup
-    passphrase before production recovery. Isolated synthetic rehearsals may
-    proceed without activation; the successful synthetic restore is not rollout approval.
+!!! warning "Controlled restore procedure — not production-validated"
+    Execute pilot operations only after PR #949 is merged and the operator is ready,
+    with valid backup exception clearance. Establish independent recovery of
+    the original app key and backup passphrase before relying on recovery.
+    Stop all writers before replacing live state. Successful synthetic restore
+    does not establish first-admin, passkey or client acceptance.
 
 1. Recover the compatible image/schema revision, a successful backup artifact
    and checksum, original `ENCRYPTION_KEY`, and the matching
@@ -1175,8 +1184,8 @@ paths discovered during runtime review.
    stopped. Set recovery/data directories to `0700`, database files to `0600`,
    and owner/primary group to the approved
    [Pocket ID identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
-   That matching UID/GID is reserved and unavailable for reuse, but remains
-   unprovisioned and outside the active registry until approved activation.
+   That matching UID/GID is declared in the registry and unavailable for reuse;
+   host provisioning is an operator step in the post-merge handoff, not completed evidence.
    Verify the app can create new journal/WAL files; do not recursively chown
    tracked configuration. The installed database belongs only in its ignored
    runtime data path, never tracked source files.
@@ -1217,8 +1226,8 @@ Compatibility does not establish upstream support or security: the
 [2026-11-21 Pocket ID image review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
 reports raw HIGH/CRITICAL findings and incomplete scoped applicability review.
 This exact 4.9.2 tag remains unsupported under upstream's latest-only fixes
-policy. Successful guarded synthetic restore does not clear Pocket ID
-adoption or establish dependency safety. Its
+policy. Successful guarded synthetic restore alone does not establish
+dependency safety or production acceptance. Pocket ID's
 [dated backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
 does not cover Dawarich, Open Archiver, TREK or any other 4.9.2 stack,
 and does not approve v5 migration.

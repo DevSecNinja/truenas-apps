@@ -59,6 +59,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                                                                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication                                                                |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                                                                              |
+| [Pocket ID](services/pocket-id/README.md) | Passkey OIDC provider alongside Entra — **controlled post-merge pilot; not deployed** |
 | [SQLite Web](https://github.com/coleifer/sqlite-web)                                          | SQLite database browser for Home Assistant                                                                          |
 | [Traefik](https://traefik.io/)                                                                | Reverse proxy with automatic SSL via Cloudflare DNS                                                                 |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth)                  | SSO authentication via Microsoft Entra ID                                                                           |
@@ -83,32 +84,23 @@ generic/unscoped deployment outside TrueNAS mode can start this stack before
 its Custom App exists; do not use those paths before the activation
 prerequisites are complete.
 
-[Pocket ID](services/pocket-id/README.md) is a **blocked candidate**, not
-deployed or deploy-ready. The proposed side-by-side Entra alternative has no
-active app/dataset entry or integration changes. Its
-[UID/primary GID reservation](docs/INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation)
-is inactive and not available for reuse; no account is provisioned or active
-in the registry. SOPS secret provisioning and validation are complete.
-Earlier native Apple ARM64 init/startup/health and SQLite persistence passed.
-The [November 21 evidence](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-21)
-records pinned `v2.19.3-distroless` and delivered Go/x/crypto updates.
-Current-artifact AMD64 guarded read-only-source backup, encrypted synthetic
-restore with identical public JWKS/key IDs, and 49h/47h retention passed.
-OpenPGP is source-traced to an unused commit-signing dependency, not demonstrated
-authentication/backup-crypto exposure; app dependency hygiene and partial
-BusyBox/glibc review still block adoption and activation. Unsupported backup
-4.9.2 has a [temporary Pocket ID backup-only exception](services/pocket-id/README.md#temporary-backup-risk-exception-2026-11-21),
-accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**.
-It applies only to the exact tested AMD64 artifact/configuration, with no
-automatic renewal; it does not authorize deployment or clear remaining gates.
-The [November 8 evidence](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-08)
-retains historical v2.19.2 recovery, 281-test BATS (including the legacy
-`format_duration` caveat), and full pre-commit passes. On **November 21**, full
-pre-commit (286 BATS) and 71 separate targeted tests passed; the legacy caveat remains.
-Separate Docker/TrueNAS runtime validation is not a
-premerge prerequisite. See the
-[Windows continuation checklist](services/pocket-id/README.md#windows-continuation-checklist).
-Passkey/client acceptance is required before production reliance; no Entra
+[Pocket ID](services/pocket-id/README.md) is implemented for a user-approved
+**controlled post-merge pilot**, not a production deployment or merged PR.
+The registry account and dataset are declared, not provisioned; DNS
+`id.${DOMAINNAME}` → `${IP_SVLNAS}` and the active Traefik frontend attachment
+are configured, and all three candidate profiles are removed.
+The [November 21 review](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-21)
+clears the exact app and scoped AMD64 init operation. Backup 4.9.2 remains
+conditional on its [backup-only exception](services/pocket-id/README.md#temporary-backup-risk-exception-2026-11-21),
+accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**
+and no automatic renewal. Review must complete before use on or after expiry.
+Follow the [post-merge handoff](services/pocket-id/README.md#controlled-post-merge-operator-handoff):
+sync/decrypt with `dccd-app pocket-id`, prepare, create the Custom App/network,
+then `dccd-all`. Coordinate cron so Traefik deploys only after that network exists.
+Independent original-key recovery, first-admin/passkey setup and client acceptance
+remain operator requirements before production reliance. New scoped proxy/config
+checks are recorded separately; real DNS, production TLS, Docker-provider and
+browser/passkey validation remain operator acceptance requirements. No Entra
 migration is included.
 
 The unused arr stack (Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd,
@@ -174,6 +166,7 @@ vm-pool/apps/services/open-archiver
 vm-pool/apps/services/openclaw
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
+vm-pool/apps/services/pocket-id
 vm-pool/apps/services/sqlite-web
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth

@@ -21,13 +21,18 @@ pocket_require_helpers() {
   done
 }
 
-pocket_setup() {
-  local library tool backup_literal source_literal
+pocket_load_helpers() {
+  local library
   for library in bats-support bats-assert bats-file; do
     load "${POCKET_REPO_ROOT}/tests/libs/${library}/load"
   done
   # Reuse stdout/stderr assertions, not dccd's source/setup or auto-download path.
   load "${POCKET_REPO_ROOT}/tests/dccd/helpers/diagnostics"
+}
+
+pocket_setup() {
+  local tool backup_literal source_literal
+  pocket_load_helpers
   ORIGINAL_PATH="${PATH}"
   # Capture before installing PATH mocks; freshness checks need real metadata.
   export POCKET_REAL_STAT

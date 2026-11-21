@@ -75,6 +75,11 @@
       "account_id": 3120,
       "admin_group_member": false
     },
+    "pocket-id": {
+      "account_name": "svc-app-pocket-id",
+      "account_id": 3133,
+      "admin_group_member": false
+    },
     "traefik": {
       "account_name": "svc-app-traefik",
       "account_id": 3100,

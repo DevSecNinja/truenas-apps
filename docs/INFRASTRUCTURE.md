@@ -291,6 +291,7 @@ An SMB password is still required when SSH is public-key-only.
 | 3132    | `svc-app-open-archiver`   | open-archiver, open-archiver-migrate, open-archiver-meilisearch, open-archiver-db-backup; open-archiver-init ownership target | Read-only SQL init hook (`./config`); no runtime writes |
 | 3127    | `svc-app-openclaw`        | openclaw, openclaw-init                                                                                                       | No                                                      |
 | 3120    | `svc-app-outline`         | outline-db-backup†                                                                                                            | No                                                      |
+| 3133    | `svc-app-pocket-id`       | pocket-id, pocket-id-db-backup process; pocket-id-init ownership target (declared, not provisioned)                           | Read-only backup guard (`./config`)                     |
 | 3100    | `svc-app-traefik`         | traefik, traefik-init                                                                                                         | Yes (`./config`)                                        |
 | 3105    | `svc-app-tfa`             | traefik-forward-auth, init                                                                                                    | No (`./data`)                                           |
 | 3118    | `svc-app-tubesync`        | tubesync                                                                                                                      | No                                                      |
@@ -364,32 +365,26 @@ private data permissions or grant shared media/document group access.
 
 #### Pocket ID Candidate Identity Reservation
 
-[Pocket ID](services/pocket-id.md) is a **blocked candidate** outside the active
-account, shared-group, registry, and dataset inventories. The proposed username
-is `svc-app-pocket-id`, with a matching private primary group and no
-shared-purpose memberships. The intended consumers are the rootless app,
-backup process, and init's `./data` ownership target. The **2026-10-29**
-isolated rootless Podman AMD64 diagnostic verified the backup's image-local
-`pocketbackup` mapping to the reserved identity: encrypted output and checksum
-ownership matched, files were `0600`, and the output root was `0700`.
-This is not evidence of TrueNAS account provisioning or ACL behavior;
-adoption and reviewed activation remain blocked.
+This heading retains the old reservation anchor. [Pocket ID](services/pocket-id.md)
+is now declared in `truenas-apps.json` for the **controlled post-merge pilot**;
+the account/group and dataset have **not been provisioned**.
 
-| Proposed username   | Reserved UID | Proposed primary group | Reserved primary GID | Planned shared memberships | Intended services                          |
-| ------------------- | ------------ | ---------------------- | -------------------- | -------------------------- | ------------------------------------------ |
-| `svc-app-pocket-id` | 3133         | `svc-app-pocket-id`    | 3133                 | None                       | App, backup process, init ownership target |
+| Username            | UID  | Primary group       | Primary GID | Shared memberships | Services using the identity                         |
+| ------------------- | ---- | ------------------- | ----------- | ------------------ | --------------------------------------------------- |
+| `svc-app-pocket-id` | 3133 | `svc-app-pocket-id` | 3133        | None               | App, backup process, init `./data` ownership target |
 
-The matching UID/primary GID above are **reserved for this inactive candidate
-and unavailable for reuse**, as explicitly coordinated on **2026-10-26** with
-the concurrent TREK work in
-[issue #948](https://github.com/DevSecNinja/truenas-apps/issues/948).
-This reservation is **not provisioning or an active registry account**.
-The candidate Compose source uses the reserved identity; verify live TrueNAS
-state before future registry activation. Do not create the account/group or
-provision a dataset now. Future storage would be
-app-private identity-provider state and encrypted recovery artifacts, not
-shared media/private-content group access. See the
-[persistent state classification](services/pocket-id.md#persistent-state-classification).
+Registry key `pocket-id` sets `admin_group_member=false`; the helper must not
+add the administrator to the private service group. Init starts as root;
+the rootless app uses the explicit Compose `user:`, and the backup supervisor
+creates image-local `pocketbackup` with the same UID/primary GID.
+The **2026-10-29** isolated AMD64 diagnostic verified backup ownership,
+files `0600` and output root `0700`, not TrueNAS provisioning or ACL behavior.
+
+The allocation is unavailable for reuse. The earlier TREK coordination in
+[issue #948](https://github.com/DevSecNinja/truenas-apps/issues/948) remains
+unchanged; verify actual host allocations before preparation. Follow the
+[post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff)
+and [private dataset requirements](#pocket-id-dataset), not an ad-hoc provisioning path.
 
 ### Retained Arr Account Reservations
 
@@ -478,7 +473,7 @@ required by this deployment.
 
 These groups have no matching user account. They grant cross-service access to shared datasets.
 
-changedetection.io and Open Archiver use only their dedicated primary groups; they require no
+changedetection.io, Open Archiver, and Pocket ID use only their dedicated primary groups; they require no
 membership in the shared groups below.
 
 | GID  | Group               | Purpose                                                                    | Active services using as primary group                 |
@@ -509,11 +504,16 @@ JSON registry and construct TrueNAS API payloads.
 
 #### Registry Coverage
 
-The registry currently enrolls **18 app stacks** using the existing dedicated
+The registry currently declares **19 app stacks** using the existing dedicated
 account model: `adguard`, `alloy`, `bitwarden`, `changedetection`, `dawarich`,
 `dozzle`, `drawio`, `gatus`, `homepage`, `karakeep`, `memos`, `mosquitto`,
-`open-archiver`, `openclaw`, `outline`, `traefik`, `unifi`, and
+`open-archiver`, `openclaw`, `outline`, `pocket-id`, `traefik`, `unifi`, and
 `wmbusmeters`.
+
+Registry declaration is not host provisioning or deployment approval.
+Pocket ID is helper-supported for its controlled post-merge pilot; use its
+[ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff)
+to sync/decrypt before preparation and create the app network before deploying Traefik.
 
 Each uses the exact `svc-app-<key>` account/group name and a matching UID and
 primary GID from the registry. `admin_group_member` is `false` for every
@@ -970,6 +970,27 @@ backup. Follow [Restore Open Archiver](BACKUP.md#restore-open-archiver) for a
 quiesced checkpoint, matching queue recovery, and preservation of the original
 encryption keys. Do not export these private paths through shared media or SMB
 datasets.
+
+### Pocket ID Dataset
+
+Registry key `pocket-id` declares `vm-pool/apps/services/pocket-id`.
+The preparation helper preserves the checkout while provisioning the dedicated
+account/group and dataset **after merge and operator readiness**, not as part
+of this documentation change. No shared-purpose group or SMB access is needed.
+
+| Path                  | Classification and protection                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `./backups/db-backup` | Sensitive GPG-encrypted, ZSTD-compressed SQLite snapshots and SHA1 sidecars; 48-hour local retention under the bounded backup exception                                   |
+| `./config`            | Tracked backup verifier mounted read-only; never an ownership-repair target                                                                                               |
+| `./data`              | Irreplaceable SQLite identity state, database-backed uploads and encrypted signing/session keys; init changes only this root to the declared app identity and mode `0700` |
+
+Routine init does not repair descendants. Follow the
+[bounded restore procedure](BACKUP.md#pocket-id-blocked-candidate-coverage-and-future-restore)
+with the original `ENCRYPTION_KEY` and independent `DB_ENC_PASSPHRASE` recovery.
+Verify child snapshots, replication, off-site inclusion and recovery before
+claiming storage-layer coverage; neither provisioning nor production recovery
+has occurred. Server auto-discovery/default NAS key scoping and the original
+encrypted secrets are unchanged.
 
 ## Media Access
 

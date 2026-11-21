@@ -12,7 +12,8 @@ setup() {
   prep_common_setup
   create_prep_mocks
   mkdir -p "${TEST_REPO_ROOT}/services/traefik" \
-    "${TEST_REPO_ROOT}/services/outline"
+    "${TEST_REPO_ROOT}/services/outline" \
+    "${TEST_REPO_ROOT}/services/pocket-id"
 }
 
 teardown() {
@@ -56,4 +57,23 @@ assert_simple_model_provisioned() {
 
 @test "provision_app: Outline provisions host UID/GID 3120 without substituting its image-internal UID" {
   assert_simple_model_provisioned "outline" "3120"
+}
+
+@test "provision_app: Pocket ID provisions UID/GID 3133 without admin membership and is idempotent" {
+  assert_simple_model_provisioned "pocket-id" "3133"
+
+  run provision_app "pocket-id" </dev/null
+
+  assert_success
+  assert_output --partial "Group svc-app-pocket-id already exists with GID 3133"
+  assert_output --partial "User svc-app-pocket-id already exists with UID 3133"
+  assert_output --partial "Dataset tank/services/pocket-id already exists"
+  assert_output --partial "pocket-id host prerequisites are ready"
+  assert_midclt_call_count "group.create" "1"
+  assert_midclt_call_count "user.create" "1"
+  assert_midclt_call_count "user.update" "0"
+  assert_midclt_call_count "pool.dataset.create" "1"
+  assert_mock_call_count "chown" "2"
+  assert_mock_call_count "chmod" "2"
+  assert_file_not_exists "${MOCK_STATE}/admin-member"
 }

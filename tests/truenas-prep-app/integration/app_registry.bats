@@ -15,7 +15,7 @@ teardown() {
   prep_common_teardown
 }
 
-@test "load_app_config: loads exactly the 18 approved simple-model accounts" {
+@test "load_app_config: loads exactly the 19 approved simple-model accounts" {
   local row app account_id admin_group_member
   local -a cases=(
     "adguard|3101|false"
@@ -33,6 +33,7 @@ teardown() {
     "open-archiver|3132|false"
     "openclaw|3127|false"
     "outline|3120|false"
+    "pocket-id|3133|false"
     "traefik|3100|false"
     "unifi|3108|false"
     "wmbusmeters|3123|false"
@@ -44,6 +45,8 @@ teardown() {
 
     assert_success
     assert_output "${app}|svc-app-${app}|${account_id}|${admin_group_member}"
+    assert_dir_exists "${TEST_PROJECT_ROOT}/services/${app}"
+    assert_file_exists "${TEST_PROJECT_ROOT}/services/${app}/compose.yaml"
   done
 
   # Successful loads prove every approved key exists; the count excludes all

@@ -1,12 +1,9 @@
 ---
-# BLOCKED CANDIDATE: adoption and runtime/restore evidence
-# are incomplete. Keep every service profiled and all live integrations absent.
+# Controlled post-merge pilot; complete the operator setup in README.md.
 services:
   pocket-id-init:
-    image: docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    image: docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
     container_name: pocket-id-init
-    profiles:
-      - pocket-id-candidate
     env_file:
       - path: .env
         required: false
@@ -59,8 +56,6 @@ services:
   pocket-id:
     image: ghcr.io/pocket-id/pocket-id:v2.19.3-distroless@sha256:6a0045a89b80fa6624c091786e7be132a4dde880ca64727a6b019c056b091982
     container_name: pocket-id
-    profiles:
-      - pocket-id-candidate
     depends_on:
       pocket-id-init:
         condition: service_completed_successfully
@@ -68,7 +63,7 @@ services:
       - path: .env
         required: false
       - path: ../shared/env/tz.env
-    user: "3133:3133" # Proposed svc-app-pocket-id; not provisioned yet.
+    user: "3133:3133" # svc-app-pocket-id; provision with truenas-prep-app.sh.
     environment:
       APP_URL: https://id.${DOMAINNAME}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
@@ -122,15 +117,13 @@ services:
       - "traefik.http.routers.pocket-id-rtr.service=pocket-id"
       - "traefik.http.services.pocket-id.loadbalancer.server.port=1411"
 
-  # Backup-only risk exception expires 2026-12-21; see README. Still profiled.
+  # Pocket ID backup-only risk exception expires 2026-12-21; see README.
   # s6 rewrites system configuration, so its root filesystem remains writable.
   # The root supervisor needs only ownership, identity-switching, and signal
   # capabilities; the database source is read-only and the job has no network.
   pocket-id-db-backup:
     image: docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412
     container_name: pocket-id-db-backup
-    profiles:
-      - pocket-id-candidate
     depends_on:
       pocket-id:
         condition: service_healthy

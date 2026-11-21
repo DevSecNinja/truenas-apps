@@ -1,13 +1,14 @@
 # Pocket ID
 
-**Blocked candidate — not deployed, deploy-ready, or approved for production.**
-Evidence updated: **2026-11-21**; image adoption remains blocked.
-Tracked in [issue #941](https://github.com/DevSecNinja/truenas-apps/issues/941).
+**User-approved controlled post-merge pilot — not deployed or approved for production reliance.**
+Updated **2026-11-21**; app/init review cleared for the scope below, backup
+conditionally accepted. [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949)
+has not merged. Tracked in [issue #941](https://github.com/DevSecNinja/truenas-apps/issues/941).
 
 ## Why
 
-Evaluate a passkey-based OpenID Connect (OIDC) provider for an eventual full
-side-by-side production deployment alongside Microsoft Entra ID. Entra remains
+Pilot a passkey-based OpenID Connect (OIDC) provider alongside Microsoft Entra ID.
+Production reliance requires operator acceptance first. Entra remains
 the active provider. Running a second provider does not automatically migrate
 accounts, credentials, authorization, or sessions, and does not make switching
 applications automatic.
@@ -15,19 +16,20 @@ applications automatic.
 The operator previously authorized and completed **SOPS secret provisioning**.
 1Password CLI authentication and an existing Memos secret decryption succeeded;
 plaintext was discarded. The app-specific encrypted secret file is now
-provisioned and validated. This does not authorize candidate activation.
+provisioned and validated; its original ciphertext is unchanged. Independent
+original-key recovery remains an operator first-run requirement.
 
-## Candidate Blockers
+## Controlled Pilot Scope
 
-| Gate                 | Status / required evidence                                                                                                                                                                                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Image selection      | Supported `v2.19.3-distroless` is pinned and exact-artifact reviewed; v3/dev/latest are not selected. Backup and BusyBox pins are unchanged; maintenance/security gates remain open                                                                                                                                             |
-| Dependency security  | Go `1.27.4`, x/crypto `0.59.0`, Go-jose `4.1.6`, zod `4.6.7`, and x/net `0.62.0` delivered. UNKNOWN `GO-2026-5932` remains in the separate deprecated OpenPGP module; source tracing narrows use, not adoption clearance                                                                                                        |
-| Backup artifact      | Unsupported `4.9.2` has a [temporary Pocket ID backup-only risk exception](#temporary-backup-risk-exception-2026-11-21), restricted to the tested AMD64 artifact/configuration; review/expiry **2026-12-21**. Conditional backup-gate acceptance only, not candidate adoption or activation                                     |
-| Encrypted secrets    | SOPS provisioning and canonical validation completed for `DOMAINNAME`, `ENCRYPTION_KEY`, and `DB_ENC_PASSPHRASE`; independent recovery remains to be established                                                                                                                                                                |
-| Activation           | No registry allocation, dataset provisioning, active Traefik attachment, DNS wiring, or Custom App enrollment is authorized                                                                                                                                                                                                     |
-| Runtime and recovery | November 21 v2.19.3 AMD64 synthetic recovery, actual public JWKS/key-ID equality, and 49h/47h retention passed; full pre-commit (286 BATS) and 71 separate targeted tests passed. November 8 passes remain historical; legacy-assertion caveat below remains. Separate Docker/TrueNAS validation is not a premerge prerequisite |
-| Passkeys and clients | Browser/passkey, recovery, and client authorization acceptance remain required before production reliance; Entra migration is outside this candidate                                                                                                                                                                            |
+| Area                | Current decision / remaining work                                                                                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App                 | Exact `v2.19.3-distroless` approved for normal app use: dependency fixes delivered; residual OpenPGP source-traced to unused commit signing. No v3/dev/latest substitution                                             |
+| Init                | New exact AMD64 BusyBox/glibc artifact approved only for the fixed, nonrecursive init operation; partial maintenance / medium confidence, not blanket image clearance                                                  |
+| Backup              | Unchanged exact `4.9.2` AMD64 configuration under the [backup-only exception](#temporary-backup-risk-exception-2026-11-21); review/expiry **2026-12-21**, no automatic renewal                                         |
+| Wiring              | Registry identity, DNS and active Traefik attachment declared; all three profiles removed. No host account/dataset provisioning, Custom App enrollment or deployment performed                                         |
+| Secrets             | Existing SOPS provisioning/validation complete; ciphertext, server auto-discovery/default NAS key scope unchanged. Initial sync/decrypt must create raw `.env`                                                         |
+| Evidence            | Dated runtime/recovery passes retained below; exact new-init, scoped proxy/config and full-suite validation passed November 21. Production DNS/TLS, Docker-provider and browser/passkey acceptance are not established |
+| Operator acceptance | Execute only after merge and readiness; independently recover original keys/host access, establish first admin and primary/spare passkeys, and test clients before production reliance                                 |
 
 The [November 21 evidence](#image-and-recovery-evidence-2026-11-21) records current findings and synthetic recovery.
 The [November 8 evidence](#image-and-recovery-evidence-2026-11-08) is historical v2.19.2 proof.
@@ -35,72 +37,69 @@ The [October 29 review](#image-evidence-2026-10-29) remains historical evidence
 for the old app pin, not the current artifact. Follow the
 [image-adoption policy](https://homelab.devsecninja.com/ARCHITECTURE/#image-selection-upstream-dependency-maintenance);
 do not maintain downstream patched dependency locks or forks as a workaround.
-Completed secret provisioning does not clear image adoption or any remaining
-deployment gate.
+The controlled pilot is separately authorized; the backup exception alone
+does not authorize activation. First-run acceptance is not a claim of completed
+production testing or a blanket block on code implementation.
 
 ## Compose Files
 
-Candidate source files:
+Implementation source files:
 
 - [compose.yaml](https://github.com/DevSecNinja/truenas-apps/blob/main/services/pocket-id/compose.yaml)
-  — profiled candidate app, init, and backup.
-- [Traefik candidate fragment](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.pocket-id.yaml)
-  — inert network additions, not selected by normal `dccd` or the active
-  TrueNAS include.
+  — profile-free app, init, and backup.
+- [Active Traefik Compose](https://github.com/DevSecNinja/truenas-apps/blob/main/services/traefik/compose.yaml)
+  — frontend attachment and external network declaration; the inert fragment
+  has been deleted.
 
-Source links target the default branch and require the candidate changes to
-be merged. After approval and creation of the app network, merge the fragment's
-entries into active `services/traefik/compose.yaml` through review. Do not apply
-the fragment as a raw ad-hoc production override.
+Source links target the default branch and require PR #949 to be merged.
+Deploy the active Traefik definition only after the Custom App creates the
+network; do not use raw ad-hoc fragments or manual network connections.
 
 Guide links use the published documentation URLs so they work from both this
-GitHub README and its documentation-site copy. New candidate sections become
+GitHub README and its documentation-site copy. Updated sections become
 available after merge and documentation publication.
 
 ## Access
 
-| Surface             | Proposed access                                                                        | Current status                             |
-| ------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Pocket ID           | `https://id.${DOMAINNAME}`; native passkey authentication behind HTTPS Traefik routing | Not exposed or DNS-wired by this candidate |
-| Host ports          | None published                                                                         | Required candidate boundary                |
-| Active applications | Existing Entra, TFA, Immich, and Outline paths                                         | Unchanged                                  |
+| Surface             | Configured access                                                                          | Current status                                          |
+| ------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Pocket ID           | `https://id.${DOMAINNAME}`; native passkeys behind HTTPS Traefik with `chain-no-auth@file` | DNS → `${IP_SVLNAS}` and routing declared, not deployed |
+| Host ports          | None published                                                                             | Required pilot boundary                                 |
+| Active applications | Existing Entra, TFA, Immich, and Outline paths                                             | Unchanged                                               |
 
-Future Pocket ID routing must not depend on the existing Entra
+Pocket ID routing must not depend on the existing Entra
 `chain-auth@file` or on a Pocket ID-backed Forward Auth chain: either would
-create an authentication/recovery dependency. Review `chain-no-auth@file`
-with native Pocket ID authentication before exposure; it is not authorization
+create an authentication/recovery dependency. Validate the configured `chain-no-auth@file`
+with native Pocket ID authentication during first run; it is not authorization
 to bypass authentication on other apps.
 
 ## Architecture
 
-The source implements a **blocked candidate**, not a validated deployment.
-All three services carry profile `pocket-id-candidate`. Do not activate the
-profile or explicitly target a service to bypass the block.
+The source implements the **controlled post-merge pilot**, not a validated
+production deployment. All three services are selected without a profile.
 
 ```mermaid
 flowchart TD
-    Init["Candidate init: protect data root"] --> App["Candidate Pocket ID: SQLite"]
-    App --> Backup["Candidate one-shot SQLite backup"]
+    Init["Init: protect data root"] -->|completed successfully| App["Pocket ID: SQLite"]
+    App -->|healthy| Backup["One-shot SQLite backup"]
 ```
 
-The future request path is client → HTTPS Traefik → Pocket ID over the private,
-stack-owned `pocket-id-frontend` bridge. No shared backend network or host port
-is proposed. A private bridge is not proof of an air gap or restricted outbound
-egress. The separate Traefik fragment must stay inert while the candidate
-is blocked; do not edit active Traefik, DNS, registry, or server configuration
-to make it reachable.
+The configured request path is client → HTTPS Traefik → Pocket ID over the
+dedicated, stack-owned `pocket-id-frontend` bridge. No shared backend network
+or host port is configured. This bridge is not an air gap or restricted outbound
+egress. Init and backup use `network_mode: none` and have no host-control socket.
 
 ### Services
 
-| Service               | Image status                                                                                                                                                                                                           | Proposed role and identity                                                                                                                   |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pocket-id`           | `ghcr.io/pocket-id/pocket-id:v2.19.3-distroless@sha256:6a0045a89b80fa6624c091786e7be132a4dde880ca64727a6b019c056b091982`; candidate remains blocked                                                                    | Shell-free, nonroot Debian 13 image; explicitly select the proposed app UID/primary GID rather than PUID remapping                           |
-| `pocket-id-db-backup` | `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`; [temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21), candidate still blocked | One-shot SQLite Online Backup API job; identity mapping and private output permissions verified in the isolated AMD64 diagnostic             |
-| `pocket-id-init`      | `docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d`; known binaries, partial security/maintenance review                                                        | Validate required inputs, chown only the `./data` root to the proposed app PUID/PGID, set root directory mode `0700`; never chown `./config` |
+| Service               | Image status                                                                                                                                                                                  | Role and identity                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `pocket-id`           | `ghcr.io/pocket-id/pocket-id:v2.19.3-distroless@sha256:6a0045a89b80fa6624c091786e7be132a4dde880ca64727a6b019c056b091982`; scoped app review cleared                                           | Shell-free, nonroot Debian 13 image; explicit app UID/primary GID rather than PUID remapping      |
+| `pocket-id-db-backup` | `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`; [temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21) | One-shot SQLite Online Backup API job; image-local `pocketbackup` maps to app identity            |
+| `pocket-id-init`      | `docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4`; approved for this exact AMD64 operation                                           | Validate inputs, chown only `./data` root to PUID/PGID `3133:3133`, mode `0700`; never `./config` |
 
-Proposed account `svc-app-pocket-id` has no shared-purpose group memberships.
-Its UID and matching primary GID are **reserved for this inactive candidate,
-not provisioned or available for reuse**. This is not an active registry account;
+Declared account `svc-app-pocket-id` has no shared-purpose group memberships.
+Its UID and matching private primary GID are **allocated in the registry,
+not provisioned or available for reuse**. `admin_group_member=false`;
 see [Infrastructure](https://homelab.devsecninja.com/INFRASTRUCTURE/#pocket-id-candidate-identity-reservation).
 Init runs as root with narrowly declared capabilities and changes only the
 data root, not its contents. The backup's writable-root s6 supervisor starts as
@@ -114,14 +113,16 @@ The selected distroless artifact reports version `2.19.3` and revision
 GHCR was selected for the verified shell-free variant; cross-registry equality
 for this distroless artifact is not established and remains a follow-up before
 any registry change.
-The image supports the explicit proposed runtime user; this does not establish
+The image supports the explicit configured runtime user; this does not establish
 full-stack runtime, recovery, or production acceptance.
 
 ### Image and Recovery Evidence 2026-11-21
 
-**Candidate remains blocked.** This evidence alone grants no approval; the
-[temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21)
-is a separate, bounded risk decision, not app/init or deployment clearance.
+**App/init review cleared for the controlled pilot on November 21.**
+The exact app is approved for normal use; init clearance is restricted to the
+fixed AMD64 operation below. Neither is a new risk exception or an all-feature
+image-clean claim. The [backup-only exception](#temporary-backup-risk-exception-2026-11-21)
+remains separately bounded; no PR merge or production deployment occurred.
 [Release v2.19.3](https://github.com/pocket-id/pocket-id/releases/tag/v2.19.3), published **2026-11-15 at 19:10:25 UTC**, delivers Go/stdlib **1.27.4** and x/crypto **0.59.0**; Go-jose **4.1.6**, zod **4.6.7**, and x/net **0.62.0** remain delivered.
 [Patch d6a0563](https://github.com/pocket-id/pocket-id/commit/d6a056355a3238b0d0c624d4788e8118dafed7f6) changes device-authorization approval from `BindOptionalJSON` to `BindJSON`: `{}` remains allowed, but a missing JSON body is rejected.
 Upstream includes a unit regression; no local browser/device-approval ceremony was exercised.
@@ -132,20 +133,22 @@ Exact AMD64 identities (`sha256`) for the current app index in the services tabl
 - Config: `0de135f603004c51f81e2fa3734fc38070f1bf7401e8d8c8080769bfdff210a1`
 
 Trivy **0.76.0**, November 21 UTC: DB updated **18:38:32**, downloaded **20:12:08**;
-scans: app **20:12:19**, backup **20:12:22**, init **20:12:24**. Raw counts are not exploitability judgments.
+scans: app **20:12:19**, backup **20:12:22**, old init **20:12:24**.
+The old-init result predates the scoped adoption below; raw counts are not exploitability judgments.
 
-| Artifact / component                               | Inventory                                                                                 | Findings                                                                                     |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| BusyBox init                                       | No Trivy package database; manually reconfirmed BusyBox `1.38.0`, glibc `2.41-12+deb13u3` | Not scanned-clean                                                                            |
-| nfrastack/db-backup 4.9.2 — OS                     | 166 Alpine 3.24.1 packages                                                                | 4 CRITICAL / 167 HIGH / 152 MEDIUM / 90 LOW / 5 UNKNOWN                                      |
-| nfrastack/db-backup 4.9.2 — Python                 | 15 packages                                                                               | 3 MEDIUM                                                                                     |
-| nfrastack/db-backup 4.9.2 — inactive engines/tools | `age`; `influx`; `influxd`                                                                | HIGH/CRITICAL subset: age 14 HIGH; influx 28 HIGH / 2 CRITICAL; influxd 61 HIGH / 2 CRITICAL |
-| Pocket ID — OS / npm                               | 6 Debian 13.7 OS packages; 44 npm entries                                                 | 0 findings in either inventory                                                               |
-| Pocket ID — Go                                     | 194 modules                                                                               | Only UNKNOWN `GO-2026-5932`, separate `golang.org/x/crypto/openpgp v0.1.0-deprecated`        |
+| Artifact / component                               | Inventory                                                            | Findings                                                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Historical init before scoped adoption             | No Trivy package database; BusyBox `1.38.0`, glibc `2.41-12+deb13u3` | Old pin, not scanned-clean                                                                   |
+| nfrastack/db-backup 4.9.2 — OS                     | 166 Alpine 3.24.1 packages                                           | 4 CRITICAL / 167 HIGH / 152 MEDIUM / 90 LOW / 5 UNKNOWN                                      |
+| nfrastack/db-backup 4.9.2 — Python                 | 15 packages                                                          | 3 MEDIUM                                                                                     |
+| nfrastack/db-backup 4.9.2 — inactive engines/tools | `age`; `influx`; `influxd`                                           | HIGH/CRITICAL subset: age 14 HIGH; influx 28 HIGH / 2 CRITICAL; influxd 61 HIGH / 2 CRITICAL |
+| Pocket ID — OS / npm                               | 6 Debian 13.7 OS packages; 44 npm entries                            | 0 findings in either inventory                                                               |
+| Pocket ID — Go                                     | 194 modules                                                          | Only UNKNOWN `GO-2026-5932`, separate `golang.org/x/crypto/openpgp v0.1.0-deprecated`        |
 
 **Maintenance flags / confidence:** Pocket ID **partial / medium** (supported v2 dependency fixes delivered; deprecated transitive dependency remains);
 backup 4.9.2 **unmaintained tag / high** (latest-only policy; upstream project actively released 5.0.11);
-BusyBox **partial / medium** (upstream glibc u5 support exists; pinned artifact remains u3, with a package-database gap).
+BusyBox **partial / medium** (effective upstream rebuild to glibc u4 proven;
+u5 exists, and the package-database gap remains).
 
 **Narrow OpenPGP source finding:** x/crypto `0.59.0` does not fix/remove the separate deprecated module.
 Pocket ID v2.19.3 `bootstrap/db_bootstrap.go` blank-imports golang-migrate **4.20.1** `source/github`.
@@ -153,7 +156,9 @@ The [migration utility](https://github.com/pocket-id/pocket-id/blob/v2.19.3/back
 The [versioned GitHub migration source](https://github.com/golang-migrate/migrate/blob/v4.20.1/source/github/github.go) uses google/go-github **39.2.0** `Repositories.GetContents`/`DownloadContents`.
 That package's only non-test OpenPGP call is [git_commits.go](https://github.com/google/go-github/blob/v39.2.0/github/git_commits.go): `CreateCommit` → `createSignature` → `ArmoredDetachSign`, alongside the `SigningKey` type.
 No `Git.CreateCommit`/OpenPGP call was found in Pocket ID or the GitHub migration source: this is a source-traced unused commit-signing dependency, not demonstrated authentication/backup-crypto exposure.
-Deprecated upstream dependency hygiene remains open; this is not proof of binary-symbol absence, an exploit, or an applicability exception.
+Deprecated upstream dependency hygiene remains a maintenance follow-up.
+The November 21 scoped decision approves normal app use on this trace and
+delivered fixes, not proof of binary-symbol absence or a new applicability exception.
 
 **Shared backup:** active upstream's latest [5.0.11 release](https://github.com/nfrastack/db-backup/releases/tag/5.0.11) is dated **November 12**.
 Its [latest-only security policy](https://github.com/nfrastack/db-backup/blob/5.0.11/SECURITY.md) leaves pinned **4.9.2 unsupported (high confidence)**, not the project abandoned.
@@ -166,39 +171,111 @@ These narrow findings do not approve the whole image. The
 unsupported maintenance and residual dated-findings uncertainty only for this
 tested backup scope; a maintained compatible replacement remains the exit goal.
 
-**BusyBox:** actual glibc remains **2.41-12+deb13u3**; the [Debian tracker](https://security-tracker.debian.org/tracker/source-package/glibc) now lists **2.41-12+deb13u5**.
-[CVE-2026-86805](https://security-tracker.debian.org/tracker/CVE-2026-86805) and [CVE-2026-95818](https://security-tracker.debian.org/tracker/CVE-2026-95818) are fixed there; reviewed prerequisites concern setuid/setgid, `AT_SECURE`, and `$ORIGIN` RPATH.
-No setuid/setgid files were found under actual `/bin`, `/usr`, or `/lib`; init's numeric `chown`/`chmod`/`printenv` needs no NSS network invocation and has no network/ports.
-[CVE-2026-97399](https://security-tracker.debian.org/tracker/CVE-2026-97399) concerns Power8, not AMD64. Known binary inventory narrows these cases, not zero CVEs or blanket clearance.
-The u3-to-u5 dependency-delivery lag remains; review is **partial, medium-confidence**. Init pin/profile are unchanged.
+**Scoped BusyBox adoption — November 21:** the services-table index replaces
+old index `fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d`.
+Exact AMD64 manifest:
+`sha256:f97baa533a26513c453a362be331a43eb60214302f449c16571b23cea141dce4`;
+config: `sha256:aaef90e065235eb0b2d9938be85d1b81add2902cf89affe2cdfa19be33476ac0`.
+Manual binary/library inventory confirms BusyBox **1.38.0**, glibc
+**2.41-12+deb13u4**, replacing u3. Exact-artifact Trivy **0.76.0** returned no
+package results; manual inventory complements this gap, not a “clean” scan.
+[Official distribution metadata](https://github.com/docker-library/busybox/blob/7f8c76693ac4a64018eb67cf2768e5792d24bf6e/latest/glibc/amd64/index.json)
+matches the manifest, published **September 22**. The
+[upstream builder](https://github.com/docker-library/busybox/blob/master/latest/glibc/Dockerfile.builder)
+verifies BusyBox SHA and GPG signature, builds on Debian trixie-slim with
+Buildroot **2026.08.1**, and runs chroot environment/DNS smoke tests.
+The binary's May 13 timestamp is `SOURCE_DATE_EPOCH`, not last rebuild age.
 
-**New-artifact AMD64 recovery passed today:** named Linux volumes, synthetic keys, no host ports; unchanged guard/v4 engine against a live healthy app with read-only source produced one GPG/ZSTD ciphertext + SHA1 pair.
+The [glibc tracker](https://security-tracker.debian.org/tracker/source-package/glibc)
+still lists u5; approval is limited to the current operation:
+
+- [CVE-2026-86805](https://security-tracker.debian.org/tracker/CVE-2026-86805) /
+  [CVE-2026-95818](https://security-tracker.debian.org/tracker/CVE-2026-95818)
+  require setuid/setgid, `AT_SECURE` and `$ORIGIN` prerequisites; no setuid/setgid
+  files were found. [CVE-2026-97399](https://security-tracker.debian.org/tracker/CVE-2026-97399)
+  concerns Power8, not AMD64.
+- Reviewed glob (**CVE-2026-126765**), regex (**CVE-2026-100290**),
+  iconv, wide-scanf and gettext cases are not used by fixed numeric,
+  nonrecursive `chown`/`chmod` and quoted `printenv`/`case`. No user-controlled
+  shell code, glob/regex input or NSS network lookup is required.
+- BusyBox ash **CVE-2026-38754 / CVE-2026-38755** require crafted unquoted
+  IFS/error-unwinding/recursive shell programs per
+  [upstream patch 1](https://lists.busybox.net/pipermail/busybox/2026-June/092353.html)
+  and [patch 2](https://lists.busybox.net/pipermail/busybox/2026-June/092354.html).
+  This script has no functions, eval, recursion, glob or IFS-subject expansions;
+  secrets are quoted values, not code.
+- The [BusyBox tracker](https://security-tracker.debian.org/tracker/source-package/busybox)
+  passwd-parser **CVE-2026-88839** prerequisite is absent: no attacker-controlled
+  password/group files are mounted, root is read-only, and ownership is numeric.
+  Network/archive/mount/parser applets are not invoked; no host socket or network exists.
+
+**Decision:** approve this exact AMD64 artifact for this init command only,
+maintenance **partial / medium confidence**, effective upstream rebuild proven.
+Re-review if image, command, inputs, mounts or network boundaries change.
+**Actual new-artifact validation passed:** five invalid-secret cases (empty
+domain, `GENERATE`/short app key, empty/`CHANGE_ME` backup passphrase) failed before
+ownership changes. The actual command ran twice: `./data` matched the declared
+app UID/primary GID and mode `0700`; an existing child's different ownership and
+mode `0600` were unchanged. `/proc` showed `NoNewPrivs=1` and `CapEff=0xb`
+(only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`); root writes failed, 64 MiB memory and
+100-PID limits were verified. No host resources changed.
+
+**App v2.19.3 AMD64 recovery — earlier November 21 pass:** named Linux volumes, synthetic keys, no host ports; unchanged guard/v4 engine against a live healthy app with read-only source produced one GPG/ZSTD ciphertext + SHA1 pair.
 Independent decrypt/checksum, SQLite integrity/FKs, diagnostic linked rows/BLOB/index/view/trigger, and exact encrypted signing/session KV bytes passed.
 A fresh **same-v2.19.3-image/same-key** restore became healthy after a **95-second test wait** for copied lease expiry; actual HTTP public JWKS/key IDs matched. Missing-SHM copies still rejected.
 No production startup sleep, browser/passkey ceremony, token issuance, or production acceptance is claimed.
 **Retention passed at 20:18:14 UTC:** exact v2.19.3/current guard, healthy app, one completion, exit `0`; valid 49h pair removed, 47h pair retained and SHA1-verified, exactly one new valid pair (two total). All test-owned resources were cleaned up.
-**Full required validation passed on 2026-11-21:** `mise exec -- lefthook run pre-commit`, all **11 applicable validators**, including **286 BATS tests (174 seconds)** and native format/schema/directory/Compose, Gitleaks, Trivy, Checkov, and MkDocs checks.
+**Earlier full required validation passed on 2026-11-21:** `mise exec -- lefthook run pre-commit`, all **11 applicable validators**, including **286 BATS tests (174 seconds)** and native format/schema/directory/Compose, Gitleaks, Trivy, Checkov, and MkDocs checks.
 Separately, **71 targeted tests passed (32 guard + 39 DCCD)**. Baseline `format_duration` command-not-found warnings remain: suite success does **not** make those legacy assertions meaningful; no scope fix is claimed.
 November 8 retention/BATS/full-hook passes below remain dated historical evidence, not tests of v2.19.3.
+These earlier suite passes predate the controlled-pilot wiring changes.
+**Current full verification — November 21 passed:** all **15 selected pre-commit
+checks**, **113.67 seconds**; **293 BATS unit/config/guard tests**
+(Pocket ID: **39 = 32 guard + 7 config**) plus **29 registry/provisioning
+integration tests**. Both concurrent jobs used fresh whole-index archives with
+identical `staged_index_entries_sha256`:
+`67f6c6bff10b63be2a9f16002fce6cedbb99a8cec4504922ce1bc627ed7b2b4d`.
+Strict MkDocs on the materialized index also passed, with the actual Pocket ID
+heading and operator commands rendered; only two baseline BACKUP anchor INFO
+messages remained. The earlier `286`/`71` results and legacy assertion caveat
+above remain dated prior evidence.
+
+**Scoped proxy/config proof — November 21 passed:** exact pinned Pocket ID
+**v2.19.3** behind cached Docker Hub Traefik **3.7.10**, index
+`sha256:0ae6898c4a6ad568e8eabad0839b1660eb54a72aa43089ead05c6f624f866b23`,
+**not the production DHI image**. The file-provider fixture derived routing
+from actual Compose Host/backend-port labels and used tracked `chain-no-auth`,
+rate-limit and security-header definitions. It ran on an isolated internal
+Linux network with named volumes, no host ports/sockets or public certificates.
+HTTPS issuer `https://id.example.invalid` and JWKS checks, `/setup` → `200`,
+protected `/api/users/me` → `401`/`403` without Entra redirect, wrong Host → `404`,
+HTTP → HTTPS, HSTS and `X-Frame-Options: DENY` all passed. Owned resources were
+removed. This validates the fixture's proxy/config behavior, not the production
+DHI image, Docker-provider discovery/network attachment, real DNS, public-certificate
+TLS or browser/passkey flows; those remain operator acceptance requirements.
+The earlier exact-init pass remains separate evidence.
 
 ### Temporary Backup Risk Exception 2026-11-21
 
+**Record:** `84889353`; historical acceptance scope retained below.
 **Approving reviewer:** @DevSecNinja, **2026-11-21** — “Ok lets accept the risk for now.”
 This accepts unsupported/unpatched maintenance risk and residual uncertainty
 in the current dated package findings for **Pocket ID's backup job only**.
 **Coordinator-defined bounds:** the exact scope below and conservative
 **30-day review/expiry, 2026-12-21**, are not user-selected wording.
-This changes only the backup gate to conditional acceptance while valid;
-Pocket ID remains a **blocked candidate**, not deploy-ready.
+This changes only the backup gate to conditional acceptance while valid.
+At acceptance, Pocket ID was still a blocked candidate; the later controlled
+pilot authorization and scoped app/init clearance are separate decisions.
 
 **Excluded:** TREK and every other 4.9.2 stack; Pocket ID's main app and
 BusyBox init; different digests/configs, platforms, engines, paths, networks
 or privileges; future unreviewed findings or deployment changes.
-This is **not production deployment, PR merge, or profile-change authorization**.
-Active DNS, registry, Traefik, Entra and client credentials remain untouched.
-Remaining app/init review, independent key recovery, actual passkey/client
-authorization and operational gates remain open. The **DO NOT EXECUTE**
-future handoff and already-provisioned SOPS secrets are unchanged.
+This record does **not itself authorize activation, production deployment,
+PR merge, or profile changes**. The separately approved implementation now
+declares DNS, registry and active Traefik wiring and removes the profiles.
+It does not broaden this exception; Entra/client credentials and original SOPS
+ciphertext remain unchanged. Independent key recovery, actual passkey/client
+authorization and operational acceptance remain first-run requirements.
 
 **Exact artifact and evidence**
 
@@ -267,7 +344,8 @@ review before relying on this exception**; it grants no blanket future waiver.
 There is **no automatic renewal or carry-over across digests/platforms**.
 If no acceptable replacement is available, obtain an explicit fresh review
 before expiry. On **2026-12-21**, this record no longer supplies exception
-clearance: neither candidate activation nor continued use may rely on it.
+clearance: neither pilot activation nor continued use may rely on it.
+If first use is on or after that date, complete the review before use.
 
 ### Image and Recovery Evidence 2026-11-08
 
@@ -281,7 +359,7 @@ not merely on an unreleased branch.
 
 Historical app index: `ghcr.io/pocket-id/pocket-id:v2.19.2-distroless@sha256:a21166a4eb513d2ffcbf815398480998d996a9e719cfba029395517658626f9e`, not today's services-table pin.
 Labels were `2.19.2` / revision `2b2750ed61e0016f4c15630322d15ca22143cdb6`; `v2-distroless` resolved to this same index on November 8.
-Verified AMD64 identities (`sha256`); backup/init pins are unchanged:
+Verified AMD64 identities (`sha256`); backup is unchanged; init used the old u3 pin:
 
 - App manifest: `7b1231ff19150d2003ab4e2f26c363c812e051ac5df6f27e5e3835f9781890fb`
 - App config: `7db4825f42e30135683fcfc5197ed36f041944f35177ad0148d429251760a6a4`
@@ -358,11 +436,12 @@ historical evidence. Full mandatory `mise exec -- lefthook run pre-commit`
 snapshot, pinned tools, and real symlinks; other hooks used the existing native
 Windows setup, approved server-apps helper, and jq **1.8.1** in the process
 environment. No validators were skipped and no signing bypass was used.
-All profiles, production
-integration boundaries, independent secret-recovery and acceptance gates remain.
+At that date, all profiles, production integration boundaries, independent
+secret-recovery and acceptance gates remained.
 
 ### Native Runtime Evidence 2026-10-26
 
+**Historical evidence — old app/init artifacts, not current pilot acceptance.**
 Isolated tests used **Apple container 1.6.1**, `linux/arm64`, and native ext4
 volumes with the old app pin recorded in the
 [October 29 review](#image-evidence-2026-10-29) and the unchanged backup pin.
@@ -390,7 +469,7 @@ A separate Docker/TrueNAS runtime validation is **not** a premerge gate.
 ### Image Evidence 2026-10-26
 
 The historical Trivy **0.75.0** review at **16:27 UTC**, on the old app pin
-recorded below and unchanged backup/init pins, blocked all images:
+recorded below, unchanged backup and old u3 init pin, blocked all images:
 one HIGH Node finding for `zod`, one UNKNOWN Go finding, and backup OS counts
 of 1 CRITICAL / 43 HIGH / 52 MEDIUM / 80 LOW / 4 UNKNOWN. BusyBox returned no
 package inventory. These historical raw counts are not current applicability decisions.
@@ -401,7 +480,7 @@ package inventory. These historical raw counts are not current applicability dec
 adoption clearance.** These Trivy **0.75.0** scans used the old app index pin
 `ghcr.io/pocket-id/pocket-id:v2-distroless@sha256:d035c9c229304cfd25f97a79b2da00bde9cf942abbd70430d452a95420e2836b`
 (label `v2.19.1`, revision `23c7f07f7ef80cd14b991541784f1182dbdaf249`),
-not the current v2.19.3 pin; backup/init pins are unchanged.
+not the current v2.19.3 pin; backup is unchanged, init used the old u3 pin.
 Counts are raw, not deduplicated or proof that every affected package/path executes.
 All times UTC on **2026-10-29**: database updated **13:09:46**, downloaded
 **18:48:53**; scans: app **18:49:07**, backup **18:49:23**, BusyBox **18:49:17**.
@@ -461,6 +540,8 @@ ties latest/glibc AMD64 variants to upstream builds, not exact-libc security cle
 
 ### Windows Continuation Status 2026-10-28
 
+**Historical candidate configuration — profiles below have since been removed.**
+
 - Approved Podman WSL startup and synthetic Compose **v5.5.1** `config` passed:
   zero default-profile services, all three under `pocket-id-candidate`; no candidate ran.
 - Releases/pins were unchanged: Pocket ID **v2.19.1**, backup latest **5.0.6**.
@@ -469,6 +550,8 @@ ties latest/glibc AMD64 variants to upstream builds, not exact-libc security cle
   omitted indexes/views/triggers; its WAL warning does not establish compatibility.
 
 ### Exact-Image Diagnostic 2026-10-29
+
+**Historical synthetic diagnostic — not production acceptance.**
 
 Isolated local rootless **Podman client 5.8.3 / server 5.8.6**,
 `linux/amd64`, used native named Linux volumes, no network or published ports,
@@ -504,7 +587,8 @@ change was used.
 Tests used synthetic fixtures; no production secrets or host data were used;
 no deployment occurred. Actual passkeys/login, OIDC issuance/token signing, and
 mobile acceptance were not exercised. Original encrypted secrets are unchanged;
-all test-owned resources were cleaned up. Adoption/profile/integration gates stay closed.
+all test-owned resources were cleaned up. Adoption/profile/integration gates
+remained closed at that date.
 
 ### Persistent State Classification
 
@@ -550,7 +634,7 @@ This thin guard retains `backup01-now now` and its engine, checking:
   at full `stat` precision). Overwriting an existing timestamped pair is accepted
   only when both files change and all checks pass; unchanged stale output and
   partial pair updates fail.
-- Reserved app ownership, files `0600`, output root `0700`, and SHA1 verification
+- Declared app ownership, files `0600`, output root `0700`, and SHA1 verification
   before decryption.
 - GPG/ZSTD recovery in private `077`-umask scratch, integrity/FKs, matching clean
   migration version, and nonempty signing/session keys; failures close the job.
@@ -565,8 +649,9 @@ by the guard. Existing `depends_on: service_healthy` needs no arbitrary sleep;
 unreadable/missing source or WAL metadata must fail closed, not use rw/`immutable`
 fallback. The October 29 guard/DCCD regressions passed; final-image synthetic
 restore and 49h/47h retention passed again on
-[November 8](#image-and-recovery-evidence-2026-11-08). See the
-[blocked-candidate scope and bounded restore readiness procedure](https://homelab.devsecninja.com/BACKUP/#pocket-id-blocked-candidate-coverage-and-future-restore).
+[November 8](#image-and-recovery-evidence-2026-11-08) and
+[November 21](#image-and-recovery-evidence-2026-11-21). See the
+[pilot scope and bounded restore readiness procedure](https://homelab.devsecninja.com/BACKUP/#pocket-id-blocked-candidate-coverage-and-future-restore).
 Do not substitute v5 or a moving latest tag: the
 [v4 compatibility constraint](https://homelab.devsecninja.com/BACKUP/#v4-compatibility-constraint)
 requires a separately tested migration.
@@ -599,54 +684,31 @@ Init's minimum-length check is not proof of the required random key generation.
 ## First-Run Setup
 
 <!-- dprint-ignore -->
-!!! danger "DO NOT EXECUTE — blocked candidate"
-    Do not deploy, create a Custom App or dataset, run the preparation helper,
-    activate the profile, or wire a route now. SOPS secret provisioning is
-    complete; it does not authorize activation. The sequence below is
-    future-only, not a deploy-now handoff.
+!!! warning "Controlled post-merge pilot only"
+    Execute only after PR #949 is merged and the operator is ready.
+    This change has not deployed or provisioned Pocket ID. App/init review is
+    cleared for the documented scope; backup acceptance expires on 2026-12-21.
+    Complete review before first or continued use on or after expiry.
+    Operator recovery, passkey and client acceptance must precede production reliance.
 
 ### Windows Continuation Checklist
 
-- [x] Run isolated exact-image diagnostics on the approved rootless Podman
-      runtime with native Linux volumes, synthetic state, and test-only secrets.
-- [x] Verify supported `v2.19.3-distroless` delivers Go-jose **4.1.6**,
-      zod **4.6.7**, and x/net **0.62.0** in the exact pinned artifact.
-- [ ] Review maintained upstream **exact artifacts** and retain dated
-      inventories/applicability decisions. Complete `GO-2026-5932` OpenPGP
-      dependency review after the November 21 unused commit-signing source trace,
-      and BusyBox review. Track the unsupported backup's replacement and
-      **2026-12-21** review/expiry under the
-      [temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21);
-      neither that exception nor fixed app dependencies clear candidate adoption.
-- [x] Execute the thin fail-closed guard around the original backup engine;
-      verify its actual output restores healthy without rw/`immutable` fallback.
-- [x] Pass 27 guard mock regressions and 39 DCCD freshness/receipt tests
-      (October 29 historical result).
-- [x] Pass the required 281-test BATS suite from the November 8 staged-index
-      Linux snapshot; retain the `format_duration` legacy-assertion caveat above.
-- [x] Verify Pocket ID's 48-hour retention boundary with valid 49h/47h
-      encrypted fixtures; final-image rerun passed November 8 at 14:11:40 UTC.
-- [x] Verify GPG/ZSTD/SHA1 output, private ownership/modes, full seeded schema
-      and records, exact encrypted signing/session KV bytes, and fresh app health
-      with the same test key after natural Francis lease expiry; actual source
-      and restored HTTP endpoints returned identical public JWKS/key IDs;
-      `v2.19.2` rerun passed November 8; `v2.19.3` rerun passed November 21.
-- [x] Complete full mandatory pre-commit validation on November 8;
-      all 15 selected validators passed, including the required 281-test BATS suite.
-- [ ] Prove representative uploads/client recovery and actual passkey/OIDC
-      signing/mobile acceptance before production reliance; synthetic encrypted
-      KV-byte and public JWKS continuity are not proof of those flows.
-- [ ] Keep all candidate profiles and active DNS/Traefik/registry unchanged
-      until adoption and restore clear. Existing encrypted secrets are
-      completed: no rotation or unnecessary re-encryption. Establish
-      independent recovery of the original app key and backup passphrase.
-- [ ] **Only after clearance and approval**, integrate registry key `pocket-id`
-      with the [reserved account](https://homelab.devsecninja.com/INFRASTRUCTURE/#pocket-id-candidate-identity-reservation),
-      distinct from TREK's reservation; recheck host allocation, server scope,
-      and SOPS rules only if needed. Review DNS `id.${DOMAINNAME}`, active
-      Traefik frontend attachment, app/dataset/init/env/identity inventories,
-      and remove `pocket-id-candidate` from all three services. Activate the
-      Traefik attachment only after the app network exists.
+- [x] Complete scoped app/init review and actual new-init AMD64 validation
+      on November 21; retain exact artifact identities and partial maintenance confidence.
+- [x] Preserve dated guarded synthetic recovery, same-key/JWKS continuity,
+      retention and test-suite evidence above, including the legacy assertion caveat.
+- [x] Implement registry, DNS, active Traefik attachment and profile removal
+      for the controlled pilot; preserve server/SOPS scope and original ciphertext.
+- [x] Pass scoped proxy/config checks on November 21 using the file-provider
+      fixture above; this is not production Docker-provider/DNS/TLS or browser proof.
+- [x] Complete full-suite validation of the changed wiring on November 21;
+      current indexed verification passed as recorded above.
+- [ ] After merge and readiness, follow the ordered enrollment below; establish
+      independent original-key/passphrase/host recovery and first-admin passkeys.
+- [ ] Prove representative uploads/client recovery, actual passkey/OIDC
+      signing/mobile acceptance and authorization before production reliance.
+- [ ] Track a maintained compatible backup replacement and complete the
+      **2026-12-21** review before expiry; no automatic exception renewal.
 
 The native passes above need not be repeated solely to add a Docker/TrueNAS
 premerge gate. Retest behavior affected by replacement artifacts or backup
@@ -672,7 +734,7 @@ only route to keys and backups.
 
 Pocket ID's native `one-time-access-token` recovery mechanism is the proposed
 break-glass path. Verify its exact invocation, user targeting, expiry, and
-single-use behavior in the selected image before adoption; do not assume a
+single-use behavior in the selected image before production reliance; do not assume a
 shell exists in a distroless image. An authorized operator must run it through
 independent host access, with sensitive token/URL output visible only in the
 operator's terminal, never CI logs, tickets, chat, or shared transcripts.
@@ -680,62 +742,70 @@ Complete recovery only for an independently verified account, enroll a new
 passkey, invalidate unused recovery access and affected sessions, and audit
 the event without recording the token.
 
-### Future Rollout Only After All Gates Clear
+### Controlled Post-Merge Operator Handoff
 
-**DO NOT EXECUTE until adoption, independent secret recovery, registry activation,
-reviewed active Traefik/DNS wiring plan, profile removal, and encrypted restore
-acceptance are all cleared.** A separate Docker/TrueNAS runtime test is not a
-premerge prerequisite. Actual host access/passkey acceptance
-must then pass before production reliance or any application cutover.
-
+Execute **only after PR #949 is merged and the operator is ready**, within
+the backup exception's validity. These actions have not been performed.
 On the TrueNAS host, use the deployment user with aliases already sourced from
-`/mnt/vm-pool/apps/scripts/aliases.sh`. Coordinate scheduled deployments during
-network enrollment; no normal deployment selects the candidate Traefik fragment.
+`/mnt/vm-pool/apps/scripts/aliases.sh`. Coordinate cron before the first sync
+through network enrollment: the active Traefik definition now requires an
+external network that the new Custom App must create first. Do not use raw
+`git pull`, raw `dccd.sh`, ad-hoc fragments or manual network connections.
 
-1. Sync/decrypt only the future registered app:
+**1. Sync/decrypt Pocket ID first.**
 
-   ```sh
-   dccd-app pocket-id
-   ```
+```sh
+dccd-app pocket-id
+```
 
-   The missing TrueNAS app-config directory must cause deployment to be
-   skipped on this first pass. This guard is TrueNAS-mode-specific, not a
-   general raw Compose safety control. Do not run `dccd-all` first.
-2. From the updated checkout, prepare the approved registry entry:
+This creates the required raw `services/pocket-id/.env`. Expect deployment to
+be **skipped because the TrueNAS Custom App config directory is missing**.
+Confirm that skip before continuing. The guard is TrueNAS-mode-specific, not
+a raw Compose safety control. Do not run `dccd-all` first.
 
-   ```sh
-   cd /mnt/vm-pool/apps
-   sudo bash scripts/truenas-prep-app.sh pocket-id
-   ```
+**2. Prepare the declared account/group and dataset from the updated checkout.**
 
-   The helper must preserve checked-out files while creating the approved
-   dataset/account. It does not support this candidate before registry activation.
-3. **TrueNAS Custom App name:** `pocket-id`
+```sh
+cd /mnt/vm-pool/apps
+sudo bash scripts/truenas-prep-app.sh pocket-id
+```
 
-   ```yaml
-   include:
-     - /mnt/vm-pool/apps/services/pocket-id/compose.yaml
-   services: {}
-   ```
+Verify the host allocation and checkout preservation; the helper now supports
+registry key `pocket-id` with no administrator group membership.
 
-   Let the app create its frontend network first. Only then activate the
-   reviewed, tracked Traefik attachment by merging the fragment's entries into
-   active `services/traefik/compose.yaml`, and activate approved DNS wiring.
-   Do not manually connect networks, apply the fragment ad hoc, or assume it
-   is discovered automatically.
-4. Complete the future canonical deployment:
+**3. TrueNAS Custom App name: `pocket-id`**
 
-   ```sh
-   dccd-all
-   ```
+```yaml
+include:
+    - /mnt/vm-pool/apps/services/pocket-id/compose.yaml
+services: {}
+```
 
-5. Verify init completion, healthy rootless app, HTTPS origin and issuer,
-   no published ports, one successful encrypted backup and freshness check,
-   and target-host recovery behavior before production reliance (not a redundant
-   premerge gate). Use the selected release's native
-   bootstrap flow to establish the independently verified first administrator,
-   enforce controlled enrollment and user verification, and enroll/test spare
-   passkeys. Confirm Entra/TFA/Immich/Outline behavior remains unchanged.
+Let the app create `pocket-id-frontend` and verify it exists before deploying
+Traefik. Its attachment is already in the active tracked Compose definition;
+no fragment merge or manual connection is needed.
+
+**4. Complete the canonical deployment.**
+
+```sh
+dccd-all
+```
+
+**5. Complete first-run acceptance before production reliance.**
+
+- Verify init completion, healthy rootless app, actual HTTPS origin,
+  issuer/discovery/JWKS, no published ports, and a fresh encrypted backup
+  with successful freshness verification.
+- Open `https://id.${DOMAINNAME}/setup` to establish the independently verified
+  first administrator. Enroll primary and separately stored spare
+  hardware passkeys, enforce controlled registration and WebAuthn user
+  verification, and test spare-key/lost-primary recovery.
+- Establish independent recovery of the **original** `ENCRYPTION_KEY`,
+  `DB_ENC_PASSPHRASE` and host access; test native recovery and representative
+  uploads/client acceptance rather than relying on synthetic proof alone.
+- Confirm Entra/TFA/Immich/Outline behavior is unchanged before resuming
+  coordinated automation. A separate Docker/TrueNAS runtime test is not a
+  premerge prerequisite; these are actual operator acceptance requirements.
 
 For a separately approved TREK integration after rollout, register a
 **confidential OIDC client** with exact callback
@@ -743,11 +813,12 @@ For a separately approved TREK integration after rollout, register a
 `https://id.${DOMAINNAME}`. Store its separate client credentials through the
 approved encrypted workflow and test authorization/denial and recovery.
 TREK configuration is not present in this checkout; this is a continuation
-task, not a verified integration. No Entra migration is included.
+task, not a verified integration or a claim that credentials were issued.
+No Entra migration is included.
 
 ## Optional Per-App Cutover and Rollback
 
-These are future, separately approved changes, not part of candidate activation.
+These are future, separately approved changes, not part of the controlled pilot.
 An Entra browser SSO session, a TFA cookie, a native app session, and an app's
 OIDC identity binding are different state. Changing an issuer does not migrate
 or revoke them all; a warm browser can hide a broken integration. Test fresh
@@ -790,5 +861,5 @@ exact-image findings, schema/key changes and versioned storage behavior for
 every proposed update. Preserve a compatible image reference, verified
 pre-upgrade backup, original encryption key and identity mappings; prove the
 rollback/restore path before upgrading. Do not assume database downgrades are
-supported or that passkeys survive an origin/RP-ID change. Keep the proposed
+supported or that passkeys survive an origin/RP-ID change. Keep the configured
 origin stable and test real passkey/OIDC clients after changes.
