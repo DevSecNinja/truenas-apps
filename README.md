@@ -95,8 +95,12 @@ records pinned `v2.19.3-distroless` and delivered Go/x/crypto updates.
 Current-artifact AMD64 guarded read-only-source backup, encrypted synthetic
 restore with identical public JWKS/key IDs, and 49h/47h retention passed.
 OpenPGP is source-traced to an unused commit-signing dependency, not demonstrated
-authentication/backup-crypto exposure; dependency hygiene, unsupported backup
-4.9.2, and partial BusyBox/glibc review still block adoption and activation.
+authentication/backup-crypto exposure; app dependency hygiene and partial
+BusyBox/glibc review still block adoption and activation. Unsupported backup
+4.9.2 has a [temporary Pocket ID backup-only exception](services/pocket-id/README.md#temporary-backup-risk-exception-2026-11-21),
+accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**.
+It applies only to the exact tested AMD64 artifact/configuration, with no
+automatic renewal; it does not authorize deployment or clear remaining gates.
 The [November 8 evidence](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-08)
 retains historical v2.19.2 recovery, 281-test BATS (including the legacy
 `format_duration` caveat), and full pre-commit passes. On **November 21**, full

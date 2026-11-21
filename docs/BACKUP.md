@@ -1061,10 +1061,20 @@ not whole-image approval. The
 remains historical. Latest upstream **5.0.11** (November 12) still uses independent
 source queries; its output-SQL `BEGIN`/`COMMIT` and schema fixes do not prove
 live-source consistency or v4 compatibility. The working 4.9.2 pin is unchanged.
-Upstream's latest-only support policy is a separate blocker, not evidence of
-functional incompatibility or project abandonment. A maintained compatible
-artifact or separately approved narrow policy decision is still needed;
-no exception or clearance is approved.
+Upstream's latest-only policy still leaves this tag unsupported; that alone
+establishes neither functional incompatibility nor project abandonment. The
+[temporary backup risk exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
+records @DevSecNinja's **2026-11-21** acceptance and the coordinator-defined
+**2026-12-21** review/expiry: only Pocket ID's exact tested `linux/amd64`
+artifact/configuration and unchanged local SQLite one-shot guard/retention
+scope receive conditional backup-gate acceptance. No automatic renewal,
+digest/platform carry-over, or future-findings waiver applies; newly relevant
+findings or changed assumptions require immediate review. Expiry removes
+exception clearance for activation or continued use.
+**TREK, all other 4.9.2 stacks, and Pocket ID's app/init are excluded.**
+App/init review, independent key recovery, passkey/client authorization and
+operational gates remain open; this is not deployment, merge or profile-change
+authorization. The candidate and future **DO NOT EXECUTE** handoff stay blocked.
 Do not recommend a v5/latest substitution without the separately tested
 [compatibility migration](#v4-compatibility-constraint).
 
@@ -1208,7 +1218,10 @@ Compatibility does not establish upstream support or security: the
 reports raw HIGH/CRITICAL findings and incomplete scoped applicability review.
 This exact 4.9.2 tag remains unsupported under upstream's latest-only fixes
 policy. Successful guarded synthetic restore does not clear Pocket ID
-adoption or establish dependency safety.
+adoption or establish dependency safety. Its
+[dated backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
+does not cover Dawarich, Open Archiver, TREK or any other 4.9.2 stack,
+and does not approve v5 migration.
 
 Keep this constraint until an intentional migration validates:
 

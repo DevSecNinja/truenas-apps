@@ -1082,7 +1082,13 @@ encrypted synthetic restore, actual HTTP public JWKS/key-ID equality, and
 49h/47h retention passed. Residual UNKNOWN `GO-2026-5932` now belongs to the
 separate deprecated OpenPGP module; source tracing found an unused commit-signing
 dependency, not demonstrated authentication/backup-crypto exposure or clearance.
-Unsupported backup 4.9.2 and partial BusyBox/glibc review still block adoption.
+Unsupported backup 4.9.2 has a
+[temporary Pocket ID backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21),
+accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**,
+only for the exact tested AMD64 artifact/configuration. There is no automatic
+renewal or carry-over; app dependency hygiene and partial BusyBox/glibc review
+still block adoption. Remaining operational gates and the prohibition on
+activation are unchanged; this exception authorizes neither deployment nor merge.
 The [November 8 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-08)
 retains historical v2.19.2 recovery/retention, required 281-test BATS with the
 legacy `format_duration` caveat, and full pre-commit passes. On **November 21**,

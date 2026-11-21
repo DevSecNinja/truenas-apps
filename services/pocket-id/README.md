@@ -12,7 +12,7 @@ the active provider. Running a second provider does not automatically migrate
 accounts, credentials, authorization, or sessions, and does not make switching
 applications automatic.
 
-The operator authorized and completed **SOPS secret provisioning only**.
+The operator previously authorized and completed **SOPS secret provisioning**.
 1Password CLI authentication and an existing Memos secret decryption succeeded;
 plaintext was discarded. The app-specific encrypted secret file is now
 provisioned and validated. This does not authorize candidate activation.
@@ -23,7 +23,7 @@ provisioned and validated. This does not authorize candidate activation.
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Image selection      | Supported `v2.19.3-distroless` is pinned and exact-artifact reviewed; v3/dev/latest are not selected. Backup and BusyBox pins are unchanged; maintenance/security gates remain open                                                                                                                                             |
 | Dependency security  | Go `1.27.4`, x/crypto `0.59.0`, Go-jose `4.1.6`, zod `4.6.7`, and x/net `0.62.0` delivered. UNKNOWN `GO-2026-5932` remains in the separate deprecated OpenPGP module; source tracing narrows use, not adoption clearance                                                                                                        |
-| Backup artifact      | `docker.io/nfrastack/db-backup:4.9.2` remains unsupported; November 21 raw HIGH/CRITICAL findings and scoped review below do not clear maintenance/adoption                                                                                                                                                                     |
+| Backup artifact      | Unsupported `4.9.2` has a [temporary Pocket ID backup-only risk exception](#temporary-backup-risk-exception-2026-11-21), restricted to the tested AMD64 artifact/configuration; review/expiry **2026-12-21**. Conditional backup-gate acceptance only, not candidate adoption or activation                                     |
 | Encrypted secrets    | SOPS provisioning and canonical validation completed for `DOMAINNAME`, `ENCRYPTION_KEY`, and `DB_ENC_PASSPHRASE`; independent recovery remains to be established                                                                                                                                                                |
 | Activation           | No registry allocation, dataset provisioning, active Traefik attachment, DNS wiring, or Custom App enrollment is authorized                                                                                                                                                                                                     |
 | Runtime and recovery | November 21 v2.19.3 AMD64 synthetic recovery, actual public JWKS/key-ID equality, and 49h/47h retention passed; full pre-commit (286 BATS) and 71 separate targeted tests passed. November 8 passes remain historical; legacy-assertion caveat below remains. Separate Docker/TrueNAS validation is not a premerge prerequisite |
@@ -92,11 +92,11 @@ to make it reachable.
 
 ### Services
 
-| Service               | Image status                                                                                                                                                    | Proposed role and identity                                                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pocket-id`           | `ghcr.io/pocket-id/pocket-id:v2.19.3-distroless@sha256:6a0045a89b80fa6624c091786e7be132a4dde880ca64727a6b019c056b091982`; candidate remains blocked             | Shell-free, nonroot Debian 13 image; explicitly select the proposed app UID/primary GID rather than PUID remapping                           |
-| `pocket-id-db-backup` | `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`; blocked                                          | One-shot SQLite Online Backup API job; identity mapping and private output permissions verified in the isolated AMD64 diagnostic             |
-| `pocket-id-init`      | `docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d`; known binaries, partial security/maintenance review | Validate required inputs, chown only the `./data` root to the proposed app PUID/PGID, set root directory mode `0700`; never chown `./config` |
+| Service               | Image status                                                                                                                                                                                                           | Proposed role and identity                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pocket-id`           | `ghcr.io/pocket-id/pocket-id:v2.19.3-distroless@sha256:6a0045a89b80fa6624c091786e7be132a4dde880ca64727a6b019c056b091982`; candidate remains blocked                                                                    | Shell-free, nonroot Debian 13 image; explicitly select the proposed app UID/primary GID rather than PUID remapping                           |
+| `pocket-id-db-backup` | `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`; [temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21), candidate still blocked | One-shot SQLite Online Backup API job; identity mapping and private output permissions verified in the isolated AMD64 diagnostic             |
+| `pocket-id-init`      | `docker.io/library/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d`; known binaries, partial security/maintenance review                                                        | Validate required inputs, chown only the `./data` root to the proposed app PUID/PGID, set root directory mode `0700`; never chown `./config` |
 
 Proposed account `svc-app-pocket-id` has no shared-purpose group memberships.
 Its UID and matching primary GID are **reserved for this inactive candidate,
@@ -119,7 +119,9 @@ full-stack runtime, recovery, or production acceptance.
 
 ### Image and Recovery Evidence 2026-11-21
 
-**Candidate remains blocked; scoped evidence, not formal approval or a policy waiver.**
+**Candidate remains blocked.** This evidence alone grants no approval; the
+[temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21)
+is a separate, bounded risk decision, not app/init or deployment clearance.
 [Release v2.19.3](https://github.com/pocket-id/pocket-id/releases/tag/v2.19.3), published **2026-11-15 at 19:10:25 UTC**, delivers Go/stdlib **1.27.4** and x/crypto **0.59.0**; Go-jose **4.1.6**, zod **4.6.7**, and x/net **0.62.0** remain delivered.
 [Patch d6a0563](https://github.com/pocket-id/pocket-id/commit/d6a056355a3238b0d0c624d4788e8118dafed7f6) changes device-authorization approval from `BindOptionalJSON` to `BindJSON`: `{}` remains allowed, but a missing JSON body is rejected.
 Upstream includes a unit regression; no local browser/device-approval ceremony was exercised.
@@ -158,8 +160,11 @@ Its [latest-only security policy](https://github.com/nfrastack/db-backup/blob/5.
 The [5.0.11 SQLite source](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go) still queries `*sql.DB` without a source `BEGIN`/transaction; `BEGIN`/`COMMIT` appear only in output SQL.
 Empty-table autoincrement and positional-argument fixes do not establish live-source consistency or v4 snapshot/receipt compatibility. Keep the working **4.9.2** pin; no v5 substitution is approved.
 Used musl **1.2.6-r2** has HIGH **CVE-2026-107891** (`regcomp`, fixed **-r3**): reviewed SQLite-pipeline patterns are fixed scripts/job `01` configuration, not database values; no crafted-regex precondition was identified.
-sudo **1.9.17_p2-r1** HIGH **CVE-2026-96512** requires time-based policy absent from inspected `/etc/sudoers` and its empty include directory.
-These narrow findings do not approve the whole image. A maintained compatible artifact or a separately approved narrow policy decision is still needed; **no exception is approved**.
+sudo **1.9.17_p2-r1** HIGH **CVE-2026-96512** (fixed **1.9.17_p2-r2**) requires `NOTBEFORE`/`NOTAFTER` time-based policy absent from inspected `/etc/sudoers` and its empty include directory.
+These narrow findings do not approve the whole image. The
+[November 21 exception](#temporary-backup-risk-exception-2026-11-21) accepts
+unsupported maintenance and residual dated-findings uncertainty only for this
+tested backup scope; a maintained compatible replacement remains the exit goal.
 
 **BusyBox:** actual glibc remains **2.41-12+deb13u3**; the [Debian tracker](https://security-tracker.debian.org/tracker/source-package/glibc) now lists **2.41-12+deb13u5**.
 [CVE-2026-86805](https://security-tracker.debian.org/tracker/CVE-2026-86805) and [CVE-2026-95818](https://security-tracker.debian.org/tracker/CVE-2026-95818) are fixed there; reviewed prerequisites concern setuid/setgid, `AT_SECURE`, and `$ORIGIN` RPATH.
@@ -175,6 +180,94 @@ No production startup sleep, browser/passkey ceremony, token issuance, or produc
 **Full required validation passed on 2026-11-21:** `mise exec -- lefthook run pre-commit`, all **11 applicable validators**, including **286 BATS tests (174 seconds)** and native format/schema/directory/Compose, Gitleaks, Trivy, Checkov, and MkDocs checks.
 Separately, **71 targeted tests passed (32 guard + 39 DCCD)**. Baseline `format_duration` command-not-found warnings remain: suite success does **not** make those legacy assertions meaningful; no scope fix is claimed.
 November 8 retention/BATS/full-hook passes below remain dated historical evidence, not tests of v2.19.3.
+
+### Temporary Backup Risk Exception 2026-11-21
+
+**Approving reviewer:** @DevSecNinja, **2026-11-21** — “Ok lets accept the risk for now.”
+This accepts unsupported/unpatched maintenance risk and residual uncertainty
+in the current dated package findings for **Pocket ID's backup job only**.
+**Coordinator-defined bounds:** the exact scope below and conservative
+**30-day review/expiry, 2026-12-21**, are not user-selected wording.
+This changes only the backup gate to conditional acceptance while valid;
+Pocket ID remains a **blocked candidate**, not deploy-ready.
+
+**Excluded:** TREK and every other 4.9.2 stack; Pocket ID's main app and
+BusyBox init; different digests/configs, platforms, engines, paths, networks
+or privileges; future unreviewed findings or deployment changes.
+This is **not production deployment, PR merge, or profile-change authorization**.
+Active DNS, registry, Traefik, Entra and client credentials remain untouched.
+Remaining app/init review, independent key recovery, actual passkey/client
+authorization and operational gates remain open. The **DO NOT EXECUTE**
+future handoff and already-provisioned SOPS secrets are unchanged.
+
+**Exact artifact and evidence**
+
+- Registry/tag/index: `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`.
+- Platform: **`linux/amd64`**; tested image config:
+  `sha256:82b8ef8ca853939cd0ffec97b6401cfdfede6a1b2d821cedc55603adc819ef2d`.
+- Existing [November 21 image/recovery review](#image-and-recovery-evidence-2026-11-21)
+  and [backup/restore scope](https://homelab.devsecninja.com/BACKUP/#pocket-id-blocked-candidate-coverage-and-future-restore)
+  supply the evidence. Trivy **0.76.0**, exact AMD64 backup scan
+  **2026-11-21T20:12:22Z**, database updated **2026-11-21T18:38:32Z**.
+  Saved scan JSON SHA256:
+  `6ff7b5173645ad8a011a5f45632f78a2dfb61c9f734cc16766fbd0720a860c08`.
+  This identifies existing findings, not a rescan.
+- OS inventory: **166 Alpine 3.24.1 packages**; raw **4 CRITICAL / 167 HIGH /
+  152 MEDIUM / 90 LOW / 5 UNKNOWN**. Inactive bundled Go engines/tools also
+  have findings; presence does not automatically establish reachability.
+  Neither all-reachable nor all-unreachable is asserted.
+- Used musl **1.2.6-r2**, HIGH **CVE-2026-107891** (`regcomp`, fixed
+  **1.2.6-r3**): reviewed scripts/job `01` use fixed patterns; no database-row
+  regex input was identified in this local SQLite job. Used sudo
+  **1.9.17_p2-r1**, HIGH **CVE-2026-96512** (fixed **1.9.17_p2-r2**):
+  required `NOTBEFORE`/`NOTAFTER` policy was absent from inspected
+  `/etc/sudoers` and its empty include directory. These are narrow
+  prerequisite findings, not whole-image non-applicability or safety proof.
+
+**Required scope and mitigations — unchanged**
+
+- Only `pocket-id-db-backup`: local SQLite Online Backup API → GPG/ZSTD/SHA1,
+  one-shot once per DCCD deployment, `DEFAULT_CLEANUP_TIME=2880`
+  (**2880 minutes / 48 hours**), output `./backups/db-backup` mounted at `/backup`.
+- `network_mode: none`, no host ports, no Docker/host-control socket;
+  `./data:/pocket-id-data:ro`, with no rw or `immutable` fallback.
+- `DBBACKUP_USER` / `DBBACKUP_GROUP` remain `pocketbackup`, mapped to the
+  Compose/guard-verified UID/primary GID **3133:3133**; private output root
+  **0700**, artifacts **0600**, private verification scratch with umask `077`.
+- Read-only `./config/verify-backup.sh`, all existing fail-closed
+  [guard verification](#database-backup), **180-second timeout plus
+  10-second kill grace**, and `dccd.backup-jobs=01` remain required.
+- Retain the root, writable-root-filesystem s6 supervisor,
+  `no-new-privileges`, `cap_drop: ALL`, and only **CHOWN, FOWNER,
+  DAC_OVERRIDE, SETUID, SETGID, KILL**. No broader capability/privilege scope.
+
+**Residual risk:** root plus `DAC_OVERRIDE` permits sensitive source access.
+A snapshot can contain identity keys, clients and passkey records; a
+compromised image can read identity data, plaintext scratch and decryption
+material, and read/modify backup output. Source read-only access is **not a
+confidentiality control**. No network, read-only mounts, bounded capabilities
+and the short lifecycle mitigate exposure but do not prove vulnerable paths
+unreachable. Off-site encryption cannot protect against a compromised source
+backup container or establish output authenticity.
+
+**Upstream tracking and exit:** maintenance remains **unmaintained tag / high
+confidence**, not project abandonment:
+[latest-only fixes policy](https://github.com/nfrastack/db-backup/blob/5.0.11/SECURITY.md),
+[active 5.0.11 release](https://github.com/nfrastack/db-backup/releases/tag/5.0.11).
+The [5.0.11 SQLite source](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go)
+uses independent source queries, not a shared snapshot; output SQL `BEGIN`
+is insufficient. This explains retaining the tested v4 workflow, not v5 approval.
+Exit requires a maintained, compatible upstream artifact fixing applicable
+issues, exact-digest/current-inventory review, and actual coherent live-SQLite
+full-schema, same-key/JWKS encrypted recovery, retention and fail-closed tests.
+No downstream fork or dependency-lock patch is an exit workaround.
+
+Newly identified relevant findings or changed assumptions require **immediate
+review before relying on this exception**; it grants no blanket future waiver.
+There is **no automatic renewal or carry-over across digests/platforms**.
+If no acceptable replacement is available, obtain an explicit fresh review
+before expiry. On **2026-12-21**, this record no longer supplies exception
+clearance: neither candidate activation nor continued use may rely on it.
 
 ### Image and Recovery Evidence 2026-11-08
 
@@ -521,8 +614,10 @@ Init's minimum-length check is not proof of the required random key generation.
 - [ ] Review maintained upstream **exact artifacts** and retain dated
       inventories/applicability decisions. Complete `GO-2026-5932` OpenPGP
       dependency review after the November 21 unused commit-signing source trace,
-      scoped backup/libc and BusyBox review, and resolve the
-      unsupported backup artifact; fixed app dependencies do not clear adoption.
+      and BusyBox review. Track the unsupported backup's replacement and
+      **2026-12-21** review/expiry under the
+      [temporary backup-only exception](#temporary-backup-risk-exception-2026-11-21);
+      neither that exception nor fixed app dependencies clear candidate adoption.
 - [x] Execute the thin fail-closed guard around the original backup engine;
       verify its actual output restores healthy without rw/`immutable` fallback.
 - [x] Pass 27 guard mock regressions and 39 DCCD freshness/receipt tests
