@@ -58,7 +58,7 @@ pocket_compose_config() {
   # env -i also removes inherited COMPOSE_PROFILES and production credentials.
   env -i PATH="${PATH}" HOME="${POCKET_CONFIG_TMPDIR}" TMPDIR="${POCKET_CONFIG_TMPDIR}" \
     LC_ALL=C DOMAINNAME=example.invalid \
-    ENCRYPTION_KEY=synthetic-pilot-key-at-least-16-bytes \
+    ENCRYPTION_KEY=testtesttesttest \
     DB_ENC_PASSPHRASE=synthetic-pilot-passphrase COMPOSE_DISABLE_ENV_FILE=true \
     "${compose_command[@]}" \
     --project-directory "${POCKET_CONFIG_TMPDIR}" \

@@ -59,7 +59,7 @@ With [GitHub Copilot](https://github.com/features/copilot) (Claude Opus & Sonnet
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                                                                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication                                                                |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                                                                              |
-| [Pocket ID](services/pocket-id/README.md) | Passkey OIDC provider alongside Entra — **controlled post-merge pilot; not deployed** |
+| [Pocket ID](services/pocket-id/README.md)                                                     | Passkey OIDC provider alongside Entra — **controlled post-merge pilot; not deployed**                               |
 | [SQLite Web](https://github.com/coleifer/sqlite-web)                                          | SQLite database browser for Home Assistant                                                                          |
 | [Traefik](https://traefik.io/)                                                                | Reverse proxy with automatic SSL via Cloudflare DNS                                                                 |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth)                  | SSO authentication via Microsoft Entra ID                                                                           |
