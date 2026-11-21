@@ -7,7 +7,7 @@ services:
   # MongoDB starts as root and uses gosu to switch to the mongodb user during
   # startup. cap_drop: ALL would break that privilege transition.
   unifi-db:
-    image: docker.io/library/mongo:8.3.11@sha256:d731d77bfd7afd66bd487bdf627b5bf7ce4c3602ec461d635977021db529ebbc
+    image: docker.io/library/mongo:8.3.13@sha256:e16e606f792ea89d2b4907b54e5e31eb86a7a23e27231dce3a982cc8f2d73cd2
     container_name: unifi-db
     env_file:
       - path: .env # Decrypted from secret.sops.env
@@ -122,7 +122,7 @@ services:
   # need extensive writable paths beyond what can be covered by tmpfs mounts.
   # cap_drop: ALL is therefore omitted.
   unifi:
-    image: docker.io/linuxserver/unifi-network-application:version-10.6.101@sha256:ccadcad5c640c91388d79e66a3751e4de3c9accdcef181f76c142aeca612214d
+    image: docker.io/linuxserver/unifi-network-application:version-10.6.106@sha256:392031f6300b5b98631c2ee6871e0dae67aca31e9debb298c8efca0d92eb9fa7
     container_name: unifi
     depends_on:
       unifi-db:

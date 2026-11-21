@@ -79,13 +79,13 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.13
+          version: 2026.11.4
 
       - name: Scan images and build combined SARIF
         run: bash scripts/gha-trivy-image-scan.sh
 
       - name: Upload combined SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         if: always()
         with:
           sarif_file: sarif-output/trivy-images.sarif

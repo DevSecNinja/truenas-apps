@@ -11,7 +11,7 @@ LIBS_DIR="${SCRIPT_DIR}/libs"
 # renovate: datasource=github-releases depName=bats-core/bats-support
 BATS_SUPPORT_VERSION="v0.3.0"
 # renovate: datasource=github-releases depName=bats-core/bats-assert
-BATS_ASSERT_VERSION="v2.1.0"
+BATS_ASSERT_VERSION="v2.2.4"
 # renovate: datasource=github-releases depName=bats-core/bats-file
 BATS_FILE_VERSION="v0.4.0"
 
