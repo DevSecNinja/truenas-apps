@@ -56,7 +56,7 @@ flowchart TD
 All three retain `trek-candidate`, shared `tz.env`, `no-new-privileges=true`, and PID limit `100`.
 Memory: init `64m`, app `${MEM_LIMIT:-1024m}`, backup `${BACKUP_MEM_LIMIT:-512m}`.
 Init recursively chowns `./data/app` and `./data/uploads` under `/data` to the
-[reserved PUID/PGID](../INFRASTRUCTURE.md#trek-candidate-identity), applies `u=rwX,g=,o=`,
+[reserved PUID/PGID](https://homelab.devsecninja.com/INFRASTRUCTURE/#trek-candidate-identity), applies `u=rwX,g=,o=`,
 and sets `/data` to `0700`; never `./config`. The app uses direct `user:`, not PUID/PGID variables.
 Backup pre-init verifies image-local `trekbackup` with the same identity; s6 manages output ownership.
 Its writable root and added `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID`, and `KILL`
@@ -67,6 +67,42 @@ Only the app joins `trek-frontend`; no host port is published. Readiness is `/ap
 on container port `3000`. Discovery labels are not live integration; shared Traefik has no attachment.
 `TREK_SERVICES: "off"` prevents automatic hosted-map enrollment, not egress.
 No community-sharing consent or add-on enablement is granted.
+
+### Proxy Health and Log Privacy
+
+- Candidate `trek-monitor` matches only ``Host(`trek.${DOMAINNAME}`)`` and
+  ``Path(`/api/health/ready`)`` on `monitoring`, with `chain-no-auth@file`.
+  Gatus uses `http://172.30.100.6:8444/api/health/ready`, the
+  `Host: trek.${DOMAINNAME}` header, and `client.ignore-redirect=true`.
+  The existing entrypoint-level `monitoring-ipallowlist@file` restricts sources
+  to `172.30.100.0/29`; port `8444` remains unpublished.
+- Public `trek-rtr` sets `observability.accesslogs=false`. Shared Traefik logs
+  `400-599` responses with query strings, and Alloy forwards those logs without
+  redaction. Rejected OIDC callbacks or invitations could otherwise expose
+  `code` or `token`; app-level redaction cannot protect proxy logs.
+- Only TREK's public router loses those proxy access diagnostics; other routers
+  and shared logging are unchanged. App `LOG_LEVEL=info`, health checks,
+  metrics, and backup receipts remain available. The monitoring entrypoint
+  already disables access logs.
+
+These labels do not activate ingress: profiles and the inert Traefik attachment
+remain gated. Provider/SSO acceptance is still pending; the logging change is
+not a claim of blanket log privacy.
+
+#### November 22 Proxy Fixture
+
+**Recorded 2026-11-22 synthetic results; not production acceptance.**
+Official Traefik `3.7.10` (not the pinned DHI image) used a file-provider
+translation of the actual TREK labels and exact shared chain, rate limit,
+headers, and IP allowlist, against actual TREK `5.1.4` with synthetic data only.
+
+- Monitoring: Gatus-subnet readiness `200`, private path `404`, non-Gatus source `403`.
+- TREK OIDC exchange rejection `400`; rate limiting returned `429` for 139 of 200 requests.
+- Public callback `code` and invitation markers were absent from access logs;
+  an access-log-enabled control router's `401` marker was present.
+
+No host ports were published. This fixture does not validate the full Docker
+provider, production TLS, or a real identity provider, and does not clear activation.
 
 ### State
 
@@ -110,7 +146,7 @@ persisted key files; environment minimization is not file isolation.
   Synthetic evidence is not production TrueNAS or changing-upload recovery.
 - Review new-install add-on defaults, invitation/auto-provisioning, and sharing. Keep `TREK_SERVICES: "off"`.
 - Only through later reviewed activation: add registry key `trek` using the
-  [reserved identity](../INFRASTRUCTURE.md#trek-candidate-identity), `admin_group_member: false`;
+  [reserved identity](https://homelab.devsecninja.com/INFRASTRUCTURE/#trek-candidate-identity), `admin_group_member: false`;
   verify allocation collisions; review DNS `trek.${DOMAINNAME}` → `${IP_SVLNAS}`,
   profile removal on all three services, and transfer of the inert Traefik attachment into active Compose.
 
@@ -153,7 +189,7 @@ provision storage, enable DNS/registry/Traefik, or remove candidate profiles dur
    SOPS opens a temporary plaintext editor file outside the repository, then re-encrypts after
    save/close and checks metadata again. Never print keys, references, or credentials.
    Preserve `ENCRYPTION_KEY` and `DB_ENC_PASSPHRASE`; do not run generators.
-   The alternative [SOPS editor workflow](../CONTRIBUTING.md#safe-human-review)
+   The alternative [SOPS editor workflow](https://homelab.devsecninja.com/CONTRIBUTING/#safe-human-review)
    has the same disclosure and privacy requirements.
 4. Record issuance separately from acceptance. Actual native OIDC allow/deny,
    logout, proxy health, and target-host recovery checks remain to be done.
@@ -196,21 +232,45 @@ use the existing aliases from `/mnt/vm-pool/apps/scripts/aliases.sh`:
    Set invitation/SSO auto-provisioning policy before widening access.
 5. Verify permitted-user login, unassigned-provider-user denial, private-trip owner/nonmember isolation,
    anonymous UI/API denial, logout/fresh sessions, and no local-password/Entra bypass.
-   Check proxy/readiness health, readable uploads, and a newly verified encrypted backup.
+   Check proxy/readiness health and readable uploads.
+6. **After bootstrap, administrator/policy configuration, and setup are complete**,
+   run a second deployment-triggered backup pass:
+
+   ```sh
+   dccd-all
+   ```
+
+   Require a new job `01` zero-exit receipt (`Backup 01`), wrapper verification
+   success, and a fresh encrypted dump/SHA1 pair created **after setup**.
+   The first pre-SSO backup cannot represent configured state. Before declaring
+   setup complete, use [conditional recovery](https://homelab.devsecninja.com/BACKUP/#trek-candidate-coverage-and-restore)
+   to check representative administrator/users/trips, original keys, and uploads
+   from a coordinated post-setup recovery point.
 
 ## Backup
 
 Deployment-triggered GPG/ZSTD binary SQLite + SHA1, retained 48 hours; no autonomous nightly timer.
 Verification requires exactly one fresh nonempty pair, no extra fresh files, checksum/decrypt/decompress
 success, `quick_check=ok`, and `users`/`trips`.
+The sidecar must contain one lowercase SHA1 record naming the selected dump
+(two spaces for text mode, or space plus `*` for binary mode). Verification hashes
+that selected dump directly with `sha1sum --`; it never follows a manifest path
+to another, possibly older file.
 Each dump/discovery/checksum/decrypt/decompress/integrity/schema stage has
 `timeout --signal=TERM --kill-after=10s 300s`, not a whole-job deadline.
 Pipeline `pipefail`, private `umask 077` scratch, and exit cleanup remain; only upstream
 invocation uses `umask 022` for root-created scratch compatibility. Table presence is not
-a row-level restore drill. [Conditional recovery](../BACKUP.md#trek-candidate-coverage-and-restore)
+a row-level restore drill. [Conditional recovery](https://homelab.devsecninja.com/BACKUP/#trek-candidate-coverage-and-restore)
 also requires original keys and uploads.
 
 ### Live Linux Backup and Recovery Evidence
+
+The **2026-11-22 review fix** was exercised against live synthetic TREK `5.1.4`
+using the same pinned AMD64 backup image and original `/init`. The tightened
+selected-dump checksum verifier passed real GPG/ZSTD/SHA1, SQLite integrity,
+and schema checks; the one-shot exited `0` with one encrypted pair.
+This targeted wrapper compatibility check did not repeat the full recovery
+and retention drill below or extend the backup exception.
 
 #### November 21 Current Candidate
 
@@ -315,6 +375,13 @@ and [wrapper](https://github.com/DevSecNinja/truenas-apps/blob/29c7e97a8686ef886
 at `29c7e97a8686ef886e5dd2c73c2676b42e098ffd`; recorded wrapper SHA256
 `6b59bb8de430c5de31fb016ccd048a734522f60db7f421242c0d7f29d9d0d42b`.
 
+PR #954 tightens checksum verification to bind the record to the selected dump
+and hash that dump directly. This checksum-only review changes no backup
+artifact, path, engine, network, or privileges and grants no new exception.
+The commit/hash above remain the historical proof, not the revised wrapper's
+hash or evidence of a new runtime validation. The original acceptance and
+**2026-12-22** expiry remain unchanged.
+
 - Only `trek-db-backup`: local SQLite Online Backup API binary snapshot of
   `/trek-data/travel.db`, `./data/app:/trek-data:ro`, `./config:/trek-config:ro`,
   and output `./backups/db-backup:/backup`; no other engine or path.
@@ -372,7 +439,7 @@ production-host coverage and Pocket's separate exception are not cleared or chan
 Every app/init/backup update, including digest-only changes, requires manual exact-artifact review.
 The scoped Renovate rule for `services/trek/compose.yaml` sets `automerge: false`, `groupName: null`.
 After approval, preserve coordinated recovery points and repeat OIDC/permissions/backup/restore
-checks under the [adoption policy](../ARCHITECTURE.md#adoption-gate-and-remediation-ownership).
+checks under the [adoption policy](https://homelab.devsecninja.com/ARCHITECTURE/#adoption-gate-and-remediation-ownership).
 
 - `5.1.4` delivers the LOW [AirTrail fix](https://github.com/liketrek/TREK/security/advisories/GHSA-mwf5-5px8-c9h5);
   compiled-service checks used stubs and real crypto, not outbound integration.
@@ -384,6 +451,8 @@ checks under the [adoption policy](../ARCHITECTURE.md#adoption-gate-and-remediat
   found info-level error/warn request lines use `req.path`, unlike Pocket's raw-URL behavior.
   Query/body appear only in redacted debug logging; `code`, `token`, and `client_secret` are redacted.
   Do not debug real OIDC flows until reviewed. Error stacks may vary: this is not blanket log
-  safety or privacy/ingress acceptance, and does not justify copying Pocket's logging disablement.
+  safety or privacy/ingress acceptance. App redaction does not cover Traefik's query-bearing
+  error access logs; the [router-specific control](#proxy-health-and-log-privacy) disables those
+  for TREK without copying Pocket's app-log disablement.
 
 [history]: https://github.com/DevSecNinja/truenas-apps/blob/e37798bde88184534ec54d171e27f0ab1a25792b/services/trek/README.md

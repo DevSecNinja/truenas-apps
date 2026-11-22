@@ -27,11 +27,12 @@ trek_setup() {
   TREK_BACKUP="${TREK_TEST_BACKUP:-${TREK_REPO_ROOT}/services/trek/config/backup.sh}"
   REAL_FIND="$(command -v find)"
   REAL_TOUCH="$(command -v touch)"
+  REAL_SHA1SUM="$(command -v sha1sum)" || return 1
   REAL_SH="$(command -v sh)"
   mkdir -p "${MOCK_BIN}" "${MOCK_LOG}" "${BACKUP_ROOT}" "${WORK_ROOT}"
   cp "${TREK_REPO_ROOT}/tests/trek/helpers/mock-command.bash" "${TEST_ROOT}/mock-command"
   chmod +x "${TEST_ROOT}/mock-command"
-  export MOCK_BIN MOCK_LOG BACKUP_ROOT WORK_ROOT FIXTURE_DIR REAL_FIND REAL_TOUCH
+  export MOCK_BIN MOCK_LOG BACKUP_ROOT WORK_ROOT FIXTURE_DIR REAL_FIND REAL_TOUCH REAL_SHA1SUM
   # Prepend mocks only in the child under test, not in BATS's own helper processes.
   export BACKUP_SCENARIO=success TREK_MOCK_CONTEXT=backup
   export DEFAULT_ENCRYPT_PASSPHRASE=trek-test-only-passphrase
@@ -56,7 +57,7 @@ trek_backup_setup() {
   trek_mock timeout backup01-now find touch sha1sum gpg zstd sqlite3 tree-worker
   # Old outputs must neither count as new nor be removed by cleanup.
   cp "${FIXTURE_DIR}/dump.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg"
-  cp "${FIXTURE_DIR}/sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
+  cp "${FIXTURE_DIR}/retained-sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
   "${REAL_TOUCH}" -t 199901010000 "${BACKUP_ROOT}"/*
 }
 
@@ -73,7 +74,7 @@ run_backup() {
   run env -i PATH="${MOCK_BIN}:${ORIGINAL_PATH}" HOME="${TEST_ROOT}" TMPDIR="${WORK_ROOT}" \
     MOCK_BIN="${MOCK_BIN}" MOCK_LOG="${MOCK_LOG}" BACKUP_ROOT="${BACKUP_ROOT}" WORK_ROOT="${WORK_ROOT}" \
     FIXTURE_DIR="${FIXTURE_DIR}" REAL_FIND="${REAL_FIND}" REAL_TOUCH="${REAL_TOUCH}" \
-    REAL_TIMEOUT="${REAL_TIMEOUT:-}" \
+    REAL_SHA1SUM="${REAL_SHA1SUM}" REAL_TIMEOUT="${REAL_TIMEOUT:-}" \
     TREK_MOCK_CONTEXT=backup BACKUP_SCENARIO="${BACKUP_SCENARIO}" \
     "${passphrase[@]}" "${watchdog[@]}" "${BASH}" "${TREK_BACKUP}"
 }
@@ -95,7 +96,7 @@ assert_backup_cleaned() {
   assert_file_exists "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
   run cmp "${FIXTURE_DIR}/dump.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg"
   assert_success
-  run cmp "${FIXTURE_DIR}/sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
+  run cmp "${FIXTURE_DIR}/retained-sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg.sha1"
   assert_success
 }
 
@@ -113,6 +114,16 @@ assert_no_backup_plaintext() {
     ! -name '*.sqlite3.zst.gpg' ! -name '*.sqlite3.zst.gpg.sha1' -print
   assert_success
   assert_output ""
+}
+
+assert_checksum_record_rejected() {
+  assert_failure 1
+  assert_backup_rejected 'checksum must contain one SHA1 record naming the selected dump'
+  assert_not_called sha1sum
+  assert_dir_not_exists "${MOCK_LOG}/deadline-checksum"
+  assert_not_called gpg
+  assert_not_called sqlite3
+  assert_no_backup_plaintext
 }
 
 assert_stage_rejected() {

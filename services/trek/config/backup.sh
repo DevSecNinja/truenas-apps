@@ -62,10 +62,15 @@ output_count="$(wc -l <"${work}/outputs")"
 [[ "${output_count}" -eq 2 ]] ||
     fail "unexpected output files; inspect for incomplete or unencrypted backups"
 
-(
-    cd "$(dirname "${dump}")"
-    run_stage checksum sha1sum --check "$(basename "${dump}").sha1"
-)
+checksum="$(<"${dump}.sha1")"
+expected="${checksum:0:40}"
+[[ "${expected}" =~ ^[a-f0-9]{40}$ &&
+    ("${checksum}" == "${expected}  ${dump##*/}" ||
+    "${checksum}" == "${expected} *${dump##*/}") ]] ||
+    fail "checksum must contain one SHA1 record naming the selected dump"
+actual="$(run_stage checksum sha1sum -- "${dump}")"
+[[ "${actual%% *}" == "${expected}" ]] ||
+    fail "selected encrypted dump checksum mismatch"
 mkdir -m 700 "${work}/gnupg"
 printf '%s\n' "${DEFAULT_ENCRYPT_PASSPHRASE}" |
     run_stage decrypt gpg --batch --homedir "${work}/gnupg" --pinentry-mode loopback \

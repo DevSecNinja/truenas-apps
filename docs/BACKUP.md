@@ -1541,10 +1541,25 @@ The [wrapper](services/trek.md#backup) has separate 300-second stage deadlines
 and 10-second KILL grace, not a whole-job deadline. It retains pipeline
 `pipefail`, private scratch cleanup, and stage-named errors; table presence
 alone is not a row-level recovery drill.
+Checksum verification requires one lowercase SHA1 record naming the selected
+dump (two spaces for text mode or space plus `*` for binary mode), then hashes
+the selected dump directly. It does not trust a manifest path to select another
+file. PR #954 tightens only this verification; no backup artifact, path, engine,
+network, or privileges change, and no new exception is granted. The exception's
+recorded `29c7e97` job and wrapper hash remain historical proof, not runtime
+validation of the revised wrapper.
 Persisted key files remain readable in the source mount: root plus `DAC_OVERRIDE`
 can read them, plaintext scratch and passphrase material, and modify outputs.
 Read-only source, no network and the short job do not eliminate exposure;
 GPG/SHA1 neither protects against a compromised backup container nor establishes output authenticity.
+
+After approved activation, the pre-SSO backup is only an initial baseline.
+The [conditional rollout](services/trek.md#conditional-rollout) requires a second
+`dccd-all` after bootstrap, administrator/policy configuration, and setup, with a
+new job `01` receipt and encrypted pair created after setup. Verify representative
+administrator/users/trips, original keys, and uploads from that coordinated
+recovery point before declaring setup complete. This is not permission to run
+the blocked candidate.
 
 **Evidence, not activation approval:** the recorded 2026-11-21 Linux AMD64
 run upgraded populated `5.1.0` to `5.1.4`, then used the original `4.9.2`
@@ -1581,77 +1596,208 @@ coordinated recovery point containing the dump, original `ENCRYPTION_KEY`,
 persisted encryption/JWT key material under `./data/app`, and matching
 `./data/uploads`. A dump alone is insufficient.
 
-1. Validate the selected dump in private scratch, never over live data. In
-   the example below, `DUMP` is a placeholder for the selected absolute
-   artifact path. Supply the matching `DB_ENC_PASSPHRASE` at GPG's prompt;
-   do not put it in command history.
+Use **Bash on the approved recovery host**, as the deployment user, from
+`/mnt/vm-pool/apps`. Keep the selected recovery revision fixed: do not run
+`git pull`, `dccd`, its deployment aliases, or `dccd -D` (which still requires
+Git synchronization) during recovery. Run each step separately in the same
+Bash session; **stop on any failure and do not continue to restart**.
 
-   ```sh
+1. Validate the selected dump in private scratch, never over live data.
+   `DUMP` is a placeholder for the selected absolute artifact path. Supply
+   the matching `DB_ENC_PASSPHRASE` at GPG's prompt, not in command history.
+
+   ```bash
+   set -euo pipefail
    umask 077
+   cd /mnt/vm-pool/apps
+   RECOVERY_REVISION=$(git rev-parse HEAD)
    DUMP=/path/to/selected.sqlite3.zst.gpg
+   [[ "${DUMP}" == /* && -f "${DUMP}" && -s "${DUMP}" && -s "${DUMP}.sha1" ]]
    SCRATCH=$(mktemp -d /tmp/trek-restore.XXXXXX)
    mkdir -m 700 "${SCRATCH}/gnupg"
-   (
-       cd "$(dirname "${DUMP}")" &&
-       sha1sum --check "$(basename "${DUMP}").sha1"
-   )
+   checksum="$(<"${DUMP}.sha1")"
+   expected="${checksum:0:40}"
+   [[ "${expected}" =~ ^[a-f0-9]{40}$ &&
+       ( "${checksum}" == "${expected}  ${DUMP##*/}" ||
+           "${checksum}" == "${expected} *${DUMP##*/}" ) ]]
+   actual="$(sha1sum -- "${DUMP}")"
+   [[ "${actual%% *}" == "${expected}" ]]
    gpg --homedir "${SCRATCH}/gnupg" \
        --output "${SCRATCH}/travel.db.zst" --decrypt "${DUMP}"
    zstd --decompress --output "${SCRATCH}/travel.db" "${SCRATCH}/travel.db.zst"
+   test "$(sqlite3 "${SCRATCH}/travel.db" 'PRAGMA integrity_check;')" = ok
    sqlite3 "${SCRATCH}/travel.db" \
-       'PRAGMA integrity_check; SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+       'SELECT count(*) FROM users; SELECT count(*) FROM trips;'
    ```
 
-   Stop on any error. Require integrity `ok` and expected user/trip counts;
-   inspect representative records against the selected recovery point.
-   SHA1 detects accidental corruption, not authenticity.
+   Require integrity `ok` and expected user/trip counts; inspect representative
+   records privately against the selected recovery point. A sidecar naming an
+   older file must fail even if that older file still exists. SHA1 detects
+   accidental corruption, not authenticity.
 2. Pause scheduled/manual deployment and finish backup work. Stop the writer
    and all other TREK containers, then take and verify a protective snapshot
    of the current dataset, configuration, and original keys:
 
-   ```sh
+   ```bash
+   set -euo pipefail
    cd /mnt/vm-pool/apps
    sudo docker compose --project-name ix-trek -f services/trek/compose.yaml down
    ```
 
    Do not restore over a live WAL or copy only the live `travel.db`.
    Preserve the stopped database, WAL/SHM, keys, and uploads together.
-3. Restore the matching original application secret through the established
-   SOPS workflow before restart; do not generate or rotate encryption/JWT
-   keys. Stage the matching `data/app` key material and `data/uploads` under
-   `RECOVERY_SET` (a placeholder below). Keep the entire old data tree for
-   rollback; choose another preservation name if `data.before-restore`
-   already exists. With all writers stopped, remove the WAL/SHM sidecars
-   belonging to the replaced database before installing the verified dump.
+3. Restore the matching original `ENCRYPTION_KEY` through
+   [safe human review](CONTRIBUTING.md#safe-human-review), without generating
+   or rotating encryption/JWT keys or `DB_ENC_PASSPHRASE`. Preserve currently
+   issued `OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET`; do not replace them with the
+   historical pre-issuance empty values.
 
-   ```sh
-   RECOVERY_SET=/path/to/verified-matching-state
-   sudo mv services/trek/data services/trek/data.before-restore
-   sudo cp -a "${RECOVERY_SET}/data" services/trek/data
+   **Disclose before any secret operation:** the target, commands, existing
+   identity source, editor temporary plaintext, `${SCRATCH}/.env`, installation
+   into `services/trek/.env`, and cleanup. Use the
+   [existing 1Password/SOPS identity setup](CONTRIBUTING.md#recommended-age-key-setup-1password-cli),
+   or an already provisioned `SOPS_AGE_KEY_FILE`/standard Age identity when
+   1Password is unavailable. The deployment aliases use `${APPS_DIR}/age.key`;
+   direct SOPS needs that existing path configured explicitly if selected.
+   Do not generate an identity or invent a private vault reference.
+   For 1Password, disclose `op` authentication/account checks and any `op signin`;
+   authentication changes the CLI session and grants broader access. Disclose
+   SOPS-triggered `op read "<reference withheld>"` only as a redacted preview,
+   never a standalone command. Never print the key or evaluate the key command.
+   Configure only the selected key source, consistently for all commands.
 
-   sudo rm -f services/trek/data/app/travel.db-wal \
-       services/trek/data/app/travel.db-shm
-   sudo cp "${SCRATCH}/travel.db" services/trek/data/app/travel.db
-   sudo chown -R svc-app-trek:svc-app-trek \
-       services/trek/data/app services/trek/data/uploads
-   sudo chmod -R u=rwX,g=,o= services/trek/data/app services/trek/data/uploads
-   sudo chmod 700 services/trek/data
-   sudo sqlite3 services/trek/data/app/travel.db \
-       'PRAGMA integrity_check; SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+   Use the existing SOPS binary provisioned by `dccd.sh`, not an assumed
+   development-only `mise` installation on TrueNAS. The selected revision
+   currently caches SOPS at the path below; if unavailable, stop and establish
+   the correct already-provisioned executable with the operator. Exporting
+   `SOPS_BIN` also makes the repository validator use that same binary.
+   Perform the canonical identity preflight, discarding plaintext:
+
+   ```bash
+   set -euo pipefail
+   export SOPS_BIN=/mnt/vm-pool/apps/bin/sops-v3.13.3
+   test -x "${SOPS_BIN}"
+   "${SOPS_BIN}" decrypt --input-type dotenv --output-type dotenv \
+       services/trek/secret.sops.env >/dev/null
    ```
 
-4. Only after integrity, records, keys, uploads, ownership, and the reviewed
-   recovery image are verified, restart the approved stack:
+   Complete the editor workflow and metadata checks, reconciling original
+   recovery keys with issued OIDC values. Finalize the selected ciphertext
+   and leave it unchanged throughout the next block. Editing ciphertext
+   **does not update `.env`**. Materialize it directly, without deployment
+   or Git synchronization, as the deployment user (not with `sudo`):
 
-   ```sh
-   sudo docker compose --project-name ix-trek -f services/trek/compose.yaml up -d
+   ```bash
+   (
+       set -euo pipefail
+       umask 077
+       test "$(git rev-parse HEAD)" = "${RECOVERY_REVISION:?}"
+       test -d "${SCRATCH:?}"
+       test "$(stat -c '%a:%u' -- "${SCRATCH}")" = "700:$(id -u)"
+       ciphertext_before=$(sha256sum services/trek/secret.sops.env)
+       bash scripts/validate-sops-secrets.sh services/trek/secret.sops.env \
+           DOMAINNAME ENCRYPTION_KEY DB_ENC_PASSPHRASE OIDC_CLIENT_ID OIDC_CLIENT_SECRET
+       test ! -e "${SCRATCH}/.env"
+       test ! -L "${SCRATCH}/.env"
+       "${SOPS_BIN:?}" decrypt --input-type dotenv --output-type dotenv \
+           services/trek/secret.sops.env >"${SCRATCH}/.env"
+       test "$(sha256sum services/trek/secret.sops.env)" = "${ciphertext_before}"
+       test -s "${SCRATCH}/.env"
+       awk -F= '
+           /^(DOMAINNAME|ENCRYPTION_KEY|DB_ENC_PASSPHRASE|OIDC_CLIENT_ID|OIDC_CLIENT_SECRET)=/ {
+               value = substr($0, index($0, "=") + 1)
+               if (value == "") exit 1
+               if ($1 == "ENCRYPTION_KEY" &&
+                   (length(value) != 64 || value ~ /[^0-9a-fA-F]/)) exit 1
+           }
+       ' "${SCRATCH}/.env"
+       test ! -L services/trek/.env
+       install -m 600 -- "${SCRATCH}/.env" services/trek/.env
+       test -f services/trek/.env
+       test -s services/trek/.env
+       test -r services/trek/.env
+       test "$(stat -c '%a:%u' -- services/trek/.env)" = "600:$(id -u)"
+       cmp -s -- "${SCRATCH}/.env" services/trek/.env
+   )
+   ```
+
+   The validator decrypts **again** to check required names and unresolved
+   sentinels without printing values; disclose that additional read. The
+   scratch check rejects empty required values and malformed `ENCRYPTION_KEY`.
+   Neither proves that the original key matches the recovery set: confirm
+   that privately before proceeding. `cmp -s` verifies installed bytes without
+   printing them; metadata/readability checks require mode `0600` and deployment
+   user ownership. Stop on failure; resolve ownership with the operator rather
+   than broadening permissions. `.env` is gitignored. Never `source`, `eval`,
+   print, or use `docker compose config` to inspect plaintext secrets.
+4. Stage verified matching `data/app` key material and `data/uploads` under
+   `RECOVERY_SET` (an absolute-path placeholder below, outside the live and
+   rollback trees). Preserve the entire stopped tree at
+   `services/trek/backups/pre-restore/data`, beneath a private `0700` parent.
+   `services/**/backups/` is gitignored; never preserve sensitive state beside
+   the ignored `data/` or `backups/` directories.
+
+   Review the declared child dataset and actual mount layout first. This
+   directory-move procedure requires ordinary data directories on the same
+   filesystem as the preservation path. If a data path is a dataset/mountpoint,
+   or the move crosses filesystems, stop for an operator-reviewed ZFS/copy
+   recovery plan. Do not delete or unmount data to force it through.
+
+   ```bash
+   (
+       set -euo pipefail
+       RECOVERY_SET=/path/to/verified-matching-state
+       ROLLBACK=services/trek/backups/pre-restore
+       sudo test -d "${RECOVERY_SET}/data/app"
+       sudo test -d "${RECOVERY_SET}/data/uploads"
+       test -s "${SCRATCH:?}/travel.db"
+       sudo test -d services/trek/data
+       sudo test ! -L services/trek/data
+       sudo test ! -L services/trek/backups
+       sudo mkdir -p -- services/trek/backups
+       test "$(sudo stat -c %d -- services/trek/data)" = \
+           "$(sudo stat -c %d -- services/trek/backups)"
+       sudo mkdir -m 700 -- "${ROLLBACK}"
+       sudo mv -T -- services/trek/data "${ROLLBACK}/data"
+       sudo test -d "${ROLLBACK}/data"
+       sudo test ! -e services/trek/data
+       sudo cp -a -- "${RECOVERY_SET}/data" services/trek/data
+       sudo rm -f -- services/trek/data/app/travel.db-wal \
+           services/trek/data/app/travel.db-shm
+       sudo cp -- "${SCRATCH}/travel.db" services/trek/data/app/travel.db
+       sudo chown -R svc-app-trek:svc-app-trek \
+           services/trek/data/app services/trek/data/uploads
+       sudo chmod -R u=rwX,g=,o= services/trek/data/app services/trek/data/uploads
+       sudo chmod 700 services/trek/data
+       test "$(sudo sqlite3 services/trek/data/app/travel.db 'PRAGMA integrity_check;')" = ok
+       sudo sqlite3 services/trek/data/app/travel.db \
+           'SELECT count(*) FROM users; SELECT count(*) FROM trips;'
+   )
+   ```
+
+   `mkdir` refuses an existing preservation path, including a symlink; do not
+   overwrite or reuse it on retry. A failed move/copy must stop recovery,
+   not fall through to deletion or restart. Only the replacement tree's
+   WAL/SHM are removed; the rollback tree retains its database, WAL/SHM, keys,
+   and uploads together.
+5. Only after integrity `ok`, expected records, original keys, uploads, `.env`,
+   ownership, and the reviewed recovery image are verified, restart the
+   approved stack with the explicitly selected environment file:
+
+   ```bash
+   set -euo pipefail
+   test "$(git rev-parse HEAD)" = "${RECOVERY_REVISION:?}"
+   sudo docker compose --project-name ix-trek --env-file services/trek/.env \
+       -f services/trek/compose.yaml up -d
    ```
 
    Verify readiness, existing SSO users and administrator status, authorized
-   and denied trip access, and readable uploaded documents. Create and
-   validate a fresh encrypted backup before resuming deployment automation.
-   Remove private decrypted scratch when validation completes; retain the
-   protective snapshot and old state until recovery is accepted.
+   and denied trip access, and readable uploaded documents. Create and validate
+   a fresh encrypted backup before resuming deployment automation, without
+   changing the selected recovery revision. Remove private decrypted scratch
+   after validation, or after an aborted attempt once no longer needed.
+   Retain the protective snapshot and `services/trek/backups/pre-restore/data`
+   until recovery is accepted.
 
 This production procedure remains conditional guidance. The latest 2026-11-21
 synthetic full recovery succeeded, but did not exercise production storage

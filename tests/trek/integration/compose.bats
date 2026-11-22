@@ -73,6 +73,87 @@ teardown() {
     select(test("traefik-forward-auth|chain-auth@file"))] | length' '0'
 }
 
+@test "compose: the public Trek hostname router disables query-bearing access logs" {
+	local label key
+	for label in \
+		'traefik.http.routers.trek-rtr.rule=Host(`trek.${DOMAINNAME}`)' \
+		'traefik.http.routers.trek-rtr.entrypoints=https' \
+		'traefik.http.routers.trek-rtr.service=trek' \
+		'traefik.http.routers.trek-rtr.observability.accesslogs=false'; do
+		key="${label%%=*}"
+		assert_compose_value ".services.trek.labels[] | select((split(\"=\") | .[0]) == \"${key}\")" "${label}"
+	done
+}
+
+@test "compose: Gatus checks only the internal readiness router without following redirects" {
+	local label key
+	for label in \
+		'traefik.http.routers.trek-monitor.rule=Host(`trek.${DOMAINNAME}`) && Path(`/api/health/ready`)' \
+		'traefik.http.routers.trek-monitor.entrypoints=monitoring' \
+		'traefik.http.routers.trek-monitor.middlewares=chain-no-auth@file' \
+		'traefik.http.routers.trek-monitor.service=trek' \
+		'traefik.http.services.trek.loadbalancer.server.port=3000' \
+		'gatus.url=http://172.30.100.6:8444/api/health/ready' \
+		'gatus.headers.Host=trek.${DOMAINNAME}' \
+		'gatus.client.ignore-redirect=true' \
+		'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'; do
+		key="${label%%=*}"
+		assert_compose_value ".services.trek.labels[] | select((split(\"=\") | .[0]) == \"${key}\")" "${label}"
+	done
+}
+
+@test "compose: privilege and resource limits retain only the explicit backup writable-root exception" {
+	local service
+	for service in trek trek-init trek-db-backup; do
+		assert_compose_value ".services.\"${service}\".security_opt | join(\",\")" no-new-privileges=true
+		assert_compose_value ".services.\"${service}\".cap_drop | join(\",\")" ALL
+		assert_compose_value ".services.\"${service}\".privileged // false" false
+		assert_compose_value ".services.\"${service}\".pids_limit" 100
+	done
+	assert_compose_value '.services.trek.read_only' true
+	assert_compose_value '.services."trek-init".read_only' true
+	# No fallback: absent read_only must not silently count as this reviewed exception.
+	assert_compose_value '.services."trek-db-backup".read_only' false
+	assert_compose_value '.services.trek.cap_add // [] | length' 0
+	assert_compose_value '.services."trek-init".cap_add | sort | join(",")' 'CHOWN,DAC_OVERRIDE,FOWNER'
+	assert_compose_value '.services."trek-db-backup".cap_add | sort | join(",")' \
+		'CHOWN,DAC_OVERRIDE,FOWNER,KILL,SETGID,SETUID'
+	assert_compose_value '.services.trek.mem_limit' '${MEM_LIMIT:-1024m}'
+	assert_compose_value '.services."trek-init".mem_limit' 64m
+	assert_compose_value '.services."trek-db-backup".mem_limit' '${BACKUP_MEM_LIMIT:-512m}'
+}
+
+@test "compose: app persistence is restricted to data and uploads with a bounded nonexecutable tmpfs" {
+	assert_compose_value '.services.trek.user' '3134:3134'
+	assert_compose_value '.services.trek.volumes | sort | join(",")' \
+		'./data/app:/app/data,./data/uploads:/app/uploads'
+	assert_compose_value '.services.trek.tmpfs | join(",")' '/tmp:noexec,nosuid,size=128m'
+	# The only mounted verifier configuration stays read-only, even with a writable backup root.
+	assert_compose_value '.services."trek-db-backup".volumes[] |
+    select(test(":/trek-config(:|$)"))' './config:/trek-config:ro'
+}
+
+@test "compose: every candidate retains an enabled bounded healthcheck against its actual dependency" {
+	local service
+	for service in trek trek-init trek-db-backup; do
+		assert_compose_value ".services.\"${service}\".healthcheck.disable // false" false
+		assert_compose_value ".services.\"${service}\".healthcheck.timeout" 5s
+	done
+	assert_compose_value '.services."trek-init".healthcheck.test | join(",")' 'CMD,test,-d,/data/app'
+	assert_compose_value '.services."trek-db-backup".healthcheck.test | join(",")' \
+		'CMD,test,-r,/trek-data/travel.db'
+	assert_compose_value '.services.trek.healthcheck.test[0:3] | join(",")' 'CMD,node,-e'
+	assert_compose_value '.services.trek.healthcheck.test[3]' \
+		"require('http').get('http://127.0.0.1:3000/api/health/ready', r=>{r.resume();process.exit(r.statusCode===200?0:1)}) .on('error',()=>process.exit(1))"
+	assert_compose_value '.services."trek-init".healthcheck.interval' 10s
+	assert_compose_value '.services."trek-init".healthcheck.retries' 3
+	assert_compose_value '.services."trek-db-backup".healthcheck.interval' 15s
+	assert_compose_value '.services."trek-db-backup".healthcheck.retries' 3
+	assert_compose_value '.services.trek.healthcheck.interval' 15s
+	assert_compose_value '.services.trek.healthcheck.retries' 5
+	assert_compose_value '.services.trek.healthcheck.start_period' 60s
+}
+
 @test "compose: app identity is exactly 3134 and startup waits for the fail-closed init" {
 	assert_compose_value '.services.trek.user' '3134:3134'
 	assert_compose_value '.services.trek.depends_on."trek-init".condition' service_completed_successfully

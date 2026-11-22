@@ -100,8 +100,85 @@ teardown() {
 	assert_failure 31
 	assert_output --partial 'ERROR: TREK backup: checksum failed (exit 31)'
 	assert_backup_rejected 'mock SHA1 mismatch'
+	assert_dir_exists "${MOCK_LOG}/deadline-checksum"
 	assert_not_called gpg
 	assert_not_called sqlite3
+}
+
+@test "backup: rejects a checksum record naming the retained dump even when contents match" {
+	export BACKUP_SCENARIO=checksum-old-record
+	run_backup
+	assert_checksum_record_rejected
+	run cmp "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg" \
+		"${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg"
+	assert_success
+}
+
+@test "backup: hashes the selected new content and rejects a stale digest before decryption" {
+	export BACKUP_SCENARIO=checksum-content-mismatch
+	run_backup
+	assert_failure 1
+	assert_backup_rejected 'selected encrypted dump checksum mismatch'
+	assert_called sha1sum
+	assert_dir_exists "${MOCK_LOG}/deadline-checksum"
+	assert_not_called gpg
+	assert_not_called sqlite3
+	assert_no_backup_plaintext
+	# Correct current filename, but a digest from the unchanged retained file.
+	run cmp "${FIXTURE_DIR}/sidecar.txt" "${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg.sha1"
+	assert_success
+	run cmp "${FIXTURE_DIR}/dump-different.txt" "${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg"
+	assert_success
+	run "${REAL_SHA1SUM}" -- "${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg"
+	assert_success
+	refute_output --partial '8beb99ed08b7dc5fa6b27291861a962b13f0651b'
+}
+
+@test "backup: rejects a different selected dump whose manifest would validate only the retained artifact" {
+	export BACKUP_SCENARIO=checksum-old-record-different
+	run_backup
+	assert_checksum_record_rejected
+	run cmp "${FIXTURE_DIR}/dump-different.txt" "${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg"
+	assert_success
+	run cmp -s "${BACKUP_ROOT}/sqlite3_travel_old.sqlite3.zst.gpg" \
+		"${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg"
+	assert_failure 1
+	# Real negative control: the previous --check operation succeeds on this
+	# exact new sidecar while hashing only the old file, NOT the selected dump.
+	# Do not relax the strict timeout/hash mocks to manufacture that result.
+	cd "${BACKUP_ROOT}" || return 1
+	run "${REAL_SHA1SUM}" --check sqlite3_travel_current.sqlite3.zst.gpg.sha1
+	assert_success
+	assert_output 'sqlite3_travel_old.sqlite3.zst.gpg: OK'
+}
+
+@test "backup: rejects multiple valid SHA1 records in one sidecar before hashing" {
+	export BACKUP_SCENARIO=checksum-multiple-records
+	run_backup
+	assert_checksum_record_rejected
+}
+
+@test "backup: rejects a forty-character digest containing a non-hex character before hashing" {
+	export BACKUP_SCENARIO=checksum-invalid-digest
+	run_backup
+	assert_checksum_record_rejected
+}
+
+@test "backup: accepts a legitimate binary-marker SHA1 record for the selected dump" {
+	export BACKUP_SCENARIO=checksum-binary-marker
+	run_backup
+	assert_success
+	assert_line 'TREK encrypted backup verified: SHA1, GPG, ZSTD, SQLite integrity and schema.'
+	assert_called sha1sum
+	assert_dir_exists "${MOCK_LOG}/deadline-checksum"
+	assert_called gpg
+	assert_called sqlite-schema
+	assert_backup_cleaned
+	assert_no_backup_plaintext
+	cd "${BACKUP_ROOT}" || return 1
+	run "${REAL_SHA1SUM}" --check sqlite3_travel_current.sqlite3.zst.gpg.sha1
+	assert_success
+	assert_output 'sqlite3_travel_current.sqlite3.zst.gpg: OK'
 }
 
 @test "backup: pipefail rejects failed GPG even if downstream ZSTD succeeds" {
@@ -354,7 +431,8 @@ teardown() {
 run_deadline_mock() {
 	run env -i PATH="${MOCK_BIN}:${ORIGINAL_PATH}" MOCK_BIN="${MOCK_BIN}" \
 		MOCK_LOG="${MOCK_LOG}" WORK_ROOT="${WORK_ROOT}" BACKUP_ROOT="${BACKUP_ROOT}" \
-		REAL_TOUCH="${REAL_TOUCH}" TREK_MOCK_CONTEXT=backup BACKUP_SCENARIO=success \
+		REAL_TOUCH="${REAL_TOUCH}" REAL_SHA1SUM="${REAL_SHA1SUM}" \
+		TREK_MOCK_CONTEXT=backup BACKUP_SCENARIO=success \
 		"${BASH}" "${MOCK_BIN}/timeout" "$@"
 }
 

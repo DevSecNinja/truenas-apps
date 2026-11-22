@@ -1,1 +1,1 @@
-test-only SHA1 sidecar
+8beb99ed08b7dc5fa6b27291861a962b13f0651b  sqlite3_travel_current.sqlite3.zst.gpg

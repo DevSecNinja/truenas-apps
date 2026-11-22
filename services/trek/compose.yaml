@@ -141,9 +141,17 @@ services:
       - "traefik.http.routers.trek-rtr.entrypoints=https"
       # TREK authenticates with Pocket ID; no Entra forward-auth dependency.
       - "traefik.http.routers.trek-rtr.middlewares=chain-no-auth@file"
+      # Rejected OIDC callbacks/invitations must not enter query-bearing proxy logs.
+      - "traefik.http.routers.trek-rtr.observability.accesslogs=false"
       - "traefik.http.routers.trek-rtr.service=trek"
       - "traefik.http.services.trek.loadbalancer.server.port=3000"
-      - "gatus.url=https://trek.${DOMAINNAME}/api/health/ready"
+      - "traefik.http.routers.trek-monitor.rule=Host(`trek.${DOMAINNAME}`) && Path(`/api/health/ready`)"
+      - "traefik.http.routers.trek-monitor.entrypoints=monitoring"
+      - "traefik.http.routers.trek-monitor.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.trek-monitor.service=trek"
+      - "gatus.url=http://172.30.100.6:8444/api/health/ready"
+      - "gatus.headers.Host=trek.${DOMAINNAME}"
+      - "gatus.client.ignore-redirect=true"
       - 'gatus.conditions=["[STATUS] == 200", "[RESPONSE_TIME] < 1000"]'
       - 'gatus.alerts=[{"type": "email"}, {"type": "custom"}]'
 

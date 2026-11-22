@@ -1116,6 +1116,24 @@ client assignment to the bootstrap administrator before the first SSO login,
 which becomes TREK administrator per the upstream v5 wiki. Then set TREK's
 invitation/SSO auto-provisioning policy before widening access.
 
+Candidate `trek-monitor` restricts `monitoring` requests to the TREK Host and
+exact `/api/health/ready` path, using `chain-no-auth@file`. Gatus targets
+`http://172.30.100.6:8444/api/health/ready` with `Host: trek.${DOMAINNAME}` and
+`client.ignore-redirect=true`. The shared entrypoint's existing
+`monitoring-ipallowlist@file` (`172.30.100.0/29`) and unpublished port remain
+unchanged; this is not a general UI/API bypass.
+
+Public `trek-rtr` disables only its own access logs with
+`observability.accesslogs=false`: shared Traefik's `400-599` access logs retain
+query strings, and Alloy forwards them without redaction. App redaction cannot
+protect rejected OIDC `code` or invitation `token` values at the proxy.
+TREK therefore loses public-router access diagnostics, not app `LOG_LEVEL=info`,
+health checks, metrics, or backup receipts; other routers are unchanged.
+The monitoring entrypoint already disables access logs. These are gated labels,
+not active ingress. The [November 22 synthetic proxy fixture](services/trek.md#november-22-proxy-fixture)
+is reported successful; full Docker-provider, production TLS, and real
+provider/SSO acceptance remain unproven.
+
 Profiles are **not a security boundary**: explicitly targeted services can
 start despite default exclusion. Do not use profile overrides, targeted
 Compose, or generic deployment to bypass the

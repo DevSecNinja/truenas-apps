@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PATH dispatcher. Mock protocol violations use 97, distinct from injected errors.
-# Validators check arguments/data flow, not real cryptography or SQLite behavior.
+# Validators check arguments/data flow; SHA1 uses real file bytes. GPG/SQLite are mocked.
 set -euo pipefail
 
 command_name="${0##*/}"
@@ -26,9 +26,8 @@ trek_validate_deadline() {
     deadline_stage=discovery
     ;;
   sha1sum)
-    [[ $# == 3 && "$2" == --check &&
-      "$3" == sqlite3_travel_current.sqlite3.zst.gpg.sha1 &&
-      "${PWD}" == "${BACKUP_ROOT}" ]] || bad_call
+    [[ $# == 3 && "$2" == -- &&
+      "$3" == "${BACKUP_ROOT}/sqlite3_travel_current.sqlite3.zst.gpg" ]] || bad_call
     deadline_stage=checksum
     ;;
   gpg)
@@ -210,6 +209,9 @@ backup01-now)
   no-dump) exit 0 ;;
   upstream-failure) exit 23 ;;
   empty-dump) "${REAL_TOUCH}" "${dump}" ;;
+  checksum-content-mismatch | checksum-old-record-different)
+    cp "${FIXTURE_DIR}/dump-different.txt" "${dump}"
+    ;;
   *) cp "${FIXTURE_DIR}/dump.txt" "${dump}" ;;
   esac
   case "${BACKUP_SCENARIO}" in
@@ -220,6 +222,12 @@ backup01-now)
   *) cp "${FIXTURE_DIR}/sidecar.txt" "${dump}.sha1" ;;
   esac
   case "${BACKUP_SCENARIO}" in
+  checksum-old-record | checksum-old-record-different)
+    cp "${FIXTURE_DIR}/retained-sidecar.txt" "${dump}.sha1"
+    ;;
+  checksum-multiple-records) sed -i p "${dump}.sha1" ;;
+  checksum-invalid-digest) sed -i 's/^./g/' "${dump}.sha1" ;;
+  checksum-binary-marker) sed -i 's/  / */' "${dump}.sha1" ;;
   multiple-dumps | multiple-pairs)
     cp "${dump}" "${BACKUP_ROOT}/sqlite3_travel_second.sqlite3.zst.gpg"
     if [[ "${BACKUP_SCENARIO}" == multiple-pairs ]]; then
@@ -236,15 +244,12 @@ backup01-now)
   esac
   ;;
 sha1sum)
-  sidecar_content="$(cat "${dump}.sha1")"
-  [[ "$*" == '--check sqlite3_travel_current.sqlite3.zst.gpg.sha1' &&
-    "${PWD}" == "${BACKUP_ROOT}" &&
-    "${sidecar_content}" == 'test-only SHA1 sidecar' ]] || bad_call
+  [[ $# == 2 && "$1" == -- && "$2" == "${dump}" ]] || bad_call
   if [[ "${BACKUP_SCENARIO}" == checksum-failure ]]; then
     printf '%s\n' 'mock SHA1 mismatch' >&2
     exit 31
   fi
-  printf '%s\n' 'sqlite3_travel_current.sqlite3.zst.gpg: OK'
+  exec "${REAL_SHA1SUM}" "$@"
   ;;
 gpg)
   # Nine arguments; never accept a passphrase on the command line.
