@@ -288,6 +288,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                                                                    |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                                                                     |
 | plex                 | `plex-init`                 | `docker.io/library/busybox:1.38.0`; chowns `./data/config` (not tracked `./config`) and `./backups` → Plex PUID/PGID `911:3200`                                                                                                                                                    |
+| pocket-id            | `pocket-id-init`            | `docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4`; validates required inputs, chowns only `./data` → PUID/PGID `3133:3133`, mode `0700`; never `./config`; controlled post-merge pilot                                    |
 | traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                                                                      |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
@@ -578,8 +579,9 @@ backend-only. The database backup container also stays backend-only and sets
 `ENABLE_NOTIFICATIONS=FALSE`; the remaining `NOTIFICATIONS_EMAIL_*` variables
 configure only Dawarich application email.
 
-`dawarich-db-backup` uses the maintained
-`docker.io/nfrastack/db-backup:4.9.2` compatibility release. It runs
+`dawarich-db-backup` uses the unsupported
+`docker.io/nfrastack/db-backup:4.9.2` v4 compatibility artifact from an actively
+maintained upstream project. It runs
 `backup-now` in one-shot `MODE=MANUAL` mode on every full `dccd.sh` deployment.
 The backup job depends on the healthy `dawarich` Rails service rather than only
 PostgreSQL, so startup migrations, data migrations, and seeding finish before
@@ -594,7 +596,8 @@ database.
 
 Version 5.0.0 was intentionally not selected because runtime restore validation
 failed with an invalid bigint conversion. Version 4.9.2 preserves the proven v4
-workflow while using the maintained nfrastack image and repository.
+workflow, not upstream support for this tag. Pocket ID's backup-only exception
+does not cover Dawarich; see the [v4 compatibility constraint](BACKUP.md#v4-compatibility-constraint).
 
 ### Exception: iot-backend
 
@@ -1064,9 +1067,15 @@ alone are not a coordinated archive backup.
 
 ### TREK Candidate Network and Access Model
 
-[TREK](services/trek.md) remains blocked on Pocket ID operational/adoption
-readiness, image adoption, live provider/proxy/SSO checks, target-host operator
-acceptance, and storage recovery coordination. Synthetic live-WAL backup and
+[TREK](services/trek.md) remains blocked on its own image adoption,
+dedicated OIDC client setup, live provider/proxy/SSO checks, target-host operator
+acceptance, and storage recovery coordination. On 2026-11-22 the operator
+reported Pocket ID production deployment in the personal homelab, first-admin
+passkey setup, and a post-setup backup after PR #949 merged at `eafb883`.
+Host runtime was not independently verified; no TREK client issuance is
+confirmed. The Pocket-only review below is preserved as written before this
+report. Pocket's backup exception expires 2026-12-21 and does not cover TREK.
+Synthetic live-WAL backup and
 full recovery passed for the current `5.1.4` candidate on 2026-11-21;
 they are not production approval.
 No active DNS, Traefik network attachment, or provisioning registry entry exists.
@@ -1106,28 +1115,61 @@ Profiles are **not a security boundary**: explicitly targeted services can
 start despite default exclusion. Do not use profile overrides, targeted
 Compose, or generic deployment to bypass the
 [activation prerequisites](services/trek.md#activation-prerequisites).
-The historical `5.1.0`
-[2026-11-08 Linux AMD64 run](services/trek.md#live-linux-backup-and-recovery-evidence)
-verified `CapEff=0`, `NoNewPrivs=1`, read-only root with an actual write denied,
-writable `/tmp`, 1 GiB memory, PID limit `100`, and no host ports.
-The original sidecar and unchanged wrapper proved encrypted backup from a
-read-only live-WAL source, retention, and full synthetic recovery of all
-550 schema objects. Key, decryption, pre-backup JWT, owner/nonmember/anonymous,
-and file-download assertions passed again after force-recreation; runtime
-cleanup was verified. These are direct-app checks, not real provider login
-or Traefik/SSO validation. Historical `5.0.1` and `5.0.0` recreation/retention
-checks also completed; real wrong-schema/sentinel tests remain attributed
-only to `5.0.0`. All 19 Compose/init/activation tests passed with exact
-BATS 1.14.0 on 2026-11-08, including the new hosted-services opt-out assertion;
-the 41 historical mocked backup tests were not rerun that day.
-Keys/uploads were unchanged during the database writer tests; a coherent
-storage-layer recovery set is still required. Common
-backup/BusyBox adoption remains with Pocket's coordinator; the
+The [2026-11-21 Linux AMD64 evidence](services/trek.md#november-21-current-candidate)
+records the real `5.1.0` → `5.1.4` upgrade, 554-object recovery,
+read-only live-WAL backup, retention, app hardening, and repeated direct-app
+authorization checks. It does not prove real provider login or Traefik/SSO.
+Keys/uploads were unchanged during the database writer test; a coherent
+storage-layer recovery set is still required. The
 [supplied shared review](services/trek.md#shared-image-review-pocket-coordinator)
-was updated on 2026-11-21. Its narrow local-pipeline applicability findings
-do not waive backup support or broader init-maintenance review. The current
+was updated by Pocket's coordinator on 2026-11-21. Its narrow local-pipeline
+findings and Pocket's later approval do not waive TREK-specific backup
+adoption or broader review of TREK's unchanged BusyBox digest. The current
 [TREK image scan](services/trek.md#image-evidence) likewise leaves adoption
 blocked; functional recovery does not approve parser/base findings.
+
+### Pocket ID Candidate Isolation
+
+**Current model: controlled post-merge pilot, not deployed as of 2026-11-22.**
+The heading retains the historical link anchor. All three Pocket ID services
+are profile-free. DNS maps `id.${DOMAINNAME}` to `${IP_SVLNAS}`; active
+`services/traefik/compose.yaml` attaches to the stack-owned external
+`pocket-id-frontend` bridge.
+
+```mermaid
+flowchart LR
+    Client["Client: id.${DOMAINNAME}"] --> Traefik["HTTPS Traefik: chain-no-auth"]
+    Traefik --> App["Pocket ID: native passkeys"]
+```
+
+- **Startup:** init completion → healthy app → one-shot backup. Create the
+  frontend network before deploying Traefik; coordinate cron and use the
+  [ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff).
+- **Access:** no host ports or shared backend. The bridge does not restrict
+  outbound egress. Native authentication/recovery must not depend on Entra/TFA
+  or a Pocket ID-backed Forward Auth chain.
+- **Bootstrap:** the [operator's local-pilot choice](services/pocket-id.md#local-pilot-bootstrap-decision-2026-11-22)
+  accepts first-admin claim risk without a technical restriction. Immediately
+  claim and verify the intended admin; an unexpected claim requires isolation
+  and security-reviewed recovery, not just an account reset.
+- **Privacy:** app Docker log retention, OTEL logs/traces and Pocket ID router
+  access logs are disabled. Health/state and backup receipts remain available;
+  see [recovery-token controls](services/pocket-id.md#recovery-token-log-privacy).
+- **Isolation:** init uses the pinned BusyBox image above, read-only root,
+  no network and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`. It validates inputs
+  before changing only `./data` root to the
+  [declared identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+  Backup also has no network and reads the SQLite source read-only.
+- **Environment:** all three load `tz.env`; only app/init load per-app `.env`.
+  Backup receives explicit `DEFAULT_ENCRYPT_PASSPHRASE` without inheriting
+  `ENCRYPTION_KEY`, `DOMAINNAME` or raw `DB_ENC_PASSPHRASE`. Restore still
+  requires the original app key independently.
+
+The [current adoption review](services/pocket-id.md#current-adoption-review-2026-11-22)
+owns exact artifact identities, scoped app/init clearance, the backup-only
+exception and dated evidence limits. First-run routing/passkey/client acceptance
+and a verified post-enrollment recovery point are not yet established.
+Entra and existing integrations remain unchanged.
 
 ### Dawarich Split Authentication Routers
 
@@ -1486,9 +1528,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include                                                                                                                                          |
-| -------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; all three TREK candidate containers |
+| File     | Purpose                    | When to include                                                                                                                                                                           |
+| -------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; Pocket ID app, init, and backup; all three TREK candidate containers |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 

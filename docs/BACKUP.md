@@ -1000,7 +1000,7 @@ database sidecars' 48-hour cleanup policy.
 ## Application-Level Database Backups
 
 The following stateful databases have application-consistent backup sidecars
-in their compose files today. Dawarich and Open Archiver use maintained
+in their compose files today. Dawarich, Open Archiver, and Pocket ID use
 `docker.io/nfrastack/db-backup:4.9.2`; the other stacks currently use
 `tiredofit/db-backup` v4. These are configured to produce compressed, encrypted
 dump files independent of ZFS snapshots — providing an application-consistent recovery
@@ -1018,7 +1018,8 @@ deployment, or storage-layer recovery.
 
 ### Covered Databases
 
-The table describes configured coverage, not proof that the latest run succeeded.
+The table describes configured coverage, not proof of deployment or that the
+latest run succeeded. Pocket ID is a controlled post-merge pilot, not deployed.
 
 | Service        | Database                                            | Backup sidecar             | Image family    | Encryption | Output path                                  |
 | -------------- | --------------------------------------------------- | -------------------------- | --------------- | ---------- | -------------------------------------------- |
@@ -1031,7 +1032,95 @@ The table describes configured coverage, not proof that the latest run succeeded
 | Memos          | SQLite                                              | `memos-db-backup`          | tiredofit v4    | GPG        | `services/memos/backups/db-backup/`          |
 | Open Archiver  | PostgreSQL (DB01), Valkey via Redis protocol (DB02) | `open-archiver-db-backup`  | nfrastack 4.9.2 | GPG        | `services/open-archiver/backups/db-backup/`  |
 | Outline        | PostgreSQL                                          | `outline-db-backup`        | tiredofit v4    | GPG        | `services/outline/backups/db-backup/`        |
+| Pocket ID      | SQLite                                              | `pocket-id-db-backup`      | nfrastack 4.9.2 | GPG        | `services/pocket-id/backups/db-backup/`      |
 | Unifi          | MongoDB                                             | `unifi-db-backup`          | tiredofit v4    | GPG        | `services/unifi/backups/db-backup/`          |
+
+### Pocket ID Blocked-Candidate Coverage and Future Restore
+
+**Current coverage: controlled post-merge pilot, not deployed as of 2026-11-22.**
+The heading retains its historical link anchor. The
+[service adoption record](services/pocket-id.md#current-adoption-review-2026-11-22)
+owns exact artifacts, approval bounds and dated evidence; this section owns
+the restore procedure. No production storage-layer coverage or recovery
+objective is established.
+
+| Recovery input | Requirement                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Snapshot       | Guard-verified binary SQLite `.sqlite3.zst.gpg` artifact and matching SHA1 sidecar; not SQL text                   |
+| State          | `DB_CONNECTION_STRING=/app/data/pocket-id.db`, `FILE_BACKEND=database`: identity state and database-backed uploads |
+| Secrets        | Independently recoverable original `ENCRYPTION_KEY` and matching `DB_ENC_PASSPHRASE`                               |
+| Compatibility  | Recorded image/schema revision; no unreviewed v5/latest substitution                                               |
+
+The [guarded Online Backup API job](services/pocket-id.md#database-backup)
+runs once per deployment, with GPG/ZSTD/SHA1 and 2880-minute (48-hour)
+retention at `services/pocket-id/backups/db-backup`. The backup container
+does not receive the app key; restoring the app still requires it.
+Keep the healthy writer and readable WAL/SHM available during backup.
+Missing SHM can cause a read-only open failure; do not bypass it with
+read-write mounts, `immutable` mode or arbitrary sleeps.
+
+The unsupported 4.9.2 tag is conditionally accepted only under the
+[backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21),
+with review before **2026-12-21**, no automatic renewal and no other-stack
+coverage. Synthetic recovery/JWKS/retention proof does not establish real
+passkey/client acceptance. Follow the [ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff),
+including a new post-enrollment backup and recovery check before production reliance.
+
+<!-- dprint-ignore -->
+!!! warning "Controlled restore procedure — not production-validated"
+    Execute pilot operations only after PR #949 is merged and the operator is ready,
+    with valid backup exception clearance. Establish independent recovery of
+    the original app key and backup passphrase before relying on recovery.
+    Stop all writers before replacing live state. Successful synthetic restore
+    does not establish first-admin, passkey or client acceptance.
+
+1. Recover the compatible image/schema revision, a successful backup artifact
+   and checksum, original `ENCRYPTION_KEY`, and matching `DB_ENC_PASSPHRASE`
+   through independent operator recovery. A fresh app key cannot substitute
+   for the original. Preserve client identities and mappings.
+2. Suspend deployment/backup automation and stop the Pocket ID application
+   before replacing SQLite state. Ensure no app, backup process or other
+   writer has the database open. Preserve the existing database and WAL/SHM
+   together as a protective checkpoint, separate from the replacement.
+3. Verify the selected artifact's checksum according to the backup tool's
+   actual format, then decrypt/decompress **outside the tracked checkout** in
+   restricted scratch: directory `0700`, plaintext files `0600`. Never log
+   passphrases, keys, recovery tokens or identity data. Confirm a binary
+   SQLite snapshot; do not run `.read` or import it as SQL. Stop on an
+   unexpected format.
+4. Open the **new scratch binary SQLite snapshot** with a compatible SQLite
+   tool; run integrity and foreign-key checks and validate representative
+   users, passkey records, OIDC clients, uploads and signing-key continuity.
+   An intact checksum alone is insufficient. Keep plaintext in restricted
+   recovery storage only, never Git or tracked configuration.
+5. With the app still stopped, install the verified database at the host path
+   mapped to `/app/data/pocket-id.db`. Never combine it with stale WAL/SHM:
+   after preserving the rollback set, remove old sidecars from the live
+   replacement path while all writers remain stopped. Set data directories
+   to `0700`, database files to `0600`, and ownership to the
+   [Pocket ID identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+   Verify the app can create new journal/WAL files. Do not recursively chown
+   tracked configuration; the database belongs only in ignored runtime data.
+6. Start only the compatible app against the recovered state with the **same
+   `ENCRYPTION_KEY`** using a controlled, origin-correct test plan. Passkeys
+   are origin/RP-ID bound: an arbitrary scratch hostname does not prove
+   recovery. Do not expose a second live issuer or change production DNS.
+   If startup reports “already one instance Pocket ID running” from the
+   copied Francis lease, use bounded readiness checks while it naturally
+   expires: up to **90 seconds** after the snapshot host's last heartbeat.
+   The diagnostic's **95-second** wait is not a generic deployment sleep.
+   If refusal persists beyond that bound, stop and investigate. Do not edit
+   the snapshot, delete Francis tables, regenerate keys or weaken the guard.
+7. Verify native administrator and spare-passkey access, client issuer and
+   signing behavior, explicit identity mappings, denial tests and a new
+   encrypted backup. Record results before resuming automation. On failure,
+   keep the app stopped and preserve evidence; do not reopen enrollment or
+   route production clients to it. Restore the original checkpoint only as
+   a consistent database/WAL recovery set while stopped.
+
+Independently recoverable host access, the original app key, backup passphrase,
+and spare passkeys must not depend solely on this IdP. Verify dataset snapshots,
+replication and off-site inclusion separately.
 
 ### v4 Compatibility Constraint
 
@@ -1040,6 +1129,17 @@ Dawarich and Open Archiver are restored to the exact prior
 pin. Renovate restricts this image to `allowedVersions: /^4\./`.
 Version 5 is not a drop-in replacement for the configured v4 commands,
 environment variables, completion logs, and restore workflow.
+
+Compatibility does not establish upstream support or security: the
+[2026-11-21 Pocket ID backup exception record](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
+records raw HIGH/CRITICAL backup findings and bounded musl/sudo applicability,
+not whole-image clearance.
+This exact 4.9.2 tag remains unsupported under upstream's latest-only fixes
+policy. Successful guarded synthetic restore alone does not establish
+dependency safety or production acceptance. Pocket ID's
+[dated backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21)
+does not cover Dawarich, Open Archiver, TREK or any other 4.9.2 stack,
+and does not approve v5 migration.
 
 Keep this constraint until an intentional migration validates:
 
@@ -1235,7 +1335,7 @@ TrueNAS host.
 <!-- dprint-ignore -->
 !!! note "Why Dawarich remains on the v4 workflow"
     Version 5.0.0 was intentionally not selected because runtime restore
-    validation failed with an invalid bigint conversion. The maintained
+    validation failed with an invalid bigint conversion. The
     nfrastack `4.9.2` compatibility release preserves the proven v4 workflow.
     Earlier runtime testing successfully decrypted its dump and restored it
     into a fresh PostgreSQL database; this is historical evidence, not a
@@ -1400,7 +1500,7 @@ instead of restoring only its SQL dump with this generic procedure.
 
 The `Backup Restore Test` GitHub Actions workflow
 (`scripts/gha-backup-restore-test.sh`) exercises the tiredofit v4 GPG workflow
-for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's maintained
+for PostgreSQL, MongoDB, and SQLite every Saturday. Dawarich's
 nfrastack `4.9.2` compatibility image uses the same proven v4 GPG workflow; its
 runtime-produced dump has also been decrypted and restored into a fresh
 PostgreSQL database.
@@ -1413,156 +1513,60 @@ PostgreSQL database.
 provisioned dataset or active backup schedule. All three services remain
 behind `trek-candidate`; profiles do not prevent explicitly targeted services
 from starting. Do not bypass the [activation gates](services/trek.md#activation-prerequisites).
-The **2026-10-27 native ARM64 backup failed**: the read-only WAL source hung in
-`sqlite3 .backup`, timed out at 300 seconds, exited `124`, and emitted
-`ERROR`. That run produced no encrypted dump or successful restore; the
-[tested wrapper hash](services/trek.md#native-runtime-evidence-and-limits)
-identifies the historical artifact. **The successful Linux AMD64 runs,
-latest `5.1.4` on 2026-11-21, supersede the blanket failure claim:** the
-unchanged current wrapper and original `/init` sidecar proved encrypted
-live-WAL backup and full synthetic recovery with the source inspected as
-`RW=false`.
 
-Candidate continuation began on Windows on **2026-10-28**; production keys
-and ciphertext remain preserved, and no TREK OIDC client has been issued;
-see the [continuation checklist](services/trek.md#windows-continuation-checklist).
-Image adoption remains blocked. The
-[shared November 21 review](services/trek.md#shared-image-review-pocket-coordinator),
-supplied by Pocket's coordinator, applies only to the demonstrated local
-SQLite pipeline. Fixed script/job-ID regex inputs and sudoers **including
-includes** lack the particular musl/sudo exploit preconditions; those are not
-automatic blockers or whole-image clearance.
-Pinned `4.9.2` remains unsupported: require a maintained compatible artifact
-or an explicit, narrow, dated exception; none is granted. A replacement is
-not required merely for assumed read-only incompatibility. Latest upstream
-`5.0.11` still uses independent `*sql.DB` source queries in its
-[SQLite engine](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go);
-`BEGIN`/`COMMIT` apply to output, not a hot source snapshot. Its empty-table
-autoincrement fix does not establish consistency or TREK compatibility;
-it is not an approved drop-in replacement.
+On 2026-11-22 the operator reported Pocket ID production deployment,
+first-admin passkey setup, and a post-setup backup after PR #949 merged.
+Host runtime was not independently verified; no TREK client issuance is
+confirmed. Pocket's backup exception expires **2026-12-21** and covers
+**Pocket ID only**. TREK's unsupported `4.9.2` still requires a maintained
+compatible artifact or its own explicit, narrow, reviewed risk decision.
+The [coordinator-supplied image review](services/trek.md#shared-image-review-pocket-coordinator)
+does not grant that decision. Its November 21 review found that latest
+`5.0.11` lacks a hot-source transaction; do not treat it as a drop-in upgrade.
 
-| Property        | Candidate implementation                                                                                                                                             |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Job             | `trek-db-backup`, pinned nfrastack `4.9.2`; unsupported tag, incomplete vulnerability applicability review, not approved                                             |
-| Cadence         | Deployment-triggered one-shot only; no autonomous nightly timer                                                                                                      |
-| Source          | `./data/app:/trek-data:ro`, database `/trek-data/travel.db`                                                                                                          |
-| Output          | `./backups/db-backup`; GPG-encrypted, ZSTD-compressed binary SQLite and SHA1 sidecar                                                                                 |
-| Retention       | `DEFAULT_CLEANUP_TIME=2880` (48 hours)                                                                                                                               |
-| Verification    | Exactly one fresh nonempty dump and matching SHA1 sidecar, no extra fresh files; checksum, decrypt, decompress, `quick_check=ok`, and `users`/`trips` table presence |
-| Not in the dump | Original encryption/JWT keys and `./data/uploads`; preserve a matching storage-layer recovery set                                                                    |
+| Property        | Candidate implementation                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Job / cadence   | `trek-db-backup`, pinned nfrastack `4.9.2`; deployment-triggered one-shot, no autonomous nightly timer                                  |
+| Source          | `./data/app:/trek-data:ro`, database `/trek-data/travel.db`                                                                             |
+| Output          | `./backups/db-backup`; GPG-encrypted, ZSTD-compressed binary SQLite and SHA1 sidecar                                                    |
+| Retention       | `DEFAULT_CLEANUP_TIME=2880` (48 hours)                                                                                                  |
+| Verification    | Exactly one fresh nonempty matching pair, no extra fresh files; checksum/decrypt/decompress, `quick_check=ok`, `users`/`trips` presence |
+| Environment     | Shared timezone plus explicit backup settings/passphrase; no inherited per-app `.env` or application/OIDC secrets                       |
+| Not in the dump | Original encryption/JWT keys and `./data/uploads`; preserve a matching storage-layer recovery set                                       |
 
-`config/backup.sh` checks every fresh output and verifies decrypted scratch
-in private `/tmp` with `umask 077`, cleaning it on exit. Only the upstream
-invocation uses `umask 022` for root-created scratch compatibility. It fails
-nonzero when output is absent, unlike v4's possible silent success; its schema
-check is not a row-level recovery test.
+The [wrapper](services/trek.md#backup) has separate 300-second stage deadlines
+and 10-second KILL grace, not a whole-job deadline. It retains pipeline
+`pipefail`, private scratch cleanup, and stage-named errors; table presence
+alone is not a row-level recovery drill.
 
-The revised `run_stage` helper applies
-`timeout --signal=TERM --kill-after=10s 300s` separately to `dump`
-(`backup01-now now`), `discovery` (`find`), `checksum` (`sha1sum`), `decrypt`
-(`gpg`), `decompress` (`zstd`), `integrity` (`sqlite3` `quick_check`), and
-`schema` (`sqlite3` counting the `users` and `trips` tables). **Each stage**
-receives TERM at 300 seconds and KILL after a 10-second grace if needed;
-**there is no 300-second whole-job deadline**. Decrypt and decompress have
-independent timers within the pipeline, which retains `pipefail`. Helper
-errors name the failed stage and return its nonzero status. Exactly-one
-output-pair checks and private scratch cleanup remain unchanged.
+**Evidence, not activation approval:** the recorded 2026-11-21 Linux AMD64
+run upgraded populated `5.1.0` to `5.1.4`, then used the original `4.9.2`
+`/init` and unchanged wrapper against read-only live database/WAL/SHM.
+The writer completed 417 transactions; the snapshot held coherent revision
+`211`. Full recovery of all 554 schema objects, original keys, AES-GCM data,
+uploads, pre-upgrade sessions, and direct-app authorization passed again
+after restored-app recreation. Each cycle produced one encrypted pair and
+the required receipts; 48-hour retention kept the 47-hour pair and removed
+the 49-hour pair. See [current evidence](services/trek.md#november-21-current-candidate)
+for ownership, hardening, cleanup, and the historical November 21 test results.
 
-**2026-10-28 focused tests passed:** 59 tests with exact BATS 1.14.0
-(41 backup tests on Linux rootless Podman 5.8.6; 18 Compose/init/activation
-tests on Windows). See [focused wrapper evidence](services/trek.md#focused-wrapper-evidence-2026-10-28)
-for exact-artifact context, mocked verification checks, real TERM/KILL
-parent/child behavior, and the negative control. That suite used mocked
-database/crypto/upstream operations, not a real backup or full-sidecar lifecycle.
-The full pre-commit hooks and eight main-sync validator checks also passed
-historically; these are not current rerun claims. On **2026-11-08**, all
-**19 Compose/init/activation tests** passed with exact BATS 1.14.0, including
-the new `TREK_SERVICES: "off"` assertion. The prior 41 mocked backup tests
-were not rerun that day.
-On **2026-11-21**, all **19 existing Compose/init/activation tests** passed
-against the final `5.1.4` pin with exact BATS 1.14.0, without production test
-changes. All **10 selected required pre-commit checks** also passed:
-Compose, YAML formatting/lint, dprint, server validation, registry directories,
-gitleaks, Trivy, Checkov, and MkDocs. A separate strict MkDocs build of the
-actual docs with **32 materialized tracked link targets** passed.
-These November 21 results are not a rerun claim for the earlier full suites.
+The [immutable historical record](https://github.com/DevSecNinja/truenas-apps/blob/e37798bde88184534ec54d171e27f0ab1a25792b/services/trek/README.md)
+retains earlier proofs: the October 27 ARM64 timeout produced no encrypted
+output; October 28 mocks proved wrapper/signals, not real crypto; actual
+wrong-schema/sentinel rejection belongs only to the `5.0.0` run.
+Later AMD64 success disproves blanket read-only incompatibility, not those
+dated observations. None of these tests was rerun for this documentation.
+Keys/uploads stayed unchanged while the writer changed the database.
+Changing-upload coordination, actual provider/proxy/SSO, and target-host
+acceptance remain open. After approved activation, verify child snapshots,
+replicas, and off-site recovery before claiming coverage or an RPO.
 
-**Latest actual runtime, 2026-11-21:** rootless Podman 5.8.6,
-Compose 5.5.1, Linux AMD64, the pulled immutable official `5.1.4` index/child
-with verified config digest, synthetic secrets, internal no-egress
-networking, no published ports, and owned Linux named storage with child
-bind paths. See [live Linux evidence](services/trek.md#live-linux-backup-and-recovery-evidence)
-for exact pins, schema hashes, hardening, and version-specific results.
+### Conditional TREK Restore
 
-| App / date                       | Full recovered schema                                                                                                           | Live writer / consistent snapshot revision | Recreation and retention                                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `5.1.4`, 2026-11-21 — current    | 554 objects; two tables and two autoindexes added to populated `5.1.0`, no prior SQL objects modified; data migrations also ran | 417 transactions / `211`                   | All recovery assertions repeated after force-recreation; retention, receipt counts, and cleanup verified |
-| `5.1.0`, 2026-11-08 — historical | 550 objects; three added tables and five indexes, no other SQL schema change from `5.0.1`                                       | 929 transactions / `115`                   | All recovery assertions repeated after force-recreation; retention passed                                |
-| `5.0.1`, 2026-10-29 — historical | 542 objects, including two additive nullable plugin columns                                                                     | 798 transactions / `182`                   | All recovery assertions repeated after force-recreation; retention passed                                |
-| `5.0.0`, 2026-10-29 — historical | 542 objects                                                                                                                     | 1,522 transactions / `235`                 | All recovery assertions repeated after force-recreation; retention passed                                |
-
-**November 21:** upgraded populated `5.1.0` without manual database repair;
-the unchanged `4.9.2` sidecar/wrapper passed with live read-only database/WAL/SHM.
-Fresh binary recovery passed checksum, decrypt, decompress, integrity, and
-foreign-key checks. All 554 schema objects, original keys, native encrypted
-value, uploads, **pre-upgrade** sessions and direct-app authorization,
-deleted-chat clearing/live-chat retention, and existing add-ons off passed
-again after restored-app force-recreation, without clock/expiry workarounds.
-Both sidecar cycles exited `0`, each with one fresh encrypted pair at reserved
-ownership/mode `0600`; 49-hour output was removed, 47-hour output retained.
-Both logs confirmed exactly one start, `Backup 01` zero-exit receipt, and
-wrapper-success message. Live SQLite/WAL/SHM remained readable; source and
-root-filesystem writes failed, while `/tmp` writes passed.
-See the [compact current evidence](services/trek.md#november-21-current-candidate).
-Logical chat deletion does not erase older backup copies or physical storage.
-
-The historical `5.1.0` run on **2026-11-08** verified:
-
-- The original `4.9.2` `/init` sidecar and unchanged bounded wrapper exited
-  `0` with exactly one encrypted GPG/ZSTD dump and SHA1 sidecar while the
-  writer was active. Source inspection confirmed `RW=false`.
-- Checksum, decrypt, decompress, SQLite integrity, and foreign-key checks
-  passed. A fresh exact app became healthy after restoring the binary
-  database and copying the original `.encryption_key`, `.jwt_secret`,
-  and uploads. All 550 schema objects matched the fresh manifest; keys,
-  native AES-GCM decryption, and the upload/database reference survived.
-- Pre-backup native HS256 JWTs and server-side sessions survived recovery:
-  `/api/auth/me`, owner-trip access, and upload download returned `200`,
-  nonmember access `404`, and anonymous access `401`. All schema, key,
-  decryption, JWT, access, and download assertions passed again after
-  force-recreating the restored app. These were direct-app checks with
-  forwarded-HTTPS headers, not Pocket ID login or real proxy/SSO coverage.
-- A second original `/init` run exited `0`. Both success logs contained
-  exactly one start, one `Backup 01` zero-exit receipt, and one
-  wrapper-success message. Retention at `2880` minutes deleted the
-  49-hour encrypted pair and preserved the 47-hour pair; all output files
-  used the reserved app identity and mode `0600`.
-
-**Historical negative cases, `5.0.0` only:** a valid wrong-schema database
-encrypted/decrypted successfully, but the unchanged wrapper exited `1` for
-missing `users`/`trips` despite upstream's exit-`0` receipt. A `GENERATE`
-passphrase exited `1` before backup, with no start, completion receipt, or
-wrapper-success message. Neither case is claimed as a `5.0.1`/`5.1.0`/`5.1.4` rerun.
-
-The `5.0.1` one-day tokens returned `200` during the 2026-10-29 checks and
-correctly returned `401` on 2026-11-08 after real wall-clock expiry. This
-was not clock manipulation or a restore defect.
-
-This supersedes the earlier quiesced-source limitation, not the remaining
-production gates. The live writer changed **only the database**; keys/uploads
-were unchanged, so this is not a synchronized backup of changing uploads.
-Coherent storage-layer recovery, target-host operator acceptance, image
-adoption, Pocket ID readiness, and live provider/proxy/SSO checks remain pending.
-Runtime cleanup is verified for the three historical runs: `5.0.0` resources were removed
-on 2026-10-29. Both the `5.0.1` resources retained through sleep and the
-`5.1.0` resources were removed on 2026-11-08: four labeled containers, four
-named volumes, and two networks per run, with empty label queries afterward.
-November 21 cleanup also removed four test containers, four named volumes,
-and two networks, with all label queries empty.
-After activation, verify actual recursive snapshots, replicas, and off-site
-recovery before claiming dataset coverage or an RPO.
-
-### Conditional TREK Restore — DO NOT EXECUTE Until All Gates Clear
+<!-- dprint-ignore -->
+!!! danger "DO NOT EXECUTE until all activation and recovery gates clear"
+    This procedure is for an approved deployment and reviewed recovery image.
+    Do not start the blocked candidate or bypass its profiles to perform it.
 
 The v4 SQLite `.backup` operation produces a **binary SQLite database**, not
 SQL text. Do not feed the decrypted file to a SQL import command. Select a

@@ -58,6 +58,7 @@ The setup follows
 | [OpenClaw](https://github.com/openclaw/openclaw)                                              | Self-hosted personal AI assistant and gateway                                                                       |
 | [Outline](https://www.getoutline.com/)                                                        | Knowledge base and wiki with Azure AD authentication                                                                |
 | [Plex](https://www.plex.tv/)                                                                  | Media server with hardware transcoding                                                                              |
+| [Pocket ID](services/pocket-id.md)                                                            | Passkey OIDC provider alongside Entra — **controlled post-merge pilot; not deployed as of 2026-11-22**              |
 | [SQLite Web](https://github.com/coleifer/sqlite-web)                                          | SQLite database browser for Home Assistant                                                                          |
 | [Traefik](https://traefik.io/)                                                                | Reverse proxy with automatic SSL via Cloudflare DNS                                                                 |
 | [Traefik Forward Auth](https://github.com/ItalyPaleAle/traefik-forward-auth)                  | SSO authentication via Microsoft Entra ID                                                                           |
@@ -80,6 +81,19 @@ generic/unscoped deployment outside TrueNAS mode can start this stack before
 its Custom App exists; do not use those paths before the activation
 prerequisites are complete.
 
+[Pocket ID](services/pocket-id.md), introduced by
+[PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949), is a user-approved
+**controlled post-merge pilot**. **As of 2026-11-22**, it is not deployed or
+approved for production reliance. The [current adoption review](services/pocket-id.md#current-adoption-review-2026-11-22)
+records scoped app/init clearance and the backup-only exception requiring
+review before **2026-12-21**, with no automatic renewal.
+Follow the [ordered deployment and post-enrollment backup runbook](services/pocket-id.md#controlled-post-merge-operator-handoff).
+The [local-pilot choice](services/pocket-id.md#local-pilot-bootstrap-decision-2026-11-22)
+accepts first-admin claim risk without a technical restriction: immediately
+claim and verify the intended admin; isolate an unexpectedly claimed instance.
+Independent key recovery and real routing/passkey/client acceptance are still
+required. Entra and existing integrations remain unchanged.
+
 The unused arr stack (Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd,
 Sonarr, and Spottarr) was retired from the repository on **2026-10-25**.
 **Plex stays active.** All datasets, media/download data, service accounts,
@@ -92,17 +106,23 @@ requires operator verification.
 
 [TREK](services/trek.md) ([#948](https://github.com/DevSecNinja/truenas-apps/issues/948))
 is a travel-planning candidate, **not an active app or dataset**. Pocket ID
-[#949](https://github.com/DevSecNinja/truenas-apps/pull/949) must complete before
-TREK merges. All three services remain behind `trek-candidate`, with no active
+[#949](https://github.com/DevSecNinja/truenas-apps/pull/949) merged at `eafb883`.
+On **2026-11-22**, the operator reported Pocket ID production deployment in
+the personal homelab, first-admin passkey setup, and a post-setup backup;
+host runtime was not independently verified. This updates the historical
+Pocket status above, not its review controls. No TREK client issuance is
+confirmed; Pocket's backup exception expires **2026-12-21** and applies only
+to Pocket ID, not TREK.
+All three TREK services remain behind `trek-candidate`, with no active
 DNS, Traefik attachment, or provisioning registry entry. The current `5.1.4`
 candidate explicitly sets `TREK_SERVICES: "off"` to avoid automatic enrollment
 in upstream hosted map services; no community-sharing consent is granted.
 Synthetic `5.1.0` → `5.1.4` upgrade, live-WAL backup, full recovery repeated
 after force-recreation, 48-hour retention, Linux AMD64 app hardening, receipt
 counts, and test-resource cleanup passed on 2026-11-21. All 19 existing
-Compose checks also passed; full hooks/docs validation remains pending.
-Earlier dated passes remain historical.
-Image adoption, Pocket ID operational readiness, live provider/proxy/SSO,
+Compose checks, 10 selected pre-commit checks, and a separate strict MkDocs
+build passed that day; these are historical results, not validation of this edit.
+Image adoption, dedicated TREK client setup, live provider/proxy/SSO,
 target-host operator acceptance, and storage recovery coordination remain open.
 Profiles are not a security boundary; do not bypass the gate by targeting
 services explicitly.
@@ -162,6 +182,7 @@ vm-pool/apps/services/open-archiver
 vm-pool/apps/services/openclaw
 vm-pool/apps/services/outline
 vm-pool/apps/services/plex
+vm-pool/apps/services/pocket-id
 vm-pool/apps/services/sqlite-web
 vm-pool/apps/services/traefik
 vm-pool/apps/services/traefik-forward-auth

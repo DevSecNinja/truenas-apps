@@ -1,8 +1,8 @@
 ---
 rules:
   ref-version-mismatch:
-    # Renovate tracks these SHA-pinned main refs; keep uses comments parseable.
-    # Scope exceptions to existing locations, not whole workflows or future pins.
+    # Renovate tracks these SHA-pinned main references. Keep the inline branch
+    # comments parseable; zizmor's version-comment span cannot hold an ignore.
     ignore:
       - image-security.yml:36
       - image-security.yml:70
@@ -12,4 +12,6 @@ rules:
       - lint.yml:66
       - lint.yml:87
       - lint.yml:113
+      - release-please.yml:61
+      - release-please.yml:64
       - test.yml:26

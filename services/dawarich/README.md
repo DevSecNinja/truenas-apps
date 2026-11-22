@@ -295,11 +295,14 @@ The backup job depends on the healthy `dawarich` Rails service rather than only
 PostgreSQL. This ordering lets startup migrations, data migrations, and seeding
 finish before the dump can run.
 
-The stack intentionally uses the maintained
-`docker.io/nfrastack/db-backup:4.9.2` compatibility release. Runtime restore
+The stack intentionally uses the unsupported
+`docker.io/nfrastack/db-backup:4.9.2` v4 compatibility artifact from the actively
+maintained nfrastack upstream project. Runtime restore
 validation of v5.0.0 failed with an invalid bigint conversion. Version 4.9.2
-keeps the proven v4 backup and restore workflow while using the maintained
-nfrastack image and repository. `ENABLE_NOTIFICATIONS=FALSE` keeps the one-shot
+keeps the proven v4 backup and restore workflow, not upstream support for this
+tag. Pocket ID's backup-only exception does not cover Dawarich; see the
+[v4 compatibility constraint](../BACKUP.md#v4-compatibility-constraint).
+`ENABLE_NOTIFICATIONS=FALSE` keeps the one-shot
 job backend-only; all `NOTIFICATIONS_EMAIL_*` values belong only to the Dawarich
 application.
 

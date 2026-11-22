@@ -43,7 +43,7 @@ jobs:
 
   unit-integration:
     # uses: DevSecNinja/.github/.github/workflows/bats.yml@  # after extraction
-    uses: ./.github/workflows/bats.yml # zizmor: ignore[self-repository] Pinned actionlint 1.7.12 rejects $/ syntax; retain the same-commit workflow.
+    uses: ./.github/workflows/bats.yml # zizmor: ignore[self-repository] -- Pinned actionlint does not yet support $/ workflow calls.
     permissions:
       contents: read
       checks: write
@@ -52,12 +52,12 @@ jobs:
       mise-version: "2026.10.13"
       test-dirs: >-
         tests/dccd/unit tests/dccd/integration tests/sops-secrets/unit tests/sops-secrets/integration
-        tests/truenas-prep-app/integration tests/trek/integration
+        tests/truenas-prep-app/integration tests/pocket-id tests/trek/integration
       check-name: "Unit & Integration Tests"
 
   e2e:
     # uses: DevSecNinja/.github/.github/workflows/bats-e2e.yml@  # after extraction
-    uses: ./.github/workflows/bats-e2e.yml # zizmor: ignore[self-repository] Pinned actionlint 1.7.12 rejects $/ syntax; retain the same-commit workflow.
+    uses: ./.github/workflows/bats-e2e.yml # zizmor: ignore[self-repository] -- Pinned actionlint does not yet support $/ workflow calls.
     permissions:
       contents: read
       checks: write

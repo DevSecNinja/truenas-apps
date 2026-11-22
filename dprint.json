@@ -16,9 +16,11 @@
     ".gemini/**",
     ".windsurf/**",
     ".kiro/**",
-    ".agents/**"
+    ".agents/**",
+    ".github/skills/**",
+    ".specify/**"
   ],
   "plugins": [
-    "https://plugins.dprint.dev/markdown-0.21.1.wasm"
+    "https://plugins.dprint.dev/markdown-0.28.2.wasm"
   ]
 }

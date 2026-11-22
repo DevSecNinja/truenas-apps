@@ -1,3 +1,6 @@
+[extend]
+useDefault = true
+
 [allowlist]
 description = "Global gitleaks allowlist"
 regexes = ["\\d+/api/verify"]
