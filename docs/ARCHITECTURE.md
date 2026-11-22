@@ -566,8 +566,9 @@ backend-only. The database backup container also stays backend-only and sets
 `ENABLE_NOTIFICATIONS=FALSE`; the remaining `NOTIFICATIONS_EMAIL_*` variables
 configure only Dawarich application email.
 
-`dawarich-db-backup` uses the maintained
-`docker.io/nfrastack/db-backup:4.9.2` compatibility release. It runs
+`dawarich-db-backup` uses the unsupported
+`docker.io/nfrastack/db-backup:4.9.2` v4 compatibility artifact from an actively
+maintained upstream project. It runs
 `backup-now` in one-shot `MODE=MANUAL` mode on every full `dccd.sh` deployment.
 The backup job depends on the healthy `dawarich` Rails service rather than only
 PostgreSQL, so startup migrations, data migrations, and seeding finish before
@@ -582,7 +583,8 @@ database.
 
 Version 5.0.0 was intentionally not selected because runtime restore validation
 failed with an invalid bigint conversion. Version 4.9.2 preserves the proven v4
-workflow while using the maintained nfrastack image and repository.
+workflow, not upstream support for this tag. Pocket ID's backup-only exception
+does not cover Dawarich; see the [v4 compatibility constraint](BACKUP.md#v4-compatibility-constraint).
 
 ### Exception: iot-backend
 
@@ -1072,15 +1074,28 @@ manual network connection. There are no host-published ports or shared backend
 networks. The app bridge is not an air gap or an outbound-egress restriction.
 Native authentication/recovery remains independent of Entra/TFA:
 `chain-no-auth@file` must not be replaced with a dependent Forward Auth chain.
+The operator's [local-pilot choice, relayed by the coordinator on 2026-11-22](services/pocket-id.md#local-pilot-bootstrap-decision-2026-11-22)
+accepts first-admin claim risk **without a technical bootstrap restriction**.
+On a fresh instance, unauthenticated `POST /api/signup/setup` creates the first
+admin; an unintended reachable client can claim first. Localhost/LAN deployment
+is not authentication or a technical mitigation. Complete first-admin/passkey
+setup immediately on the intended local HTTPS route and verify the intended
+admin before adding other real accounts or clients. An unexpected claim requires
+stopping, isolation and security-reviewed rebuild/recovery of a trusted baseline,
+not just a later reset. Normal registration/first-admin behavior is unchanged.
+This residual-risk choice is separate from the backup-image exception; its
+scope and expiry are unchanged.
+
+App Docker log retention, OTEL log/trace export and this router's access logging
+remain disabled to protect recovery tokens. See the [privacy controls and November 22 scoped proof](services/pocket-id.md#recovery-token-log-privacy);
+the bootstrap choice does not waive these controls.
 
 Init uses the exact BusyBox pin in the inventory above, a read-only root,
 no network, and only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`. It validates secrets
 before chown/chmod of only `./data` to the
 [declared app identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
-The **November 21** exact AMD64 init validation passed twice: private root mode
-`0700`, unchanged child ownership/mode, five invalid-input failures before
-ownership changes, `NoNewPrivs=1`, expected capabilities, rejected root writes,
-64 MiB memory and 100-PID limits. This does not establish TrueNAS ACL behavior.
+The [canonical November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
+records exact-init validation, not TrueNAS ACL behavior.
 
 The [November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
 clears pinned `v2.19.3-distroless` for normal app use and the rebuilt glibc
@@ -1089,22 +1104,28 @@ image-clean claim or a new exception. Backup 4.9.2 remains conditional on the
 [exact AMD64 backup-only exception](services/pocket-id.md#temporary-backup-risk-exception-2026-11-21),
 accepted **2026-11-21**, with coordinator-defined review/expiry **2026-12-21**
 and no automatic renewal. Review must complete before use on or after expiry.
-Historical October/November runtime and synthetic recovery evidence remains
-dated. Scoped config/proxy checks passed on **November 21** using the
-file-provider fixture and cached Docker Hub Traefik, not the production DHI
-image. Current **November 21** verification passed all **15 selected pre-commit
-checks** (**113.67 seconds**), **293 BATS tests** plus **29 registry/provisioning
-integration tests**, and strict indexed MkDocs. Docker-provider discovery/network
-attachment, real DNS, public-certificate TLS and browser/passkey flows remain
-operator acceptance requirements.
+Exact artifacts, counts, timings and fixture scope are recorded in the canonical
+[service evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21).
+Those dated passes do not validate the November 22 review fixes or establish
+production DHI-image behavior, Docker-provider discovery/network attachment,
+real DNS, public-certificate TLS or browser/passkey acceptance.
 
-All three services load `../shared/env/tz.env` and per-app `.env`.
+All three services load `../shared/env/tz.env`; only app/init also load per-app
+`.env`. Backup receives explicit backup variables, including
+`DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE:-}`, without inheriting
+`ENCRYPTION_KEY`. Its encrypted signing/session KV verification needs row
+bytes, not the app decryption key; a restored app still needs the original key.
+[Actual backup-environment and targeted tests passed on November 22](services/pocket-id.md#backup-environment-test-subset-2026-11-22);
+no fresh full recovery/JWKS/retention rerun is claimed.
+[Local validation passed on November 22](services/pocket-id.md#local-validation-2026-11-22);
+the PR's current revision must pass remote CI and review before merge.
 `DOMAINNAME`, `ENCRYPTION_KEY`, and `DB_ENC_PASSPHRASE` are provisioned in the
 unchanged encrypted dotenv; domain substitution does not come from shared
 Docker Hub credentials. The initial `dccd-app pocket-id` must create the raw
 `.env` before Custom App enrollment. Server/SOPS scoping is unchanged.
-Independent original-key recovery, first-admin/passkey and client acceptance
-remain operator first-run requirements before production reliance.
+Independent original-key recovery, first-admin/passkey setup, client acceptance
+and a verified post-enrollment recovery point remain operator first-run
+requirements before production reliance.
 Entra and existing client integrations are unchanged; any cutover needs
 separate identity mapping, authorization and rollback review.
 

@@ -1038,8 +1038,10 @@ latest run succeeded. Pocket ID is a controlled post-merge pilot, not deployed.
 ### Pocket ID Blocked-Candidate Coverage and Future Restore
 
 This heading retains the historical link anchor. **Pocket ID now has configured
-coverage for the [controlled post-merge pilot](services/pocket-id.md), not a
-production deployment.** App/init review is cleared for the documented scope;
+coverage for the [controlled post-merge pilot](services/pocket-id.md), introduced
+by [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949).
+Deployment status as of 2026-11-22: not deployed.** App/init review is cleared
+for the documented scope;
 backup acceptance remains conditional on the exact exception below.
 The [November 21 evidence](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
 records **v2.19.3** guarded read-only-source encrypted synthetic restore,
@@ -1055,7 +1057,11 @@ success below are distinct evidence, not proof of permanent v4 incompatibility.
 The configured job uses manual mode once per DCCD deployment,
 ZSTD compression, SHA1 checksum and GPG
 encryption, retaining **2880 minutes** at
-`services/pocket-id/backups/db-backup`. The pinned
+`services/pocket-id/backups/db-backup`. Backup loads only `tz.env` plus explicit
+backup variables, including `DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE:-}`;
+it does not inherit the app's `.env` or `ENCRYPTION_KEY`. Encrypted signing/session
+KV checks need row bytes, not the app decryption key; restore into Pocket ID
+still requires the independently recovered original key. The pinned
 `docker.io/nfrastack/db-backup:4.9.2@sha256:cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`
 artifact is an **unsupported tag**; the
 [November 21 review](services/pocket-id.md#image-and-recovery-evidence-2026-11-21)
@@ -1075,15 +1081,35 @@ scope receive conditional backup-gate acceptance. No automatic renewal,
 digest/platform carry-over, or future-findings waiver applies; newly relevant
 findings or changed assumptions require immediate review. Expiry removes
 exception clearance for activation or continued use.
+The tracked Compose TODO assigns **@DevSecNinja** review **before 2026-12-21**:
+record a maintained compatible artifact with proof, a fresh explicit exception,
+or a controlled rollback/retirement decision preserving independent recovery.
+Expiry is not an automatic stop of the IdP or its backups.
 **TREK, all other 4.9.2 stacks, and Pocket ID's app/init are excluded.**
 The exception does not itself authorize activation or extend to app/init:
 their scoped clearance and the controlled implementation were approved separately.
-No deployment or merge occurred. Independent original-key recovery,
-first-admin/passkey setup and client authorization remain operator requirements
-before production reliance, not claims already completed. Follow the
+Independent original-key recovery, first-admin/passkey setup, client authorization
+and a verified post-enrollment recovery point remain operator requirements before
+production reliance, not claims already completed. Follow the
 [post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff)
-only after merge and readiness; if use begins on or after **2026-12-21**,
-complete review first. There is no new or broadened waiver.
+only after merge and readiness, including another `dccd-all` after enrollment
+and verification of a new completion/artifact from after enrollment.
+The operator's [local-pilot choice, relayed by the coordinator on 2026-11-22](services/pocket-id.md#local-pilot-bootstrap-decision-2026-11-22)
+accepts first-admin claim risk without a technical bootstrap restriction.
+Localhost/LAN is not authentication or a technical mitigation. Immediately
+complete first-admin/passkey setup on the intended local HTTPS route and verify
+the intended admin before adding other real accounts or clients. If unexpectedly
+claimed, stop, isolate and treat the instance as untrusted; rebuild/recover a
+trusted baseline with security review before adding accounts or clients.
+Later noticing or resetting the account does not undo compromise.
+This choice is separate from the backup-image exception and changes neither its
+scope nor expiry. [Local validation passed on November 22](services/pocket-id.md#local-validation-2026-11-22);
+the PR's current revision must pass remote CI and review before merge.
+The [November 22 privacy test subset](services/pocket-id.md#privacy-test-subset-2026-11-22)
+and [actual backup-environment/targeted tests](services/pocket-id.md#backup-environment-test-subset-2026-11-22)
+passed within their documented scope, without a fresh full recovery/JWKS/retention
+rerun. If use begins on or after
+**2026-12-21**, complete review first. There is no new or broadened backup-image waiver.
 Do not recommend a v5/latest substitution without the separately tested
 [compatibility migration](#v4-compatibility-constraint).
 

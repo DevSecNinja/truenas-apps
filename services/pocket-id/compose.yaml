@@ -78,7 +78,12 @@ services:
       LOG_LEVEL: info
       LOG_JSON: "true"
       LOG_QUERY_ARGS: "false"
+      OTEL_LOGS_EXPORTER: none
+      OTEL_TRACES_EXPORTER: none
       ACTORS_HOST: 127.0.0.1
+    # v2.19.3 HTTP logs contain recovery credentials; retain no app stdout logs.
+    logging:
+      driver: none
     restart: on-failure:3
     networks:
       - pocket-id-frontend
@@ -113,11 +118,16 @@ services:
       - "traefik.http.routers.pocket-id-rtr.rule=Host(`id.${DOMAINNAME}`)"
       - "traefik.http.routers.pocket-id-rtr.entrypoints=https"
       # OIDC and account recovery must not depend on Entra or forward-auth.
+      # Local pilot choice: no bootstrap access restriction. Any reachable
+      # client can claim the first admin; complete setup immediately (README).
       - "traefik.http.routers.pocket-id-rtr.middlewares=chain-no-auth@file"
       - "traefik.http.routers.pocket-id-rtr.service=pocket-id"
+      # Rejected recovery-token paths must not enter proxy access logs.
+      - "traefik.http.routers.pocket-id-rtr.observability.accesslogs=false"
       - "traefik.http.services.pocket-id.loadbalancer.server.port=1411"
 
   # Pocket ID backup-only risk exception expires 2026-12-21; see README.
+  # TODO: [pocket-id] @DevSecNinja review the exact backup exception before 2026-12-21; replace or explicitly re-review it without silently renewing or stopping backups.
   # s6 rewrites system configuration, so its root filesystem remains writable.
   # The root supervisor needs only ownership, identity-switching, and signal
   # capabilities; the database source is read-only and the job has no network.
@@ -128,8 +138,6 @@ services:
       pocket-id:
         condition: service_healthy
     env_file:
-      - path: .env
-        required: false
       - path: ../shared/env/tz.env
     command:
       - timeout

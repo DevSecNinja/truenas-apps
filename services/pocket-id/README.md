@@ -1,9 +1,15 @@
 # Pocket ID
 
-**User-approved controlled post-merge pilot — not deployed or approved for production reliance.**
-Updated **2026-11-21**; app/init review cleared for the scope below, backup
-conditionally accepted. [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949)
-has not merged. Tracked in [issue #941](https://github.com/DevSecNinja/truenas-apps/issues/941).
+**User-approved controlled post-merge pilot. Deployment status as of 2026-11-22:
+not deployed or approved for production reliance.**
+Introduced by [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949);
+tracked in [issue #941](https://github.com/DevSecNinja/truenas-apps/issues/941).
+November 21 app/init clearance and conditional backup acceptance retain their
+documented scope. November 22 privacy, actual backup-environment and targeted
+tests passed within the scope below. The operator's local-pilot choice,
+relayed by the coordinator on **2026-11-22**, accepts first-admin claim risk
+without a technical bootstrap restriction. [Local validation passed on November 22](#local-validation-2026-11-22);
+the PR's current revision must pass remote CI and review before merge.
 
 ## Why
 
@@ -21,15 +27,15 @@ original-key recovery remains an operator first-run requirement.
 
 ## Controlled Pilot Scope
 
-| Area                | Current decision / remaining work                                                                                                                                                                                      |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App                 | Exact `v2.19.3-distroless` approved for normal app use: dependency fixes delivered; residual OpenPGP source-traced to unused commit signing. No v3/dev/latest substitution                                             |
-| Init                | New exact AMD64 BusyBox/glibc artifact approved only for the fixed, nonrecursive init operation; partial maintenance / medium confidence, not blanket image clearance                                                  |
-| Backup              | Unchanged exact `4.9.2` AMD64 configuration under the [backup-only exception](#temporary-backup-risk-exception-2026-11-21); review/expiry **2026-12-21**, no automatic renewal                                         |
-| Wiring              | Registry identity, DNS and active Traefik attachment declared; all three profiles removed. No host account/dataset provisioning, Custom App enrollment or deployment performed                                         |
-| Secrets             | Existing SOPS provisioning/validation complete; ciphertext, server auto-discovery/default NAS key scope unchanged. Initial sync/decrypt must create raw `.env`                                                         |
-| Evidence            | Dated runtime/recovery passes retained below; exact new-init, scoped proxy/config and full-suite validation passed November 21. Production DNS/TLS, Docker-provider and browser/passkey acceptance are not established |
-| Operator acceptance | Execute only after merge and readiness; independently recover original keys/host access, establish first admin and primary/spare passkeys, and test clients before production reliance                                 |
+| Area                | Current decision / remaining work                                                                                                                                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App                 | Exact `v2.19.3-distroless` approved for normal app use: dependency fixes delivered; residual OpenPGP source-traced to unused commit signing. No v3/dev/latest substitution                                                                                                                    |
+| Init                | New exact AMD64 BusyBox/glibc artifact approved only for the fixed, nonrecursive init operation; partial maintenance / medium confidence, not blanket image clearance                                                                                                                         |
+| Backup              | Pinned `4.9.2` AMD64 artifact and unchanged guard/retention under the [backup-only exception](#temporary-backup-risk-exception-2026-11-21); review/expiry **2026-12-21**, no automatic renewal; [narrowed environment passed November 22](#backup-environment-test-subset-2026-11-22)         |
+| Wiring              | Registry identity, DNS and active Traefik attachment declared; all three profiles removed. No host account/dataset provisioning, Custom App enrollment or deployment performed                                                                                                                |
+| Secrets             | Existing SOPS provisioning/validation complete; ciphertext, server auto-discovery/default NAS key scope unchanged. Initial sync/decrypt must create raw `.env`                                                                                                                                |
+| Evidence            | Dated November 21 proof retained; November 22 privacy, actual backup-environment, targeted tests and [local validation passed](#local-validation-2026-11-22). Remote CI/review must pass before merge; production DNS/TLS, Docker-provider and browser/passkey acceptance are not established |
+| Operator acceptance | Execute only after merge and readiness; independently recover original keys/host access, establish first admin and primary/spare passkeys, and test clients before production reliance                                                                                                        |
 
 The [November 21 evidence](#image-and-recovery-evidence-2026-11-21) records current findings and synthetic recovery.
 The [November 8 evidence](#image-and-recovery-evidence-2026-11-08) is historical v2.19.2 proof.
@@ -51,7 +57,7 @@ Implementation source files:
   — frontend attachment and external network declaration; the inert fragment
   has been deleted.
 
-Source links target the default branch and require PR #949 to be merged.
+Source links target the default branch; PR #949 introduces this implementation.
 Deploy the active Traefik definition only after the Custom App creates the
 network; do not use raw ad-hoc fragments or manual network connections.
 
@@ -72,6 +78,106 @@ Pocket ID routing must not depend on the existing Entra
 create an authentication/recovery dependency. Validate the configured `chain-no-auth@file`
 with native Pocket ID authentication during first run; it is not authorization
 to bypass authentication on other apps.
+
+### Local Pilot Bootstrap Decision 2026-11-22
+
+**Operator choice, relayed by the coordinator on 2026-11-22:** proceed with
+the local pilot **without a technical bootstrap access restriction**, accepting
+the first-admin claim risk. This records a chosen residual risk, not a takeover
+fix. It is separate from the backup-image exception and changes neither that
+exception's scope nor its **2026-12-21** expiry. Privacy controls remain required.
+
+On a fresh instance, unauthenticated `POST /api/signup/setup` creates the first
+administrator. An unintended reachable client can claim first.
+**Localhost/LAN deployment is not authentication or a technical mitigation of
+this risk.** Normal registration and first-admin behavior remain unchanged.
+
+- **Immediately** complete first-admin and passkey setup on the intended local
+  HTTPS route, `https://id.${DOMAINNAME}/setup`. Verify that the administrator
+  is the intended operator before adding other real accounts or clients.
+- If unexpectedly claimed, **STOP, isolate and treat the instance as untrusted**.
+  Rebuild or recover a trusted baseline with security review before adding
+  accounts or clients. Later noticing the claim or resetting an account does
+  not undo a possible compromise.
+
+### Recovery Token Log Privacy
+
+`LOG_QUERY_ARGS=false` suppresses **SQL query arguments only**, not HTTP
+logging. Pocket ID **v2.19.3** logs raw HTTP paths, queries and referrers that
+can contain recovery tokens. There is no HTTP disable/sanitize environment
+setting in this version; `LOG_LEVEL=error` still logs raw requests on `5xx`.
+See versioned [router_bootstrap.go, lines 401–460](https://github.com/pocket-id/pocket-id/blob/v2.19.3/backend/internal/bootstrap/router_bootstrap.go#L401-L460)
+and [observability_boostrap.go, lines 82–125](https://github.com/pocket-id/pocket-id/blob/v2.19.3/backend/internal/bootstrap/observability_boostrap.go#L82-L125)
+and [147–160](https://github.com/pocket-id/pocket-id/blob/v2.19.3/backend/internal/bootstrap/observability_boostrap.go#L147-L160).
+
+| Boundary         | Configured control                                                                                                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App console      | Docker `logging.driver: none` removes local Docker stdout/stderr retention and the logs Alloy could export through its Docker source                                                         |
+| App telemetry    | `OTEL_LOGS_EXPORTER=none` and `OTEL_TRACES_EXPORTER=none` explicitly disable those export paths                                                                                              |
+| Pocket ID router | `traefik.http.routers.pocket-id-rtr.observability.accesslogs=false` prevents proxy access logging, including `429` rejections that occur **before** the backend can consume a recovery token |
+
+**Tradeoff:** app console and Pocket ID proxy access diagnostics are unavailable.
+Health checks, container state and the separate backup job's completion/verification
+receipt logs remain available. Never re-enable app log retention, OTEL log/trace
+export or this router's access logging for real recovery flows.
+
+#### Privacy Test Subset 2026-11-22
+
+**Passed — synthetic markers only:**
+
+- Exact **v2.19.3** app inspection confirmed Docker log driver `none` and both
+  OTEL exporters `none`. A marker in `/lc/path?code=query` and the `Referer`
+  header was not retained in app Docker/Podman logs.
+- Actual Traefik **3.7.10** file-provider fixture used the current router
+  observability flag and tracked middleware chain. A deterministic burst of
+  `1` was used **only in the negative fixture**: first `/setup` returned `200`,
+  then `POST /api/one-time-access-token/POCKET_SYNTHETIC_PRIVACY_MARKER`
+  returned `429`. The marker was absent from proxy logs, while an unrelated
+  wrong-Host `404` positive control retained its marker.
+
+No real tokens were minted, valid credentials used or public service exposed;
+owned resources were removed. This proves only the config/proxy fixture, not
+the production DHI image or Docker-provider discovery/attachment.
+November 21 fixture/recovery/suite results remain separately dated evidence,
+not validation of the November 22 changes.
+
+#### Backup Environment Test Subset 2026-11-22
+
+**Passed — current rendered Compose backup environment plus `tz.env`, pinned
+4.9.2 engine and unchanged guard:**
+
+- Live-container inspection confirmed `ENCRYPTION_KEY`, `DOMAINNAME` and raw
+  `DB_ENC_PASSPHRASE` were absent; only explicit `DEFAULT_ENCRYPT_PASSPHRASE`
+  carried the backup passphrase.
+- A healthy **v2.19.3** writer with read-only SQLite backup source produced one
+  backup start, one successful completion and exit `0`. The guard passed GPG
+  decryption, ZSTD decompression, SHA1, SQLite and encrypted key-row checks.
+  The private output pair matched the declared app UID/primary GID with file
+  mode `0600`; backup receipts remained usable.
+
+An initial harness serialization failure was corrected by runtime unescaping
+of `$$`; no repository engine fix was needed. Owned resources were cleaned up.
+No fresh same-app full restore, JWKS or retention rerun, or real-user enrollment
+was performed; earlier dated proof remains unchanged.
+
+**Targeted tests — 2026-11-22:** **42 passed** (**32 guard + 10 config**,
+including the full synthetic environment). These scoped passes do not establish
+readiness or remove the accepted first-admin claim risk.
+
+#### Local Validation 2026-11-22
+
+**Local checks passed:**
+
+- All **11 selected mandatory hooks** passed in **134.60 seconds**, including
+  **296 BATS tests** (including the **42 Pocket ID tests**). The source-policy
+  helper regression was fixed before this pass.
+- **12 Node compatibility cases** passed separately.
+- Strict materialized MkDocs, **8 distinct canonical documentation
+  links/pages/anchors**, and the CI Markdown **0.28.2** changed-files check
+  passed locally.
+
+These are dated local results, not remote CI or review outcomes. The PR's
+current revision must pass remote CI and review before merge.
 
 ## Architecture
 
@@ -122,7 +228,7 @@ full-stack runtime, recovery, or production acceptance.
 The exact app is approved for normal use; init clearance is restricted to the
 fixed AMD64 operation below. Neither is a new risk exception or an all-feature
 image-clean claim. The [backup-only exception](#temporary-backup-risk-exception-2026-11-21)
-remains separately bounded; no PR merge or production deployment occurred.
+remains separately bounded; no production deployment had occurred as of that review.
 [Release v2.19.3](https://github.com/pocket-id/pocket-id/releases/tag/v2.19.3), published **2026-11-15 at 19:10:25 UTC**, delivers Go/stdlib **1.27.4** and x/crypto **0.59.0**; Go-jose **4.1.6**, zod **4.6.7**, and x/net **0.62.0** remain delivered.
 [Patch d6a0563](https://github.com/pocket-id/pocket-id/commit/d6a056355a3238b0d0c624d4788e8118dafed7f6) changes device-authorization approval from `BindOptionalJSON` to `BindJSON`: `{}` remains allowed, but a missing JSON body is rejected.
 Upstream includes a unit regression; no local browser/device-approval ceremony was exercised.
@@ -229,7 +335,7 @@ No production startup sleep, browser/passkey ceremony, token issuance, or produc
 Separately, **71 targeted tests passed (32 guard + 39 DCCD)**. Baseline `format_duration` command-not-found warnings remain: suite success does **not** make those legacy assertions meaningful; no scope fix is claimed.
 November 8 retention/BATS/full-hook passes below remain dated historical evidence, not tests of v2.19.3.
 These earlier suite passes predate the controlled-pilot wiring changes.
-**Current full verification — November 21 passed:** all **15 selected pre-commit
+**Controlled-pilot verification — November 21 passed:** all **15 selected pre-commit
 checks**, **113.67 seconds**; **293 BATS unit/config/guard tests**
 (Pocket ID: **39 = 32 guard + 7 config**) plus **29 registry/provisioning
 integration tests**. Both concurrent jobs used fresh whole-index archives with
@@ -308,6 +414,10 @@ authorization and operational acceptance remain first-run requirements.
   (**2880 minutes / 48 hours**), output `./backups/db-backup` mounted at `/backup`.
 - `network_mode: none`, no host ports, no Docker/host-control socket;
   `./data:/pocket-id-data:ro`, with no rw or `immutable` fallback.
+- Backup loads only `tz.env` plus explicit backup variables, including
+  `DEFAULT_ENCRYPT_PASSPHRASE=${DB_ENC_PASSPHRASE:-}`; it does not inherit the
+  per-app `.env` or `ENCRYPTION_KEY`. This narrows secret exposure, not the
+  exception's image or privilege scope.
 - `DBBACKUP_USER` / `DBBACKUP_GROUP` remain `pocketbackup`, mapped to the
   Compose/guard-verified UID/primary GID **3133:3133**; private output root
   **0700**, artifacts **0600**, private verification scratch with umask `077`.
@@ -338,6 +448,14 @@ Exit requires a maintained, compatible upstream artifact fixing applicable
 issues, exact-digest/current-inventory review, and actual coherent live-SQLite
 full-schema, same-key/JWKS encrypted recovery, retention and fail-closed tests.
 No downstream fork or dependency-lock patch is an exit workaround.
+
+**Tracked owner and deadline:** the Compose TODO assigns **@DevSecNinja** the
+review **before 2026-12-21**. Before that deadline, record either a maintained
+compatible artifact with the required proof, a fresh explicit exception review,
+or a controlled rollback/retirement decision preserving independent recovery.
+This is an operator decision, not an automatic stop of the IdP or its backups.
+Renovate disables automerge and grouping for Docker updates in this stack;
+an update still needs exact-artifact review.
 
 Newly identified relevant findings or changed assumptions require **immediate
 review before relying on this exception**; it grants no blanket future waiver.
@@ -643,7 +761,9 @@ The upstream child uses a fixed `022` umask, independent of the caller, so a
 caller umask of `0077` cannot make root-created SQLite scratch unreadable by
 `pocketbackup`; private verification scratch keeps `077`.
 
-Exact key bytes, full seeded
+The backup job needs the GPG passphrase, not the app's `ENCRYPTION_KEY`.
+The guard verifies nonempty encrypted signing/session KV row bytes; it does
+not decrypt those app-encrypted values. Exact key bytes, full seeded
 schema/records, and public JWKS equality were independently tested, not checked
 by the guard. Existing `depends_on: service_healthy` needs no arbitrary sleep;
 unreadable/missing source or WAL metadata must fail closed, not use rw/`immutable`
@@ -681,13 +801,27 @@ Shared encrypted credentials contain Docker Hub credentials, not `DOMAINNAME`.
 The per-app encrypted dotenv now contains the domain and both app-owned secrets.
 Init's minimum-length check is not proof of the required random key generation.
 
+Only app/init load the per-app `.env`; all three services load `tz.env`.
+Backup receives its explicit variables, including the GPG passphrase, without
+inheriting `ENCRYPTION_KEY`. Restore into Pocket ID still requires the original
+app key independently of the backup container's environment.
+
 ## First-Run Setup
 
 <!-- dprint-ignore -->
 !!! warning "Controlled post-merge pilot only"
     Execute only after PR #949 is merged and the operator is ready.
-    This change has not deployed or provisioned Pocket ID. App/init review is
+    As of 2026-11-22, Pocket ID is not deployed or provisioned. App/init review is
     cleared for the documented scope; backup acceptance expires on 2026-12-21.
+    Logging controls, actual backup-environment validation and targeted tests
+    passed within their November 22 scope. The coordinator-relayed operator choice
+    accepts a local pilot without a technical bootstrap restriction.
+    Complete first-admin/passkey setup immediately on the intended local HTTPS route;
+    verify the intended administrator before adding other real accounts or clients.
+    If unexpectedly claimed, stop, isolate and follow the untrusted-instance response
+    in the [bootstrap decision](#local-pilot-bootstrap-decision-2026-11-22).
+    [Local validation passed on November 22](#local-validation-2026-11-22).
+    The PR's current revision must pass remote CI and review before merge.
     Complete review before first or continued use on or after expiry.
     Operator recovery, passkey and client acceptance must precede production reliance.
 
@@ -702,11 +836,26 @@ Init's minimum-length check is not proof of the required random key generation.
 - [x] Pass scoped proxy/config checks on November 21 using the file-provider
       fixture above; this is not production Docker-provider/DNS/TLS or browser proof.
 - [x] Complete full-suite validation of the changed wiring on November 21;
-      current indexed verification passed as recorded above.
+      dated indexed verification passed as recorded above, before the new review fixes.
+- [x] Validate the logging controls with synthetic markers on November 22;
+      this is scoped app/proxy-fixture evidence, not production routing acceptance.
+- [x] Test the backup's actual environment without the per-app `.env` or
+      `ENCRYPTION_KEY` on November 22; guarded backup and receipt checks passed,
+      without a fresh full recovery/JWKS/retention rerun.
+- [x] Pass the targeted guard/config tests on November 22, including the full
+      synthetic environment; see the [dated results](#backup-environment-test-subset-2026-11-22).
+- [x] Record the operator's local-pilot choice relayed by the coordinator on
+      November 22: accept first-admin claim risk without a technical bootstrap
+      restriction; this is not a takeover fix.
+- [x] Complete local validation of the review fixes on November 22;
+      see the [dated local results](#local-validation-2026-11-22). The PR's current
+      revision must pass remote CI and review before merge.
 - [ ] After merge and readiness, follow the ordered enrollment below; establish
       independent original-key/passphrase/host recovery and first-admin passkeys.
 - [ ] Prove representative uploads/client recovery, actual passkey/OIDC
       signing/mobile acceptance and authorization before production reliance.
+- [ ] After admin/passkey/client enrollment, rerun `dccd-all` and verify a new
+      completion/artifact and a post-enrollment recovery point before production reliance.
 - [ ] Track a maintained compatible backup replacement and complete the
       **2026-12-21** review before expiry; no automatic exception renewal.
 
@@ -738,6 +887,8 @@ single-use behavior in the selected image before production reliance; do not ass
 shell exists in a distroless image. An authorized operator must run it through
 independent host access, with sensitive token/URL output visible only in the
 operator's terminal, never CI logs, tickets, chat, or shared transcripts.
+Keep the [recovery-token logging controls](#recovery-token-log-privacy) in force;
+do not enable request logging to troubleshoot real recovery.
 Complete recovery only for an independently verified account, enroll a new
 passkey, invalidate unused recovery access and affected sessions, and audit
 the event without recording the token.
@@ -745,7 +896,11 @@ the event without recording the token.
 ### Controlled Post-Merge Operator Handoff
 
 Execute **only after PR #949 is merged and the operator is ready**, within
-the backup exception's validity. These actions have not been performed.
+the backup exception's validity. [Local validation passed on November 22](#local-validation-2026-11-22);
+the PR's current revision must pass remote CI and review before merge.
+Follow the [local-pilot bootstrap decision](#local-pilot-bootstrap-decision-2026-11-22);
+no technical bootstrap restriction is provided. These actions had not been
+performed as of **2026-11-22**.
 On the TrueNAS host, use the deployment user with aliases already sourced from
 `/mnt/vm-pool/apps/scripts/aliases.sh`. Coordinate cron before the first sync
 through network enrollment: the active Traefik definition now requires an
@@ -784,6 +939,8 @@ services: {}
 Let the app create `pocket-id-frontend` and verify it exists before deploying
 Traefik. Its attachment is already in the active tracked Compose definition;
 no fragment merge or manual connection is needed.
+Be ready to complete step 5 immediately when the intended local HTTPS route
+becomes reachable; an unattended fresh instance can be claimed by another client.
 
 **4. Complete the canonical deployment.**
 
@@ -791,21 +948,41 @@ no fragment merge or manual connection is needed.
 dccd-all
 ```
 
-**5. Complete first-run acceptance before production reliance.**
+**5. Immediately claim and verify the first administrator, then complete acceptance.**
 
+- **Immediately** open `https://id.${DOMAINNAME}/setup` on the intended local
+  HTTPS route and complete first-admin/passkey setup. Verify the administrator
+  is the intended operator **before adding other real accounts or clients**.
+  Localhost/LAN deployment does not authenticate the first claimant.
+- If unexpectedly claimed, **STOP and isolate the untrusted instance**.
+  Rebuild or recover a trusted baseline with security review before adding
+  accounts or clients; noticing or resetting it later does not undo compromise.
+- Enroll primary and separately stored spare hardware passkeys, enforce
+  controlled registration and WebAuthn user verification, and test
+  spare-key/lost-primary recovery.
 - Verify init completion, healthy rootless app, actual HTTPS origin,
   issuer/discovery/JWKS, no published ports, and a fresh encrypted backup
   with successful freshness verification.
-- Open `https://id.${DOMAINNAME}/setup` to establish the independently verified
-  first administrator. Enroll primary and separately stored spare
-  hardware passkeys, enforce controlled registration and WebAuthn user
-  verification, and test spare-key/lost-primary recovery.
 - Establish independent recovery of the **original** `ENCRYPTION_KEY`,
   `DB_ENC_PASSPHRASE` and host access; test native recovery and representative
   uploads/client acceptance rather than relying on synthetic proof alone.
 - Confirm Entra/TFA/Immich/Outline behavior is unchanged before resuming
   coordinated automation. A separate Docker/TrueNAS runtime test is not a
   premerge prerequisite; these are actual operator acceptance requirements.
+
+**6. Capture and verify the post-enrollment recovery point.**
+
+After first-admin, primary/spare passkey and client enrollment, run again:
+
+```sh
+dccd-all
+```
+
+Verify a **new successful job `01` completion and fresh encrypted artifact/SHA1
+pair produced after enrollment**, not the earlier pre-admin backup. Verify
+this post-enrollment recovery point using the [bounded restore guidance](#database-backup) and
+independently recovered original keys before production reliance. This extra
+handoff run does not change the existing one-shot or scheduled deployment cadence.
 
 For a separately approved TREK integration after rollout, register a
 **confidential OIDC client** with exact callback

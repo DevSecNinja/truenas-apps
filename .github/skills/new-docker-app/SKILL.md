@@ -259,7 +259,7 @@ For every persistent volume declared in Step 1, classify each path as one of:
 
 Record the classification for every persistent path in the service's README (Step 7) and, for any embedded database, in `docs/BACKUP.md`'s Persistent State Inventory (Step 6).
 
-**Every stateful database needs an application-consistent backup sidecar** (`tiredofit/db-backup` v4, or the maintained `nfrastack/db-backup` 4.9.2 compatibility release) unless a reviewed exception explains why ZFS snapshots alone are sufficient. An exception must be written down — in the service's README and in `docs/BACKUP.md`'s Persistent State Inventory — never left implicit or silently skipped.
+**Every stateful database needs an application-consistent backup sidecar** (existing v4 patterns use `tiredofit/db-backup` or `nfrastack/db-backup` 4.9.2) unless a reviewed exception explains why ZFS snapshots alone are sufficient. The nfrastack upstream project is actively maintained, but its 4.9.2 v4 compatibility artifact is unsupported; compatibility is not adoption clearance, and Pocket ID's backup-only exception does not cover other stacks. An exception must be written down — in the service's README and in `docs/BACKUP.md`'s Persistent State Inventory — never left implicit or silently skipped.
 
 When a sidecar is required:
 

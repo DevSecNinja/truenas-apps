@@ -24,6 +24,14 @@ function environment(serviceBody) {
     return result;
 }
 
+function composePackages(fileName) {
+    const services = entry(source(fileName).replaceAll("\r\n", "\n"), "services").body;
+    const names = keys(services);
+    assert.ok(names.length, `${fileName}: expected image-bearing services`);
+    return names.map((name) => entry(entry(services, name).body, "image").value
+        .split("@")[0].replace(/:[^/]+$/, ""));
+}
+
 // This trusted repository config is a JavaScript-compatible JSON5 object.
 // Evaluating it with Node's existing built-in VM avoids adding a parser dependency.
 // This is NOT Renovate schema validation or resolution of the remote presets.
@@ -33,18 +41,42 @@ const renovate = JSON.parse(JSON.stringify(runInNewContext(
     { timeout: 1_000, contextCodeGeneration: { strings: false, wasm: false } },
 )));
 
-function controlRule(packageName, field) {
+function controlRules(packageName, field, fileName, rules = renovate.packageRules) {
     // Fail closed on ambiguous/global/pattern-based overrides rather than
     // pretending to implement Renovate's full matcher or ignoring later rules.
-    const matches = renovate.packageRules.filter((rule) => {
+    // Only canonical literal paths/names: no globs, regexes, negations, empty
+    // segments or dot traversal. Additional matcher shapes require review.
+    const literal = /^[a-z0-9_-][a-z0-9._-]*(?:\/[a-z0-9_-][a-z0-9._-]*)*$/;
+    assert.ok(typeof fileName === "string" && literal.test(fileName), `${field}: review literal file context`);
+    assert.ok(typeof packageName === "string" && literal.test(packageName), `${field}: review literal package context`);
+    return rules.filter((rule) => {
         if (!Object.hasOwn(rule, field)) return false;
-        assert.ok(rule.matchPackageNames?.length, `${field}: review global override`);
-        for (const name of rule.matchPackageNames) {
-            assert.match(name, /^[a-z0-9./_-]+$/, `${field}: review non-literal package matcher`);
+        if (Object.hasOwn(rule, "matchFileNames")) {
+            assert.ok(
+                Array.isArray(rule.matchFileNames) && rule.matchFileNames.length > 0
+                    && rule.matchFileNames.every((name) => typeof name === "string" && literal.test(name)),
+                `${field}: review non-literal file matcher`,
+            );
+            // File and package selectors are conjunctive. Only a proven
+            // different literal file can be excluded before checking packages.
+            if (!rule.matchFileNames.includes(fileName)) return false;
         }
+        if (!Object.hasOwn(rule, "matchPackageNames")) {
+            assert.ok(Object.hasOwn(rule, "matchFileNames"), `${field}: review global override`);
+            return true;
+        }
+        assert.ok(
+            Array.isArray(rule.matchPackageNames) && rule.matchPackageNames.length > 0
+                && rule.matchPackageNames.every((name) => typeof name === "string" && literal.test(name)),
+            `${field}: review non-literal package matcher`,
+        );
         return rule.matchPackageNames.includes(packageName);
     });
-    assert.equal(matches.length, 1, `expected exactly one ${field} rule for ${packageName}`);
+}
+
+function controlRule(packageName, field, fileName, rules) {
+    const matches = controlRules(packageName, field, fileName, rules);
+    assert.equal(matches.length, 1, `expected exactly one ${field} rule for ${packageName} in ${fileName}`);
     return matches[0];
 }
 
@@ -128,7 +160,7 @@ for (const app of ["dawarich", "open-archiver"]) {
 
 test("renovate_compatibility: actual allowedVersions accepts v4 and rejects v5 and boundary lookalikes", () => {
     const packageName = "docker.io/nfrastack/db-backup";
-    const rule = controlRule(packageName, "allowedVersions");
+    const rule = controlRule(packageName, "allowedVersions", "services/dawarich/compose.yaml");
     // No enabled:false, update-type restriction or hidden matching condition
     // may make the compatibility guard dormant or only protect some updates.
     assert.deepEqual(rule, {
@@ -137,6 +169,9 @@ test("renovate_compatibility: actual allowedVersions accepts v4 and rejects v5 a
         matchPackageNames: [packageName],
         allowedVersions: rule.allowedVersions,
     });
+    for (const app of ["open-archiver", "pocket-id"]) {
+        assert.deepEqual(controlRule(packageName, "allowedVersions", `services/${app}/compose.yaml`), rule);
+    }
     assert.equal(typeof rule.allowedVersions, "string");
     assert.match(rule.allowedVersions, /^\/.+\/$/, "Docker versioning requires a regex guard");
     const allowed = new RegExp(rule.allowedVersions.slice(1, -1));
@@ -150,12 +185,103 @@ test("renovate_compatibility: actual allowedVersions accepts v4 and rejects v5 a
 
 test("renovate_compatibility: Meilisearch major, minor and patch updates explicitly disable automerge", () => {
     const packageName = "docker.io/getmeili/meilisearch";
-    const rule = controlRule(packageName, "automerge");
-    assert.deepEqual(rule, {
-        description: rule.description,
-        matchDatasources: ["docker"],
-        matchPackageNames: [packageName],
-        matchUpdateTypes: ["major", "minor", "patch"],
-        automerge: false,
-    });
+    for (const app of ["karakeep", "open-archiver"]) {
+        const fileName = `services/${app}/compose.yaml`;
+        assert.equal(
+            entry(service(app, `${app}-meilisearch`), "image").value.split("@")[0].replace(/:[^/]+$/, ""),
+            packageName,
+            `${fileName}: expected Meilisearch image`,
+        );
+        const rule = controlRule(packageName, "automerge", fileName);
+        assert.deepEqual(rule, {
+            description: rule.description,
+            matchDatasources: ["docker"],
+            matchPackageNames: [packageName],
+            matchUpdateTypes: ["major", "minor", "patch"],
+            automerge: false,
+        });
+    }
+});
+
+test("renovate_compatibility: every Pocket image is ungrouped and requires review for all update types", () => {
+    const fileName = "services/pocket-id/compose.yaml";
+    const packageNames = composePackages(fileName);
+    assert.ok(packageNames.length >= 3, "expected Pocket app, init and backup images");
+    for (const packageName of packageNames) {
+        const rule = controlRule(packageName, "automerge", fileName);
+        assert.strictEqual(controlRule(packageName, "groupName", fileName), rule);
+        // Exact shape forbids package lists, update-type restrictions or hidden
+        // conditions: new images in this file must also receive the opt-out.
+        assert.deepEqual(rule, {
+            description: rule.description,
+            matchDatasources: ["docker"],
+            matchFileNames: [fileName],
+            automerge: false,
+            groupName: null,
+        });
+    }
+});
+
+test("renovate_compatibility: the same Pocket packages in another file do not inherit its local opt-out", () => {
+    for (const packageName of composePackages("services/pocket-id/compose.yaml")) {
+        for (const field of ["automerge", "groupName"]) {
+            // Evaluate the same identity in another real Compose file. This
+            // asserts local rule scope, not remote presets or app deployment.
+            assert.deepEqual(controlRules(packageName, field, "services/open-archiver/compose.yaml"), []);
+        }
+    }
+});
+
+test("renovate_compatibility: only provably unrelated literal files bypass fail-closed selector checks", () => {
+    const fileName = "services/pocket-id/compose.yaml";
+    const packageName = "docker.io/library/busybox";
+    const fileRule = { matchFileNames: [fileName], automerge: false };
+    assert.strictEqual(controlRule(packageName, "automerge", fileName, [
+        {
+            matchFileNames: ["services/open-archiver/compose.yaml"],
+            matchPackageNames: ["*"],
+            automerge: true,
+        },
+        fileRule,
+    ]), fileRule);
+    assert.deepEqual(controlRules(packageName, "automerge", fileName, [
+        { ...fileRule, matchPackageNames: ["docker.io/getmeili/meilisearch"] },
+    ]), []);
+
+    for (const matchFileNames of [
+        [], null, fileName, [""], [123],
+        ["services/*/compose.yaml"], ["services/**/compose.yaml"],
+        ["services/pocket-?d/compose.yaml"], ["services/{pocket-id,other}/compose.yaml"],
+        ["services/[ab]/compose.yaml"], [`!${fileName}`], [`/${fileName}/`],
+        [`./${fileName}`], ["services/../pocket-id/compose.yaml"],
+        ["services/open-archiver/compose.yaml", `!${fileName}`],
+    ]) {
+        assert.throws(
+            () => controlRules(packageName, "automerge", fileName, [{ ...fileRule, matchFileNames }]),
+            /review non-literal file matcher/,
+        );
+    }
+    for (const matchPackageNames of [[], null, packageName, ["*"], [`!${packageName}`], [`/${packageName}/`]]) {
+        for (const scope of [{}, { matchFileNames: [fileName] }]) {
+            assert.throws(
+                () => controlRules(packageName, "automerge", fileName, [{ ...scope, matchPackageNames, automerge: false }]),
+                /review non-literal package matcher/,
+            );
+        }
+    }
+    assert.throws(
+        () => controlRules(packageName, "automerge", undefined, [fileRule]),
+        /review literal file context/,
+    );
+    assert.throws(
+        () => controlRule(packageName, "automerge", fileName, [{ matchDatasources: ["docker"], automerge: false }]),
+        /review global override/,
+    );
+    assert.throws(
+        () => controlRule(packageName, "automerge", fileName, [
+            fileRule,
+            { matchPackageNames: [packageName], automerge: true },
+        ]),
+        /expected exactly one automerge rule/,
+    );
 });

@@ -35,6 +35,8 @@ teardown() {
     local result=0
     assert_dir_not_exists "${POCKET_CONFIG_TMPDIR}/data" || result=1
     assert_dir_not_exists "${POCKET_CONFIG_TMPDIR}/backups" || result=1
+    assert_dir_not_exists "${POCKET_CONFIG_TMPDIR}/services/pocket-id/data" || result=1
+    assert_dir_not_exists "${POCKET_CONFIG_TMPDIR}/services/pocket-id/backups" || result=1
     assert_file_not_exists "${POCKET_CONFIG_TMPDIR}/.env" || result=1
     rm -rf -- "${POCKET_CONFIG_TMPDIR}"
     return "${result}"
@@ -45,25 +47,38 @@ pocket_compose_config() {
   local format="$1"
   shift
   local -a compose_command=("${POCKET_COMPOSE_PROVIDER}") config_args=()
+  local project_directory="${POCKET_CONFIG_TMPDIR}" env_file=/dev/null
+  local -a env_resolution_args=(--no-env-resolution)
+  local -a interpolation_env=(
+    DOMAINNAME=example.invalid
+    ENCRYPTION_KEY=testtesttesttest
+    DB_ENC_PASSPHRASE=synthetic-pilot-passphrase
+  )
   if [[ "${POCKET_COMPOSE_PROVIDER}" == docker ]]; then
     compose_command+=(compose)
   fi
   case "${format}" in
   services) config_args=(--services) ;;
   json) config_args=(--format json) ;;
+  json-with-env)
+    config_args=(--format json)
+    project_directory="${POCKET_CONFIG_TMPDIR}/services/pocket-id"
+    env_file="${project_directory}/.env"
+    env_resolution_args=()
+    interpolation_env=()
+    ;;
   *) return 1 ;;
   esac
   # Render the actual files, including native !override semantics. No model
-  # rewriting: --no-env-resolution leaves service env_file entries unread.
+  # rewriting: by default, --no-env-resolution leaves env_file entries unread.
+  # json-with-env instead resolves only the isolated synthetic fixture files.
   # env -i also removes inherited COMPOSE_PROFILES and production credentials.
   env -i PATH="${PATH}" HOME="${POCKET_CONFIG_TMPDIR}" TMPDIR="${POCKET_CONFIG_TMPDIR}" \
-    LC_ALL=C DOMAINNAME=example.invalid \
-    ENCRYPTION_KEY=testtesttesttest \
-    DB_ENC_PASSPHRASE=synthetic-pilot-passphrase COMPOSE_DISABLE_ENV_FILE=true \
-    "${compose_command[@]}" \
-    --project-directory "${POCKET_CONFIG_TMPDIR}" \
+    LC_ALL=C COMPOSE_DISABLE_ENV_FILE=true \
+    "${interpolation_env[@]}" "${compose_command[@]}" \
+    --project-directory "${project_directory}" \
     --project-name "pocket-id-pilot-${BATS_TEST_NUMBER}-$$" \
-    --env-file /dev/null "$@" config --no-env-resolution "${config_args[@]}"
+    --env-file "${env_file}" "$@" config "${env_resolution_args[@]}" "${config_args[@]}"
 }
 
 @test "pocket_pilot_config: default selection includes exactly three services with init and healthy backup ordering" {
@@ -172,6 +187,113 @@ pocket_compose_config() {
       {"type": "bind", "source": ($root + "/config/verify-backup.sh"), "target": "/config/verify-backup.sh", "read_only": true},
       {"type": "bind", "source": ($root + "/data"), "target": "/pocket-id-data", "read_only": true}
     ])
+  ' <<<"${document}"
+  assert_success
+  assert_output "true"
+}
+
+@test "pocket_pilot_config: app Docker and OTEL logging are disabled without disabling backup receipt logging" {
+  run pocket_compose_config json -f "${POCKET_COMPOSE_FILE}"
+  assert_success
+  local document="${output}"
+  run jq -e '
+    (.services["pocket-id"].logging.driver == "none") and
+    (.services["pocket-id"].environment.OTEL_LOGS_EXPORTER == "none") and
+    (.services["pocket-id"].environment.OTEL_TRACES_EXPORTER == "none") and
+    (.services["pocket-id-db-backup"].logging.driver != "none")
+  ' <<<"${document}"
+  assert_success
+  assert_output "true"
+}
+
+@test "pocket_pilot_config: the router matching the Pocket ID hostname disables access logs" {
+  run pocket_compose_config json -f "${POCKET_COMPOSE_FILE}"
+  assert_success
+  local document="${output}"
+  run jq -e '
+    .services["pocket-id"].labels |
+    (.["traefik.http.routers.pocket-id-rtr.rule"] == "Host(`id.example.invalid`)") and
+    (.["traefik.http.routers.pocket-id-rtr.service"] == "pocket-id") and
+    (.["traefik.http.routers.pocket-id-rtr.observability.accesslogs"] == "false")
+  ' <<<"${document}"
+  assert_success
+  assert_output "true"
+}
+
+@test "pocket_pilot_config: full env resolution keeps app secrets out of backup while retaining explicit backup settings" {
+  local app_directory="${POCKET_CONFIG_TMPDIR}/services/pocket-id"
+  local shared_directory="${POCKET_CONFIG_TMPDIR}/services/shared/env"
+  mkdir -p "${app_directory}" "${shared_directory}"
+  # Copy only Compose, never a checkout .env or shared env file. Config rendering
+  # needs no database, backup directory, mounted script, daemon or image.
+  cp -- "${POCKET_COMPOSE_FILE}" "${app_directory}/compose.yaml"
+  assert_file_exists "${app_directory}/compose.yaml"
+  touch "${app_directory}/.env" "${shared_directory}/tz.env"
+  # Use the existing yq writer to create dotenv-compatible properties in place.
+  run yq -i -p=yaml -o=props '{
+    "DOMAINNAME": "example.invalid",
+    "ENCRYPTION_KEY": "testtesttesttest",
+    "DB_ENC_PASSPHRASE": "synthetic-pilot-passphrase"
+  }' "${app_directory}/.env"
+  assert_success
+  run yq -i -p=yaml -o=props '{"TZ": "Etc/UTC"}' "${shared_directory}/tz.env"
+  assert_success
+  assert_file_exists "${app_directory}/.env"
+  assert_file_exists "${shared_directory}/tz.env"
+
+  run yq -p=props -o=json '.' "${app_directory}/.env"
+  assert_success
+  local fixture="${output}"
+  run jq -e '. == {
+    "DOMAINNAME": "example.invalid",
+    "ENCRYPTION_KEY": "testtesttesttest",
+    "DB_ENC_PASSPHRASE": "synthetic-pilot-passphrase"
+  }' <<<"${fixture}"
+  assert_success
+  assert_output "true"
+
+  # Unlike the source-only helper mode, this loads service env_file entries and
+  # supplies interpolation solely from the synthetic .env, not shell variables.
+  run pocket_compose_config json-with-env -f "${app_directory}/compose.yaml"
+  assert_success
+  local document="${output}"
+  run jq -e --argjson fixture "${fixture}" '
+    (.services["pocket-id"].environment.ENCRYPTION_KEY == $fixture.ENCRYPTION_KEY) and
+    (.services["pocket-id"].environment.APP_URL == ("https://id." + $fixture.DOMAINNAME))
+  ' <<<"${document}"
+  assert_success
+  assert_output "true"
+
+  run jq -e '
+    .services["pocket-id-db-backup"].environment |
+    (has("ENCRYPTION_KEY") | not) and
+    (has("DOMAINNAME") | not) and
+    (has("DB_ENC_PASSPHRASE") | not)
+  ' <<<"${document}"
+  assert_success
+  assert_output "true"
+
+  run jq -e --argjson fixture "${fixture}" '
+    .services["pocket-id-db-backup"].environment | {
+      TZ, MODE, MANUAL_RUN_FOREVER, CONTAINER_ENABLE_SCHEDULING,
+      DBBACKUP_USER, DBBACKUP_GROUP, DB01_TYPE, DB01_HOST,
+      DEFAULT_ENCRYPT, DEFAULT_ENCRYPT_PASSPHRASE,
+      DEFAULT_COMPRESSION, DEFAULT_CHECKSUM, DEFAULT_CLEANUP_TIME
+    } == {
+      "TZ": "Etc/UTC",
+      "MODE": "MANUAL",
+      "MANUAL_RUN_FOREVER": "FALSE",
+      "CONTAINER_ENABLE_SCHEDULING": "FALSE",
+      "DBBACKUP_USER": "pocketbackup",
+      "DBBACKUP_GROUP": "pocketbackup",
+      "DB01_TYPE": "sqlite3",
+      "DB01_HOST": "/pocket-id-data/pocket-id.db",
+      "DEFAULT_ENCRYPT": "TRUE",
+      "DEFAULT_ENCRYPT_PASSPHRASE": $fixture.DB_ENC_PASSPHRASE,
+      "DEFAULT_COMPRESSION": "ZSTD",
+      "DEFAULT_CHECKSUM": "SHA1",
+      "DEFAULT_CLEANUP_TIME": "2880"
+    }
   ' <<<"${document}"
   assert_success
   assert_output "true"

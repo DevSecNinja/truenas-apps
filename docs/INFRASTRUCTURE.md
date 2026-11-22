@@ -871,8 +871,10 @@ through `DEFAULT_ENCRYPT` and `DEFAULT_ENCRYPT_PASSPHRASE`, a SHA1 sidecar, and
 `DEFAULT_CLEANUP_TIME=2880`. Runtime testing successfully decrypted and
 restored the dump into a fresh PostgreSQL database. Version 5.0.0 was
 intentionally not selected because runtime restore validation failed with an
-invalid bigint conversion; `4.9.2` preserves the proven v4 workflow in the
-maintained nfrastack image and repository.
+invalid bigint conversion; `4.9.2` preserves the proven v4 workflow but is an
+unsupported artifact from the actively maintained nfrastack upstream project.
+Pocket ID's backup-only exception does not cover Dawarich; see the
+[v4 compatibility constraint](BACKUP.md#v4-compatibility-constraint).
 
 ### Karakeep Dataset
 
