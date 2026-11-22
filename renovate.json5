@@ -19,13 +19,6 @@
   prConcurrentLimit: 20,
   packageRules: [
     {
-      description: "Require exact-artifact review for every Pocket ID image update",
-      matchDatasources: ["docker"],
-      matchFileNames: ["services/pocket-id/compose.yaml"],
-      automerge: false,
-      groupName: null,
-    },
-    {
       // v5 is a rewrite: legacy encryption settings, commands, completion
       // logs, and restore behavior need migration and end-to-end validation.
       description: "Keep database backup sidecars on the validated v4 compatibility line",
@@ -117,6 +110,13 @@
         "ghcr.io/home-assistant/home-assistant",
       ],
       rebaseWhen: "never",
+    },
+    {
+      description: "Require exact-artifact review for every Pocket ID image update",
+      matchDatasources: ["docker"],
+      matchFileNames: ["services/pocket-id/compose.yaml"],
+      automerge: false,
+      groupName: null,
     },
   ],
 }
