@@ -1518,10 +1518,13 @@ On 2026-11-22 the operator reported Pocket ID production deployment,
 first-admin passkey setup, and a post-setup backup after PR #949 merged.
 Host runtime was not independently verified; no TREK client issuance is
 confirmed. Pocket's backup exception expires **2026-12-21** and covers
-**Pocket ID only**. TREK's unsupported `4.9.2` still requires a maintained
-compatible artifact or its own explicit, narrow, reviewed risk decision.
+**Pocket ID only**. TREK's unsupported `4.9.2` backup-job risk is separately
+[accepted on 2026-11-22 until 2026-12-22](services/trek.md#temporary-backup-risk-exception-2026-11-22),
+only within that exact artifact/platform/job/privilege scope, with no automatic renewal.
+Owner @DevSecNinja must review by expiry; expiry removes exception clearance
+but does not automatically stop backups. Runtime/profiles and all other activation gates remain unchanged.
 The [coordinator-supplied image review](services/trek.md#shared-image-review-pocket-coordinator)
-does not grant that decision. Its November 21 review found that latest
+is evidence, not that approval. Its November 21 review found that latest
 `5.0.11` lacks a hot-source transaction; do not treat it as a drop-in upgrade.
 
 | Property        | Candidate implementation                                                                                                                |
@@ -1538,6 +1541,10 @@ The [wrapper](services/trek.md#backup) has separate 300-second stage deadlines
 and 10-second KILL grace, not a whole-job deadline. It retains pipeline
 `pipefail`, private scratch cleanup, and stage-named errors; table presence
 alone is not a row-level recovery drill.
+Persisted key files remain readable in the source mount: root plus `DAC_OVERRIDE`
+can read them, plaintext scratch and passphrase material, and modify outputs.
+Read-only source, no network and the short job do not eliminate exposure;
+GPG/SHA1 neither protects against a compromised backup container nor establishes output authenticity.
 
 **Evidence, not activation approval:** the recorded 2026-11-21 Linux AMD64
 run upgraded populated `5.1.0` to `5.1.4`, then used the original `4.9.2`
@@ -1649,8 +1656,10 @@ persisted encryption/JWT key material under `./data/app`, and matching
 This production procedure remains conditional guidance. The latest 2026-11-21
 synthetic full recovery succeeded, but did not exercise production storage
 recovery or live provider/proxy/SSO.
-[Image and runtime evidence](services/trek.md#image-evidence) does not clear
-backup adoption or authorize activation.
+[Image and runtime evidence](services/trek.md#image-evidence) does not authorize activation.
+Only the [scoped backup exception](services/trek.md#temporary-backup-risk-exception-2026-11-22)
+conditionally clears that backup risk until **2026-12-22**; app/init and all
+client, proxy, coherent-state recovery and operator gates remain open.
 
 ## Restore Open Archiver
 

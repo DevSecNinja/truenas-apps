@@ -116,6 +116,8 @@ host runtime was not independently verified. This updates the historical
 Pocket status above, not its review controls. No TREK client issuance is
 confirmed; Pocket's backup exception expires **2026-12-21** and applies only
 to Pocket ID, not TREK.
+TREK's separate [backup-only exception](services/trek/README.md#temporary-backup-risk-exception-2026-11-22)
+accepts the exact job's risk until **2026-12-22**, with no automatic renewal or activation approval.
 All three TREK services remain behind `trek-candidate`, with no active
 DNS, Traefik attachment, or provisioning registry entry. The current `5.1.4`
 candidate explicitly sets `TREK_SERVICES: "off"` to avoid automatic enrollment
@@ -125,7 +127,7 @@ after force-recreation, 48-hour retention, Linux AMD64 app hardening, receipt
 counts, and test-resource cleanup passed on 2026-11-21. All 19 existing
 Compose checks, 10 selected pre-commit checks, and a separate strict MkDocs
 build passed that day; these are historical results, not validation of this edit.
-Image adoption, dedicated TREK client setup, live provider/proxy/SSO,
+App/parser and init image adoption, dedicated TREK client setup, live provider/proxy/SSO,
 target-host operator acceptance, and storage recovery coordination remain open.
 Profiles are not a security boundary; do not bypass the gate by targeting
 services explicitly.

@@ -47,11 +47,11 @@ flowchart TD
 
 ### Services
 
-| Service          | Image                                 | Isolation                                                                                                                   |
-| ---------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `trek`           | `docker.io/mauriceboe/trek:5.1.4`     | Direct non-root Node with dumb-init; bypasses root-only chown/gosu startup; read-only root, no capabilities, private `/tmp` |
-| `trek-db-backup` | `docker.io/nfrastack/db-backup:4.9.2` | Unapproved writable-root s6 compatibility candidate; no network; read-only database source                                  |
-| `trek-init`      | `docker.io/library/busybox:1.38.0`    | Root one-shot; no network; only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                                                           |
+| Service          | Image                                 | Isolation                                                                                                                                                          |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `trek`           | `docker.io/mauriceboe/trek:5.1.4`     | Direct non-root Node with dumb-init; bypasses root-only chown/gosu startup; read-only root, no capabilities, private `/tmp`                                        |
+| `trek-db-backup` | `docker.io/nfrastack/db-backup:4.9.2` | No network; read-only source; writable-root s6 risk conditionally [accepted until 2026-12-22](#temporary-backup-risk-exception-2026-11-22); activation still gated |
+| `trek-init`      | `docker.io/library/busybox:1.38.0`    | Root one-shot; no network; only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                                                                                                  |
 
 All three retain `trek-candidate`, shared `tz.env`, `no-new-privileges=true`, and PID limit `100`.
 Memory: init `64m`, app `${MEM_LIMIT:-1024m}`, backup `${BACKUP_MEM_LIMIT:-512m}`.
@@ -59,7 +59,9 @@ Init recursively chowns `./data/app` and `./data/uploads` under `/data` to the
 [reserved PUID/PGID](../INFRASTRUCTURE.md#trek-candidate-identity), applies `u=rwX,g=,o=`,
 and sets `/data` to `0700`; never `./config`. The app uses direct `user:`, not PUID/PGID variables.
 Backup pre-init verifies image-local `trekbackup` with the same identity; s6 manages output ownership.
-Its added `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID`, and `KILL` still require TREK approval.
+Its writable root and added `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID`, and `KILL`
+are covered only by the [scoped backup exception](#temporary-backup-risk-exception-2026-11-22)
+until **2026-12-22**; no broader privilege or activation approval is granted.
 
 Only the app joins `trek-frontend`; no host port is published. Readiness is `/api/health/ready`
 on container port `3000`. Discovery labels are not live integration; shared Traefik has no attachment.
@@ -100,8 +102,9 @@ persisted key files; environment minimization is not file isolation.
 
 ### Activation Prerequisites
 
-- Clear every [image gate](#image-evidence), including a TREK-specific backup decision.
-  Pocket's exception expires **2026-12-21** and covers **Pocket ID only**, not TREK.
+- Clear remaining app/parser and init [image gates](#image-evidence); keep the
+  [TREK backup exception](#temporary-backup-risk-exception-2026-11-22) within scope and unexpired
+  (**2026-12-22**, no automatic renewal). Pocket's **2026-12-21** exception covers Pocket ID only.
 - Complete client preparation below, then verify issued credentials through SOPS. Do not rotate existing keys.
 - Obtain target-host acceptance and coordinated database/keys/uploads recovery.
   Synthetic evidence is not production TrueNAS or changing-upload recovery.
@@ -231,6 +234,9 @@ changing-upload coordination, ARM64, hardware/mobile, and production TrueNAS rec
 Logical chat deletion does not erase old backups. Hashes, receipts, prior October/November proofs,
 and test limits are in the [immutable historical record][history].
 
+The **2026-11-22** handoff reports **62 regression checks passed**. This is historical
+evidence, not a new execution for this documentation or production acceptance.
+
 ### Focused Wrapper Evidence (2026-10-28)
 
 Historical: 41 mocked backup tests plus 18 Compose/init tests passed. Real TERM/KILL checks prove
@@ -249,11 +255,11 @@ with no encrypted output. Later AMD64 success supersedes blanket incompatibility
 **146 raw OS HIGH/CRITICAL entries / 51 unique CVEs, zero fixed-distro HIGH/CRITICAL entries,
 zero npm/Go HIGH/CRITICAL**. Not global zero-CVE clearance or proof every raw finding is exploitable.
 
-| Image                       | Maintenance / confidence | Remaining gate                                                                                                             |
-| --------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| BusyBox `1.38.0`            | Unknown / medium         | Broader exact-build maintenance/delivery review incomplete                                                                 |
-| nfrastack/db-backup `4.9.2` | Unmaintained tag / high  | Unsupported under latest-only policy; maintained compatible artifact or explicit TREK-specific reviewed exception required |
-| TREK `5.1.4`                | Partial / medium         | Loaded parser/base applicability and residual-risk review                                                                  |
+| Image                       | Maintenance / confidence | Remaining gate                                                                                                                                                           |
+| --------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BusyBox `1.38.0`            | Unknown / medium         | Broader exact-build maintenance/delivery review incomplete                                                                                                               |
+| nfrastack/db-backup `4.9.2` | Unmaintained tag / high  | Unsupported; exact backup-job risk conditionally [accepted until 2026-12-22](#temporary-backup-risk-exception-2026-11-22), no automatic renewal; not activation approval |
+| TREK `5.1.4`                | Partial / medium         | Loaded parser/base applicability and residual-risk review                                                                                                                |
 
 Actual `dpkg` confirmed apt/libapt `3.0.4` and zlib `1:1.3.dfsg+really1.3.1-1+deb13u1`:
 prior `CVE-2026-109518`, `CVE-2026-76844`, and `CVE-2026-85091` are **fixed, not current blockers**.
@@ -283,11 +289,83 @@ TREK still pins `fd8d9…`, not Pocket's reviewed `a46257…` BusyBox build.
 
 Pocket's [versioned backup exception](https://github.com/DevSecNinja/truenas-apps/blob/eafb8839edce0e48fdd7b0bc0f7cf8dee5189903/services/pocket-id/README.md#temporary-backup-risk-exception-2026-11-21)
 expires **2026-12-21**, is Pocket-only, and cannot be inherited by TREK.
+TREK instead has its own [November 22 backup-only acceptance](#temporary-backup-risk-exception-2026-11-22)
+until **2026-12-22**; the shared evidence is not itself approval.
 The November 21 review of latest backup
 [`5.0.11`](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go)
 found independent `*sql.DB` source queries: `BEGIN`/`COMMIT` wrap output, not a hot-source
 transaction. Its autoincrement fix is not live-consistency or TREK compatibility proof.
 Do not blindly upgrade major versions or patch dependencies downstream.
+
+### Temporary Backup Risk Exception 2026-11-22
+
+**Approval source:** @DevSecNinja, **2026-11-22**: "Trek backup risk is accepted."
+The **coordinator**, not the user quote, defines the exact scope below and the
+**30-day review/expiry of 2026-12-22**, with **no automatic renewal**.
+Only unsupported/unpatched maintenance and residual dated findings for this
+backup job/artifact/platform/privileges are accepted; not deployment or production coverage.
+
+**Exact artifact:** `docker.io/nfrastack/db-backup:4.9.2`, SHA256 identities:
+
+- Index: `cc95be0b5f551f432a218fc2811d63a2946233c8260598d5eda0ff624bb47412`.
+- `linux/amd64` platform manifest: `af1a483f04a19427be307c356645adc887352f1e3432bb21bd8b60ccf12c4012`.
+
+**Exact job:** tracked [Compose](https://github.com/DevSecNinja/truenas-apps/blob/29c7e97a8686ef886e5dd2c73c2676b42e098ffd/services/trek/compose.yaml)
+and [wrapper](https://github.com/DevSecNinja/truenas-apps/blob/29c7e97a8686ef886e5dd2c73c2676b42e098ffd/services/trek/config/backup.sh)
+at `29c7e97a8686ef886e5dd2c73c2676b42e098ffd`; recorded wrapper SHA256
+`6b59bb8de430c5de31fb016ccd048a734522f60db7f421242c0d7f29d9d0d42b`.
+
+- Only `trek-db-backup`: local SQLite Online Backup API binary snapshot of
+  `/trek-data/travel.db`, `./data/app:/trek-data:ro`, `./config:/trek-config:ro`,
+  and output `./backups/db-backup:/backup`; no other engine or path.
+- Manual deployment-triggered one-shot job `01`, GPG/ZSTD/SHA1, 2880-minute/48-hour
+  retention; image-local `trekbackup` UID/GID `3134:3134`, PID limit `100`,
+  memory `${BACKUP_MEM_LIMIT:-512m}`; no autonomous timer.
+- `network_mode: none`, no ports or host-control socket; root s6/writable root,
+  `no-new-privileges`, `cap_drop: ALL`, only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`,
+  `SETUID`, `SETGID`, `KILL` added.
+- Only shared `tz.env` plus explicit backup settings/GPG passphrase; no inherited
+  app `.env`, `ENCRYPTION_KEY`, JWT or OIDC credentials in the environment.
+  Persisted key files remain in the source mount; read-only is not confidentiality.
+- Preserve [all wrapper checks](#backup): 300-second TERM plus 10-second KILL grace
+  **per stage**, not whole-job; one fresh pair, no extra fresh files, checksum,
+  decrypt/decompress, `quick_check`, `users`/`trips`, private scratch and cleanup.
+  Keep `config.watch=config`, `config.sha256=${CONFIG_HASH:-}`, `dccd.backup-jobs=01`.
+
+**Dated evidence, not new execution:** reuse the [November 21 results](#november-21-current-candidate),
+[shared review](#shared-image-review-pocket-coordinator), and [immutable history][history].
+The shared Trivy 0.76.0 scan at **2026-11-21T20:12:22Z** (DB updated **18:38:32Z**)
+reported 166 Alpine 3.24.1 packages: raw **4 CRITICAL / 167 HIGH / 152 MEDIUM /
+90 LOW / 5 UNKNOWN**; Python and inactive bundled Go findings also remain.
+Inventory counts are not applicability conclusions. Used musl `1.2.6-r2`,
+**CVE-2026-107891** (`regcomp`, fixed `-r3`): inspected scripts/job `01` use fixed
+regex patterns; no database-row regex input was identified. Used sudo `1.9.17_p2-r1`
+**CVE-2026-96512** (fixed `-r2`) lacked required `NOTBEFORE`/`NOTAFTER` policies
+in inspected sudoers/includes. These are narrow preconditions, not whole-image clearance.
+
+**Residual risk:** root plus `DAC_OVERRIDE` can read key files, plaintext scratch
+and passphrase material and modify outputs despite read-only source. No network
+and a short job reduce, not eliminate, exposure. GPG/SHA1 neither protects against
+a compromised backup container nor establishes output authenticity.
+
+**Maintenance/exit:** **unmaintained tag / high confidence**, not supported or clean.
+This is not a claim that the project is abandoned: upstream's
+[latest-only policy](https://github.com/nfrastack/db-backup/blob/5.0.11/SECURITY.md) and
+[5.0.11 release](https://github.com/nfrastack/db-backup/releases/tag/5.0.11) leave 4.9.2 unsupported.
+The [5.0.11 SQLite source](https://github.com/nfrastack/db-backup/blob/5.0.11/src/internal/database/engine/sqlite/sqlite.go)
+uses independent source queries; output `BEGIN`/`COMMIT` is not a coherent live snapshot.
+No blind v5/latest upgrade or custom runner is approved.
+
+**Owner/action:** @DevSecNinja must review **by 2026-12-22**: choose a maintained
+compatible upstream artifact with exact-artifact/current-inventory scan and coherent full-schema
+SQLite, users/trips, OIDC/original-key and uploads recovery, retention and fail-closed proof;
+an explicitly reviewed new dated exception; or controlled rollback/retirement preserving recovery.
+Expiry removes exception clearance; it **does not automatically stop backups**.
+Profiles/runtime stay unchanged.
+Changed image/platform/job paths/engine/network/privileges or new relevant findings require immediate review.
+No blanket approval for future versions/findings or other stacks. TREK `5.1.4` parser/libxml2,
+old BusyBox init, real SSO/client credentials, proxy/activation/operator gates,
+production-host coverage and Pocket's separate exception are not cleared or changed.
 
 ## Upgrade Notes
 

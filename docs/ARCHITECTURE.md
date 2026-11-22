@@ -1067,7 +1067,7 @@ alone are not a coordinated archive backup.
 
 ### TREK Candidate Network and Access Model
 
-[TREK](services/trek.md) remains blocked on its own image adoption,
+[TREK](services/trek.md) remains blocked on app/parser and init image adoption,
 dedicated OIDC client setup, live provider/proxy/SSO checks, target-host operator
 acceptance, and storage recovery coordination. On 2026-11-22 the operator
 reported Pocket ID production deployment in the personal homelab, first-admin
@@ -1075,6 +1075,11 @@ passkey setup, and a post-setup backup after PR #949 merged at `eafb883`.
 Host runtime was not independently verified; no TREK client issuance is
 confirmed. The Pocket-only review below is preserved as written before this
 report. Pocket's backup exception expires 2026-12-21 and does not cover TREK.
+TREK's separate [backup-only exception](services/trek.md#temporary-backup-risk-exception-2026-11-22)
+records @DevSecNinja's **2026-11-22** acceptance; the coordinator-defined scope
+expires **2026-12-22**, with owner review by that date and no automatic renewal.
+It conditionally clears only the exact backup-job risk, not activation;
+expiry removes clearance without automatically stopping backups or changing runtime/profiles.
 Synthetic live-WAL backup and
 full recovery passed for the current `5.1.4` candidate on 2026-11-21;
 they are not production approval.
@@ -1083,11 +1088,11 @@ No active DNS, Traefik network attachment, or provisioning registry entry exists
 Its contents must move into active Compose through reviewed activation after
 the app network exists.
 
-| Component        | Candidate access and isolation                                                                                                         |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `trek`           | `trek-frontend`; no host ports; direct non-root Node, read-only root, dropped capabilities, private `/tmp`; native Pocket ID OIDC only |
-| `trek-db-backup` | No network; `./data/app:ro` source and writable backup output; writable-root s6/capability exception is not approved                   |
-| `trek-init`      | No network; validates secrets, then prepares only runtime data paths with `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                            |
+| Component        | Candidate access and isolation                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `trek`           | `trek-frontend`; no host ports; direct non-root Node, read-only root, dropped capabilities, private `/tmp`; native Pocket ID OIDC only                                                                       |
+| `trek-db-backup` | No network; `./data/app:ro` source and writable backup output; exact writable-root s6/capability risk conditionally [accepted until 2026-12-22](services/trek.md#temporary-backup-risk-exception-2026-11-22) |
+| `trek-init`      | No network; validates secrets, then prepares only runtime data paths with `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                                                                                                  |
 
 The candidate explicitly sets `TREK_SERVICES: "off"` to opt out of upstream's
 default automatic enrollment in upstream hosted map services. The tested app
@@ -1123,10 +1128,15 @@ Keys/uploads were unchanged during the database writer test; a coherent
 storage-layer recovery set is still required. The
 [supplied shared review](services/trek.md#shared-image-review-pocket-coordinator)
 was updated by Pocket's coordinator on 2026-11-21. Its narrow local-pipeline
-findings and Pocket's later approval do not waive TREK-specific backup
-adoption or broader review of TREK's unchanged BusyBox digest. The current
+findings and Pocket's later approval are not TREK approval; only TREK's separate
+dated exception conditionally accepts the scoped backup risk. Broader review
+of TREK's unchanged BusyBox digest remains open. The current
 [TREK image scan](services/trek.md#image-evidence) likewise leaves adoption
 blocked; functional recovery does not approve parser/base findings.
+Read-only source is not a confidentiality boundary: root plus `DAC_OVERRIDE`
+can read persisted key files, plaintext scratch and passphrase material, and modify outputs.
+Network isolation and the short lifecycle reduce exposure; GPG/SHA1 does not protect against
+a compromised backup container or establish output authenticity.
 
 ### Pocket ID Candidate Isolation
 
