@@ -365,9 +365,9 @@ private data permissions or grant shared media/document group access.
 
 #### Pocket ID Candidate Identity Reservation
 
-This heading retains the old reservation anchor. [Pocket ID](services/pocket-id.md)
-is now declared in `truenas-apps.json` for the **controlled post-merge pilot**;
-the account/group and dataset have **not been provisioned**.
+**Declared, not provisioned as of 2026-11-22.** This heading retains the old
+reservation anchor; `truenas-apps.json` allocates the identity for the
+[controlled post-merge pilot](services/pocket-id.md).
 
 | Username            | UID  | Primary group       | Primary GID | Shared memberships | Services using the identity                         |
 | ------------------- | ---- | ------------------- | ----------- | ------------------ | --------------------------------------------------- |
@@ -375,16 +375,14 @@ the account/group and dataset have **not been provisioned**.
 
 Registry key `pocket-id` sets `admin_group_member=false`; the helper must not
 add the administrator to the private service group. Init starts as root;
-the rootless app uses the explicit Compose `user:`, and the backup supervisor
+the nonroot app uses the explicit Compose `user:`, and the backup supervisor
 creates image-local `pocketbackup` with the same UID/primary GID.
-The **2026-10-29** isolated AMD64 diagnostic verified backup ownership,
-files `0600` and output root `0700`, not TrueNAS provisioning or ACL behavior.
 
-The allocation is unavailable for reuse. The earlier TREK coordination in
-[issue #948](https://github.com/DevSecNinja/truenas-apps/issues/948) remains
-unchanged; verify actual host allocations before preparation. Follow the
+The allocation is unavailable for reuse; verify host allocations before
+preparation. [Synthetic ownership evidence](services/pocket-id.md#current-adoption-review-2026-11-22)
+does not prove TrueNAS provisioning or ACL behavior. Follow the
 [post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff)
-and [private dataset requirements](#pocket-id-dataset), not an ad-hoc provisioning path.
+and [private dataset requirements](#pocket-id-dataset).
 
 ### Retained Arr Account Reservations
 
@@ -977,8 +975,9 @@ datasets.
 
 Registry key `pocket-id` declares `vm-pool/apps/services/pocket-id`.
 The preparation helper preserves the checkout while provisioning the dedicated
-account/group and dataset **after merge and operator readiness**, not as part
-of this documentation change. No shared-purpose group or SMB access is needed.
+account/group and dataset during the
+[ordered post-merge handoff](services/pocket-id.md#controlled-post-merge-operator-handoff).
+No shared-purpose group or SMB access is needed.
 
 | Path                  | Classification and protection                                                                                                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -991,8 +990,7 @@ Routine init does not repair descendants. Follow the
 with the original `ENCRYPTION_KEY` and independent `DB_ENC_PASSPHRASE` recovery.
 Verify child snapshots, replication, off-site inclusion and recovery before
 claiming storage-layer coverage; neither provisioning nor production recovery
-has occurred. Server auto-discovery/default NAS key scoping and the original
-encrypted secrets are unchanged.
+is established as of 2026-11-22.
 
 ## Media Access
 

@@ -87,29 +87,15 @@ prerequisites are complete.
 [Pocket ID](services/pocket-id/README.md), introduced by
 [PR #949](https://github.com/DevSecNinja/truenas-apps/pull/949), is a user-approved
 **controlled post-merge pilot**. **As of 2026-11-22**, it is not deployed or
-approved for production reliance; its account/dataset and DNS/Traefik wiring
-are declared, not provisioned/deployed. The
-[November 21 app/init review](services/pocket-id/README.md#image-and-recovery-evidence-2026-11-21)
-retains its scoped clearance. Backup 4.9.2 remains
-conditional on its [backup-only exception](services/pocket-id/README.md#temporary-backup-risk-exception-2026-11-21),
-with @DevSecNinja's review due before **2026-12-21** and no automatic renewal.
-Logging controls have [November 22 scoped proof](services/pocket-id/README.md#privacy-test-subset-2026-11-22);
-[actual backup-environment and targeted tests also passed](services/pocket-id/README.md#backup-environment-test-subset-2026-11-22).
-The operator's [local-pilot choice](services/pocket-id/README.md#local-pilot-bootstrap-decision-2026-11-22),
-relayed by the coordinator on **2026-11-22**, accepts first-admin claim risk
-without a technical bootstrap restriction; localhost/LAN is not authentication.
-Immediately complete first-admin/passkey setup and verify the intended admin
-before adding other real accounts or clients. An unexpected claim requires
-stopping, isolation and security-reviewed recovery of a trusted baseline.
-[Local validation passed on November 22](services/pocket-id/README.md#local-validation-2026-11-22);
-the PR's current revision must pass remote CI and review before merge.
-Follow the
-[ordered handoff](services/pocket-id/README.md#controlled-post-merge-operator-handoff)
-only after merge and readiness: create the app network before
-Traefik, then rerun `dccd-all` after admin/passkey/client enrollment and verify
-a new completion/artifact and post-enrollment recovery point. Independent key
-recovery and production routing/passkey/client acceptance remain required.
-No Entra migration is included.
+approved for production reliance. The [current adoption review](services/pocket-id/README.md#current-adoption-review-2026-11-22)
+records scoped app/init clearance and the backup-only exception requiring
+review before **2026-12-21**, with no automatic renewal.
+Follow the [ordered deployment and post-enrollment backup runbook](services/pocket-id/README.md#controlled-post-merge-operator-handoff).
+The [local-pilot choice](services/pocket-id/README.md#local-pilot-bootstrap-decision-2026-11-22)
+accepts first-admin claim risk without a technical restriction: immediately
+claim and verify the intended admin; isolate an unexpectedly claimed instance.
+Independent key recovery and real routing/passkey/client acceptance are still
+required. Entra and existing integrations remain unchanged.
 
 The unused arr stack (Bazarr, Lidarr, Prowlarr, qBittorrent, Radarr, SABnzbd,
 Sonarr, and Spottarr) was retired from the repository on **2026-10-25**.
