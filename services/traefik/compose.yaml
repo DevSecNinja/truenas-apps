@@ -78,6 +78,7 @@ services:
       traefik-forward-auth-frontend:
       unifi-frontend:
       plex-frontend:
+      pocket-id-frontend:
       metube-frontend:
       memos-frontend:
       immich-frontend:
@@ -214,6 +215,9 @@ networks:
     internal: true
   echo-server-frontend:
     name: echo-server-frontend
+    external: true
+  pocket-id-frontend:
+    name: pocket-id-frontend
     external: true
   adguard-frontend:
     name: adguard-frontend

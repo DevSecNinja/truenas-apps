@@ -288,6 +288,7 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | openclaw             | `openclaw-init`             | `./data` (chown to `3127:3127`)                                                                                                                                                                                                                                                    |
 | outline              | `outline-init`              | `./data/data` (chown to UID 1000 — image-internal `node` user)                                                                                                                                                                                                                     |
 | plex                 | `plex-init`                 | `docker.io/library/busybox:1.38.0`; chowns `./data/config` (not tracked `./config`) and `./backups` → Plex PUID/PGID `911:3200`                                                                                                                                                    |
+| pocket-id            | `pocket-id-init`            | `docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4`; validates required inputs, chowns only `./data` → PUID/PGID `3133:3133`, mode `0700`; never `./config`; controlled post-merge pilot                                    |
 | traefik              | `traefik-init`              | `./data/acme`                                                                                                                                                                                                                                                                      |
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
@@ -565,8 +566,9 @@ backend-only. The database backup container also stays backend-only and sets
 `ENABLE_NOTIFICATIONS=FALSE`; the remaining `NOTIFICATIONS_EMAIL_*` variables
 configure only Dawarich application email.
 
-`dawarich-db-backup` uses the maintained
-`docker.io/nfrastack/db-backup:4.9.2` compatibility release. It runs
+`dawarich-db-backup` uses the unsupported
+`docker.io/nfrastack/db-backup:4.9.2` v4 compatibility artifact from an actively
+maintained upstream project. It runs
 `backup-now` in one-shot `MODE=MANUAL` mode on every full `dccd.sh` deployment.
 The backup job depends on the healthy `dawarich` Rails service rather than only
 PostgreSQL, so startup migrations, data migrations, and seeding finish before
@@ -581,7 +583,8 @@ database.
 
 Version 5.0.0 was intentionally not selected because runtime restore validation
 failed with an invalid bigint conversion. Version 4.9.2 preserves the proven v4
-workflow while using the maintained nfrastack image and repository.
+workflow, not upstream support for this tag. Pocket ID's backup-only exception
+does not cover Dawarich; see the [v4 compatibility constraint](BACKUP.md#v4-compatibility-constraint).
 
 ### Exception: iot-backend
 
@@ -1049,6 +1052,49 @@ operator validation under
 See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
 alone are not a coordinated archive backup.
 
+### Pocket ID Candidate Isolation
+
+**Current model: controlled post-merge pilot, not deployed as of 2026-11-22.**
+The heading retains the historical link anchor. All three Pocket ID services
+are profile-free. DNS maps `id.${DOMAINNAME}` to `${IP_SVLNAS}`; active
+`services/traefik/compose.yaml` attaches to the stack-owned external
+`pocket-id-frontend` bridge.
+
+```mermaid
+flowchart LR
+    Client["Client: id.${DOMAINNAME}"] --> Traefik["HTTPS Traefik: chain-no-auth"]
+    Traefik --> App["Pocket ID: native passkeys"]
+```
+
+- **Startup:** init completion → healthy app → one-shot backup. Create the
+  frontend network before deploying Traefik; coordinate cron and use the
+  [ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff).
+- **Access:** no host ports or shared backend. The bridge does not restrict
+  outbound egress. Native authentication/recovery must not depend on Entra/TFA
+  or a Pocket ID-backed Forward Auth chain.
+- **Bootstrap:** the [operator's local-pilot choice](services/pocket-id.md#local-pilot-bootstrap-decision-2026-11-22)
+  accepts first-admin claim risk without a technical restriction. Immediately
+  claim and verify the intended admin; an unexpected claim requires isolation
+  and security-reviewed recovery, not just an account reset.
+- **Privacy:** app Docker log retention, OTEL logs/traces and Pocket ID router
+  access logs are disabled. Health/state and backup receipts remain available;
+  see [recovery-token controls](services/pocket-id.md#recovery-token-log-privacy).
+- **Isolation:** init uses the pinned BusyBox image above, read-only root,
+  no network and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`. It validates inputs
+  before changing only `./data` root to the
+  [declared identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+  Backup also has no network and reads the SQLite source read-only.
+- **Environment:** all three load `tz.env`; only app/init load per-app `.env`.
+  Backup receives explicit `DEFAULT_ENCRYPT_PASSPHRASE` without inheriting
+  `ENCRYPTION_KEY`, `DOMAINNAME` or raw `DB_ENC_PASSPHRASE`. Restore still
+  requires the original app key independently.
+
+The [current adoption review](services/pocket-id.md#current-adoption-review-2026-11-22)
+owns exact artifact identities, scoped app/init clearance, the backup-only
+exception and dated evidence limits. First-run routing/passkey/client acceptance
+and a verified post-enrollment recovery point are not yet established.
+Entra and existing integrations remain unchanged.
+
 ### Dawarich Split Authentication Routers
 
 Dawarich's main HTTPS router uses `chain-auth-dawarich@file` as defense in depth
@@ -1403,9 +1449,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include                                                                                                     |
-| -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers |
+| File     | Purpose                    | When to include                                                                                                                                      |
+| -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; Pocket ID app, init, and backup |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 

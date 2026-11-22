@@ -1,0 +1,2 @@
+# Historical offline Compose fixture, not a credential; replaced with a low-entropy test value.
+5646268cd9fc06b6ba8b62472f89d3cd882e0233:tests/pocket-id/pilot-config.bats:generic-api-key:61

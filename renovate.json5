@@ -124,5 +124,12 @@
       ],
       rebaseWhen: "never",
     },
+    {
+      description: "Require exact-artifact review for every Pocket ID image update",
+      matchDatasources: ["docker"],
+      matchFileNames: ["services/pocket-id/compose.yaml"],
+      automerge: false,
+      groupName: null,
+    },
   ],
 }

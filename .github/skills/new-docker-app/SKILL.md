@@ -259,7 +259,7 @@ For every persistent volume declared in Step 1, classify each path as one of:
 
 Record the classification for every persistent path in the service's README (Step 7) and, for any embedded database, in `docs/BACKUP.md`'s Persistent State Inventory (Step 6).
 
-**Every stateful database needs an application-consistent backup sidecar** (`tiredofit/db-backup` v4, or the maintained `nfrastack/db-backup` 4.9.2 compatibility release) unless a reviewed exception explains why ZFS snapshots alone are sufficient. An exception must be written down — in the service's README and in `docs/BACKUP.md`'s Persistent State Inventory — never left implicit or silently skipped.
+**Every stateful database needs an application-consistent backup sidecar** (existing v4 patterns use `tiredofit/db-backup` or `nfrastack/db-backup` 4.9.2) unless a reviewed exception explains why ZFS snapshots alone are sufficient. The nfrastack upstream project is actively maintained, but its 4.9.2 v4 compatibility artifact is unsupported; compatibility is not adoption clearance, and Pocket ID's backup-only exception does not cover other stacks. An exception must be written down — in the service's README and in `docs/BACKUP.md`'s Persistent State Inventory — never left implicit or silently skipped.
 
 When a sidecar is required:
 
@@ -408,11 +408,24 @@ any explicit exception. Compose validation and runtime/restore tests do not
 replace this gate. If it remains blocked, label the implementation a candidate
 and do not proceed to deployment.
 
+Run this static check on an existing approved Docker environment or Docker CI;
+it is not a reason to install Docker on macOS:
+
 ```sh
 docker compose -f services/<app>/compose.yaml config --quiet
 ```
 
 Warnings about unset env vars (e.g. `DOMAINNAME`) are expected — secrets are decrypted at deploy time. Warnings are fine; errors are not.
+
+For execution evidence, follow the platform-aware
+[runtime smoke-testing procedure](../code-testing/SKILL.md#container-runtime-smoke-testing):
+prefer Apple `container` on supported Apple-silicon macOS, without installing
+Docker/Podman by default. Native tests are not Compose execution or proof of
+the target `linux/amd64` image. Separately verify Docker/TrueNAS semantics on
+Docker CI or a disposable Linux Docker host. For stateful databases, require
+the representative synthetic backup **and restore** from Step 3 before merge;
+static validation, successful startup, and generic backup CI are not substitutes.
+Use synthetic secrets only, with no production SOPS or key access in testing.
 
 ### Step 11 — Document post-merge host steps
 
