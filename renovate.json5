@@ -17,6 +17,14 @@
   // Make room for updates alongside long-lived cooldown branches.
   // branchConcurrentLimit inherits this cap; the hourly limit is unchanged.
   prConcurrentLimit: 20,
+  // First-seen release dates for registries without them, from
+  // DevSecNinja/image-release-ledger (data branch), in the custom datasource's
+  // own format: {"releases": [{"version", "releaseTimestamp", "digest"}]}.
+  customDatasources: {
+    "first-seen": {
+      defaultRegistryUrlTemplate: "https://raw.githubusercontent.com/DevSecNinja/image-release-ledger/data/images/{{packageName}}.json",
+    },
+  },
   packageRules: [
     {
       // DHI prunes superseded tags. Under the shared rangeStrategy "pin",
@@ -130,6 +138,29 @@
       matchFileNames: ["services/pocket-id/compose.yaml"],
       automerge: false,
       groupName: null,
+    },
+    {
+      // The ledger records when each tag was first seen, so the shared 14-day
+      // minimumReleaseAge soaks these images natively and proposes the newest
+      // version that is at least 14 days old, pinned to the ledger's digest.
+      // The rest undoes the shared docker-gated rule, which matched before the
+      // datasource changed (timestamp-optional, docker-gated- branch and its
+      // pr-cooldown check, rebaseWhen conflicted). Matched by name only, without
+      // matchDatasources, so it keeps matching after the override. Named
+      // floating tags (latest, beta) must not be listed: the custom datasource
+      // can't return their digest. Images must also be in the ledger's
+      // images.txt, or they get no updates at all (fails closed).
+      description: "Release dates for non-Docker-Hub images from the first-seen ledger",
+      matchPackageNames: ["ghcr.io/italypaleale/traefik-forward-auth"],
+      overrideDatasource: "custom.first-seen",
+      // Custom datasources have no default versioning.
+      versioning: "docker",
+      minimumReleaseAgeBehaviour: "timestamp-required",
+      additionalBranchPrefix: "",
+      rebaseWhen: "auto",
+      groupName: null,
+      // First batch: keep the PR for review as rollout evidence (T207).
+      automerge: false,
     },
   ],
 }
