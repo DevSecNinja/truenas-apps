@@ -12,4 +12,6 @@ rules:
       - lint.yml:66
       - lint.yml:87
       - lint.yml:113
+      - release-please.yml:61
+      - release-please.yml:64
       - test.yml:26

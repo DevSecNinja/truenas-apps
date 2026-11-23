@@ -131,5 +131,12 @@
       automerge: false,
       groupName: null,
     },
+    {
+      description: "Require exact-artifact review for every Trek image update",
+      matchDatasources: ["docker"],
+      matchFileNames: ["services/trek/compose.yaml"],
+      automerge: false,
+      groupName: null,
+    },
   ],
 }

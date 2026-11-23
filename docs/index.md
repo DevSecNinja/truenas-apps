@@ -102,6 +102,33 @@ groups, and ownership IDs are retained for a possible restart. See
 for the operator handoff and restoration procedure; production teardown still
 requires operator verification.
 
+## Blocked Candidates
+
+[TREK](services/trek.md) ([#948](https://github.com/DevSecNinja/truenas-apps/issues/948))
+is a travel-planning candidate, **not an active app or dataset**. Pocket ID
+[#949](https://github.com/DevSecNinja/truenas-apps/pull/949) merged at `eafb883`.
+On **2026-11-22**, the operator reported Pocket ID production deployment in
+the personal homelab, first-admin passkey setup, and a post-setup backup;
+host runtime was not independently verified. This updates the historical
+Pocket status above, not its review controls. No TREK client issuance is
+confirmed; Pocket's backup exception expires **2026-12-21** and applies only
+to Pocket ID, not TREK.
+TREK's separate [backup-only exception](services/trek.md#temporary-backup-risk-exception-2026-11-22)
+accepts the exact job's risk until **2026-12-22**, with no automatic renewal or activation approval.
+All three TREK services remain behind `trek-candidate`, with no active
+DNS, Traefik attachment, or provisioning registry entry. The current `5.1.4`
+candidate explicitly sets `TREK_SERVICES: "off"` to avoid automatic enrollment
+in upstream hosted map services; no community-sharing consent is granted.
+Synthetic `5.1.0` → `5.1.4` upgrade, live-WAL backup, full recovery repeated
+after force-recreation, 48-hour retention, Linux AMD64 app hardening, receipt
+counts, and test-resource cleanup passed on 2026-11-21. All 19 existing
+Compose checks, 10 selected pre-commit checks, and a separate strict MkDocs
+build passed that day; these are historical results, not validation of this edit.
+App/parser and init image adoption, dedicated TREK client setup, live provider/proxy/SSO,
+target-host operator acceptance, and storage recovery coordination remain open.
+Profiles are not a security boundary; do not bypass the gate by targeting
+services explicitly.
+
 ## Personal Home Folders
 
 [Personal Home Folders](HOME-FOLDERS.md) documents the approved native

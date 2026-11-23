@@ -62,7 +62,7 @@ exclude = ["**/*.sops.env"]
 stage_fixed = true
 
 [pre-commit.commands.sops-encryption-check]
-run = "for f in {staged_files}; do if ! grep -q '^sops_mac=' \"$f\"; then echo \"ERROR: $f is not SOPS-encrypted\"; exit 1; fi; done"
+run = "bash scripts/check-sops-encryption.sh {staged_files}"
 glob = ["**/secret.sops.env"]
 
 [pre-commit.commands.validate-servers-schema]

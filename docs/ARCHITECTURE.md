@@ -293,6 +293,19 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 | traefik-forward-auth | `traefik-forward-auth-init` | `./data`                                                                                                                                                                                                                                                                           |
 | wmbusmeters          | `wmbusmeters-init`          | `./data/logs`, `./data/state`                                                                                                                                                                                                                                                      |
 
+**Blocked candidate init reservation — not provisioned:**
+
+| Service | Init container | Image, ownership target, and permissions                                                                                                                                                                              |
+| ------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TREK    | `trek-init`    | `docker.io/library/busybox:1.38.0`; recursively chowns `./data/app` and `./data/uploads` under `/data` to reserved PUID/PGID `3134:3134`; applies `u=rwX,g=,o=` and mode `0700` to `/data`; never modifies `./config` |
+
+`trek-init` rejects empty or sentinel-valued required secrets, including both
+currently empty OIDC credentials, before changing permissions. It validates
+the encryption key's 32-byte hex encoding. The app uses a direct `user:`
+identity, not PUID/PGID environment variables. All three TREK services retain
+the `trek-candidate` profile; see the
+[candidate access model](#trek-candidate-network-and-access-model).
+
 `changedetection-init` validates that `DOMAINNAME` is populated and is neither
 `CHANGE_ME` nor `GENERATE` before touching permissions. It runs without a
 network and retains only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE` for ownership,
@@ -1052,6 +1065,97 @@ operator validation under
 See [Restore Open Archiver](BACKUP.md#restore-open-archiver): database dumps
 alone are not a coordinated archive backup.
 
+### TREK Candidate Network and Access Model
+
+[TREK](services/trek.md) remains blocked on app/parser and init image adoption,
+dedicated OIDC client setup, live provider/proxy/SSO checks, target-host operator
+acceptance, and storage recovery coordination. On 2026-11-22 the operator
+reported Pocket ID production deployment in the personal homelab, first-admin
+passkey setup, and a post-setup backup after PR #949 merged at `eafb883`.
+Host runtime was not independently verified; no TREK client issuance is
+confirmed. The Pocket-only review below is preserved as written before this
+report. Pocket's backup exception expires 2026-12-21 and does not cover TREK.
+TREK's separate [backup-only exception](services/trek.md#temporary-backup-risk-exception-2026-11-22)
+records @DevSecNinja's **2026-11-22** acceptance; the coordinator-defined scope
+expires **2026-12-22**, with owner review by that date and no automatic renewal.
+It conditionally clears only the exact backup-job risk, not activation;
+expiry removes clearance without automatically stopping backups or changing runtime/profiles.
+Synthetic live-WAL backup and
+full recovery passed for the current `5.1.4` candidate on 2026-11-21;
+they are not production approval.
+No active DNS, Traefik network attachment, or provisioning registry entry exists.
+`services/traefik/compose.trek.yaml` is an inert fragment, not an active include.
+Its contents must move into active Compose through reviewed activation after
+the app network exists.
+
+| Component        | Candidate access and isolation                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `trek`           | `trek-frontend`; no host ports; direct non-root Node, read-only root, dropped capabilities, private `/tmp`; native Pocket ID OIDC only                                                                       |
+| `trek-db-backup` | No network; `./data/app:ro` source and writable backup output; exact writable-root s6/capability risk conditionally [accepted until 2026-12-22](services/trek.md#temporary-backup-risk-exception-2026-11-22) |
+| `trek-init`      | No network; validates secrets, then prepares only runtime data paths with `CHOWN`, `FOWNER`, `DAC_OVERRIDE`                                                                                                  |
+
+The candidate explicitly sets `TREK_SERVICES: "off"` to opt out of upstream's
+default automatic enrollment in upstream hosted map services. The tested app
+accepted the setting and booted in `off` mode; no community-sharing consent
+has been granted. This opt-out is not a network-egress control.
+
+Planned request flow, **not an exposed service**:
+
+```mermaid
+flowchart LR
+    User --> Proxy["Traefik: chain-no-auth"]
+    Proxy --> App["TREK: native OIDC + authorization"]
+    App <-->|OIDC| ID["Pocket ID: dedicated client"]
+```
+
+Use issuer `https://id.${DOMAINNAME}`, exact callback
+`https://trek.${DOMAINNAME}/api/auth/oidc/callback`, a confidential dedicated
+client, scopes `openid email profile`, and username claim `preferred_username`.
+No Entra TFA or inferred admin-group mapping applies. Restrict Pocket ID
+client assignment to the bootstrap administrator before the first SSO login,
+which becomes TREK administrator per the upstream v5 wiki. Then set TREK's
+invitation/SSO auto-provisioning policy before widening access.
+
+Candidate `trek-monitor` restricts `monitoring` requests to the TREK Host and
+exact `/api/health/ready` path, using `chain-no-auth@file`. Gatus targets
+`http://172.30.100.6:8444/api/health/ready` with `Host: trek.${DOMAINNAME}` and
+`client.ignore-redirect=true`. The shared entrypoint's existing
+`monitoring-ipallowlist@file` (`172.30.100.0/29`) and unpublished port remain
+unchanged; this is not a general UI/API bypass.
+
+Public `trek-rtr` disables only its own access logs with
+`observability.accesslogs=false`: shared Traefik's `400-599` access logs retain
+query strings, and Alloy forwards them without redaction. App redaction cannot
+protect rejected OIDC `code` or invitation `token` values at the proxy.
+TREK therefore loses public-router access diagnostics, not app `LOG_LEVEL=info`,
+health checks, metrics, or backup receipts; other routers are unchanged.
+The monitoring entrypoint already disables access logs. These are gated labels,
+not active ingress. The [November 22 synthetic proxy fixture](services/trek.md#november-22-proxy-fixture)
+is reported successful; full Docker-provider, production TLS, and real
+provider/SSO acceptance remain unproven.
+
+Profiles are **not a security boundary**: explicitly targeted services can
+start despite default exclusion. Do not use profile overrides, targeted
+Compose, or generic deployment to bypass the
+[activation prerequisites](services/trek.md#activation-prerequisites).
+The [2026-11-21 Linux AMD64 evidence](services/trek.md#november-21-current-candidate)
+records the real `5.1.0` → `5.1.4` upgrade, 554-object recovery,
+read-only live-WAL backup, retention, app hardening, and repeated direct-app
+authorization checks. It does not prove real provider login or Traefik/SSO.
+Keys/uploads were unchanged during the database writer test; a coherent
+storage-layer recovery set is still required. The
+[supplied shared review](services/trek.md#shared-image-review-pocket-coordinator)
+was updated by Pocket's coordinator on 2026-11-21. Its narrow local-pipeline
+findings and Pocket's later approval are not TREK approval; only TREK's separate
+dated exception conditionally accepts the scoped backup risk. Broader review
+of TREK's unchanged BusyBox digest remains open. The current
+[TREK image scan](services/trek.md#image-evidence) likewise leaves adoption
+blocked; functional recovery does not approve parser/base findings.
+Read-only source is not a confidentiality boundary: root plus `DAC_OVERRIDE`
+can read persisted key files, plaintext scratch and passphrase material, and modify outputs.
+Network isolation and the short lifecycle reduce exposure; GPG/SHA1 does not protect against
+a compromised backup container or establish output authenticity.
+
 ### Pocket ID Candidate Isolation
 
 **Current model: controlled post-merge pilot, not deployed as of 2026-11-22.**
@@ -1281,6 +1385,8 @@ workloads, such as `surveillance`. Do not automatically add a staging,
 adoption, or onboarding profile to normal TrueNAS apps. Initial enrollment
 uses manual Custom App creation through the
 [existing app-first rollout](INFRASTRUCTURE.md#brand-new-custom-app-rollout).
+TREK's explicitly requested temporary candidate profile is an exception,
+not a new onboarding convention; removing it requires reviewed activation.
 
 TrueNAS mode (`dccd.sh -t`) skips an app when
 `/mnt/.ix-apps/app_configs/<app>/versions` is missing. This enrollment guard
@@ -1300,9 +1406,10 @@ explicit named-service targeting and `--profile '*'` bypass default selection.
 
 **Services using profiles:**
 
-| Profile        | Services                  | Purpose                               |
-| -------------- | ------------------------- | ------------------------------------- |
-| `surveillance` | `frigate-init`, `frigate` | NVR — only needed when away from home |
+| Profile          | Services                              | Purpose                                                             |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| `surveillance`   | `frigate-init`, `frigate`             | NVR — only needed when away from home                               |
+| `trek-candidate` | `trek`, `trek-db-backup`, `trek-init` | Blocked TREK candidate only; do not activate before all gates clear |
 
 ### Activating a Profile
 
@@ -1449,9 +1556,9 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) + [Age](https
 
 Reusable env files live in `services/shared/env/` and are referenced via relative paths in `env_file` blocks. They are committed to Git because they contain no secrets.
 
-| File     | Purpose                    | When to include                                                                                                                                      |
-| -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; Pocket ID app, init, and backup |
+| File     | Purpose                    | When to include                                                                                                                                                                           |
+| -------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tz.env` | Sets `TZ=Europe/Amsterdam` | Every container, including changedetection app, init, Chrome, and browser proxy; all eight Open Archiver containers; Pocket ID app, init, and backup; all three TREK candidate containers |
 
 UID and GID values are **not** stored in shared env files or in `secret.sops.env`. They are hardcoded directly in each service's `compose.yaml` (in the `user:` directive and init container commands) so they are visible, auditable, and not treated as secrets. See [Infrastructure § UID/GID Allocation](INFRASTRUCTURE.md#uidgid-allocation) for the full allocation table.
 
