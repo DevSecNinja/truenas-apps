@@ -113,10 +113,10 @@ as evidence that the revised source has been published or verified.
 ## Why
 
 - Keep archived messages and attachments in private local storage rather than
-  depending solely on the source mailbox.
+    depending solely on the source mailbox.
 - Search messages and OCR-extracted attachment text.
 - Apply existing Traefik Forward Auth in front of separate local app
-  authentication and MFA.
+    authentication and MFA.
 
 Encryption at rest is not end-to-end protection from the server:
 the app must decrypt content, Meilisearch stores searchable plaintext,
@@ -215,13 +215,13 @@ Valkey's authenticated `valkey-cli ping` health check uses
 **Image tradeoffs:**
 
 - Upstream PostgreSQL Alpine supports `/docker-entrypoint-initdb.d`; DHI
-  PostgreSQL does not process the required role-bootstrap hooks.
+    PostgreSQL does not process the required role-bootstrap hooks.
 - DHI Valkey was found in the catalog, but an authenticated pull failed in
-  the local validation environment. Upstream Alpine was selected so local
-  tests and CI can use the same verifiable pinned image; this forgoes the
-  hardened-image preference, not Valkey functionality.
+    the local validation environment. Upstream Alpine was selected so local
+    tests and CI can use the same verifiable pinned image; this forgoes the
+    hardened-image preference, not Valkey functionality.
 - Tika's full variant is the explicitly selected OCR-capable image, rather
-  than the smaller non-OCR variant.
+    than the smaller non-OCR variant.
 
 ### Networks
 
@@ -422,18 +422,18 @@ networks or create untracked Compose overrides.
 Before any TrueNAS Custom App creation or route exposure:
 
 1. In **Microsoft Entra ID > App registrations**, select the registration
-   identified by `${AZURE_CLIENT_ID}` in the existing Forward Auth configuration.
-   Under **App roles**, create an **enabled** role with allowed member types
-   **Users/Groups** and value exactly **`open-archiver-access`**.
+    identified by `${AZURE_CLIENT_ID}` in the existing Forward Auth configuration.
+    Under **App roles**, create an **enabled** role with allowed member types
+    **Users/Groups** and value exactly **`open-archiver-access`**.
 2. In the corresponding **Enterprise application > Users and groups**, assign
-   that role **only to the intended bootstrap administrator**. Do not assign
-   a broad group before setup, or change the shared portal's policy/global
-   assignment requirements to restrict this one app.
+    that role **only to the intended bootstrap administrator**. Do not assign
+    a broad group before setup, or change the shared portal's policy/global
+    assignment requirements to restrict this one app.
 3. Use fresh sign-ins and fresh Forward Auth cookies for acceptance checks;
-   existing sessions may retain earlier role claims. After routing is active,
-   perform the denial/admission checks in rollout step 5 before creating the
-   local administrator. No Entra role or assignment has been changed by this
-   repository update; those actions and real-provider checks remain pending.
+    existing sessions may retain earlier role claims. After routing is active,
+    perform the denial/admission checks in rollout step 5 before creating the
+    local administrator. No Entra role or assignment has been changed by this
+    repository update; those actions and real-provider checks remain pending.
 
 See Microsoft's [app-role creation and assignment procedure](https://learn.microsoft.com/en-us/entra/identity-platform/howto-add-app-roles-in-apps)
 and the pinned Forward Auth [authorization conditions](https://github.com/italypaleale/traefik-forward-auth/blob/v4.14.1/docs/content/docs/authorization-conditions.md).
@@ -451,71 +451,71 @@ On `svlnas`, the aliases must already be sourced from
 `/mnt/vm-pool/apps/scripts/aliases.sh`.
 
 1. Pull the merged changes and decrypt secrets with the standalone app-scoped
-   alias:
+    alias:
 
-   ```sh
-   dccd-app open-archiver
-   ```
+    ```sh
+    dccd-app open-archiver
+    ```
 
-   The missing TrueNAS Custom App configuration causes an expected
-   deployment skip on this first pass. Do not start with `dccd-all`:
-   the frontend network must exist before Traefik joins it.
+    The missing TrueNAS Custom App configuration causes an expected
+    deployment skip on this first pass. Do not start with `dccd-all`:
+    the frontend network must exist before Traefik joins it.
 2. From the updated checkout, provision the registry-declared account, group,
-   and child dataset:
+    and child dataset:
 
-   ```sh
-   cd /mnt/vm-pool/apps
-   sudo bash scripts/truenas-prep-app.sh open-archiver
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps
+    sudo bash scripts/truenas-prep-app.sh open-archiver
+    ```
 
-   The helper preserves checked-out files and does not grant administrative
-   app-group membership.
+    The helper preserves checked-out files and does not grant administrative
+    app-group membership.
 3. Confirm the bootstrap role and administrator-only assignment above are in
-   place. Create a **TrueNAS Custom App named `open-archiver`** using:
+    place. Create a **TrueNAS Custom App named `open-archiver`** using:
 
-   ```yaml
-   include:
-       - /mnt/vm-pool/apps/services/open-archiver/compose.yaml
-   services: {}
-   ```
+    ```yaml
+    include:
+        - /mnt/vm-pool/apps/services/open-archiver/compose.yaml
+    services: {}
+    ```
 
-   Confirm the app has created `open-archiver-frontend`. Then add that network
-   to both the Traefik service's attachments and the external declarations in
-   tracked `services/traefik/compose.yaml` through the normal reviewed change
-   process. Coordinate automation so Traefik uses those entries only after
-   the network exists.
+    Confirm the app has created `open-archiver-frontend`. Then add that network
+    to both the Traefik service's attachments and the external declarations in
+    tracked `services/traefik/compose.yaml` through the normal reviewed change
+    process. Coordinate automation so Traefik uses those entries only after
+    the network exists.
 4. Run the canonical final deployment:
 
-   ```sh
-   dccd-all
-   ```
+    ```sh
+    dccd-all
+    ```
 
-   This applies the app and dependent DNS/Traefik integration through normal
-   ordering, decrypts secrets, and performs the default backup freshness check.
-   Confirm init and migrations exit successfully, the app and dependencies
-   are healthy, and the backup exits successfully with both DB01 and DB02
-   artifacts. Do not treat directory-only backup health as proof of a dump.
+    This applies the app and dependent DNS/Traefik integration through normal
+    ordering, decrypts secrets, and performs the default backup freshness check.
+    Confirm init and migrations exit successfully, the app and dependencies
+    are healthy, and the backup exits successfully with both DB01 and DB02
+    artifacts. Do not treat directory-only backup health as proof of a dump.
 5. With separate fresh sign-ins/cookies, verify that unauthenticated requests
-   and an authenticated user without the role cannot reach the app, including
-   `GET /setup` and `POST /api/v1/auth/setup`. Verify the assigned bootstrap
-   administrator passes the role gate. With a cold browser cache, verify that
-   initial SvelteKit assets load and login/setup navigation completes without
-   HTTP `429` responses or login/redirect loops.
-   If any unauthorized request passes,
-   stop the Custom App and correct the reviewed configuration before proceeding;
-   do not bypass the gate. Only then create the local administrator at
-   `https://open-archiver.${DOMAINNAME}/setup`, enable MFA, save recovery codes
-   securely, and confirm setup is locked, including rejection of a second
-   setup submission. Do not widen role assignments until those checks pass;
-   retain the role gate for approved archive users thereafter.
+    and an authenticated user without the role cannot reach the app, including
+    `GET /setup` and `POST /api/v1/auth/setup`. Verify the assigned bootstrap
+    administrator passes the role gate. With a cold browser cache, verify that
+    initial SvelteKit assets load and login/setup navigation completes without
+    HTTP `429` responses or login/redirect loops.
+    If any unauthorized request passes,
+    stop the Custom App and correct the reviewed configuration before proceeding;
+    do not bypass the gate. Only then create the local administrator at
+    `https://open-archiver.${DOMAINNAME}/setup`, enable MFA, save recovery codes
+    securely, and confirm setup is locked, including rejection of a second
+    setup submission. Do not widen role assignments until those checks pass;
+    retain the role gate for approved archive users thereafter.
 6. Add a least-privilege mailbox source through the UI. Test a small import,
-   OCR of a representative attachment, full-text search, and downloads of
-   original messages/attachments. Verify that unauthorized UI/API requests
-   remain gated and no host-port or alternate route bypass exists.
+    OCR of a representative attachment, full-text search, and downloads of
+    original messages/attachments. Verify that unauthorized UI/API requests
+    remain gated and no host-port or alternate route bypass exists.
 7. Verify actual child-dataset snapshot/replication/off-site coverage and
-   complete the [coordinated recovery test](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/BACKUP.md#restore-open-archiver).
-   Record host evidence before describing the service or its backup as deployed
-   successfully.
+    complete the [coordinated recovery test](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/BACKUP.md#restore-open-archiver).
+    Record host evidence before describing the service or its backup as deployed
+    successfully.
 
 ## Database Backup
 
@@ -581,27 +581,27 @@ deployment, and storage-layer recovery also remain unverified by those results.
 ## Upgrade Notes
 
 - **Known security risk:** the current published digest has fixable HIGH/CRITICAL
-  dependencies. Prefer verified upstream fixes; production adoption otherwise
-  requires an explicit, narrowly reviewed operator exception. Do not
-  maintain downstream patched dependency locks or forks. Completing the
-  implementation or passing runtime/restore tests does not waive this review.
+    dependencies. Prefer verified upstream fixes; production adoption otherwise
+    requires an explicit, narrowly reviewed operator exception. Do not
+    maintain downstream patched dependency locks or forks. Completing the
+    implementation or passing runtime/restore tests does not waive this review.
 - Keep the base revision, derivative build, and published Compose digest
-  coordinated; confirm publication and acceptance of each new digest.
-  The fixed revision is `2082eba984ca771c23c2a7c60fc9284794e24b9b`; `v0.6.0`
-  predates the archive integrity fix and is not a safe rollback recommendation.
+    coordinated; confirm publication and acceptance of each new digest.
+    The fixed revision is `2082eba984ca771c23c2a7c60fc9284794e24b9b`; `v0.6.0`
+    predates the archive integrity fix and is not a safe rollback recommendation.
 - Before upgrades, create and verify a
-  [coordinated checkpoint](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/BACKUP.md#coordinated-open-archiver-checkpoint),
-  preserving the current image identifiers and original encryption keys.
+    [coordinated checkpoint](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/BACKUP.md#coordinated-open-archiver-checkpoint),
+    preserving the current image identifiers and original encryption keys.
 - Review schema and dependency changes; let the separate migration one-shot
-  finish before serving traffic. Image rollback alone does not undo migrations.
+    finish before serving traffic. Image rollback alone does not undo migrations.
 - Retest direct-process startup, native `sqlite3` loading, resource limits,
-  OCR/import/search/download, authentication/MFA, and backup/restore against
-  the exact published image. A successful build is not runtime acceptance.
+    OCR/import/search/download, authentication/MFA, and backup/restore against
+    the exact published image. A successful build is not runtime acceptance.
 - Retest the role gate with fresh sessions for an assigned and a non-assigned
-  user, including both setup routes. Test routine non-recursive init and
-  explicit restored-tree permission repair separately. Include a cold-cache
-  browser load: initial SvelteKit assets and login navigation must complete
-  without HTTP `429` responses or login/redirect loops.
+    user, including both setup routes. Test routine non-recursive init and
+    explicit restored-tree permission repair separately. Include a cold-cache
+    browser load: initial SvelteKit assets and login navigation must complete
+    without HTTP `429` responses or login/redirect loops.
 - Review PostgreSQL major-version and Meilisearch upgrade requirements
-  separately. See [Database Upgrades](../DATABASE-UPGRADES.md).
-  Changing a PostgreSQL environment password does not rotate an existing role.
+    separately. See [Database Upgrades](../DATABASE-UPGRADES.md).
+    Changing a PostgreSQL environment password does not rotate an existing role.

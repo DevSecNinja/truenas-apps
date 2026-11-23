@@ -170,10 +170,10 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 4. Encrypt the secrets file: `sops -e -i services/adguard/secret.sops.env`
 5. Deploy: the CD script decrypts secrets and brings the stack up. Verify the template init (`docker logs adguard-unbound-init`) and resolver startup wrapper (`docker logs adguard-unbound`), then confirm AdGuard is resolving queries on port 53
 6. Advertise AdGuard through DHCP on each intended client VLAN, update manual
-   client overrides, and renew leases. Keep TrueNAS host DNS independent of its
-   own DNS containers; follow the
-   [current resolver settings](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/INFRASTRUCTURE.md#current-resolver-settings),
-   rather than pointing the gateway's WAN DNS at this stack.
+    client overrides, and renew leases. Keep TrueNAS host DNS independent of its
+    own DNS containers; follow the
+    [current resolver settings](https://github.com/DevSecNinja/truenas-apps/blob/main/docs/INFRASTRUCTURE.md#current-resolver-settings),
+    rather than pointing the gateway's WAN DNS at this stack.
 
 ## Upgrade Notes
 

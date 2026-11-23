@@ -72,16 +72,16 @@ availability.
 Important consumer limits:
 
 - Homepage's browser links use client DNS, but `siteMonitor` lookups originate
-  inside its container and need the gateway records on the host-derived path.
+    inside its container and need the gateway records on the host-derived path.
 - Gatus's `dns-resolver` under `tcp-udp-defaults` applies only to checks using
-  those defaults; it is not a global resolver for HTTP checks or alert delivery.
+    those defaults; it is not a global resolver for HTTP checks or alert delivery.
 - `dccd.sh` can pre-resolve its status endpoint with an explicit `-r` resolver.
-  Standard deployment aliases do not pass it; do not assume an automatic
-  `IP_DNS_SERVER_1` fallback for status reporting.
+    Standard deployment aliases do not pass it; do not assume an automatic
+    `IP_DNS_SERVER_1` fallback for status reporting.
 - This record set covers known dependencies in tracked configuration, not every
-  integration. Uninspected SMTP/OAuth environment values and runtime-managed
-  Home Assistant or camera settings may introduce more internal names.
-  Healthy container/network checks do not validate all those consumers.
+    integration. Uninspected SMTP/OAuth environment values and runtime-managed
+    Home Assistant or camera settings may introduce more internal names.
+    Healthy container/network checks do not validate all those consumers.
 
 ### Second Local Resolver Configuration
 
@@ -116,21 +116,21 @@ review their consumers before removing them.
 Before advertising the second resolver, and after relevant DNS changes:
 
 1. Query each resolver directly for infrastructure names, a representative app,
-   and public names. Test cold/uncached queries and both A and AAAA behaviour,
-   including expected `NXDOMAIN` for missing names and `NODATA` for absent
-   record types on existing names.
+    and public names. Test cold/uncached queries and both A and AAAA behaviour,
+    including expected `NXDOMAIN` for missing names and `NODATA` for absent
+    record types on existing names.
 2. Stop the primary resolver, then test with the NAS unavailable. Verify the
-   surviving resolver still answers public and internal queries, and that
-   TrueNAS boot/recovery and image-registry resolution do not require its local
-   DNS containers. Separately stop the secondary and verify the primary alone.
+    surviving resolver still answers public and internal queries, and that
+    TrueNAS boot/recovery and image-registry resolution do not require its local
+    DNS containers. Separately stop the secondary and verify the primary alone.
 3. Check the DNS actually selected by clients and the effective Docker resolver
-   path; exercise Homepage monitors, Gatus alert delivery, and deployment status
-   reporting. Allow bounded OS-dependent timeouts, not a promise of instant
-   failover.
+    path; exercise Homepage monitors, Gatus alert delivery, and deployment status
+    reporting. Allow bounded OS-dependent timeouts, not a promise of instant
+    failover.
 4. Verify that the manual gateway records survive a gateway reboot.
 5. Monitor actual DNS queries through each AdGuard, not only web UI health.
-   Independently hosted DNS checks and alerting are preferable so a NAS outage
-   cannot also silence the only monitor.
+    Independently hosted DNS checks and alerting are preferable so a NAS outage
+    cannot also silence the only monitor.
 
 ## Host Boot-Time Setup
 
@@ -528,7 +528,7 @@ Advanced provisioning remains deferred to
 [issue #772](https://github.com/DevSecNinja/truenas-apps/issues/772):
 
 - Legacy account-name aliases: `echo-server`, `matter-server`, and
-  `traefik-forward-auth`.
+    `traefik-forward-auth`.
 - Shared media/photo primary groups and [Plex's fixed identity](#plex-exception).
 - Apps requiring no host account or dataset-only provisioning.
 
@@ -541,18 +541,18 @@ generated usage output remain the authoritative supported-key list.
 Scripts executed directly on TrueNAS must minimize external dependencies:
 
 - Verify each new command or library against the actual TrueNAS baseline or a
-  documented provisioning path before using it.
+    documented provisioning path before using it.
 - Prefer shell built-ins and existing dependencies. The provisioning helper
-  reuses `jq` for the JSON registry rather than adding `yq`.
+    reuses `jq` for the JSON registry rather than adding `yq`.
 - Python may be used when appropriate after verifying its interpreter and
-  required libraries against the host baseline. Its standard library does not
-  parse YAML; JSON plus the existing `jq` dependency lets this helper avoid
-  PyYAML or another package.
+    required libraries against the host baseline. Its standard library does not
+    parse YAML; JSON plus the existing `jq` dependency lets this helper avoid
+    PyYAML or another package.
 - Do not assume tools installed by `mise` for development or CI are available
-  at TrueNAS runtime.
+    at TrueNAS runtime.
 - For an unavoidable dependency, add an explicit availability check, document
-  its installation or provisioning path, and validate it on the TrueNAS host.
-  Redesign the implementation if those conditions cannot be met.
+    its installation or provisioning path, and validate it on the TrueNAS host.
+    Redesign the implementation if those conditions cannot be met.
 - Test behavior without optional or non-guaranteed commands when relevant.
 
 The `yq` requirement in [Multi-Server Deployment](#multi-server-deployment)
@@ -640,49 +640,49 @@ has no profile and all eight services are selected normally. Use the sourced
 TrueNAS aliases and sequence below, not generic discovery.
 
 1. Pull the merged changes and decrypt SOPS files while limiting the first pass
-   to the new app:
+    to the new app:
 
-   ```sh
-   dccd-app <app>
-   ```
+    ```sh
+    dccd-app <app>
+    ```
 
-   Because the TrueNAS Custom App does not exist yet, dccd reports that its
-   TrueNAS app config directory is missing and skips deployment. This is
-   expected during the first pass. Do not run `dccd-all` first: Traefik may
-   already reference the new frontend network before its Custom App and network
-   exist.
+    Because the TrueNAS Custom App does not exist yet, dccd reports that its
+    TrueNAS app config directory is missing and skips deployment. This is
+    expected during the first pass. Do not run `dccd-all` first: Traefik may
+    already reference the new frontend network before its Custom App and network
+    exist.
 2. From the updated checkout, provision the registry-declared account, group,
-   and child dataset:
+    and child dataset:
 
-   ```sh
-   cd /mnt/vm-pool/apps
-   sudo bash scripts/truenas-prep-app.sh <app>
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps
+    sudo bash scripts/truenas-prep-app.sh <app>
+    ```
 
-   The helper preserves the files already checked out under the service
-   directory.
+    The helper preserves the files already checked out under the service
+    directory.
 3. In the TrueNAS UI, create a Custom App named `<app>` with:
 
-   ```yaml
-   include:
-     - /mnt/vm-pool/apps/services/<app>/compose.yaml
-   services: {}
-   ```
+    ```yaml
+    include:
+      - /mnt/vm-pool/apps/services/<app>/compose.yaml
+    services: {}
+    ```
 
-   Confirm the app's frontend network exists before adding any deferred shared
-   Traefik attachment and external declaration through normal reviewed,
-   tracked changes.
+    Confirm the app's frontend network exists before adding any deferred shared
+    Traefik attachment and external declaration through normal reviewed,
+    tracked changes.
 4. Run the canonical final deployment:
 
-   ```sh
-   dccd-all
-   ```
+    ```sh
+    dccd-all
+    ```
 
-   This force-deploys all TrueNAS apps in the normal order, includes the new
-   app and dependent AdGuard and Traefik changes, decrypts secrets, and runs the
-   default backup freshness check.
+    This force-deploys all TrueNAS apps in the normal order, includes the new
+    app and dependent AdGuard and Traefik changes, decrypts secrets, and runs the
+    default backup freshness check.
 5. Complete the application-specific first-run setup and verify health and
-   access.
+    access.
 
 Do not replace this handoff with raw `git pull`, raw `dccd.sh` invocations, or
 an improvised series of targeted app deployments unless troubleshooting or
@@ -716,9 +716,9 @@ For shared purpose groups (`media`, `private-photos`, `private-documents`):
 
 1. Create the groups with the designated GIDs (3200, 3202, 3203).
 2. Configure the relevant service accounts' group memberships:
-   - `svc-app-plex` (911): primary group `media` (3200)
-   - `svc-app-metube` (3107): primary group `media` (3200)
-   - `svc-app-immich` (3106): primary group `private-photos` (3202)
+    - `svc-app-plex` (911): primary group `media` (3200)
+    - `svc-app-metube` (3107): primary group `media` (3200)
+    - `svc-app-immich` (3106): primary group `private-photos` (3202)
 3. Add `truenas_admin` as an auxiliary group member of each group if admin access to those datasets is needed
 
 ### apps Dataset ACLs
@@ -757,11 +757,11 @@ This gives `truenas_admin` full access while blocking all other users from readi
 not by broad dataset-level permission resets:
 
 1. Init containers prepare runtime-only `./data` paths for the declared
-   service identities; they never chown or chmod tracked `./config`.
+    service identities; they never chown or chmod tracked `./config`.
 2. Keep tracked configuration owned by the deployment user and mount it
-   read-only. If runtime changes are needed, seed a separate `./data` copy.
+    read-only. If runtime changes are needed, seed a separate `./data` copy.
 3. Apply administrative group membership only when the registry requests it.
-   Private apps such as Open Archiver require elevated recovery access instead.
+    Private apps such as Open Archiver require elevated recovery access instead.
 
 ### changedetection.io Dataset
 
@@ -831,18 +831,18 @@ Compose definition and encrypted secrets alongside all Dawarich runtime data:
 Before the first deployment:
 
 1. From the repository root on TrueNAS, provision the account, administrative
-   group membership, and child dataset:
+    group membership, and child dataset:
 
-   ```sh
-   sudo bash scripts/truenas-prep-app.sh dawarich
-   ```
+    ```sh
+    sudo bash scripts/truenas-prep-app.sh dawarich
+    ```
 
-   The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
-   `truenas_admin` as an auxiliary member for access to mode `770` runtime
-   directories, creates the `svc-app-dawarich` user with UID 3128 and that
-   primary group, and creates the `vm-pool/apps/services/dawarich` dataset.
+    The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
+    `truenas_admin` as an auxiliary member for access to mode `770` runtime
+    directories, creates the `svc-app-dawarich` user with UID 3128 and that
+    primary group, and creates the `vm-pool/apps/services/dawarich` dataset.
 2. Manually populate every required value in
-   `services/dawarich/secret.sops.env`.
+    `services/dawarich/secret.sops.env`.
 
 `dawarich-init` assigns the public assets, storage, watched imports, and the
 app/worker temporary paths to `3128:3128`. Redis is assigned to its
@@ -888,19 +888,19 @@ Compose definition and encrypted secrets alongside Karakeep's persistent data:
 Before the first deployment:
 
 1. From the repository root on TrueNAS, provision the account and child
-   dataset:
+    dataset:
 
-   ```sh
-   sudo bash scripts/truenas-prep-app.sh karakeep
-   ```
+    ```sh
+    sudo bash scripts/truenas-prep-app.sh karakeep
+    ```
 
-   The helper creates or verifies the `svc-app-karakeep` group with GID 3130,
-   the `svc-app-karakeep` user with UID 3130 and that primary group, and the
-   `vm-pool/apps/services/karakeep` child dataset. It does not add
-   `truenas_admin` to the service group (`ADMIN_GROUP_MEMBER=false`). When
-   creating the child dataset, it stages and restores the existing service
-   directory. The command is safe to rerun and refuses account identity
-   collisions or mismatches.
+    The helper creates or verifies the `svc-app-karakeep` group with GID 3130,
+    the `svc-app-karakeep` user with UID 3130 and that primary group, and the
+    `vm-pool/apps/services/karakeep` child dataset. It does not add
+    `truenas_admin` to the service group (`ADMIN_GROUP_MEMBER=false`). When
+    creating the child dataset, it stages and restores the existing service
+    directory. The command is safe to rerun and refuses account identity
+    collisions or mismatches.
 2. Populate the required Karakeep secrets through SOPS before deploying.
 
 On every deployment, `karakeep-init` creates `./backups/db-backup` through its
@@ -1065,12 +1065,12 @@ On the TrueNAS host, create or confirm:
 
 - A `media` group (GID 3200) — for all media-touching services
 - A `svc-app-plex` user (UID 911) with primary group `media` (GID 3200)
-  - UID 911 is fixed by the LinuxServer image; it cannot be changed via `PUID`
-  - **UID 911 is reserved exclusively for Plex.** No other service may use this UID unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
+    - UID 911 is fixed by the LinuxServer image; it cannot be changed via `PUID`
+    - **UID 911 is reserved exclusively for Plex.** No other service may use this UID unless strictly necessary, and any exception must be documented with a comment in the relevant compose file.
 - A dedicated user per media service (e.g., `svc-app-metube` at UID 3107)
-  - Primary group: `media` (GID 3200)
-  - Use a distinct UID per tool so file ownership is unambiguous in `ls -la`
-  - To add a new media service: create its user with primary group `media` — no dataset permission changes needed
+    - Primary group: `media` (GID 3200)
+    - Use a distinct UID per tool so file ownership is unambiguous in `ls -la`
+    - To add a new media service: create its user with primary group `media` — no dataset permission changes needed
 - Add `truenas_admin` as an auxiliary group member of `media` for admin access
 
 Create the `archive-pool/content` dataset via the TrueNAS GUI as a **Dataset** (not a zvol) with the following settings:
@@ -1305,32 +1305,32 @@ data at rest, **not** against an authorized SMB user reading an unlocked dataset
 ### Restrict Filesystem and Share Access
 
 1. Create or reuse a **personal, non-admin local user** with **SMB Access / Samba
-   Authentication** enabled and a password. Do not log in to SMB as `root` or
-   `truenas_admin`; do not enable guest access or create an app service account.
+    Authentication** enabled and a password. Do not log in to SMB as `root` or
+    `truenas_admin`; do not enable guest access or create an app service account.
 2. In **Datasets → archives → Permissions → Edit ACL**, define the new dataset's NFSv4
-   ACL before uploading anything. Retain explicit owner/admin
-   **Full Control**, using the documented administrative owner `truenas_admin` after
-   confirming that account on the host. Grant the personal user **Modify**, with both
-   file and directory inheritance on these entries. A named-user entry avoids adding a
-   shared group. Leave recursive application off while the dataset is empty.
+    ACL before uploading anything. Retain explicit owner/admin
+    **Full Control**, using the documented administrative owner `truenas_admin` after
+    confirming that account on the host. Grant the personal user **Modify**, with both
+    file and directory inheritance on these entries. A named-user entry avoids adding a
+    shared group. Leave recursive application off while the dataset is empty.
 3. Review every preset/inherited entry: remove general data access for `builtin_users`,
-   domain users, or `everyone@`. Ensure `group@` refers only to intended administrators,
-   or remove its broad grants while retaining explicit admin access. Do not blindly trust
-   the SMB preset or inherited ACL.
+    domain users, or `everyone@`. Ensure `group@` refers only to intended administrators,
+    or remove its broad grants while retaining explicit admin access. Do not blindly trust
+    the SMB preset or inherited ACL.
 4. If parent traversal blocks access, stop and diagnose it separately. Do not broaden
-   parent permissions or change `archive-pool` or sibling ACLs as part of this setup.
-   **Never recursively reset permissions on the pool or sibling datasets.**
+    parent permissions or change `archive-pool` or sibling ACLs as part of this setup.
+    **Never recursively reset permissions on the pool or sibling datasets.**
 5. In **Shares → Windows (SMB)**, create a share named `archives` for
-   `/mnt/archive-pool/archives`, using **Default Share** (or the version-equivalent basic
-   SMB purpose). Leave read-only export **off** and guest access **disabled**.
-   Dataset creation might already have created a share: edit it rather than duplicating it.
+    `/mnt/archive-pool/archives`, using **Default Share** (or the version-equivalent basic
+    SMB purpose). Leave read-only export **off** and guest access **disabled**.
+    Dataset creation might already have created a share: edit it rather than duplicating it.
 6. Restrict the **share ACL** as well as the filesystem ACL: allow the personal user
-   **CHANGE**, and only intended administrators **FULL** if needed; remove default
-   general/Everyone access. Both permission layers must allow the intended access.
-   Enable the SMB service and automatic startup.
+    **CHANGE**, and only intended administrators **FULL** if needed; remove default
+    general/Everyone access. Both permission layers must allow the intended access.
+    Enable the SMB service and automatic startup.
 7. Enable **per-share SMB3 encryption** if supported by the installed version and clients.
-   Do not change global settings for unrelated shares. Allow access only over a trusted
-   LAN or VPN; never expose TCP 445 to the WAN.
+    Do not change global settings for unrelated shares. Allow access only over a trusted
+    LAN or VPN; never expose TCP 445 to the WAN.
 
 The official [SMB share guide](https://www.truenas.com/docs/scale/shares/smb/addmanagesmbshares/)
 describes local SMB-enabled users, share presets, and version-dependent UI controls.

@@ -46,11 +46,11 @@ Managed via `secret.sops.env` (SOPS-encrypted, decrypted to `.env` at deploy tim
 ## First-Run Setup
 
 1. Create a Cloudflare Tunnel in the [Zero Trust dashboard](https://dash.cloudflare.com/one/) under Networks -> Connectors
-   1. Make sure to select Cloudflared as the tunnel type
-   2. Provide a name for the tunnel, e.g. the hostname of the machine
-   3. On the 'Install and run connectors' step, copy the token hidden in the install command and click next.
-   4. You will now get to the 'Route tunnel' step. Configure tunnel routing rules (e.g., `api.example.com` → `https://traefik` with `noTLSVerify` enabled) and hit the Setup button.
-   5. Now the tunnel should be created. Set `TUNNEL_TOKEN` in `secret.sops.env` based on the tunnel token gathered at step 1.3
+    1. Make sure to select Cloudflared as the tunnel type
+    2. Provide a name for the tunnel, e.g. the hostname of the machine
+    3. On the 'Install and run connectors' step, copy the token hidden in the install command and click next.
+    4. You will now get to the 'Route tunnel' step. Configure tunnel routing rules (e.g., `api.example.com` → `https://traefik` with `noTLSVerify` enabled) and hit the Setup button.
+    5. Now the tunnel should be created. Set `TUNNEL_TOKEN` in `secret.sops.env` based on the tunnel token gathered at step 1.3
 2. Deploy — cloudflared establishes the tunnel and begins proxying traffic
 
 No TrueNAS dataset, service account, or init container is needed — this service is entirely stateless.

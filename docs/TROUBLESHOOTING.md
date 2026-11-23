@@ -98,21 +98,21 @@ Two things must both be true:
 
 1. **Setgid bit on parent directories:** Each media dataset directory must have the setgid bit set (`chmod g+s`). Verify:
 
-   ```sh
-   # Look for 's' in the group execute column (e.g. drwxrwsr-x)
-   ls -la /mnt/archive-pool/content/media/youtube/
-   ```
+    ```sh
+    # Look for 's' in the group execute column (e.g. drwxrwsr-x)
+    ls -la /mnt/archive-pool/content/media/youtube/
+    ```
 
-   Without the setgid bit, new files and subdirectories inherit MeTube's primary group (`media`, GID 3200) only because MeTube's primary group IS `media`. If the primary group ever changes, inheritance breaks. The setgid bit makes this unconditional.
+    Without the setgid bit, new files and subdirectories inherit MeTube's primary group (`media`, GID 3200) only because MeTube's primary group IS `media`. If the primary group ever changes, inheritance breaks. The setgid bit makes this unconditional.
 
 2. **UMASK=002 in the MeTube container:** MeTube must set `UMASK=002` so created files are group-readable (`664`). Check the compose file:
 
-   ```yaml
-   environment:
-     - UMASK=002
-   ```
+    ```yaml
+    environment:
+      - UMASK=002
+    ```
 
-   Without `UMASK=002`, the default `022` makes files owner-writable only (`644`), so the `media` group cannot read them.
+    Without `UMASK=002`, the default `022` makes files owner-writable only (`644`), so the `media` group cannot read them.
 
 ### Debugging Checklist
 
@@ -121,19 +121,19 @@ When a container cannot read or write a file on a TrueNAS dataset:
 1. **Verify the container's UID/GID.** Check `user:` in the compose file, or `PUID`/`PGID` for s6-overlay images. Confirm with `docker exec <container> id`.
 2. **Identify the dataset.** Run `zfs list` on TrueNAS and find which dataset the path belongs to.
 3. **Check the ACL type.** Run `zfs get acltype <pool>/<dataset>`:
-   - If `off` → standard Unix permissions. Use `ls -la` and verify owner/group/other bits.
-   - If `nfsv4` → inspect with `nfs4_getfacl <path>` and look for the container's UID or GID.
+    - If `off` → standard Unix permissions. Use `ls -la` and verify owner/group/other bits.
+    - If `nfsv4` → inspect with `nfs4_getfacl <path>` and look for the container's UID or GID.
 4. **Check group membership.** Confirm the service account is in the `media` group:
 
-   ```sh
-   id svc-app-metube
-   id svc-app-plex
-   ```
+    ```sh
+    id svc-app-metube
+    id svc-app-plex
+    ```
 
 5. **Test access from the host.** Switch to the service account's UID and try the operation:
 
-   ```sh
-   sudo -u '#3107' ls /mnt/archive-pool/content/media/youtube/metube
-   ```
+    ```sh
+    sudo -u '#3107' ls /mnt/archive-pool/content/media/youtube/metube
+    ```
 
 6. **Check the Compose mount mode.** A volume mounted `:ro` blocks writes at the kernel level regardless of filesystem permissions.

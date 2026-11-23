@@ -56,18 +56,18 @@ The tRPC path must contain one of the following procedures or a
 comma-separated batch made entirely from the corresponding method's list:
 
 - **GET:** `config.clientConfig`; `bookmarks.getBookmarks`,
-  `bookmarks.getBookmark`, `bookmarks.searchBookmarks`,
-  `bookmarks.getReadingProgress`; `lists.list`, `lists.stats`, `lists.get`,
-  `lists.getListsOfBookmark`; `tags.list`, `tags.get`; `highlights.getAll`,
-  `highlights.getForBookmark`; `users.whoami`, `users.settings`, `users.stats`
+    `bookmarks.getBookmark`, `bookmarks.searchBookmarks`,
+    `bookmarks.getReadingProgress`; `lists.list`, `lists.stats`, `lists.get`,
+    `lists.getListsOfBookmark`; `tags.list`, `tags.get`; `highlights.getAll`,
+    `highlights.getForBookmark`; `users.whoami`, `users.settings`, `users.stats`
 - **POST:** `apiKeys.exchange`, `apiKeys.validate`, `apiKeys.revoke`;
-  `bookmarks.createBookmark`, `bookmarks.updateBookmark`,
-  `bookmarks.deleteBookmark`, `bookmarks.updateTags`,
-  `bookmarks.summarizeBookmark`, `bookmarks.updateReadingProgress`;
-  `lists.create`, `lists.edit`, `lists.delete`, `lists.addToList`,
-  `lists.removeFromList`, `lists.leaveList`; `tags.create`, `tags.update`,
-  `tags.delete`; `highlights.create`, `highlights.update`,
-  `highlights.delete`; `users.updateSettings`, `users.deleteAccount`
+    `bookmarks.createBookmark`, `bookmarks.updateBookmark`,
+    `bookmarks.deleteBookmark`, `bookmarks.updateTags`,
+    `bookmarks.summarizeBookmark`, `bookmarks.updateReadingProgress`;
+    `lists.create`, `lists.edit`, `lists.delete`, `lists.addToList`,
+    `lists.removeFromList`, `lists.leaveList`; `tags.create`, `tags.update`,
+    `tags.delete`; `highlights.create`, `highlights.update`,
+    `highlights.delete`; `users.updateSettings`, `users.deleteAccount`
 
 `/api/health`, `/api/version`, `config.clientConfig`, `apiKeys.exchange`, and
 `apiKeys.validate` are public in Karakeep itself, so the Traefik proxy token is
@@ -100,8 +100,8 @@ and does not change the mobile route controls.
 ### Rotate the Mobile Proxy Token
 
 1. Replace `KARAKEEP_MOBILE_PROXY_TOKEN` in `secret.sops.env` through the
-   approved
-   [SOPS editing workflow](../CONTRIBUTING.md#generating-random-sops-secrets).
+    approved
+    [SOPS editing workflow](../CONTRIBUTING.md#generating-random-sops-secrets).
 2. Deploy the updated encrypted configuration.
 3. Replace the custom header value on every configured mobile device.
 
@@ -127,15 +127,15 @@ These links are pinned to upstream commit
 ## Architecture
 
 - **Active images**: `ghcr.io/karakeep-app/karakeep:0.33.2`,
-  `dhi.io/playwright:1.63.0-debian13`, `docker.io/ubuntu/squid:7.2-26.04_edge`,
-  `docker.io/getmeili/meilisearch:v1.54.0`, and
-  `docker.io/tiredofit/db-backup:4.1.100`
+    `dhi.io/playwright:1.63.0-debian13`, `docker.io/ubuntu/squid:7.2-26.04_edge`,
+    `docker.io/getmeili/meilisearch:v1.54.0`, and
+    `docker.io/tiredofit/db-backup:4.1.100`
 - **Application user/group**: `3130:3130` (`svc-app-karakeep`) for the web,
-  worker, Meilisearch, and database backup processes
+    worker, Meilisearch, and database backup processes
 - **Reverse proxy**: Traefik with `chain-auth@file` by default and a
-  token-gated mobile route allowlist
+    token-gated mobile route allowlist
 - **Process model**: split web and worker processes with
-  `USING_LEGACY_SEPARATE_CONTAINERS=true`
+    `USING_LEGACY_SEPARATE_CONTAINERS=true`
 
 The upstream all-in-one image normally starts the web and workers under
 s6-overlay as root. This stack launches each process directly under the
@@ -280,31 +280,31 @@ workflows. No version exception is active. See
 ### Security Model
 
 - `karakeep-init` creates `./backups/db-backup`, then chowns it and both data
-  directories to `3130:3130` before the runtime services start. It reaches the
-  backup child through the `./backups:/backups` parent mount.
+    directories to `3130:3130` before the runtime services start. It reaches the
+    backup child through the `./backups:/backups` parent mount.
 - The web, worker, and Meilisearch containers run as `3130:3130`.
 - `karakeep-db-backup` starts s6 as root, then uses `USER_DBBACKUP=3130` and
-  `GROUP_DBBACKUP=3130` to drop the backup process to the app-owned identity.
-  It has no network and accesses Karakeep data only through a read-only mount.
+    `GROUP_DBBACKUP=3130` to drop the backup process to the app-owned identity.
+    It has no network and accesses Karakeep data only through a read-only mount.
 - The backup sidecar drops all capabilities and adds only `CHOWN`,
-  `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`, and `SETPCAP`.
-  `DAC_OVERRIDE` is runtime-proven necessary for s6 to create root-owned
-  runtime paths before dropping privileges; the others are the documented s6
-  path-preparation and privilege-drop set.
+    `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`, and `SETPCAP`.
+    `DAC_OVERRIDE` is runtime-proven necessary for s6 to create root-owned
+    runtime paths before dropping privileges; the others are the documented s6
+    path-preparation and privilege-drop set.
 - The web, worker, and Meilisearch containers use read-only root filesystems,
-  `no-new-privileges=true`, dropped capabilities, PID limits, and memory
-  limits. The backup sidecar omits the read-only root filesystem required by
-  s6 but retains the other controls.
+    `no-new-privileges=true`, dropped capabilities, PID limits, and memory
+    limits. The backup sidecar omits the read-only root filesystem required by
+    s6 but retains the other controls.
 - Chrome uses DHI's non-root identity, a read-only root filesystem,
-  `no-new-privileges=true`, dropped capabilities, `init: true`, a `/tmp`
-  tmpfs, and explicit memory and PID limits. Its `/json/version` check
-  gates web startup.
+    `no-new-privileges=true`, dropped capabilities, `init: true`, a `/tmp`
+    tmpfs, and explicit memory and PID limits. Its `/json/version` check
+    gates web startup.
 - The stateless browser proxy uses `65534:65534`, distinct from DHI.
-  It has a read-only root, dropped capabilities, and bounded resources.
-  Chrome waits for its denial-check health probe.
+    It has a read-only root, dropped capabilities, and bounded resources.
+    Chrome waits for its denial-check health probe.
 - Only the web container is routed through Traefik. Meilisearch remains on the
-  internal backend network. Chrome is internal-browser-network-only; only the
-  browser proxy joins the browser egress bridge.
+    internal backend network. Chrome is internal-browser-network-only; only the
+    browser proxy joins the browser egress bridge.
 
 ## Volumes and Networks
 
@@ -416,94 +416,94 @@ required values from [Secrets](#secrets). Preserve existing values when
 provisioning the mobile proxy token.
 
 1. Pull the repository changes and decrypt the committed SOPS secrets with the
-   app-scoped alias:
+    app-scoped alias:
 
-   ```sh
-   dccd-app karakeep
-   ```
+    ```sh
+    dccd-app karakeep
+    ```
 
-   On this first pass, dccd is expected to report that the `karakeep` TrueNAS
-   Custom App configuration directory is missing and skip deployment. The pull
-   and secret decryption still complete.
+    On this first pass, dccd is expected to report that the `karakeep` TrueNAS
+    Custom App configuration directory is missing and skip deployment. The pull
+    and secret decryption still complete.
 
-   **Do not start with `dccd-all`.** Traefik references the
-   `karakeep-frontend` network before it exists; the Karakeep Custom App must
-   create that network first.
+    **Do not start with `dccd-all`.** Traefik references the
+    `karakeep-frontend` network before it exists; the Karakeep Custom App must
+    create that network first.
 2. From the updated TrueNAS checkout, provision the Karakeep host
-   prerequisites:
+    prerequisites:
 
-   ```sh
-   cd /mnt/vm-pool/apps
-   sudo bash scripts/truenas-prep-app.sh karakeep
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps
+    sudo bash scripts/truenas-prep-app.sh karakeep
+    ```
 
-   The idempotent helper creates or verifies the `truenas-apps.json`-declared
-   `svc-app-karakeep` group and user with the configured matching IDs and
-   primary group. It does not add `truenas_admin` as an auxiliary group member.
-   It creates the `vm-pool/apps/services/karakeep` child dataset, staging and
-   restoring the existing service directory when needed, then sets the app
-   directory ownership and mode. It refuses account identity collisions or
-   mismatches. See
-   [Infrastructure](../INFRASTRUCTURE.md#karakeep-dataset) for storage details.
+    The idempotent helper creates or verifies the `truenas-apps.json`-declared
+    `svc-app-karakeep` group and user with the configured matching IDs and
+    primary group. It does not add `truenas_admin` as an auxiliary group member.
+    It creates the `vm-pool/apps/services/karakeep` child dataset, staging and
+    restoring the existing service directory when needed, then sets the app
+    directory ownership and mode. It refuses account identity collisions or
+    mismatches. See
+    [Infrastructure](../INFRASTRUCTURE.md#karakeep-dataset) for storage details.
 3. In the TrueNAS UI, create a Custom App named `karakeep` with this standalone
-   YAML:
+    YAML:
 
-   ```yaml
-   include:
-     - /mnt/vm-pool/apps/services/karakeep/compose.yaml
-   services: {}
-   ```
+    ```yaml
+    include:
+      - /mnt/vm-pool/apps/services/karakeep/compose.yaml
+    services: {}
+    ```
 
 4. Run the canonical full deployment:
 
-   ```sh
-   dccd-all
-   ```
+    ```sh
+    dccd-all
+    ```
 
-   This decrypts the committed secrets, deploys Karakeep and its dependent
-   integrations, runs the first one-shot database backup after Karakeep becomes
-   healthy, and performs the default backup freshness check. Confirm that
-   `karakeep-init` completes successfully and the browser proxy, Chrome,
-   Meilisearch, web, and workers become healthy. Check the actual browser
-   version is at least `153.0.8010.52`, with no exception warning.
+    This decrypts the committed secrets, deploys Karakeep and its dependent
+    integrations, runs the first one-shot database backup after Karakeep becomes
+    healthy, and performs the default backup freshness check. Confirm that
+    `karakeep-init` completes successfully and the browser proxy, Chrome,
+    Meilisearch, web, and workers become healthy. Check the actual browser
+    version is at least `153.0.8010.52`, with no exception warning.
 5. Complete the application setup and validation:
 
-   - Open `https://karakeep.${DOMAINNAME}` through Forward Auth and create the
-     first local Karakeep account.
-   - Configure the registration and access policy.
-   - Save a public JavaScript-rendered page and verify its rendered content
-     and browser screenshot. Do not use a private/internal URL as a crawler test.
-   - Save a test note, then verify that full-text search returns the bookmark
-     and note.
-   - Verify that `karakeep-db-backup` exited successfully and that
-     `services/karakeep/backups/db-backup/` contains a fresh backup artifact.
+    - Open `https://karakeep.${DOMAINNAME}` through Forward Auth and create the
+        first local Karakeep account.
+    - Configure the registration and access policy.
+    - Save a public JavaScript-rendered page and verify its rendered content
+        and browser screenshot. Do not use a private/internal URL as a crawler test.
+    - Save a test note, then verify that full-text search returns the bookmark
+        and note.
+    - Verify that `karakeep-db-backup` exited successfully and that
+        `services/karakeep/backups/db-backup/` contains a fresh backup artifact.
 
-   AI tagging remains disabled until `KARAKEEP_OPENAI_API_KEY` is configured.
+    AI tagging remains disabled until `KARAKEEP_OPENAI_API_KEY` is configured.
 6. Configure every official mobile client as described in
-   [Configure the Official Mobile App](#configure-the-official-mobile-app),
-   then verify sign-in, bookmark retrieval, and an asset upload.
+    [Configure the Official Mobile App](#configure-the-official-mobile-app),
+    then verify sign-in, bookmark retrieval, and an asset upload.
 
 ## Upgrade Notes
 
 - Renovate manages image updates. Review the
-  [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
-  major upgrades.
+    [Karakeep releases](https://github.com/karakeep-app/karakeep/releases) before
+    major upgrades.
 - After DHI updates, verify the actual Chromium version in both browsers is
-  at least `153.0.8010.52`, with no exception warning. The obsolete
-  `BROWSER_ALLOW_UNPATCHED_VERSION` override is already absent from both
-  stacks; do not restore it for an older cached image. The Playwright tag
-  alone does not prove the running binary version or that all CVEs are fixed.
+    at least `153.0.8010.52`, with no exception warning. The obsolete
+    `BROWSER_ALLOW_UNPATCHED_VERSION` override is already absent from both
+    stacks; do not restore it for an older cached image. The Playwright tag
+    alone does not prove the running binary version or that all CVEs are fixed.
 - The web container applies database migrations before startup and uses a
-  stop-first update order so the replacement does not serve traffic before
-  migrations finish.
+    stop-first update order so the replacement does not serve traffic before
+    migrations finish.
 - Before a planned upgrade, confirm a fresh `karakeep-db-backup` artifact exists
-  and snapshot the complete `vm-pool/apps/services/karakeep` dataset so the
-  SQLite database, saved assets, and Meilisearch index have a coordinated
-  recovery point. For an already-blocked startup, use the recovery helper
-  below rather than waiting for a new sidecar backup.
+    and snapshot the complete `vm-pool/apps/services/karakeep` dataset so the
+    SQLite database, saved assets, and Meilisearch index have a coordinated
+    recovery point. For an already-blocked startup, use the recovery helper
+    below rather than waiting for a new sidecar backup.
 - Preserve the SOPS-encrypted secrets with the backup. The repository's ZFS
-  snapshot, replication, and off-site strategy covers the child dataset; see
-  [Backup Strategy](../BACKUP.md).
+    snapshot, replication, and off-site strategy covers the child dataset; see
+    [Backup Strategy](../BACKUP.md).
 
 ### Meilisearch Upgrades and Startup Recovery
 
@@ -583,30 +583,30 @@ Use this only when the helper is not available, not to bypass an active
 helper or its maintenance marker:
 
 1. Pause scheduled DCCD and other writers/restart automation. Let active
-   deployments and backup jobs finish, then stop the entire Karakeep app
-   through TrueNAS and confirm all its containers have stopped.
+    deployments and backup jobs finish, then stop the entire Karakeep app
+    through TrueNAS and confirm all its containers have stopped.
 2. **Before merging/deploying the migration**, create and verify a recursive
-   manual snapshot of `vm-pool/apps/services/karakeep`. Check coverage of
-   `./data/karakeep` (SQLite, WAL/SHM if present, and assets),
-   `./data/meilisearch`, backups, and service configuration. Preserve secrets,
-   snapshot name, repository revision, and previous image references/IDs.
-   Retain earlier known-good snapshots: this protects current state, not a
-   proven healthy index.
+    manual snapshot of `vm-pool/apps/services/karakeep`. Check coverage of
+    `./data/karakeep` (SQLite, WAL/SHM if present, and assets),
+    `./data/meilisearch`, backups, and service configuration. Preserve secrets,
+    snapshot name, repository revision, and previous image references/IDs.
+    Retain earlier known-good snapshots: this protects current state, not a
+    proven healthy index.
 3. Only after verifying the snapshot, install the reviewed changes and deploy
-   **only Karakeep** as the deployment user:
+    **only Karakeep** as the deployment user:
 
-   ```sh
-   cd /mnt/vm-pool/apps
-   bash scripts/dccd.sh -d /mnt/vm-pool/apps \
-       -k /mnt/vm-pool/apps/age.key -t -f -a karakeep -B -w 900
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps
+    bash scripts/dccd.sh -d /mnt/vm-pool/apps \
+        -k /mnt/vm-pool/apps/age.key -t -f -a karakeep -B -w 900
+    ```
 
-   This is an explicit recovery/troubleshooting invocation, not the normal
-   first-run rollout. It does not create the helper's snapshot or maintenance
-   marker; keep automation manually paused.
+    This is an explicit recovery/troubleshooting invocation, not the normal
+    first-run rollout. It does not create the helper's snapshot or maintenance
+    marker; keep automation manually paused.
 4. Verify the migration task, service health, search, assets, and a successful
-   backup from this deployment before resuming automation. Retain the manual
-   snapshot until verification; helper cleanup does not own it.
+    backup from this deployment before resuming automation. Retain the manual
+    snapshot until verification; helper cleanup does not own it.
 
 #### Inspect an Asynchronous Meilisearch Upgrade
 
@@ -615,30 +615,30 @@ inspect progress without restarting the engine:
 
 1. Inspect Meilisearch startup logs and query its upgrade tasks internally:
 
-   ```sh
-   sudo docker logs --tail 100 karakeep-meilisearch
-   sudo docker exec karakeep-meilisearch sh -ec '
-       printf "Authorization: Bearer %s\n" "$MEILI_MASTER_KEY" |
-           curl --fail --silent --show-error --header @- \
-               "http://127.0.0.1:7700/tasks?types=upgradeDatabase"
-   '
-   ```
+    ```sh
+    sudo docker logs --tail 100 karakeep-meilisearch
+    sudo docker exec karakeep-meilisearch sh -ec '
+        printf "Authorization: Bearer %s\n" "$MEILI_MASTER_KEY" |
+            curl --fail --silent --show-error --header @- \
+                "http://127.0.0.1:7700/tasks?types=upgradeDatabase"
+    '
+    ```
 
-   The container shell reads `MEILI_MASTER_KEY` from its existing environment;
-   the header goes to curl over stdin, not in its arguments. Do not enable
-   shell tracing, use verbose HTTP output, print environment variables, or
-   paste the key into the host command line.
+    The container shell reads `MEILI_MASTER_KEY` from its existing environment;
+    the header goes to curl over stdin, not in its arguments. Do not enable
+    shell tracing, use verbose HTTP output, print environment variables, or
+    paste the key into the host command line.
 
-   Identify the task for this upgrade by its UID and timestamps, not an older
-   successful task. Require `"type": "upgradeDatabase"` and
-   `"status": "succeeded"`. Wait and recheck while it is `enqueued` or
-   `processing`; investigate `failed`, `canceled`, or an absent expected task.
-   Inspect its error details and startup logs before proceeding. If DCCD
-   times out, check migration progress rather than repeatedly restarting it.
+    Identify the task for this upgrade by its UID and timestamps, not an older
+    successful task. Require `"type": "upgradeDatabase"` and
+    `"status": "succeeded"`. Wait and recheck while it is `enqueued` or
+    `processing`; investigate `failed`, `canceled`, or an absent expected task.
+    Inspect its error details and startup logs before proceeding. If DCCD
+    times out, check migration progress rather than repeatedly restarting it.
 2. The generic helper accepts no upgrade task when none is needed; that alone
-   does not prove this known old-format database was migrated. Once the
-   expected task succeeds, retry the helper if it timed out, then complete
-   the application and backup acceptance checks above.
+    does not prove this known old-format database was migrated. Once the
+    expected task succeeds, retry the helper if it timed out, then complete
+    the application and backup acceptance checks above.
 
 Earlier synthetic Podman testing of the `v1.41.0` → `v1.54.0` upgrade
 passed the migration task, search, non-root/read-only operation, and restart

@@ -115,19 +115,19 @@ dccd-all
 **5. Immediately claim and verify the intended administrator, then complete acceptance.**
 
 - Open `https://id.${DOMAINNAME}/setup` immediately. Follow the
-  [bootstrap decision](#local-pilot-bootstrap-decision-2026-11-22), including
-  isolation if unexpectedly claimed, before adding real accounts or clients.
+    [bootstrap decision](#local-pilot-bootstrap-decision-2026-11-22), including
+    isolation if unexpectedly claimed, before adding real accounts or clients.
 - Enroll primary and separately stored spare hardware passkeys. Keep
-  registration administrator-controlled and test lost-primary recovery;
-  apply the [enrollment policy](#enrollment-and-independent-recovery-policy).
+    registration administrator-controlled and test lost-primary recovery;
+    apply the [enrollment policy](#enrollment-and-independent-recovery-policy).
 - Verify init completion, healthy nonroot app, actual HTTPS origin,
-  issuer/discovery/JWKS, native access and no published ports. Check the
-  initial encrypted backup and successful freshness verification.
+    issuer/discovery/JWKS, native access and no published ports. Check the
+    initial encrypted backup and successful freshness verification.
 - Independently recover the original app key, backup passphrase and host
-  access. Test native recovery, representative uploads, real passkey/OIDC
-  signing, client authorization/denial and applicable mobile flows.
+    access. Test native recovery, representative uploads, real passkey/OIDC
+    signing, client authorization/denial and applicable mobile flows.
 - Confirm Entra/TFA/Immich/Outline behavior is unchanged before resuming
-  coordinated automation. Synthetic evidence does not replace these checks.
+    coordinated automation. Synthetic evidence does not replace these checks.
 
 **6. Capture and verify a post-enrollment recovery point.**
 
@@ -147,17 +147,17 @@ This extra run does not change the one-shot backup cadence.
 ### Enrollment and Independent Recovery Policy
 
 - Verify identity out of band with a trusted administrator; email or invitation
-  possession alone is insufficient. Keep enrollment narrow, time-limited and
-  auditable; verify unapproved users cannot self-enroll or become admins.
+    possession alone is insufficient. Keep enrollment narrow, time-limited and
+    auditable; verify unapproved users cannot self-enroll or become admins.
 - Require and test WebAuthn user verification (PIN/biometric), not just key
-  presence. Prove spare-key recovery for each administrator.
+    presence. Prove spare-key recovery for each administrator.
 - Verify the selected image's native `one-time-access-token` invocation,
-  targeting, expiry and single-use behavior before relying on it. Do not
-  assume a shell exists in the distroless image.
+    targeting, expiry and single-use behavior before relying on it. Do not
+    assume a shell exists in the distroless image.
 - Use independent host access for recovery. Token/URL output belongs only in
-  the authorized operator's terminal, never CI, tickets, chat or transcripts.
-  Verify the account, enroll a replacement passkey, invalidate unused
-  recovery access and affected sessions, and audit without recording tokens.
+    the authorized operator's terminal, never CI, tickets, chat or transcripts.
+    Verify the account, enroll a replacement passkey, invalidate unused
+    recovery access and affected sessions, and audit without recording tokens.
 
 ### Recovery Token Log Privacy
 
@@ -240,14 +240,14 @@ wraps the original `backup01-now now` engine, bounded by **180 seconds plus
 10 seconds kill grace**, with `dccd.backup-jobs=01`. It fails closed on:
 
 - Uninitialized/unreadable read-only source, upstream errors, or anything
-  other than one dump and one successful completion.
+    other than one dump and one successful completion.
 - Missing, stale, partial or corrupt output. Both files must be new or changed
-  by device/inode/size/full-precision mtime/ctime; replacement of an existing
-  timestamped pair is accepted only when both files change and verify.
+    by device/inode/size/full-precision mtime/ctime; replacement of an existing
+    timestamped pair is accepted only when both files change and verify.
 - Wrong ownership or permissions: output root `0700`, files `0600`, app
-  UID/primary GID; invalid SHA1, GPG decryption or ZSTD decompression.
+    UID/primary GID; invalid SHA1, GPG decryption or ZSTD decompression.
 - Failed SQLite integrity/FK checks, mismatched clean migration version or
-  missing or empty encrypted signing/session key rows.
+    missing or empty encrypted signing/session key rows.
 
 The upstream child uses fixed umask `022` so root-created SQLite scratch
 remains readable by `pocketbackup`; private verification scratch retains
@@ -337,15 +337,15 @@ reduction, not a new or broader exception. The scope below includes that reducti
 with the current Compose/guard:
 
 - Local SQLite Online Backup API, manual one-shot job `01`, GPG/ZSTD/SHA1,
-  2880-minute retention and `./backups/db-backup:/backup`.
+    2880-minute retention and `./backups/db-backup:/backup`.
 - `network_mode: none`, no ports/host-control socket, read-only
-  `./data:/pocket-id-data:ro` and verifier; no rw/`immutable` fallback.
+    `./data:/pocket-id-data:ro` and verifier; no rw/`immutable` fallback.
 - Only `tz.env` and explicit backup variables; no inherited app key/domain.
-  Image-local `pocketbackup` matches the declared app UID/primary GID.
+    Image-local `pocketbackup` matches the declared app UID/primary GID.
 - All [guard checks, timeout and private-output requirements](#database-backup)
-  remain required. Root s6 retains a writable root filesystem,
-  `no-new-privileges`, `cap_drop: ALL`, and only `CHOWN`, `FOWNER`,
-  `DAC_OVERRIDE`, `SETUID`, `SETGID`, `KILL`.
+    remain required. Root s6 retains a writable root filesystem,
+    `no-new-privileges`, `cap_drop: ALL`, and only `CHOWN`, `FOWNER`,
+    `DAC_OVERRIDE`, `SETUID`, `SETGID`, `KILL`.
 
 **Dated findings:** Trivy **0.76.0**, backup scan **2026-11-21T20:12:22Z**,
 DB updated **2026-11-21T18:38:32Z**; saved scan JSON SHA256
@@ -357,11 +357,11 @@ all-reachable nor all-unreachable paths; the [detailed dated inventory assessmen
 is retained immutably.
 
 - Used musl **1.2.6-r2**, HIGH **CVE-2026-107891** (`regcomp`, fixed **-r3**):
-  inspected scripts/job `01` use fixed patterns; no database-row regex input
-  was identified.
+    inspected scripts/job `01` use fixed patterns; no database-row regex input
+    was identified.
 - Used sudo **1.9.17_p2-r1**, HIGH **CVE-2026-96512** (fixed **-r2**):
-  required `NOTBEFORE`/`NOTAFTER` time-based policy was absent from inspected
-  `/etc/sudoers` and its empty include directory.
+    required `NOTBEFORE`/`NOTAFTER` time-based policy was absent from inspected
+    `/etc/sudoers` and its empty include directory.
 
 Those are narrow prerequisite findings, not whole-image safety.
 **Residual risk:** root plus `DAC_OVERRIDE` can read identity data and plaintext

@@ -101,32 +101,32 @@ It is **not a secret** and lives in the compose file rather than `secret.sops.en
 1. **Create the dataset**: `vm-pool/apps/services/alloy` on TrueNAS.
 2. **Create the TrueNAS service account**: `svc-app-alloy` with UID/GID `3125:3125`.
 3. **Create a Grafana Cloud Access Policy token**:
-   - Grafana Cloud → "Access Policies" → "Create access policy".
-   - Scopes: `metrics:write`, `logs:write`. Realms: limit to your stack.
-   - Generate a token; copy the `glc_…` value.
+    - Grafana Cloud → "Access Policies" → "Create access policy".
+    - Scopes: `metrics:write`, `logs:write`. Realms: limit to your stack.
+    - Generate a token; copy the `glc_…` value.
 4. **Populate `secret.sops.env`** with the URLs from the stack details page and the token from step 3.
 5. **Encrypt the secrets**:
 
-   ```sh
-   bash scripts/encrypt-secrets.sh
-   ```
+    ```sh
+    bash scripts/encrypt-secrets.sh
+    ```
 
 6. **Validate the compose file**:
 
-   ```sh
-   docker compose -f services/alloy/compose.yaml config --quiet
-   ```
+    ```sh
+    docker compose -f services/alloy/compose.yaml config --quiet
+    ```
 
 7. **Deploy**:
 
-   ```sh
-   bash scripts/dccd.sh -d /mnt/vm-pool/apps -t -f             # svlnas: full deploy runs _bootstrap first
-   bash scripts/dccd.sh -d /opt/apps -S svlazext -A alloy      # svlazext: app backends are omitted
-   ```
+    ```sh
+    bash scripts/dccd.sh -d /mnt/vm-pool/apps -t -f             # svlnas: full deploy runs _bootstrap first
+    bash scripts/dccd.sh -d /opt/apps -S svlazext -A alloy      # svlazext: app backends are omitted
+    ```
 
 8. **Verify** in Grafana Cloud Explore:
-   - Metrics: `up{job="alloy",host="svlnas"} == 1`
-   - Logs: `{host="svlnas", job="docker"}`
+    - Metrics: `up{job="alloy",host="svlnas"} == 1`
+    - Logs: `{host="svlnas", job="docker"}`
 
 ## Privacy Notes
 

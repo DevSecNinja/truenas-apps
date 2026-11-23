@@ -44,37 +44,37 @@ retired apps between shutdown and the retirement merge/pull. These are operator
 steps on TrueNAS, not actions already performed by this documentation change.
 
 1. **Before merge/pull**, while the old Compose files still exist, source the
-   deployment aliases and stop only the eight retired stacks:
+    deployment aliases and stop only the eight retired stacks:
 
-   ```bash
-   source /mnt/vm-pool/apps/scripts/aliases.sh
-   dccd-down bazarr lidarr prowlarr qbittorrent radarr sabnzbd sonarr spottarr
-   ```
+    ```bash
+    source /mnt/vm-pool/apps/scripts/aliases.sh
+    dccd-down bazarr lidarr prowlarr qbittorrent radarr sabnzbd sonarr spottarr
+    ```
 
-   `dccd-down` invokes `dccd.sh -R` for each app. On TrueNAS the projects are
-   named `ix-<app>`. With Compose present it uses `down --remove-orphans`,
-   **without `--volumes`**; if Compose is missing it falls back to project-label
-   cleanup. Network-removal errors can be tolerated by the script, so its
-   completion message alone does not prove shutdown succeeded.
+    `dccd-down` invokes `dccd.sh -R` for each app. On TrueNAS the projects are
+    named `ix-<app>`. With Compose present it uses `down --remove-orphans`,
+    **without `--volumes`**; if Compose is missing it falls back to project-label
+    cleanup. Network-removal errors can be tolerated by the script, so its
+    completion message alone does not prove shutdown succeeded.
 2. Verify all eight projects have no running containers and Plex still works.
-   Preserve the stopped app datasets and verify a recoverable snapshot/backup
-   of their state before any later restoration work.
+    Preserve the stopped app datasets and verify a recoverable snapshot/backup
+    of their state before any later restoration work.
 3. **After merge**, run the normal full rollout to pull the retirement and
-   refresh remaining services, including Traefik, Homepage, and Gatus:
+    refresh remaining services, including Traefik, Homepage, and Gatus:
 
-   ```bash
-   dccd-all
-   ```
+    ```bash
+    dccd-all
+    ```
 
 4. Verify Plex health, web access, library visibility, and playback; confirm
-   all eight retired projects remain stopped and no retired routes, dashboard
-   entries, or monitoring checks remain. Confirm the datasets, media/download
-   files, accounts, groups, and ownership are unchanged.
+    all eight retired projects remain stopped and no retired routes, dashboard
+    entries, or monitoring checks remain. Confirm the datasets, media/download
+    files, accounts, groups, and ownership are unchanged.
 5. Remove **only the eight retired TrueNAS Custom App registrations**, after
-   their containers are stopped. Do not select any storage/volume deletion
-   option or remove datasets, accounts, or groups. Leave Plex and shared
-   infrastructure registrations intact. Resume coordinated automation after
-   verification.
+    their containers are stopped. Do not select any storage/volume deletion
+    option or remove datasets, accounts, or groups. Leave Plex and shared
+    infrastructure registrations intact. Resume coordinated automation after
+    verification.
 
 <!-- dprint-ignore -->
 !!! warning "No storage cleanup"
@@ -119,25 +119,25 @@ as a reference on a **new branch from current main**, not as the production
 checkout or a whole-repository reset/revert.
 
 1. Inspect that commit's `services/<app>/` directory and service README.
-   Selectively restore the desired app's tracked files from that commit into
-   the new branch. Git restores configuration, not the retained runtime data.
+    Selectively restore the desired app's tracked files from that commit into
+    the new branch. Git restores configuration, not the retained runtime data.
 2. Verify the retained bootstrap networks/egress validation, then selectively
-   reintroduce removed dependencies: Traefik networks and middleware, DNS records,
-   dashboard/monitoring integration, and any provisioning entries. Do not
-   overwrite current shared files with their historical versions.
+    reintroduce removed dependencies: Traefik networks and middleware, DNS records,
+    dashboard/monitoring integration, and any provisioning entries. Do not
+    overwrite current shared files with their historical versions.
 3. Restore service documentation, its MkDocs symlink/navigation entry, and
-   active inventories in the same reviewed change. Reuse the reserved
-   identities; Prowlarr and Spottarr were the only retired apps enrolled in
-   `truenas-apps.json`. Other retired apps require their original manual
-   account model, not new helper enrollment or replacement IDs.
+    active inventories in the same reviewed change. Reuse the reserved
+    identities; Prowlarr and Spottarr were the only retired apps enrolled in
+    `truenas-apps.json`. Other retired apps require their original manual
+    account model, not new helper enrollment or replacement IDs.
 4. Check current image support, security updates, data-schema compatibility,
-   and API/Usenet/indexer credentials before enabling anything. Retain the
-   SOPS-encrypted files and required age keys; decrypt only on the deployment
-   host through the normal workflow, never into Git.
+    and API/Usenet/indexer credentials before enabling anything. Retain the
+    SOPS-encrypted files and required age keys; decrypt only on the deployment
+    host through the normal workflow, never into Git.
 5. Verify the existing datasets are mounted at their original paths, preserve
-   ownership and group memberships, and take a protective snapshot before
-   startup can migrate state. Restore from backups only if needed; do not
-   overwrite retained data merely to match the old Git revision.
+    ownership and group memberships, and take a protective snapshot before
+    startup can migrate state. Restore from backups only if needed; do not
+    overwrite retained data merely to match the old Git revision.
 6. Recreate only the desired Custom Apps with their reviewed Compose includes,
-   provision shared network dependencies before dependent stacks/Traefik,
-   and validate app functionality and Plex access after rollout.
+    provision shared network dependencies before dependent stacks/Traefik,
+    and validate app functionality and Plex access after rollout.

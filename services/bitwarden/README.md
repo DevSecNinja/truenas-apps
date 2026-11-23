@@ -69,9 +69,9 @@ See [Backup](../BACKUP.md#application-level-database-backups) for restore instru
 3. Create the `svc-app-bitwarden` group (GID 3126), then user (UID 3126) on the TrueNAS host. See [Infrastructure § TrueNAS Host Setup](../INFRASTRUCTURE.md#truenas-host-setup) for the standard creation order.
 4. Populate `secret.sops.env` with the installation ID/key, admin emails, and SMTP settings, then encrypt it:
 
-   ```sh
-   sops -e -i services/bitwarden/secret.sops.env
-   ```
+    ```sh
+    sops -e -i services/bitwarden/secret.sops.env
+    ```
 
 5. Deploy. Visit `https://vault.${DOMAINNAME}` and register your account.
 6. Once your account exists, set `BW_DISABLE_USER_REGISTRATION=true` in `secret.sops.env` and redeploy to disable further signups.

@@ -47,28 +47,28 @@ until unlock and cannot replace the early-boot administrative home.
 ## 1. Preflight and Identity
 
 1. Keep a working administrative session open and export the
-   [TrueNAS configuration with its password secret seed](BACKUP.md#system-configuration-file).
-   Inventory existing users, groups, home paths, datasets, shares, and permissions.
+    [TrueNAS configuration with its password secret seed](BACKUP.md#system-configuration-file).
+    Inventory existing users, groups, home paths, datasets, shares, and permissions.
 2. **For initial adoption, if the proposed parent or home already contains
-   data, or per-user child datasets exist, stop.** Snapshot/back up first,
-   preserve UID/GID, and plan
-   a controlled migration separately. Creating a shared parent does not merge
-   or migrate child datasets. Do not delete them, create datasets over
-   directories, recursively reset homes, or change a populated dataset's ACL
-   type using this new-home procedure. For another user on an already prepared
-   and verified shared dataset, leave that dataset and existing homes intact;
-   confirm the new target directory is absent and repeat only per-user setup.
+    data, or per-user child datasets exist, stop.** Snapshot/back up first,
+    preserve UID/GID, and plan
+    a controlled migration separately. Creating a shared parent does not merge
+    or migrate child datasets. Do not delete them, create datasets over
+    directories, recursively reset homes, or change a populated dataset's ACL
+    type using this new-home procedure. For another user on an already prepared
+    and verified shared dataset, leave that dataset and existing homes intact;
+    confirm the new target directory is absent and repeat only per-user setup.
 3. Choose unused personal UID and private primary GID values **at least 3000**
-   after checking the host and [repository allocations](INFRASTRUCTURE.md#id-ranges).
-   Use available values below the reserved `3100–3199` app range; `3200+` is
-   reserved for shared purpose groups. Record actual IDs, account name, home,
-   dataset, and share in the secure operator inventory, not as example users
-   in the app allocation tables.
+    after checking the host and [repository allocations](INFRASTRUCTURE.md#id-ranges).
+    Use available values below the reserved `3100–3199` app range; `3200+` is
+    reserved for shared purpose groups. Record actual IDs, account name, home,
+    dataset, and share in the secure operator inventory, not as example users
+    in the app allocation tables.
 4. For a **new** user, create its private primary group first; create the
-   non-admin account in step 3 after preparing the dataset. For an existing
-   personal user with no home data to migrate, retain its identity and review
-   memberships rather than recreating it. Do not assign sudo commands,
-   admin roles/groups, or app/shared-purpose groups.
+    non-admin account in step 3 after preparing the dataset. For an existing
+    personal user with no home data to migrate, retain its identity and review
+    memberships rather than recreating it. Do not assign sudo commands,
+    admin roles/groups, or app/shared-purpose groups.
 
 ## 2. Prepare the Shared Dataset Once
 
@@ -106,16 +106,16 @@ Before creating users' homes, review **Datasets → homes → Permissions →
 Edit ACL** on the shared root `/mnt/vm-pool/homes`:
 
 - Keep the root owned by root or the administrative account/group, not a
-  personal user. Give ordinary users **traversal only**, without read/list,
-  write/create, delete, or change-ACL rights: the equivalent of **0711** with
-  a reviewed minimal NFSv4 ACL.
+    personal user. Give ordinary users **traversal only**, without read/list,
+    write/create, delete, or change-ACL rights: the equivalent of **0711** with
+    a reviewed minimal NFSv4 ACL.
 - Make the parent traversal ACE **non-inheriting**: no file or directory
-  inheritance. Remove broad inherited/preset `builtin_users`, `group@`, or
-  other named-group Modify/Full Control grants. The Multiprotocol preset is
-  **not private**; `chmod 0711` alone is not proof that named grants are gone.
+    inheritance. Remove broad inherited/preset `builtin_users`, `group@`, or
+    other named-group Modify/Full Control grants. The Multiprotocol preset is
+    **not private**; `chmod 0711` alone is not proof that named grants are gone.
 - Apply changes **nonrecursively to this new shared root only**. Never
-  recursively change ownership or ACLs across personal homes. Users do not
-  need create rights here: TrueNAS middleware creates homes administratively.
+    recursively change ownership or ACLs across personal homes. Users do not
+    need create rights here: TrueNAS middleware creates homes administratively.
 
 Users also need traversal through existing ancestors, including the pool
 mountpoint. Inspect that access first; if missing, stop for a narrowly
@@ -299,24 +299,24 @@ cat -- "${PROBE}"
 ```
 
 - [ ] Public-key SSH succeeds with the correct `$HOME`, UID/GID, shell, and
-      owner-only home/`.ssh`/key-file permissions; password SSH is denied for
-      this user without disabling its SMB password.
+        owner-only home/`.ssh`/key-file permissions; password SSH is denied for
+        this user without disabling its SMB password.
 - [ ] SMB and SSH can create/read/update the same `Files` probe and new
-      subdirectories retain private ACLs. Remove only the test artifacts afterward.
+        subdirectories retain private ACLs. Remove only the test artifacts afterward.
 - [ ] A different ordinary test user cannot connect to the private share or
-      traverse this home locally. Test using separate credentials/sessions, not
-      cached administrator SMB credentials.
+        traverse this home locally. Test using separate credentials/sessions, not
+        cached administrator SMB credentials.
 - [ ] Ordinary users can traverse the shared parent but cannot list it,
-      create/delete homes, or change its ACL. Parent traversal does not inherit
-      into homes; inspect ACLs as well as mode bits.
+        create/delete homes, or change its ACL. Parent traversal does not inherit
+        into homes; inspect ACLs as well as mode bits.
 - [ ] `.ssh`, `.config`, and shell dotfiles are unreachable through SMB;
-      there are no overlapping exports or symlink routes to the home.
+        there are no overlapping exports or symlink routes to the home.
 - [ ] Shared dataset and optional ownership-based user quotas, snapshot growth,
-      and encryption/unlock behavior are recorded. During a planned
-      reboot, verify locked-home unavailability, access after unlock, service
-      startup, and continued availability of the original administrative account.
+        and encryption/unlock behavior are recorded. During a planned
+        reboot, verify locked-home unavailability, access after unlock, service
+        startup, and continued availability of the original administrative account.
 - [ ] Complete [home backup coverage and sample restores](BACKUP.md#personal-home-protection)
-      before storing irreplaceable files; export the updated TrueNAS configuration.
+        before storing irreplaceable files; export the updated TrueNAS configuration.
 
 ## Backup and Recovery
 
