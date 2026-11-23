@@ -10,17 +10,17 @@ Before starting, ensure you have:
 
 - A working TrueNAS installation with Docker support enabled
 - Host DNS that works before the NAS-local AdGuard/Unbound containers start,
-  including while the apps dataset is locked. Use the gateway/public path and
-  its small infrastructure record set from
-  [DNS configuration](INFRASTRUCTURE.md#dns-configuration-and-record-maintenance)
-  for repository access and image pulls; the unavailable cloud resolver is not
-  a recovery dependency.
+    including while the apps dataset is locked. Use the gateway/public path and
+    its small infrastructure record set from
+    [DNS configuration](INFRASTRUCTURE.md#dns-configuration-and-record-maintenance)
+    for repository access and image pulls; the unavailable cloud resolver is not
+    a recovery dependency.
 - Access to this git repository (GitHub)
 - The **Age private key** (`age.key`) used for SOPS decryption — without this, secrets cannot be decrypted and no app will deploy. If the key is lost, every `secret.sops.env` must be re-encrypted with a new key
 - (Optional) ZFS snapshots or replication backups of app datasets for data restoration
 - For personal homes: the saved TrueNAS configuration with password secret
-  seed, secure UID/GID, quota, and share/ACL inventory, shared home dataset unlock keys,
-  SSH access recovery material, and backup decryption credentials
+    seed, secure UID/GID, quota, and share/ACL inventory, shared home dataset unlock keys,
+    SSH access recovery material, and backup decryption credentials
 
 ---
 
@@ -170,10 +170,10 @@ Repeat these steps for each of the two servers:
 2. **Name:** Use the suggested name from the table above
 3. **Supported account types:** "Accounts in this organizational directory only (Single tenant)"
 4. **Redirect URI:**
-   - Platform: **Web**
-   - URI: `https://<auth-subdomain>.<DOMAINNAME>/oauth2/callback`
-     - svlnas: `https://auth.<DOMAINNAME>/oauth2/callback`
-     - svlazext: `https://auth-ext.<DOMAINNAME>/oauth2/callback`
+    - Platform: **Web**
+    - URI: `https://<auth-subdomain>.<DOMAINNAME>/oauth2/callback`
+        - svlnas: `https://auth.<DOMAINNAME>/oauth2/callback`
+        - svlazext: `https://auth-ext.<DOMAINNAME>/oauth2/callback`
 5. Click **Register**
 
 ### Generate Client Secrets
@@ -252,45 +252,45 @@ Personal files cannot be regenerated like app caches. If no home backup is
 available, record the loss rather than treating a newly empty home as restored.
 
 1. Preserve the early-boot administrative account and access. Import/unlock
-   the required pool and actual shared home encryption root with the saved keys.
-   A locked data-pool home cannot replace the administrative boot-time home.
+    the required pool and actual shared home encryption root with the saved keys.
+    A locked data-pool home cannot replace the administrative boot-time home.
 2. Restore the **one `vm-pool/homes` dataset** from
-   [replication](BACKUP.md#restore-from-replica), or recreate it empty following
-   [Home Folders](HOME-FOLDERS.md#2-prepare-the-shared-dataset-once) before
-   restoring files. Restore shared dataset properties, encryption, dataset
-   quota, and recorded ownership-based user data/object quotas. Verify the
-   root/admin-owned shared root's ACL: ordinary-user traversal only, no
-   inheritance, no listing/create/delete/change-ACL rights or broad named
-   grants. Inspect ancestor traversal without broad pool changes.
+    [replication](BACKUP.md#restore-from-replica), or recreate it empty following
+    [Home Folders](HOME-FOLDERS.md#2-prepare-the-shared-dataset-once) before
+    restoring files. Restore shared dataset properties, encryption, dataset
+    quota, and recorded ownership-based user data/object quotas. Verify the
+    root/admin-owned shared root's ACL: ordinary-user traversal only, no
+    inheritance, no listing/create/delete/change-ACL rights or broad named
+    grants. Inspect ancestor traversal without broad pool changes.
 3. Recover all users' **ordinary directories**, including `Files` **and hidden
-   SSH/configuration files**, initially with personal access disabled. For a
-   cloud/file-copy restore, use an isolated target and the
-   [home restore procedure](BACKUP.md#restore-home-files).
-   Such copies might not preserve numeric owners or NFSv4 ACLs. For a single
-   user's home or file, copy out selected files; **rollback of the shared
-   dataset affects every user**.
+    SSH/configuration files**, initially with personal access disabled. For a
+    cloud/file-copy restore, use an isolated target and the
+    [home restore procedure](BACKUP.md#restore-home-files).
+    Such copies might not preserve numeric owners or NFSv4 ACLs. For a single
+    user's home or file, copy out selected files; **rollback of the shared
+    dataset affects every user**.
 4. Restore/edit each account's full existing home path with **Create Home
-   Directory unchecked**: attaching a restored home is the exception to
-   automatic new-home creation. Verify the saved path is exactly
-   `/mnt/vm-pool/homes/<username>`, then perform the final folder/file
-   ownership/ACL review after account saves. Preserve personal UID/GID;
-   enforce owner-only home and `.ssh` `0700`, `authorized_keys` `0600`,
-   and no broad/inherited access.
-   Restore only approved public login keys; the client's private key stays
-   on the client. Do not edit the dataset root as a substitute for each
-   home's ACL or blanket-recursively chown/reset all homes.
+    Directory unchecked**: attaching a restored home is the exception to
+    automatic new-home creation. Verify the saved path is exactly
+    `/mnt/vm-pool/homes/<username>`, then perform the final folder/file
+    ownership/ACL review after account saves. Preserve personal UID/GID;
+    enforce owner-only home and `.ssh` `0700`, `authorized_keys` `0600`,
+    and no broad/inherited access.
+    Restore only approved public login keys; the client's private key stays
+    on the client. Do not edit the dataset root as a substitute for each
+    home's ACL or blanket-recursively chown/reset all homes.
 5. Restore each ordinary private **Multi-protocol Share**, pointing only to
-   that user's `Files` directory. Review that path through the share's
-   **Edit Filesystem ACL**, verifying owner-only filesystem inheritance
-   and a share ACL allowing only the personal user CHANGE, without
-   overlapping home/parent exports.
+    that user's `Files` directory. Review that path through the share's
+    **Edit Filesystem ACL**, verifying owner-only filesystem inheritance
+    and a share ACL allowing only the personal user CHANGE, without
+    overlapping home/parent exports.
 6. Enable access only after the checks above. Run the
-   [SSH/SMB positive and negative tests](HOME-FOLDERS.md#5-verify-before-use),
-   verify service startup and post-reboot/unlock availability, and confirm
-   cross-user denial locally and over SMB. Confirm renewed snapshots and
-   replication of the shared dataset contain all home directories, plus
-   off-site sync and sample restores for each user. Export a fresh system
-   configuration with its password secret seed.
+    [SSH/SMB positive and negative tests](HOME-FOLDERS.md#5-verify-before-use),
+    verify service startup and post-reboot/unlock availability, and confirm
+    cross-user denial locally and over SMB. Confirm renewed snapshots and
+    replication of the shared dataset contain all home directories, plus
+    off-site sync and sample restores for each user. Export a fresh system
+    configuration with its password secret seed.
 
 ---
 
@@ -364,9 +364,9 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 Add a TrueNAS cron job for continuous deployment:
 
 - **Command:**
-  ```sh
-  bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /mnt/vm-pool/apps/age.key
-  ```
+    ```sh
+    bash /mnt/vm-pool/apps/scripts/dccd.sh -d /mnt/vm-pool/apps -x shared -t -f -k /mnt/vm-pool/apps/age.key
+    ```
 - **Run As User:** `root`
 - **Schedule:** Every 15 minutes
 - Unselect **Hide Standard Output** and **Hide Standard Error** for troubleshooting

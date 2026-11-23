@@ -196,37 +196,37 @@ completed production recovery or a validated TrueNAS ZFS restore.
     could apply the migration before its protective snapshot exists.
 
 1. Pause cron and other deployment automation, wait for active deployments to
-   finish, and prevent manual app restarts.
+    finish, and prevent manual app restarts.
 2. Let the selected app's backup jobs finish, stop all its containers, and
-   create and verify a recursive manual snapshot of its dedicated dataset.
-   Preserve old configuration, decrypted secrets, data, and backups; record
-   the old Git revision and container image references/IDs. For Karakeep,
-   follow the first two steps of the
-   [manual snapshot-first path](services/karakeep.md#manual-fallback-without-the-helper).
+    create and verify a recursive manual snapshot of its dedicated dataset.
+    Preserve old configuration, decrypted secrets, data, and backups; record
+    the old Git revision and container image references/IDs. For Karakeep,
+    follow the first two steps of the
+    [manual snapshot-first path](services/karakeep.md#manual-fallback-without-the-helper).
 3. As the deployment user, install the reviewed repository changes **without
-   deploying**. The helper, `scripts/lib/deployment-lock.sh`, and the matching
-   `scripts/dccd.sh` changes must be present together in a clean checkout.
-   After the manual snapshot, the existing alias provides a sync/decrypt-only
-   bootstrap:
+    deploying**. The helper, `scripts/lib/deployment-lock.sh`, and the matching
+    `scripts/dccd.sh` changes must be present together in a clean checkout.
+    After the manual snapshot, the existing alias provides a sync/decrypt-only
+    bootstrap:
 
-   ```bash
-   source /mnt/vm-pool/apps/scripts/aliases.sh
-   dccd-decrypt
-   ```
+    ```bash
+    source /mnt/vm-pool/apps/scripts/aliases.sh
+    dccd-decrypt
+    ```
 
-   The updated `dccd.sh -D` skips deployment **and orphan cleanup**. When
-   starting with older DCCD, this path relies on its built-in re-exec loading
-   the changed `dccd.sh` before cleanup. Confirm that behavior in the version
-   being replaced; otherwise install the reviewed changes through a Git-only
-   update while automation remains paused. Sync/decrypt still changes Git,
-   secrets, and registry login state; it is not read-only.
+    The updated `dccd.sh -D` skips deployment **and orphan cleanup**. When
+    starting with older DCCD, this path relies on its built-in re-exec loading
+    the changed `dccd.sh` before cleanup. Confirm that behavior in the version
+    being replaced; otherwise install the reviewed changes through a Git-only
+    update while automation remains paused. Sync/decrypt still changes Git,
+    secrets, and registry login state; it is not read-only.
 4. Run the helper below, retaining the manual bootstrap snapshot: the helper's
-   own snapshot now sees the installed configuration, not the original
-   pre-install files. If the helper remains unavailable, continue the manual
-   fallback only with its verified protective snapshot. If a helper attempt
-   fails, follow the failure handling below rather than bypassing its marker.
+    own snapshot now sees the installed configuration, not the original
+    pre-install files. If the helper remains unavailable, continue the manual
+    fallback only with its verified protective snapshot. If a helper attempt
+    fails, follow the failure handling below rather than bypassing its marker.
 5. Re-enable the manually paused cron jobs only after recovery succeeds and
-   application/backup acceptance checks pass. On failure, leave them paused.
+    application/backup acceptance checks pass. On failure, leave them paused.
 
 After this one-time bootstrap, normal helper use does **not** require editing
 cron or a separate manual snapshot: the shared lock and maintenance marker
@@ -265,38 +265,38 @@ RECOVERY_WAIT_TIMEOUT=1800 bash scripts/truenas-recover-app.sh karakeep
 The helper's sequence is:
 
 1. Acquire the checkout-wide deployment lock and create a persistent
-   `.dccd-maintenance` marker identifying the app and recovery snapshot.
+    `.dccd-maintenance` marker identifying the app and recovery snapshot.
 2. Validate current storage coverage against the existing Compose model and
-   container mounts, then wait for active selected-app backup jobs.
-   Stop the selected project's containers, including orphaned services, and
-   verify none remain running.
+    container mounts, then wait for active selected-app backup jobs.
+    Stop the selected project's containers, including orphaned services, and
+    verify none remain running.
 3. Recursively snapshot the dedicated dataset **before any Git sync or
-   decryption**. `org.truenas-apps:recovery-revision` records the old Git
-   `HEAD`; the snapshot retains the old service configuration and decrypted
-   secrets alongside data and backups. Properties also record the app and
-   pending status.
-   `org.truenas-apps:recovery-images` stores JSON with pre-recovery container
-   service names, image references, and image IDs for manual rollback planning.
-   These records do not implement rollback.
+    decryption**. `org.truenas-apps:recovery-revision` records the old Git
+    `HEAD`; the snapshot retains the old service configuration and decrypted
+    secrets alongside data and backups. Properties also record the app and
+    pending status.
+    `org.truenas-apps:recovery-images` stores JSON with pre-recovery container
+    service names, image references, and image IDs for manual rollback planning.
+    These records do not implement rollback.
 4. Run an app-scoped DCCD `-D` sync/decrypt pass **without deploying or orphan
-   cleanup**, under the inherited lock. Validate the target's storage coverage
-   and strictly pull its images; a pull failure stops recovery.
-   Resolve and persist the pulled image IDs in
-   `org.truenas-apps:recovery-target-images` before freezing the new Git `HEAD` in
-   `org.truenas-apps:recovery-target-revision`. Git/SOPS/shared configuration
-   remain checkout-wide concerns, not an isolated per-app checkout.
+    cleanup**, under the inherited lock. Validate the target's storage coverage
+    and strictly pull its images; a pull failure stops recovery.
+    Resolve and persist the pulled image IDs in
+    `org.truenas-apps:recovery-target-images` before freezing the new Git `HEAD` in
+    `org.truenas-apps:recovery-target-revision`. Git/SOPS/shared configuration
+    remain checkout-wide concerns, not an isolated per-app checkout.
 5. Deploy that frozen source with app-scoped DCCD `-n -B -w` using the
-   configured timeout: no second Git sync or image pull. Compare container
-   image IDs against the retained inventory, not mutable tags. Check
-   running/healthy services, successful one-shot exits, and backup
-   completion from this attempt. Services without health checks receive only
-   running-state verification. Meilisearch migration tasks receive a separate
-   check, including before redeployment on retry. Detection recognizes
-   `getmeili/meilisearch` with Docker Hub registry aliases or short repository
-   spelling, using tags or digests; repository image conventions are unchanged.
+    configured timeout: no second Git sync or image pull. Compare container
+    image IDs against the retained inventory, not mutable tags. Check
+    running/healthy services, successful one-shot exits, and backup
+    completion from this attempt. Services without health checks receive only
+    running-state verification. Meilisearch migration tasks receive a separate
+    check, including before redeployment on retry. Detection recognizes
+    `getmeili/meilisearch` with Docker Hub registry aliases or short repository
+    spelling, using tags or digests; repository image conventions are unchanged.
 6. Mark the snapshot complete and remove the marker only after those checks
-   pass. Inspect application data/functionality and actual backup artifacts
-   before accepting recovery or deleting the snapshot.
+    pass. Inspect application data/functionality and actual backup artifacts
+    before accepting recovery or deleting the snapshot.
 
 | Outcome                                | Deployment coordination                                                 | Snapshot handling                                                                                 |
 | -------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -325,22 +325,22 @@ Meilisearch task is still processing, inspect/wait rather than interrupting it.
 #### Scope and Explicit Cleanup
 
 - Only the selected app is stopped; other apps keep running, but **all other
-  DCCD operations for this checkout** are excluded during recovery.
-  See [deployment coordination](INFRASTRUCTURE.md#existing-app-recovery-helper).
+    DCCD operations for this checkout** are excluded during recovery.
+    See [deployment coordination](INFRASTRUCTURE.md#existing-app-recovery-helper).
 - The snapshot covers only the dedicated service dataset and its ZFS
-  descendants, not shared configuration elsewhere, TrueNAS app metadata,
-  or external media. Writable external bind mounts, named/anonymous volumes,
-  and unrelated datasets mounted beneath the service directory are rejected.
-  Do not assume this covers Immich's external media.
+    descendants, not shared configuration elsewhere, TrueNAS app metadata,
+    or external media. Writable external bind mounts, named/anonymous volumes,
+    and unrelated datasets mounted beneath the service directory are rejected.
+    Do not assume this covers Immich's external media.
 - Profile-based setups, local builds, and scaled services are unsupported;
-  use a reviewed app-specific plan instead. Read-only external mounts are
-  not backed up by this snapshot.
+    use a reviewed app-specific plan instead. Read-only external mounts are
+    not backed up by this snapshot.
 - The helper orchestrates **existing approved migration settings**.
-  Other app-specific migrations still need compatible Compose configuration
-  and manual data/functionality verification.
+    Other app-specific migrations still need compatible Compose configuration
+    and manual data/functionality verification.
 - Completion checks do not prove artifact encryption, decryption, integrity,
-  or an isolated restore. Existing database backup policies and the
-  [restore checks](#restore-a-database-dump) are unchanged.
+    or an isolated restore. Existing database backup policies and the
+    [restore checks](#restore-a-database-dump) are unchanged.
 
 After acceptance, copy the **exact cleanup command printed by the helper**.
 Cleanup requires no active maintenance marker and accepts only a helper-owned
@@ -360,45 +360,45 @@ Replication copies vm-pool snapshots to the mirrored archive-pool, providing har
 
 1. Create the **parent container** dataset in TrueNAS → Datasets → Add Dataset. The replication task will create the child (`vm-pool`) automatically on first run — do not pre-create it.
 
-   | Setting            | Value                                                                                  |
-   | ------------------ | -------------------------------------------------------------------------------------- |
-   | Parent             | `archive-pool`                                                                         |
-   | Name               | `replication`                                                                          |
-   | Dataset Preset     | Generic                                                                                |
-   | Compression        | Inherit (LZ4 from archive-pool — adequate for a container dataset)                     |
-   | Enable Atime       | Off                                                                                    |
-   | Snapshot Directory | `--` (Inherit — resolves to Invisible; `.zfs` accessible by path but hidden from `ls`) |
-   | ACL Type           | Off (plain Unix permissions; safe — does not propagate to replicated child datasets)   |
-   | ACL Mode           | Discard                                                                                |
-   | Exec               | Off                                                                                    |
-   | Encryption         | **None** — do not encrypt the container. The replicated child receives its encryption  |
-   |                    | state from the replication stream (`vm-pool/apps` is ZFS-encrypted, so the replica     |
-   |                    | arrives encrypted automatically)                                                       |
+    | Setting            | Value                                                                                  |
+    | ------------------ | -------------------------------------------------------------------------------------- |
+    | Parent             | `archive-pool`                                                                         |
+    | Name               | `replication`                                                                          |
+    | Dataset Preset     | Generic                                                                                |
+    | Compression        | Inherit (LZ4 from archive-pool — adequate for a container dataset)                     |
+    | Enable Atime       | Off                                                                                    |
+    | Snapshot Directory | `--` (Inherit — resolves to Invisible; `.zfs` accessible by path but hidden from `ls`) |
+    | ACL Type           | Off (plain Unix permissions; safe — does not propagate to replicated child datasets)   |
+    | ACL Mode           | Discard                                                                                |
+    | Exec               | Off                                                                                    |
+    | Encryption         | **None** — do not encrypt the container. The replicated child receives its encryption  |
+    |                    | state from the replication stream (`vm-pool/apps` is ZFS-encrypted, so the replica     |
+    |                    | arrives encrypted automatically)                                                       |
 
 2. Create a Replication Task in TrueNAS → Data Protection → Replication Tasks (use Advanced mode):
 
-   | Setting                                    | Value                                                                                                                                       |
-   | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-   | Name                                       | `vm-pool → archive-pool`                                                                                                                    |
-   | Transport                                  | LOCAL                                                                                                                                       |
-   | Allow Blocks Larger than 128KB             | Yes — improves throughput for large datasets                                                                                                |
-   | Allow Compressed WRITE Records             | Yes — sends blocks pre-compressed, faster and lower CPU                                                                                     |
-   | Source                                     | `vm-pool`                                                                                                                                   |
-   | Recursive                                  | Yes                                                                                                                                         |
-   | Include Dataset Properties                 | Yes — replicates compression, atime, etc.                                                                                                   |
-   | Full Filesystem Replication                | No                                                                                                                                          |
-   | Periodic Snapshot Tasks                    | Select all 4 vm-pool snapshot tasks                                                                                                         |
-   | Only Replicate Snapshots Matching Schedule | No — replicates all snapshots from all 4 tasks (hourly, daily, weekly, monthly); enabling this would skip all but the 03:00 daily snapshots |
-   | Save Pending Snapshots                     | No                                                                                                                                          |
-   | Destination                                | `archive-pool/replication/vm-pool` (created automatically on first run)                                                                     |
-   | Destination Dataset Read-only              | REQUIRE — prevents accidental writes to the replica                                                                                         |
-   | Encryption                                 | No — source encryption is carried in the replication stream automatically                                                                   |
-   | Replication from scratch                   | No                                                                                                                                          |
-   | Snapshot Retention Policy                  | Same as Source — replica prunes in sync with source task lifetimes                                                                          |
-   | Run Automatically                          | Yes                                                                                                                                         |
-   | Schedule                                   | Daily at 03:00                                                                                                                              |
+    | Setting                                    | Value                                                                                                                                       |
+    | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Name                                       | `vm-pool → archive-pool`                                                                                                                    |
+    | Transport                                  | LOCAL                                                                                                                                       |
+    | Allow Blocks Larger than 128KB             | Yes — improves throughput for large datasets                                                                                                |
+    | Allow Compressed WRITE Records             | Yes — sends blocks pre-compressed, faster and lower CPU                                                                                     |
+    | Source                                     | `vm-pool`                                                                                                                                   |
+    | Recursive                                  | Yes                                                                                                                                         |
+    | Include Dataset Properties                 | Yes — replicates compression, atime, etc.                                                                                                   |
+    | Full Filesystem Replication                | No                                                                                                                                          |
+    | Periodic Snapshot Tasks                    | Select all 4 vm-pool snapshot tasks                                                                                                         |
+    | Only Replicate Snapshots Matching Schedule | No — replicates all snapshots from all 4 tasks (hourly, daily, weekly, monthly); enabling this would skip all but the 03:00 daily snapshots |
+    | Save Pending Snapshots                     | No                                                                                                                                          |
+    | Destination                                | `archive-pool/replication/vm-pool` (created automatically on first run)                                                                     |
+    | Destination Dataset Read-only              | REQUIRE — prevents accidental writes to the replica                                                                                         |
+    | Encryption                                 | No — source encryption is carried in the replication stream automatically                                                                   |
+    | Replication from scratch                   | No                                                                                                                                          |
+    | Snapshot Retention Policy                  | Same as Source — replica prunes in sync with source task lifetimes                                                                          |
+    | Run Automatically                          | Yes                                                                                                                                         |
+    | Schedule                                   | Daily at 03:00                                                                                                                              |
 
-   Replication is strictly one-way: vm-pool → archive-pool/replication/vm-pool. The archive-pool snapshot tasks snapshot archive-pool's own datasets (private, content) independently — none of that flows through this task.
+    Replication is strictly one-way: vm-pool → archive-pool/replication/vm-pool. The archive-pool snapshot tasks snapshot archive-pool's own datasets (private, content) independently — none of that flows through this task.
 
 3. Run the task manually once to complete the initial full replication (this may take a while on first run). Subsequent runs are incremental (only changed blocks).
 
@@ -870,17 +870,17 @@ files, not running databases. No live-database backup sidecar is required.
 Expected coverage under the documented configuration:
 
 - **Local snapshots:** the recursive `archive-pool` tasks exclude only `replication`,
-  so they include `archives`. Retention is daily for **1 month**, weekly
-  for **2 months**, and monthly for **3 months**; there are no hourly snapshots.
+    so they include `archives`. Retention is daily for **1 month**, weekly
+    for **2 months**, and monthly for **3 months**; there are no hourly snapshots.
 - **Off-site:** [Task D — `archive-pool-to-azure`](#task-d-archive-pool-to-azure)
-  runs daily at **07:00**, in **SYNC** mode to the Azure `archive-pool` container.
-  Contents are client-side encrypted; **filename encryption is off**, so use neutral
-  filenames for sensitive files. No new Azure task is needed if the actual filters
-  match the documented configuration.
+    runs daily at **07:00**, in **SYNC** mode to the Azure `archive-pool` container.
+    Contents are client-side encrypted; **filename encryption is off**, so use neutral
+    filenames for sensitive files. No new Azure task is needed if the actual filters
+    match the documented configuration.
 - **Limits:** the mirror is hardware redundancy, not an independent backup, and snapshots
-  share the pool's failure domain. Layer 2 only replicates `vm-pool` to `archive-pool`;
-  it does **not** replicate `archives` back to `vm-pool`. SYNC mirrors deletions;
-  Azure versioning/soft delete are limited recovery mechanisms, not immutable retention.
+    share the pool's failure domain. Layer 2 only replicates `vm-pool` to `archive-pool`;
+    it does **not** replicate `archives` back to `vm-pool`. SYNC mirrors deletions;
+    Azure versioning/soft delete are limited recovery mechanisms, not immutable retention.
 
 Retain imported archive files until deliberate manual cleanup; do not apply the sidecars'
 48-hour dump cleanup policy to this dataset. Snapshot expiry is separate from file retention.
@@ -888,15 +888,15 @@ Retain imported archive files until deliberate manual cleanup; do not apply the 
 After each ingest, before declaring the files protected or deleting source originals:
 
 1. Confirm the dataset is unlocked and the host's recursive snapshot tasks and Task D are
-   enabled. Check their actual source, exclusions, and any additional filters include
-   `archives`; this guide alone is not evidence of host configuration.
+    enabled. Check their actual source, exclusions, and any additional filters include
+    `archives`; this guide alone is not evidence of host configuration.
 2. Finish copying, verify source/destination hashes or representative readback/restore,
-   then run an archive-pool snapshot task and Task D. Confirm a snapshot exists for
-   `archive-pool/archives`, Cloud Sync succeeds, and the expected off-site files are present.
+    then run an archive-pool snapshot task and Task D. Confirm a snapshot exists for
+    `archive-pool/archives`, Cloud Sync succeeds, and the expected off-site files are present.
 3. Restore a sample from the Azure `archive-pool` container's `archives/` directory to an
-   **isolated target** using [Restore from Azure Blob](#restore-from-azure-blob).
-   Decrypt with the Cloud Sync password/salt, then the independent client encryption
-   key if used. Verify hashes and a representative application restore before source cleanup.
+    **isolated target** using [Restore from Azure Blob](#restore-from-azure-blob).
+    Decrypt with the Cloud Sync password/salt, then the independent client encryption
+    key if used. Verify hashes and a representative application restore before source cleanup.
 
 For local recovery, copy individual files from
 `/mnt/archive-pool/archives/.zfs/snapshot/<snapshot-name>/` into an isolated restore target,
@@ -932,34 +932,34 @@ backup; file sync and raw snapshots alone are not that backup.
 ### Verify Home Coverage
 
 1. Confirm the shared `vm-pool/homes` dataset is mounted/unlocked. Check the actual
-   **recursive** `vm-pool` snapshot tasks, exclusions, and snapshots for
-   `homes`, then find each user's ordinary directory inside those snapshots.
-   Do not look for a separate snapshot per username dataset. The documented
-   retention is hourly for 1 day, daily/weekly for 1 month, and monthly for
-   3 months, shared by all homes.
+    **recursive** `vm-pool` snapshot tasks, exclusions, and snapshots for
+    `homes`, then find each user's ordinary directory inside those snapshots.
+    Do not look for a separate snapshot per username dataset. The documented
+    retention is hourly for 1 day, daily/weekly for 1 month, and monthly for
+    3 months, shared by all homes.
 2. Check the actual recursive replication source, selected snapshots,
-   exclusions, destination, and successful runs. The documented daily
-   **03:00** task targets `archive-pool/replication/vm-pool`; verify the
-   `archive-pool/replication/vm-pool/homes` dataset and its snapshots contain
-   all users' ordinary directories.
-   Protect destination permissions and retain the read-only replication
-   target; do not expose backup copies in SMB shares.
+    exclusions, destination, and successful runs. The documented daily
+    **03:00** task targets `archive-pool/replication/vm-pool`; verify the
+    `archive-pool/replication/vm-pool/homes` dataset and its snapshots contain
+    all users' ordinary directories.
+    Protect destination permissions and retain the read-only replication
+    target; do not expose backup copies in SMB shares.
 3. Verify [Task A](#task-a-vm-pool-to-azure), daily at **04:00**, reads the
-   unlocked shared dataset and uploads each user's files to the Azure
-   `vm-pool` container's `homes/<username>/` prefix. Inspect filters and actual
-   remote contents for **hidden files, SSH configuration, and `Files`**, not
-   just a successful pool-level task.
-   The documented exclusions are `iso/` and `.zfs/`; do not accidentally
-   broaden these to personal configuration.
+    unlocked shared dataset and uploads each user's files to the Azure
+    `vm-pool` container's `homes/<username>/` prefix. Inspect filters and actual
+    remote contents for **hidden files, SSH configuration, and `Files`**, not
+    just a successful pool-level task.
+    The documented exclusions are `iso/` and `.zfs/`; do not accidentally
+    broaden these to personal configuration.
 4. Protect backup destination access and store the shared encryption root's
-   ZFS unlock keys, Cloud Sync password/salt, and recovery credentials
-   independently of the NAS.
-   Contents are encrypted but **filenames are not**. SYNC propagates
-   deletions; versioning/soft delete are not immutable retention.
+    ZFS unlock keys, Cloud Sync password/salt, and recovery credentials
+    independently of the NAS.
+    Contents are encrypted but **filenames are not**. SYNC propagates
+    deletions; versioning/soft delete are not immutable retention.
 5. Export the updated [system configuration and password secret seed](#system-configuration-file).
-   Securely record personal usernames, exact UID/GID values, home paths,
-   share definitions, shared-root and personal ACLs, and dataset/user quotas
-   for recovery.
+    Securely record personal usernames, exact UID/GID values, home paths,
+    share definitions, shared-root and personal ACLs, and dataset/user quotas
+    for recovery.
 
 Task A reads live files rather than snapshots. Finish/quiesce writes before a
 representative restore test; do not promise transaction consistency for
@@ -972,23 +972,23 @@ SSH-only file** (for example `.ssh/config`, if present) from both a snapshot
 and the encrypted off-site copy:
 
 1. Select a known-good recovery point. Browse the user's directory **inside
-   the shared dataset snapshot** at
-   `/mnt/vm-pool/homes/.zfs/snapshot/<snapshot-name>/<username>/`, or use
-   [Restore from Azure Blob](#restore-from-azure-blob) with the saved
-   encryption password/salt and that user's `homes/<username>/` prefix.
+    the shared dataset snapshot** at
+    `/mnt/vm-pool/homes/.zfs/snapshot/<snapshot-name>/<username>/`, or use
+    [Restore from Azure Blob](#restore-from-azure-blob) with the saved
+    encryption password/salt and that user's `homes/<username>/` prefix.
 2. Copy to an **isolated, access-restricted restore path**, not into a live
-   home or SMB export. Verify contents/checksums, including hidden files.
+    home or SMB export. Verify contents/checksums, including hidden files.
 3. Check numeric ownership against the recorded personal UID/GID, NFSv4
-   ACLs and inheritance, and modes: home/`.ssh` `0700`, `authorized_keys`
-   `0600`. File-copy/cloud restores may not preserve UID/GID or NFSv4 ACLs.
-   Reapply and verify the intended folder/file permissions before enabling
-   shares/logins or copying selected recovered files back. Inspect the home
-   itself and the share's `Files` filesystem ACL, not the dataset root as if
-   it were one user's home; never blanket-recursively chown/reset all homes.
+    ACLs and inheritance, and modes: home/`.ssh` `0700`, `authorized_keys`
+    `0600`. File-copy/cloud restores may not preserve UID/GID or NFSv4 ACLs.
+    Reapply and verify the intended folder/file permissions before enabling
+    shares/logins or copying selected recovered files back. Inspect the home
+    itself and the share's `Files` filesystem ACL, not the dataset root as if
+    it were one user's home; never blanket-recursively chown/reset all homes.
 4. For a full recovery, restore the same identities and follow
-   [Personal Home Recovery](DISASTER-RECOVERY.md#personal-home-recovery).
-   Recheck SSH-only versus SMB access with both the owner and another
-   ordinary user, and record restore evidence in the operator inventory.
+    [Personal Home Recovery](DISASTER-RECOVERY.md#personal-home-recovery).
+    Recheck SSH-only versus SMB access with both the owner and another
+    ordinary user, and record restore evidence in the operator inventory.
 
 **Rolling back `vm-pool/homes` affects every user.** For one home or file,
 copy out selected files without rolling back the shared dataset or discarding
@@ -1075,48 +1075,48 @@ including a new post-enrollment backup and recovery check before production reli
     does not establish first-admin, passkey or client acceptance.
 
 1. Recover the compatible image/schema revision, a successful backup artifact
-   and checksum, original `ENCRYPTION_KEY`, and matching `DB_ENC_PASSPHRASE`
-   through independent operator recovery. A fresh app key cannot substitute
-   for the original. Preserve client identities and mappings.
+    and checksum, original `ENCRYPTION_KEY`, and matching `DB_ENC_PASSPHRASE`
+    through independent operator recovery. A fresh app key cannot substitute
+    for the original. Preserve client identities and mappings.
 2. Suspend deployment/backup automation and stop the Pocket ID application
-   before replacing SQLite state. Ensure no app, backup process or other
-   writer has the database open. Preserve the existing database and WAL/SHM
-   together as a protective checkpoint, separate from the replacement.
+    before replacing SQLite state. Ensure no app, backup process or other
+    writer has the database open. Preserve the existing database and WAL/SHM
+    together as a protective checkpoint, separate from the replacement.
 3. Verify the selected artifact's checksum according to the backup tool's
-   actual format, then decrypt/decompress **outside the tracked checkout** in
-   restricted scratch: directory `0700`, plaintext files `0600`. Never log
-   passphrases, keys, recovery tokens or identity data. Confirm a binary
-   SQLite snapshot; do not run `.read` or import it as SQL. Stop on an
-   unexpected format.
+    actual format, then decrypt/decompress **outside the tracked checkout** in
+    restricted scratch: directory `0700`, plaintext files `0600`. Never log
+    passphrases, keys, recovery tokens or identity data. Confirm a binary
+    SQLite snapshot; do not run `.read` or import it as SQL. Stop on an
+    unexpected format.
 4. Open the **new scratch binary SQLite snapshot** with a compatible SQLite
-   tool; run integrity and foreign-key checks and validate representative
-   users, passkey records, OIDC clients, uploads and signing-key continuity.
-   An intact checksum alone is insufficient. Keep plaintext in restricted
-   recovery storage only, never Git or tracked configuration.
+    tool; run integrity and foreign-key checks and validate representative
+    users, passkey records, OIDC clients, uploads and signing-key continuity.
+    An intact checksum alone is insufficient. Keep plaintext in restricted
+    recovery storage only, never Git or tracked configuration.
 5. With the app still stopped, install the verified database at the host path
-   mapped to `/app/data/pocket-id.db`. Never combine it with stale WAL/SHM:
-   after preserving the rollback set, remove old sidecars from the live
-   replacement path while all writers remain stopped. Set data directories
-   to `0700`, database files to `0600`, and ownership to the
-   [Pocket ID identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
-   Verify the app can create new journal/WAL files. Do not recursively chown
-   tracked configuration; the database belongs only in ignored runtime data.
+    mapped to `/app/data/pocket-id.db`. Never combine it with stale WAL/SHM:
+    after preserving the rollback set, remove old sidecars from the live
+    replacement path while all writers remain stopped. Set data directories
+    to `0700`, database files to `0600`, and ownership to the
+    [Pocket ID identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+    Verify the app can create new journal/WAL files. Do not recursively chown
+    tracked configuration; the database belongs only in ignored runtime data.
 6. Start only the compatible app against the recovered state with the **same
-   `ENCRYPTION_KEY`** using a controlled, origin-correct test plan. Passkeys
-   are origin/RP-ID bound: an arbitrary scratch hostname does not prove
-   recovery. Do not expose a second live issuer or change production DNS.
-   If startup reports “already one instance Pocket ID running” from the
-   copied Francis lease, use bounded readiness checks while it naturally
-   expires: up to **90 seconds** after the snapshot host's last heartbeat.
-   The diagnostic's **95-second** wait is not a generic deployment sleep.
-   If refusal persists beyond that bound, stop and investigate. Do not edit
-   the snapshot, delete Francis tables, regenerate keys or weaken the guard.
+    `ENCRYPTION_KEY`** using a controlled, origin-correct test plan. Passkeys
+    are origin/RP-ID bound: an arbitrary scratch hostname does not prove
+    recovery. Do not expose a second live issuer or change production DNS.
+    If startup reports “already one instance Pocket ID running” from the
+    copied Francis lease, use bounded readiness checks while it naturally
+    expires: up to **90 seconds** after the snapshot host's last heartbeat.
+    The diagnostic's **95-second** wait is not a generic deployment sleep.
+    If refusal persists beyond that bound, stop and investigate. Do not edit
+    the snapshot, delete Francis tables, regenerate keys or weaken the guard.
 7. Verify native administrator and spare-passkey access, client issuer and
-   signing behavior, explicit identity mappings, denial tests and a new
-   encrypted backup. Record results before resuming automation. On failure,
-   keep the app stopped and preserve evidence; do not reopen enrollment or
-   route production clients to it. Restore the original checkpoint only as
-   a consistent database/WAL recovery set while stopped.
+    signing behavior, explicit identity mappings, denial tests and a new
+    encrypted backup. Record results before resuming automation. On failure,
+    keep the app stopped and preserve evidence; do not reopen enrollment or
+    route production clients to it. Restore the original checkpoint only as
+    a consistent database/WAL recovery set while stopped.
 
 Independently recoverable host access, the original app key, backup passphrase,
 and spare passkeys must not depend solely on this IdP. Verify dataset snapshots,
@@ -1145,9 +1145,9 @@ Keep this constraint until an intentional migration validates:
 
 - GPG encryption and passphrase decryption, compression, checksums, and retention.
 - Exactly one backup per configured job and a successful isolated restore of
-  every engine's artifact.
+    every engine's artifact.
 - Job failure propagation and matching freshness-checker log parsing, including
-  duplicate/missing completion detection.
+    duplicate/missing completion detection.
 
 Do not loosen the v4 freshness checker or disable it to accept v5 output.
 Recognizing a new log format alone would not establish encryption or
@@ -1156,34 +1156,34 @@ recoverability.
 ### October 2026 Backup Incidents
 
 - **Bitwarden:** user-supplied host evidence from **2026-10-10 (CEST)** shows
-  that retrying the existing backup container at **22:09** still failed its
-  SQLite backup. Earlier failures reported a misleading overall exit code
-  `0`; SMTP errors were secondary because the sidecar has `network_mode: none`.
-  An isolated read-only raw SQLite `.backup` succeeded, followed by a fresh
-  Compose one-off at **22:17** that produced an encrypted `.gpg` artifact
-  and SHA1 sidecar. The user then recreated **only `bitwarden-db-backup`**,
-  using Compose `up` with `--no-deps`, `--force-recreate`,
-  `--abort-on-container-exit`, and `--exit-code-from bitwarden-db-backup`.
-  The **22:18:53 CEST** run succeeded with exit code `0`, producing a
-  **29,017-byte `.sqlite3.zst.gpg`** artifact and SHA1 sidecar. Recreating
-  the backup container recovered the job without a Bitwarden code change.
-  The underlying old-container failure remains unproven; these runs do not
-  establish a vault restore, vault-integrity diagnosis, or global backup
-  freshness-check result.
+    that retrying the existing backup container at **22:09** still failed its
+    SQLite backup. Earlier failures reported a misleading overall exit code
+    `0`; SMTP errors were secondary because the sidecar has `network_mode: none`.
+    An isolated read-only raw SQLite `.backup` succeeded, followed by a fresh
+    Compose one-off at **22:17** that produced an encrypted `.gpg` artifact
+    and SHA1 sidecar. The user then recreated **only `bitwarden-db-backup`**,
+    using Compose `up` with `--no-deps`, `--force-recreate`,
+    `--abort-on-container-exit`, and `--exit-code-from bitwarden-db-backup`.
+    The **22:18:53 CEST** run succeeded with exit code `0`, producing a
+    **29,017-byte `.sqlite3.zst.gpg`** artifact and SHA1 sidecar. Recreating
+    the backup container recovered the job without a Bitwarden code change.
+    The underlying old-container failure remains unproven; these runs do not
+    establish a vault restore, vault-integrity diagnosis, or global backup
+    freshness-check result.
 - **Dawarich / Open Archiver:** [PR #849](https://github.com/DevSecNinja/truenas-apps/pull/849)
-  (`c334cc4`, 2026-10-10) bumped their backup image to `5.0.4` despite the
-  documented v4 restore workflow. Dawarich's supplied logs show duplicate
-  startup backup runs and completed `.sql.zst` files, not `.gpg` artifacts.
-  The new structured logs also lack the v4 completion records expected by
-  the checker. Restoring the v4 pins addresses configuration compatibility;
-  a fresh encrypted backup and isolated restore still need verification.
+    (`c334cc4`, 2026-10-10) bumped their backup image to `5.0.4` despite the
+    documented v4 restore workflow. Dawarich's supplied logs show duplicate
+    startup backup runs and completed `.sql.zst` files, not `.gpg` artifacts.
+    The new structured logs also lack the v4 completion records expected by
+    the checker. Restoring the v4 pins addresses configuration compatibility;
+    a fresh encrypted backup and isolated restore still need verification.
 - **Karakeep:** after [PR #823](https://github.com/DevSecNinja/truenas-apps/pull/823)
-  (`b50af84`, 2026-10-06), Meilisearch rejected the older index database.
-  Web/browser/worker health did not prove search readiness, and startup
-  dependencies blocked new backup runs; the reported latest backup remained
-  at October 6. Take an existing-state protective snapshot before deployment
-  and follow [Karakeep startup recovery](services/karakeep.md#meilisearch-upgrades-and-startup-recovery).
-  Repairing the search index does not require wiping the bookmark database.
+    (`b50af84`, 2026-10-06), Meilisearch rejected the older index database.
+    Web/browser/worker health did not prove search readiness, and startup
+    dependencies blocked new backup runs; the reported latest backup remained
+    at October 6. Take an existing-state protective snapshot before deployment
+    and follow [Karakeep startup recovery](services/karakeep.md#meilisearch-upgrades-and-startup-recovery).
+    Repairing the search index does not require wiping the bookmark database.
 
 <!-- dprint-ignore -->
 !!! warning "Treat v5-created dumps as potentially unencrypted sensitive data"
@@ -1209,7 +1209,7 @@ forced full deployment. The v4 configuration is intended to produce dumps that a
 - SHA1-checksummed
 - Encrypted with `DB_ENC_PASSPHRASE` from each app's `secret.sops.env`
 - Retained for 2880 minutes (48 hours), which bounds the stored backup count
-  according to the actual dccd cadence
+    according to the actual dccd cadence
 
 `dccd-all` enables the `dccd.sh -B` end-of-run check by default. It waits up to
 the configured `WAIT_TIMEOUT` for active `*-db-backup` services and requires
@@ -1231,19 +1231,19 @@ attempt; a recent older completion is insufficient. None of these completion
 checks alone proves that an artifact decrypts or restores successfully.
 
 - **All sidecars:** any current-run nonzero or malformed job completion fails
-  the check, even if another job succeeds.
+    the check, even if another job succeeds.
 - **Operation errors:** current-run messages of the form
-  `DB Backup of 'filename' reported errors` or
-  `Moving of backup 'filename' reported errors` fail the check for any sidecar,
-  even if all completion records report `0`. The pinned nfrastack compatibility
-  image can log these errors while its scheduler still reports completion code `0`.
+    `DB Backup of 'filename' reported errors` or
+    `Moving of backup 'filename' reported errors` fail the check for any sidecar,
+    even if all completion records report `0`. The pinned nfrastack compatibility
+    image can log these errors while its scheduler still reports completion code `0`.
 - **Expected-job opt-in:** a non-empty `dccd.backup-jobs` label must list unique
-  numeric job IDs separated by commas, such as `01,02`. Each declared ID must
-  have exactly one successful completion. Invalid labels, missing expected
-  completions, and duplicate completions for an expected ID fail.
+    numeric job IDs separated by commas, such as `01,02`. Each declared ID must
+    have exactly one successful completion. Invalid labels, missing expected
+    completions, and duplicate completions for an expected ID fail.
 - **Unlabeled sidecars:** retain the requirement for at least one successful
-  completion, but any nonzero/malformed completion or known operation-error
-  diagnostic still fails.
+    completion, but any nonzero/malformed completion or known operation-error
+    diagnostic still fails.
 
 If any check fails, `dccd.sh` fails. Disable the check for one invocation with:
 
@@ -1348,155 +1348,155 @@ instead of restoring only its SQL dump with this generic procedure.
 
 1. Locate the dump file (locally or download from Azure Blob — see [Layer 3 restore](#restore-from-azure-blob)):
 
-   ```sh
-   ls services/immich/backups/db-backup/
-   ```
+    ```sh
+    ls services/immich/backups/db-backup/
+    ```
 
 2. Decrypt with GPG using `DB_ENC_PASSPHRASE`, then decompress the dump:
-   - **Dawarich nfrastack 4.9.2 and tiredofit v4 PostgreSQL/SQLite backups:**
-     GPG-encrypted and zstd-compressed.
-   - **MongoDB backups:** GPG-encrypted and gzip-compressed because the sidecar
-     invokes `mongodump --gzip`.
+    - **Dawarich nfrastack 4.9.2 and tiredofit v4 PostgreSQL/SQLite backups:**
+        GPG-encrypted and zstd-compressed.
+    - **MongoDB backups:** GPG-encrypted and gzip-compressed because the sidecar
+        invokes `mongodump --gzip`.
 
-   The following commands apply to the GPG-encrypted backups:
+    The following commands apply to the GPG-encrypted backups:
 
-   ```sh
-   # PostgreSQL / SQLite — *.zst.gpg
-   gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
-     --output pgsql_immich_immich_20260411-020000.sql.zst \
-     --decrypt pgsql_immich_immich_20260411-020000.sql.zst.gpg
-   zstd -d pgsql_immich_immich_20260411-020000.sql.zst
+    ```sh
+    # PostgreSQL / SQLite — *.zst.gpg
+    gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
+      --output pgsql_immich_immich_20260411-020000.sql.zst \
+      --decrypt pgsql_immich_immich_20260411-020000.sql.zst.gpg
+    zstd -d pgsql_immich_immich_20260411-020000.sql.zst
 
-   # MongoDB — *.archive.gz.gpg
-   gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
-     --output mongo_unifi_unifi_20260411-020000.archive.gz \
-     --decrypt mongo_unifi_unifi_20260411-020000.archive.gz.gpg
-   gunzip mongo_unifi_unifi_20260411-020000.archive.gz
-   ```
+    # MongoDB — *.archive.gz.gpg
+    gpg --batch --passphrase "<DB_ENC_PASSPHRASE>" \
+      --output mongo_unifi_unifi_20260411-020000.archive.gz \
+      --decrypt mongo_unifi_unifi_20260411-020000.archive.gz.gpg
+    gunzip mongo_unifi_unifi_20260411-020000.archive.gz
+    ```
 
 3. Restore — the procedure depends on the database engine:
 
-   **PostgreSQL** (Dawarich, Gatus, Immich, Outline) — plain-text `pg_dump` SQL
-   after decrypting and decompressing with the matching image-generation
-   workflow:
+    **PostgreSQL** (Dawarich, Gatus, Immich, Outline) — plain-text `pg_dump` SQL
+    after decrypting and decompressing with the matching image-generation
+    workflow:
 
-   ```sh
-   # Copy the plain-text SQL dump into the container
-   docker cp pgsql_immich_immich_20260411-020000.sql immich-db:/tmp/
+    ```sh
+    # Copy the plain-text SQL dump into the container
+    docker cp pgsql_immich_immich_20260411-020000.sql immich-db:/tmp/
 
-   # Restore the plain-text pg_dump output with psql
-   docker exec -it -e PGPASSWORD='<password>' immich-db psql \
-     -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
-   ```
+    # Restore the plain-text pg_dump output with psql
+    docker exec -it -e PGPASSWORD='<password>' immich-db psql \
+      -U immich -d immich -f /tmp/pgsql_immich_immich_20260411-020000.sql
+    ```
 
-   **MongoDB** (Unifi) — `mongodump --archive --gzip` single-file binary archive (gzip already removed in step 2):
+    **MongoDB** (Unifi) — `mongodump --archive --gzip` single-file binary archive (gzip already removed in step 2):
 
-   ```sh
-   docker cp mongo_unifi_unifi_20260411-020000.archive unifi-db:/tmp/restore.archive
+    ```sh
+    docker cp mongo_unifi_unifi_20260411-020000.archive unifi-db:/tmp/restore.archive
 
-   docker exec -it unifi-db mongorestore \
-     --username root --password '<password>' \
-     --authenticationDatabase admin \
-     --drop \
-     --archive=/tmp/restore.archive
-   ```
+    docker exec -it unifi-db mongorestore \
+      --username root --password '<password>' \
+      --authenticationDatabase admin \
+      --drop \
+      --archive=/tmp/restore.archive
+    ```
 
-   **SQLite** (Home Assistant, Karakeep, Memos) — binary copy via the SQLite
-   Online Backup API. The `.sqlite3`/`.db` file is a complete database, not a
-   `.dump`, so it can replace the live DB while the application is stopped:
+    **SQLite** (Home Assistant, Karakeep, Memos) — binary copy via the SQLite
+    Online Backup API. The `.sqlite3`/`.db` file is a complete database, not a
+    `.dump`, so it can replace the live DB while the application is stopped:
 
-   ```sh
-   # Stop the Home Assistant stack first so the recorder DB isn't being written.
-   docker compose -f services/home-assistant/compose.yaml down
+    ```sh
+    # Stop the Home Assistant stack first so the recorder DB isn't being written.
+    docker compose -f services/home-assistant/compose.yaml down
 
-   # Move the existing DB aside and drop in the restored copy.
-   mv services/home-assistant/data/config/home-assistant_v2.db{,.bak}
-   cp sqlite3_home-assistant_home-assistant_20260411-020000.sqlite3 \
-     services/home-assistant/data/config/home-assistant_v2.db
+    # Move the existing DB aside and drop in the restored copy.
+    mv services/home-assistant/data/config/home-assistant_v2.db{,.bak}
+    cp sqlite3_home-assistant_home-assistant_20260411-020000.sqlite3 \
+      services/home-assistant/data/config/home-assistant_v2.db
 
-   # Verify integrity, then restart.
-   sqlite3 services/home-assistant/data/config/home-assistant_v2.db \
-     "PRAGMA integrity_check;"
-   docker compose -f services/home-assistant/compose.yaml up -d
-   ```
+    # Verify integrity, then restart.
+    sqlite3 services/home-assistant/data/config/home-assistant_v2.db \
+      "PRAGMA integrity_check;"
+    docker compose -f services/home-assistant/compose.yaml up -d
+    ```
 
-   Karakeep runs SQLite in WAL mode. Stop the stack and remove the stale
-   `db.db-wal` and `db.db-shm` files before installing the restored database;
-   those sidecars belong to the previous `db.db`. Restore ownership to
-   `3130:3130` and the init container's restrictive modes across the Karakeep
-   data directory so the non-root processes can write the database and create
-   new WAL/SHM files. The normal `truenas_admin` operator requires elevated
-   privileges for the file operations and integrity check because Karakeep has
-   `admin_group_member=false`, and the restored tree becomes accessible only to
-   `svc-app-karakeep`.
+    Karakeep runs SQLite in WAL mode. Stop the stack and remove the stale
+    `db.db-wal` and `db.db-shm` files before installing the restored database;
+    those sidecars belong to the previous `db.db`. Restore ownership to
+    `3130:3130` and the init container's restrictive modes across the Karakeep
+    data directory so the non-root processes can write the database and create
+    new WAL/SHM files. The normal `truenas_admin` operator requires elevated
+    privileges for the file operations and integrity check because Karakeep has
+    `admin_group_member=false`, and the restored tree becomes accessible only to
+    `svc-app-karakeep`.
 
-   ```sh
-   # Stop Karakeep so nothing holds the database or WAL open.
-   docker compose -f services/karakeep/compose.yaml down
+    ```sh
+    # Stop Karakeep so nothing holds the database or WAL open.
+    docker compose -f services/karakeep/compose.yaml down
 
-   # Preserve the current database and remove sidecars from that old database.
-   sudo mv services/karakeep/data/karakeep/db.db{,.bak}
-   sudo rm -f services/karakeep/data/karakeep/db.db-wal \
-     services/karakeep/data/karakeep/db.db-shm
+    # Preserve the current database and remove sidecars from that old database.
+    sudo mv services/karakeep/data/karakeep/db.db{,.bak}
+    sudo rm -f services/karakeep/data/karakeep/db.db-wal \
+      services/karakeep/data/karakeep/db.db-shm
 
-   # Install the decrypted, decompressed database backup.
-   sudo cp /path/to/restored-karakeep-db.db \
-     services/karakeep/data/karakeep/db.db
+    # Install the decrypted, decompressed database backup.
+    sudo cp /path/to/restored-karakeep-db.db \
+      services/karakeep/data/karakeep/db.db
 
-   # Verify the restored database.
-   sudo sqlite3 services/karakeep/data/karakeep/db.db \
-     "PRAGMA integrity_check;"
+    # Verify the restored database.
+    sudo sqlite3 services/karakeep/data/karakeep/db.db \
+      "PRAGMA integrity_check;"
 
-   # Match karakeep-init before restart. Directory write access is required
-   # for SQLite to create new WAL/SHM files.
-   sudo chown -R 3130:3130 services/karakeep/data/karakeep
-   sudo chmod -R u=rwX,g=,o= services/karakeep/data/karakeep
+    # Match karakeep-init before restart. Directory write access is required
+    # for SQLite to create new WAL/SHM files.
+    sudo chown -R 3130:3130 services/karakeep/data/karakeep
+    sudo chmod -R u=rwX,g=,o= services/karakeep/data/karakeep
 
-   # Restart Karakeep after integrity_check returns "ok".
-   docker compose -f services/karakeep/compose.yaml up -d
-   ```
+    # Restart Karakeep after integrity_check returns "ok".
+    docker compose -f services/karakeep/compose.yaml up -d
+    ```
 
-   This restores only the SQLite database. Restore
-   `services/karakeep/data/karakeep/assets` separately from the corresponding
-   storage-layer recovery point when asset files also need recovery. The
-   Meilisearch index is regeneratable.
+    This restores only the SQLite database. Restore
+    `services/karakeep/data/karakeep/assets` separately from the corresponding
+    storage-layer recovery point when asset files also need recovery. The
+    Meilisearch index is regeneratable.
 
-   Memos follows the same pattern but runs SQLite in WAL mode, so the live
-   directory may still contain `memos_prod.db-wal`/`memos_prod.db-shm`
-   sidecar files from the running (or crashed) process. Restoring only the
-   main `.db` file while leaving stale WAL/SHM files in place can reapply old
-   uncommitted writes on top of the restored database or make SQLite refuse
-   to open it cleanly — remove them before restarting. Memos also runs as
-   the non-root `3129:3129` (`svc-app-memos`) account, so the restored file
-   must be `chown`'d back to that UID/GID before the container can write to
-   it again:
+    Memos follows the same pattern but runs SQLite in WAL mode, so the live
+    directory may still contain `memos_prod.db-wal`/`memos_prod.db-shm`
+    sidecar files from the running (or crashed) process. Restoring only the
+    main `.db` file while leaving stale WAL/SHM files in place can reapply old
+    uncommitted writes on top of the restored database or make SQLite refuse
+    to open it cleanly — remove them before restarting. Memos also runs as
+    the non-root `3129:3129` (`svc-app-memos`) account, so the restored file
+    must be `chown`'d back to that UID/GID before the container can write to
+    it again:
 
-   ```sh
-   # Stop Memos so nothing holds the SQLite file (or its WAL) open.
-   docker compose -f services/memos/compose.yaml down
+    ```sh
+    # Stop Memos so nothing holds the SQLite file (or its WAL) open.
+    docker compose -f services/memos/compose.yaml down
 
-   # Move the existing DB aside; remove stale WAL/SHM sidecar files — they
-   # belong to the old database file, not the restored one.
-   mv services/memos/data/memos_prod.db{,.bak}
-   rm -f services/memos/data/memos_prod.db-wal services/memos/data/memos_prod.db-shm
+    # Move the existing DB aside; remove stale WAL/SHM sidecar files — they
+    # belong to the old database file, not the restored one.
+    mv services/memos/data/memos_prod.db{,.bak}
+    rm -f services/memos/data/memos_prod.db-wal services/memos/data/memos_prod.db-shm
 
-   # Drop in the restored (decrypted, decompressed) database file copy.
-   cp sqlite3_memos_memos_20260411-020000.db services/memos/data/memos_prod.db
+    # Drop in the restored (decrypted, decompressed) database file copy.
+    cp sqlite3_memos_memos_20260411-020000.db services/memos/data/memos_prod.db
 
-   # Memos runs as non-root 3129:3129 (svc-app-memos) — restore that ownership
-   # on the copied file before the container starts writing to it again.
-   chown 3129:3129 services/memos/data/memos_prod.db
+    # Memos runs as non-root 3129:3129 (svc-app-memos) — restore that ownership
+    # on the copied file before the container starts writing to it again.
+    chown 3129:3129 services/memos/data/memos_prod.db
 
-   # Verify integrity before restarting Memos.
-   sqlite3 services/memos/data/memos_prod.db "PRAGMA integrity_check;"
-   docker compose -f services/memos/compose.yaml up -d
-   ```
+    # Verify integrity before restarting Memos.
+    sqlite3 services/memos/data/memos_prod.db "PRAGMA integrity_check;"
+    docker compose -f services/memos/compose.yaml up -d
+    ```
 
-   Memos 0.30 defaults attachment storage to SQLite blobs rather than local
-   files, so restoring `memos_prod.db` alone restores both notes and
-   attachments as of that backup — there is no separate attachment directory
-   to reconcile under the default configuration. If the storage driver is
-   later changed to local disk or S3, this restore procedure must be revisited.
+    Memos 0.30 defaults attachment storage to SQLite blobs rather than local
+    files, so restoring `memos_prod.db` alone restores both notes and
+    attachments as of that backup — there is no separate attachment directory
+    to reconcile under the default configuration. If the storage driver is
+    later changed to local disk or S3, this restore procedure must be revisited.
 
 The `Backup Restore Test` GitHub Actions workflow
 (`scripts/gha-backup-restore-test.sh`) exercises the tiredofit v4 GPG workflow
@@ -1595,133 +1595,133 @@ Use this before upgrades or a planned recovery test. Nightly online dumps
 alone do not perform these steps.
 
 1. Suspend automated redeploys and prevent interactive/API writes. Disable
-   mailbox sources and scheduled imports in the application so no new work is
-   enqueued. Keep workers running long enough to finish active ingestion and
-   indexing; verify queue state and deal explicitly with failed, delayed, or
-   retrying work. If a drain cannot be established, do not call the checkpoint
-   coordinated.
+    mailbox sources and scheduled imports in the application so no new work is
+    enqueued. Keep workers running long enough to finish active ingestion and
+    indexing; verify queue state and deal explicitly with failed, delayed, or
+    retrying work. If a drain cannot be established, do not call the checkpoint
+    coordinated.
 2. **Drain before stopping the app.** The upstream worker can force-exit after
-   five seconds. The local supervisor's 20-second deadline and Compose's
-   30-second stop grace do not guarantee drain. Stop only the `open-archiver`
-   application container in its existing TrueNAS project after drain, and
-   verify all five child processes have exited. Leave PostgreSQL and Valkey
-   running for engine-level dumps; prevent all other writers.
+    five seconds. The local supervisor's 20-second deadline and Compose's
+    30-second stop grace do not guarantee drain. Stop only the `open-archiver`
+    application container in its existing TrueNAS project after drain, and
+    verify all five child processes have exited. Leave PostgreSQL and Valkey
+    running for engine-level dumps; prevent all other writers.
 3. In the existing project, run the one-shot backup without its healthy-app
-   dependency. This raw Compose invocation is for operator troubleshooting,
-   checkpoint capture, or restoration only—not the normal deployment path.
-   Confirm the project name matches the existing Custom App first:
+    dependency. This raw Compose invocation is for operator troubleshooting,
+    checkpoint capture, or restoration only—not the normal deployment path.
+    Confirm the project name matches the existing Custom App first:
 
-   ```sh
-   cd /mnt/vm-pool/apps/services/open-archiver
-   sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps open-archiver-db-backup
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps/services/open-archiver
+    sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps open-archiver-db-backup
+    ```
 
-   The service automatically invokes the per-job runner. Require exit status
-   zero and exactly one successful completion for each job (`01` and `02`),
-   with no nonzero or malformed completion records or known dump/output-move
-   error diagnostics.
-   A removed one-off container is not the named container inspected by the
-   normal dccd freshness check; retain its reviewed, secret-free run evidence.
+    The service automatically invokes the per-job runner. Require exit status
+    zero and exactly one successful completion for each job (`01` and `02`),
+    with no nonzero or malformed completion records or known dump/output-move
+    error diagnostics.
+    A removed one-off container is not the named container inspected by the
+    normal dccd freshness check; retain its reviewed, secret-free run evidence.
 4. While application writes remain blocked, capture matching quiesced
-   `./data/archive` files and dataset snapshots containing the selected dumps.
-   Include Valkey state from this checkpoint if queue recovery will be used.
-   Record snapshot identifiers, dump filenames/checksums, image revisions,
-   key versions, and the decision about pending jobs together. Do not mix
-   unrelated live PostgreSQL directories, queue snapshots, and archive copies.
+    `./data/archive` files and dataset snapshots containing the selected dumps.
+    Include Valkey state from this checkpoint if queue recovery will be used.
+    Record snapshot identifiers, dump filenames/checksums, image revisions,
+    key versions, and the decision about pending jobs together. Do not mix
+    unrelated live PostgreSQL directories, queue snapshots, and archive copies.
 5. Verify both dump artifacts and their SHA1 sidecars, then test GPG decryption
-   and ZSTD decompression in a restricted recovery workspace. Use a protected
-   credential prompt/channel, not a passphrase in command arguments or logs.
-   SHA1 is the configured corruption check, not proof of authenticity.
-   Check archive completeness and representative decrypt/download results
-   in an isolated recovery test, without restarting production writers.
+    and ZSTD decompression in a restricted recovery workspace. Use a protected
+    credential prompt/channel, not a passphrase in command arguments or logs.
+    SHA1 is the configured corruption check, not proof of authenticity.
+    Check archive completeness and representative decrypt/download results
+    in an isolated recovery test, without restarting production writers.
 6. Ensure this matching checkpoint reaches the required snapshot, replication,
-   and off-site layers before claiming it protected. Task A reads live files:
-   if relying on it for the checkpoint, finish and verify its copy while state
-   remains quiesced, or retain a separately protected checkpoint copy.
-   Resume the app and sources only after capture and verification, then
-   restore normal deployment automation and backup checks.
+    and off-site layers before claiming it protected. Task A reads live files:
+    if relying on it for the checkpoint, finish and verify its copy while state
+    remains quiesced, or retain a separately protected checkpoint copy.
+    Resume the app and sources only after capture and verification, then
+    restore normal deployment automation and backup checks.
 
 ### Recovery Procedure
 
 1. Suspend redeploys and all writers. Preserve the failed data and current
-   secrets in a restricted recovery location; take a protective snapshot if
-   possible. Restore into isolated fresh paths/instances first. Do not delete
-   the live data tree, overwrite the only backup, or roll back sibling datasets.
+    secrets in a restricted recovery location; take a protective snapshot if
+    possible. Restore into isolated fresh paths/instances first. Do not delete
+    the live data tree, overwrite the only backup, or roll back sibling datasets.
 2. Select one coordinated checkpoint. Recover the PostgreSQL dump, matching
-   archive tree, and optional matching queue state from local snapshots,
-   replication, or [encrypted off-site storage](#restore-from-azure-blob).
-   Recover the original encryption keys securely without printing them.
-   Keep source credentials, decrypted SQL, and plaintext attachments private.
+    archive tree, and optional matching queue state from local snapshots,
+    replication, or [encrypted off-site storage](#restore-from-azure-blob).
+    Recover the original encryption keys securely without printing them.
+    Keep source credentials, decrypted SQL, and plaintext attachments private.
 3. Verify available checksums; decrypt the selected artifacts with the matching
-   `${DB_ENC_PASSPHRASE}` and decompress with ZSTD. DB01 yields PostgreSQL SQL;
-   DB02 yields a Redis-compatible RDB. Use a restricted workspace outside the
-   tracked checkout; do not feed an RDB into `psql`.
+    `${DB_ENC_PASSPHRASE}` and decompress with ZSTD. DB01 yields PostgreSQL SQL;
+    DB02 yields a Redis-compatible RDB. Use a restricted workspace outside the
+    tracked checkout; do not feed an RDB into `psql`.
 4. Prepare fresh directory roots with routine init, then start only a fresh
-   compatible PostgreSQL instance with the read-only `config/init-database.sql`
-   hook and the configured separate administrator credential.
-   It must create the nonsuperuser `openarchiver` login and owned
-   `openarchiver` database. Confirm its authenticated app-role `SELECT 1`
-   health check passes. Restore the SQL with `psql` as that app role,
-   enabling `ON_ERROR_STOP`, into the **fresh database before app migrations**
-   run. Do not overlay an existing application schema. Check restore errors,
-   ownership, and record counts; never pass the admin password to the app.
+    compatible PostgreSQL instance with the read-only `config/init-database.sql`
+    hook and the configured separate administrator credential.
+    It must create the nonsuperuser `openarchiver` login and owned
+    `openarchiver` database. Confirm its authenticated app-role `SELECT 1`
+    health check passes. Restore the SQL with `psql` as that app role,
+    enabling `ON_ERROR_STOP`, into the **fresh database before app migrations**
+    run. Do not overlay an existing application schema. Check restore errors,
+    ownership, and record counts; never pass the admin password to the app.
 5. Install the complete matching `./data/archive` tree, preserving encrypted
-   files and layout. Retain the failed tree separately and take a protective
-   snapshot before changing permissions. After the SQL restore, stop
-   PostgreSQL and all other data writers, including the app, Valkey,
-   Meilisearch, migrations, and backup jobs. Keep redeploy automation suspended.
-   Routine init is non-recursive with
-   `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false`; it does not repair restored
-   descendants. Confirm the existing Custom App project is
-   `ix-open-archiver`, then run the explicit repair from the service directory:
+    files and layout. Retain the failed tree separately and take a protective
+    snapshot before changing permissions. After the SQL restore, stop
+    PostgreSQL and all other data writers, including the app, Valkey,
+    Meilisearch, migrations, and backup jobs. Keep redeploy automation suspended.
+    Routine init is non-recursive with
+    `OPEN_ARCHIVER_REPAIR_PERMISSIONS=false`; it does not repair restored
+    descendants. Confirm the existing Custom App project is
+    `ix-open-archiver`, then run the explicit repair from the service directory:
 
-   ```sh
-   cd /mnt/vm-pool/apps/services/open-archiver
-   sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps -e OPEN_ARCHIVER_REPAIR_PERMISSIONS=true open-archiver-init
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps/services/open-archiver
+    sudo docker compose --project-name ix-open-archiver -f compose.yaml run --rm --no-deps -e OPEN_ARCHIVER_REPAIR_PERMISSIONS=true open-archiver-init
+    ```
 
-   Require exit status zero and verify ownership/modes before restarting any
-   writer. This retains secret validation and recursively repairs only
-   archive, scratch, Meilisearch, PostgreSQL, and Valkey trees under `./data`;
-   it never touches tracked `./config`. Archive/scratch/search use the
-   dedicated app identity, while PostgreSQL and Valkey use their Compose
-   identities. Do not persist the repair override for routine deployments.
-   Keep sources and the frontend unavailable to writers during recovery.
+    Require exit status zero and verify ownership/modes before restarting any
+    writer. This retains secret validation and recursively repairs only
+    archive, scratch, Meilisearch, PostgreSQL, and Valkey trees under `./data`;
+    it never touches tracked `./config`. Archive/scratch/search use the
+    dedicated app identity, while PostgreSQL and Valkey use their Compose
+    identities. Do not persist the repair override for routine deployments.
+    Keep sources and the frontend unavailable to writers during recovery.
 6. Restore Valkey **only from the same coordinated checkpoint** if replay is
-   appropriate. Install DB02's RDB into a fresh Valkey data directory, or
-   recover the matching complete Valkey persistence directory. After installing
-   either set of persistence files, repeat step 5's explicit repair with all
-   writers stopped **before starting Valkey**.
-   For RDB-only recovery, start Valkey with AOF temporarily disabled so old AOF
-   data cannot override the RDB. Re-enable AOF persistence and verify a new AOF
-   is established before returning to the normal `--appendonly yes`
-   configuration. In either case,
-   review queued jobs against restored database/archive state before workers
-   start. Without matching queue state, deliberately reset/reconcile jobs and
-   transient MFA sessions, then restart sources under supervision; do not
-   blindly replay a newer or unrelated queue.
+    appropriate. Install DB02's RDB into a fresh Valkey data directory, or
+    recover the matching complete Valkey persistence directory. After installing
+    either set of persistence files, repeat step 5's explicit repair with all
+    writers stopped **before starting Valkey**.
+    For RDB-only recovery, start Valkey with AOF temporarily disabled so old AOF
+    data cannot override the RDB. Re-enable AOF persistence and verify a new AOF
+    is established before returning to the normal `--appendonly yes`
+    configuration. In either case,
+    review queued jobs against restored database/archive state before workers
+    start. Without matching queue state, deliberately reset/reconcile jobs and
+    transient MFA sessions, then restart sources under supervision; do not
+    blindly replay a newer or unrelated queue.
 7. If Meilisearch was lost or does not match the restored state, prepare a fresh
-   index and perform a **full application reindex** after the app restarts in
-   step 8. It cannot replace the encrypted archive or PostgreSQL backup.
-   Scratch files are regeneratable,
-   but may contain plaintext and unfinished imports: retain anything needed
-   for investigation, then clean up only reviewed paths while workers are
-   drained and stopped.
+    index and perform a **full application reindex** after the app restarts in
+    step 8. It cannot replace the encrypted archive or PostgreSQL backup.
+    Scratch files are regeneratable,
+    but may contain plaintext and unfinished imports: retain anything needed
+    for investigation, then clean up only reviewed paths while workers are
+    drained and stopped.
 8. Restore using the compatible fixed app revision associated with the
-   checkpoint. The initial selected release `v0.6.0` predates the archive
-   integrity fix in `2082eba984ca771c23c2a7c60fc9284794e24b9b`; do not downgrade
-   to it as a recovery shortcut. Run the separate migration one-shot to
-   successful completion before the app. Normal dccd pulls merged changes,
-   so confirm the intended image/schema version before resuming deployment.
+    checkpoint. The initial selected release `v0.6.0` predates the archive
+    integrity fix in `2082eba984ca771c23c2a7c60fc9284794e24b9b`; do not downgrade
+    to it as a recovery shortcut. Run the separate migration one-shot to
+    successful completion before the app. Normal dccd pulls merged changes,
+    so confirm the intended image/schema version before resuming deployment.
 9. Through `chain-auth@file` and the app-local
-   `Role("open-archiver-access")` gate, verify with fresh sessions that an
-   unauthenticated request and a signed-in user without the role are denied,
-   including `GET /setup` and `POST /api/v1/auth/setup`, while an approved
-   assigned user passes the role gate. Verify local login/MFA, that `/setup` is locked,
-   mailbox/source settings, archive counts, and representative message and
-   attachment downloads. Test OCR search after reindex, inspect queue
-   reconciliation, then enable one source for a least-privilege test import.
-   Only resume all sources and automation after integrity checks pass.
+    `Role("open-archiver-access")` gate, verify with fresh sessions that an
+    unauthenticated request and a signed-in user without the role are denied,
+    including `GET /setup` and `POST /api/v1/auth/setup`, while an approved
+    assigned user passes the role gate. Verify local login/MFA, that `/setup` is locked,
+    mailbox/source settings, archive counts, and representative message and
+    attachment downloads. Test OCR search after reindex, inspect queue
+    reconciliation, then enable one source for a least-privilege test import.
+    Only resume all sources and automation after integrity checks pass.
 10. Run the normal `dccd-all` deployment/backup check and verify fresh DB01
     and DB02 artifacts plus independent archive coverage. Record actual
     seed/backup/decrypt/restore evidence before treating recovery as tested.
@@ -1762,54 +1762,54 @@ does not prove that this file state is backed up.
 ### Safe Recovery Procedure
 
 1. Suspend scheduled dccd deployment and any other automation that could
-   restart this app. Record the application image version/digest associated
-   with the recovery point; restore with that app version before attempting
-   an upgrade. Keep all writers stopped until the file restore is complete.
+    restart this app. Record the application image version/digest associated
+    with the recovery point; restore with that app version before attempting
+    an upgrade. Keep all writers stopped until the file restore is complete.
 2. Stop the `changedetection` Custom App through TrueNAS, allowing the
-   configured 60-second graceful-stop period. Confirm the application has
-   exited and no other instance is writing `/datastore`. If shutdown is
-   forced or fails, do not label a subsequent snapshot application-consistent.
+    configured 60-second graceful-stop period. Confirm the application has
+    exited and no other instance is writing `/datastore`. If shutdown is
+    forced or fails, do not label a subsequent snapshot application-consistent.
 3. Preserve the **complete failed `data/` tree**, including hidden files and
-   secrets, in a restricted recovery workspace outside the Git checkout.
-   Take a protective snapshot where possible. Retain the original recovery
-   source and failed tree until recovery is verified; do not delete them.
+    secrets, in a restricted recovery workspace outside the Git checkout.
+    Take a protective snapshot where possible. Retain the original recovery
+    source and failed tree until recovery is verified; do not delete them.
 4. Select a complete recovery point, preferably captured after a graceful
-   stop. Browse this child dataset's own
-   `/mnt/vm-pool/apps/services/changedetection/.zfs/snapshot/<snapshot-name>/data/`,
-   recover the equivalent directory from the local replica, or download it
-   through [Restore from Azure Blob](#restore-from-azure-blob). Restore into
-   a restricted staging location first, not onto the running app. A live
-   snapshot or file-by-file Cloud Sync copy requires additional scrutiny;
-   completeness alone does not establish multi-file consistency.
+    stop. Browse this child dataset's own
+    `/mnt/vm-pool/apps/services/changedetection/.zfs/snapshot/<snapshot-name>/data/`,
+    recover the equivalent directory from the local replica, or download it
+    through [Restore from Azure Blob](#restore-from-azure-blob). Restore into
+    a restricted staging location first, not onto the running app. A live
+    snapshot or file-by-file Cloud Sync copy requires additional scrutiny;
+    completeness alone does not establish multi-file consistency.
 5. Verify the staged tree includes the global/watch/tag JSON, `secret.txt`,
-   history snapshots, and screenshots expected for that recovery point.
-   Check JSON readability and available backup checksums, but do not treat
-   syntactically valid JSON as proof of cross-file consistency. Keep
-   credentials, notification URLs, page contents, and screenshots private.
+    history snapshots, and screenshots expected for that recovery point.
+    Check JSON readability and available backup checksums, but do not treat
+    syntactically valid JSON as proof of cross-file consistency. Keep
+    credentials, notification URLs, page contents, and screenshots private.
 6. With the app still stopped, move the preserved failed tree aside and
-   install the complete recovered directory at
-   `/mnt/vm-pool/apps/services/changedetection/data/`. Use elevated privileges
-   and preserve files, subdirectories, and hidden entries. Do not overlay a
-   partial restore onto old files, combine recovery points, or roll back
-   sibling datasets.
+    install the complete recovered directory at
+    `/mnt/vm-pool/apps/services/changedetection/data/`. Use elevated privileges
+    and preserve files, subdirectories, and hidden entries. Do not overlay a
+    partial restore onto old files, combine recovery points, or roll back
+    sibling datasets.
 7. Re-run `changedetection-init` to successful completion in the existing
-   TrueNAS app project before starting the application. It restores
-   ownership to `svc-app-changedetection` and restrictive `u=rwX,g=,o=`
-   permissions. Before using the normal deployment path
-   (`dccd-app changedetection`), confirm the merged Compose configuration
-   selects the intended compatible image: dccd pulls merged changes, not
-   necessarily the version associated with the backup. Verify init completed;
-   do not start a second Compose project or bypass init. Stop on
-   init/permission errors rather than weakening access.
+    TrueNAS app project before starting the application. It restores
+    ownership to `svc-app-changedetection` and restrictive `u=rwX,g=,o=`
+    permissions. Before using the normal deployment path
+    (`dccd-app changedetection`), confirm the merged Compose configuration
+    selects the intended compatible image: dccd pulls merged changes, not
+    necessarily the version associated with the backup. Verify init completed;
+    do not start a second Compose project or bypass init. Stop on
+    init/permission errors rather than weakening access.
 8. Sign in through SSO and verify settings, watch/tag counts, representative
-   historical diffs, and screenshots. Check application logs for missing
-   files or parse errors, then test a public JavaScript watch, screenshot, and
-   notification. Existing Basic HTTP watch settings are not automatically
-   migrated; select the browser fetcher explicitly where wanted, without
-   silently rewriting other stored watch settings.
-   Account for outbound watch checks/notifications resuming at startup.
-   Only then resume deployment automation and confirm all three backup
-   layers include the restored directory.
+    historical diffs, and screenshots. Check application logs for missing
+    files or parse errors, then test a public JavaScript watch, screenshot, and
+    notification. Existing Basic HTTP watch settings are not automatically
+    migrated; select the browser fetcher explicitly where wanted, without
+    silently rewriting other stored watch settings.
+    Account for outbound watch checks/notifications resuming at startup.
+    Only then resume deployment automation and confirm all three backup
+    layers include the restored directory.
 
 For a manual consistent snapshot/export without a restore, suspend redeploys,
 gracefully stop and confirm the writer has exited, then snapshot the child
@@ -1860,17 +1860,17 @@ entry below states its specific coverage rather than a blanket claim.
 ### Classification
 
 - **Database** — an embedded or external data store with its own consistency
-  semantics (WAL, transactions). A raw filesystem snapshot mid-write carries
-  non-zero corruption risk without engine cooperation (online backup API,
-  quiescing, or a transactional dump).
+    semantics (WAL, transactions). A raw filesystem snapshot mid-write carries
+    non-zero corruption risk without engine cooperation (online backup API,
+    quiescing, or a transactional dump).
 - **Critical mutable file state** — hand-authored or generated files that are
-  expensive or impossible to reconstruct (device pairings, credentials,
-  configuration written through a UI, uploaded attachments) but are not a
-  formal database engine.
+    expensive or impossible to reconstruct (device pairings, credentials,
+    configuration written through a UI, uploaded attachments) but are not a
+    formal database engine.
 - **Regeneratable cache** — safe to lose; rebuilt automatically or holds
-  low-value history/log data.
+    low-value history/log data.
 - **External/media data** — large media/library content stored outside a
-  service's own `./data` (typically on `archive-pool`).
+    service's own `./data` (typically on `archive-pool`).
 
 ### Storage-Layer Coverage Reference
 

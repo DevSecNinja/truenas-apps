@@ -31,17 +31,17 @@ Use SOPS-native `SOPS_AGE_KEY_CMD` so the private key remains in 1Password:
 3. Sign in to 1Password Desktop, unlock the app, and approve any CLI authorization prompt.
 4. Verify that `op` is available and authenticated without printing any secret:
 
-   ```sh
-   command -v op >/dev/null
-   op account list >/dev/null
-   op whoami >/dev/null
-   ```
+    ```sh
+    command -v op >/dev/null
+    op account list >/dev/null
+    op whoami >/dev/null
+    ```
 
 5. Configure the secret reference in the current shell. Every angle-bracket component is a placeholder that must be replaced:
 
-   ```sh
-   export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'
-   ```
+    ```sh
+    export SOPS_AGE_KEY_CMD='op read "op://<vault>/<item>/<field>"'
+    ```
 
 SOPS invokes this command internally when it needs the key. Do not invoke or
 shell-evaluate `SOPS_AGE_KEY_CMD` yourself: SOPS tokenizes it and directly
@@ -439,10 +439,10 @@ Because MkDocs resolves links relative to `docs/services/` (the symlink location
 2. Run `bash scripts/generate-docs-symlinks.sh`
 3. Add the entry to the `Services:` section in `mkdocs.yml` (alphabetical order by display name):
 
-   ```yaml
-   - Services:
-       - AdGuard Home: services/adguard.md
-       - New App: services/new-app.md
-   ```
+    ```yaml
+    - Services:
+        - AdGuard Home: services/adguard.md
+        - New App: services/new-app.md
+    ```
 
 4. Commit the symlink and `mkdocs.yml` change together

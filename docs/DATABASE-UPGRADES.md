@@ -44,7 +44,7 @@ the image, which causes a conflict when mounting a directory directly to
 
 - The Postgres image to create the correct major-version subdirectory.
 - pgautoupgrade to auto-discover the existing installation and upgrade it
-  to a new subdirectory (e.g., `18/docker` → `19/docker`).
+    to a new subdirectory (e.g., `18/docker` → `19/docker`).
 - Future upgrades to be fully automatic with no manual intervention.
 
 Example compose excerpt:
@@ -68,9 +68,9 @@ gatus-db-upgrade:
 ### Routine upgrade (e.g., 18.x → 19.x)
 
 1. Merge the Renovate PR that bumps both image tags:
-   - `postgres:<NEW>-alpine` in the main DB service
-   - `pgautoupgrade/pgautoupgrade:<NEW>-alpine` in the upgrade service
-   - Both must use the **same major version**.
+    - `postgres:<NEW>-alpine` in the main DB service
+    - `pgautoupgrade/pgautoupgrade:<NEW>-alpine` in the upgrade service
+    - Both must use the **same major version**.
 2. Redeploy — the upgrade runs automatically on startup.
 
 No manual steps are required.

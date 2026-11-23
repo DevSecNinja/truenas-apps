@@ -60,14 +60,14 @@ Source references: Compose v2.39.4 [`getRestartPolicy`](https://github.com/docke
 - Every imported image must receive an [upstream dependency maintenance review](#image-selection-upstream-dependency-maintenance); pinning, a fresh tag, and runtime hardening do not establish dependency security.
 - When the same image is published on several registries, prefer the `docker.io` copy — see [Image Selection: Registry Preference](#image-selection-registry-preference) below.
 - **Prefer the smallest, most hardened image variant available** for a given version tag. When multiple variants are published, choose according to this priority order:
-  1. **Hardened** (e.g., `-hardened`, Chainguard distroless/static images, Docker Hub Hardened Images at `dhi.io/<name>`) — minimal attack surface, no shell, stripped of unnecessary OS components. Note that hardened variants are sometimes published under a **different image name or registry** rather than as a tag suffix on the official image (e.g., `eclipse-mosquitto` has a hardened build at `dhi.io/eclipse-mosquitto`). Always check the [Docker Hub Hardened Images catalog](https://hub.docker.com/hardened-images/catalog) and [Chainguard](https://www.chainguard.dev/chainguard-images) for a hardened alternative before falling back to Alpine. **Note:** Images from `dhi.io` require Docker Hub authentication (`docker login dhi.io` with your Docker Hub username and a personal access token). Tag format is `<name>:<version>-<os>` (e.g., `dhi.io/traefik:3.6.14-debian13`). Runtime variants run as a nonroot user (UID 65532) and have no shell; health checks must use `CMD` format (not `CMD-SHELL`).
-  2. **Alpine** (e.g., `2.1.2-alpine`) — musl-based, ~5 MB base layer, no unnecessary tools
-  3. **Slim** (e.g., `2.1.2-slim`) — Debian-based with non-essential packages removed
-  4. **Standard** (e.g., `2.1.2`) — only when no smaller or hardened variant exists, or when the application requires glibc/full Debian (e.g., for `apt` at runtime or native library dependencies)
+    1. **Hardened** (e.g., `-hardened`, Chainguard distroless/static images, Docker Hub Hardened Images at `dhi.io/<name>`) — minimal attack surface, no shell, stripped of unnecessary OS components. Note that hardened variants are sometimes published under a **different image name or registry** rather than as a tag suffix on the official image (e.g., `eclipse-mosquitto` has a hardened build at `dhi.io/eclipse-mosquitto`). Always check the [Docker Hub Hardened Images catalog](https://hub.docker.com/hardened-images/catalog) and [Chainguard](https://www.chainguard.dev/chainguard-images) for a hardened alternative before falling back to Alpine. **Note:** Images from `dhi.io` require Docker Hub authentication (`docker login dhi.io` with your Docker Hub username and a personal access token). Tag format is `<name>:<version>-<os>` (e.g., `dhi.io/traefik:3.6.14-debian13`). Runtime variants run as a nonroot user (UID 65532) and have no shell; health checks must use `CMD` format (not `CMD-SHELL`).
+    2. **Alpine** (e.g., `2.1.2-alpine`) — musl-based, ~5 MB base layer, no unnecessary tools
+    3. **Slim** (e.g., `2.1.2-slim`) — Debian-based with non-essential packages removed
+    4. **Standard** (e.g., `2.1.2`) — only when no smaller or hardened variant exists, or when the application requires glibc/full Debian (e.g., for `apt` at runtime or native library dependencies)
 
-  When choosing a variant, verify it provides the required functionality (some Alpine builds omit optional compiled modules). Document any exception in a comment in the compose file.
+    When choosing a variant, verify it provides the required functionality (some Alpine builds omit optional compiled modules). Document any exception in a comment in the compose file.
 
-  If an image publishes additional non-standard variant suffixes (e.g., `-openssl`, `-jdk`, `-bookworm`, `-ubi9`) that are not covered by the priority order above, **ask the user which variant is preferred** before selecting one — the implications (library compatibility, licence, FIPS compliance, etc.) are context-dependent.
+    If an image publishes additional non-standard variant suffixes (e.g., `-openssl`, `-jdk`, `-bookworm`, `-ubi9`) that are not covered by the priority order above, **ask the user which variant is preferred** before selecting one — the implications (library compatibility, licence, FIPS compliance, etc.) are context-dependent.
 - `read_only: true` with `tmpfs` mounts for writable paths
 - `no-new-privileges` on every container, no exceptions
 - `cap_drop: ALL` on every container — this is a hard security requirement. If a container needs a specific capability, declare `cap_add` with only the minimum required capability and add a comment on the container in the compose file explaining why the exception is necessary
@@ -255,11 +255,11 @@ For services that only chown runtime-only paths (named Docker volumes, `./data/`
 **Exceptions — images that manage their own permissions:**
 
 - **s6-overlay images** (LinuxServer, tiredofit/db-backup) start as root and
-  chown their own directories during their own init phase, so they generally
-  do not need a dedicated external init container. Karakeep is an exception:
-  its existing app init container pre-owns the `./backups/db-backup` child
-  because the backup image resets the read-write parent mount root to root
-  ownership.
+    chown their own directories during their own init phase, so they generally
+    do not need a dedicated external init container. Karakeep is an exception:
+    its existing app init container pre-owns the `./backups/db-backup` child
+    because the backup image resets the read-write parent mount root to root
+    ownership.
 - **nfrastack/db-backup** manages backup output ownership internally. Verify the selected image's supported identity settings; Open Archiver uses `DBBACKUP_USER`/`DBBACKUP_GROUP` with a pre-init account check, not the ignored legacy `USER_DBBACKUP` variables.
 - **Database images** (postgres, MongoDB) that start as root can initialise their own data-directory ownership. Direct non-root deployments, such as Open Archiver's PostgreSQL and Valkey containers, still require pre-owned runtime paths.
 
@@ -723,22 +723,22 @@ passed synthetic runtime checks on a
 exception warning.
 
 - **Startup and isolation:** both apps, browsers, and proxies were healthy.
-  Browser UID `65532`, proxy UID `65534`, read-only browser/proxy roots,
-  100-PID limits, no published host ports, and internal-only Chrome network
-  membership were confirmed.
+    Browser UID `65532`, proxy UID `65534`, read-only browser/proxy roots,
+    100-PID limits, no published host ports, and internal-only Chrome network
+    membership were confirmed.
 - **changedetection.io:** an API-created public-site browser watch persisted
-  history and a PNG. Python Playwright passed public HTTPS, a JavaScript
-  button click, and screenshot capture through its DHI browser.
+    history and a PNG. Python Playwright passed public HTTPS, a JavaScript
+    button click, and screenshot capture through its DHI browser.
 - **Karakeep client:** the worker image's actual Playwright `1.59.1` client
-  resolved the configured browser URL to IPv4 and passed public HTTPS,
-  JavaScript, and screenshot checks through its DHI browser.
+    resolved the configured browser URL to IPv4 and passed public HTTPS,
+    JavaScript, and screenshot checks through its DHI browser.
 - **Private-destination probes:** both actual browsers blocked private
-  image/subresource and redirect tests against a controlled canary.
-  Positive-control clients reached the canary; browser probes added **zero
-  connections**.
+    image/subresource and redirect tests against a controlled canary.
+    Positive-control clients reached the canary; browser probes added **zero
+    connections**.
 - **Restart recovery:** both browsers were restarted without restarting the
-  apps. Public fetches, reconnection, and the changedetection watch succeeded
-  again; the canary connection count remained unchanged.
+    apps. Public fetches, reconnection, and the changedetection watch succeeded
+    again; the canary connection count remained unchanged.
 
 These checks did **not** validate production TrueNAS, real Entra/SSO or TLS
 termination, the full Karakeep signup/bookmark job flow, or changedetection.io's
@@ -1067,27 +1067,27 @@ flowchart LR
 ```
 
 - **Startup:** init completion → healthy app → one-shot backup. Create the
-  frontend network before deploying Traefik; coordinate cron and use the
-  [ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff).
+    frontend network before deploying Traefik; coordinate cron and use the
+    [ordered handoff](services/pocket-id.md#controlled-post-merge-operator-handoff).
 - **Access:** no host ports or shared backend. The bridge does not restrict
-  outbound egress. Native authentication/recovery must not depend on Entra/TFA
-  or a Pocket ID-backed Forward Auth chain.
+    outbound egress. Native authentication/recovery must not depend on Entra/TFA
+    or a Pocket ID-backed Forward Auth chain.
 - **Bootstrap:** the [operator's local-pilot choice](services/pocket-id.md#local-pilot-bootstrap-decision-2026-11-22)
-  accepts first-admin claim risk without a technical restriction. Immediately
-  claim and verify the intended admin; an unexpected claim requires isolation
-  and security-reviewed recovery, not just an account reset.
+    accepts first-admin claim risk without a technical restriction. Immediately
+    claim and verify the intended admin; an unexpected claim requires isolation
+    and security-reviewed recovery, not just an account reset.
 - **Privacy:** app Docker log retention, OTEL logs/traces and Pocket ID router
-  access logs are disabled. Health/state and backup receipts remain available;
-  see [recovery-token controls](services/pocket-id.md#recovery-token-log-privacy).
+    access logs are disabled. Health/state and backup receipts remain available;
+    see [recovery-token controls](services/pocket-id.md#recovery-token-log-privacy).
 - **Isolation:** init uses the pinned BusyBox image above, read-only root,
-  no network and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`. It validates inputs
-  before changing only `./data` root to the
-  [declared identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
-  Backup also has no network and reads the SQLite source read-only.
+    no network and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`. It validates inputs
+    before changing only `./data` root to the
+    [declared identity](INFRASTRUCTURE.md#pocket-id-candidate-identity-reservation).
+    Backup also has no network and reads the SQLite source read-only.
 - **Environment:** all three load `tz.env`; only app/init load per-app `.env`.
-  Backup receives explicit `DEFAULT_ENCRYPT_PASSPHRASE` without inheriting
-  `ENCRYPTION_KEY`, `DOMAINNAME` or raw `DB_ENC_PASSPHRASE`. Restore still
-  requires the original app key independently.
+    Backup receives explicit `DEFAULT_ENCRYPT_PASSPHRASE` without inheriting
+    `ENCRYPTION_KEY`, `DOMAINNAME` or raw `DB_ENC_PASSPHRASE`. Restore still
+    requires the original app key independently.
 
 The [current adoption review](services/pocket-id.md#current-adoption-review-2026-11-22)
 owns exact artifact identities, scoped app/init clearance, the backup-only
@@ -1361,21 +1361,21 @@ prove that old containers or their monitoring labels have disappeared.
 **How to opt in:**
 
 1. Specify what to watch via the `config.watch` label — this is an **app-level setting** that controls which path to hash. Set it exactly once at the top of the service list:
-   - Omit or set `config.watch=config` (default) — hash the entire `./config` directory
-   - Set `config.watch=none` — disable config-change detection (no hashing)
-   - Set `config.watch=config/subdir` — hash only a specific config path (relative to service directory)
+    - Omit or set `config.watch=config` (default) — hash the entire `./config` directory
+    - Set `config.watch=none` — disable config-change detection (no hashing)
+    - Set `config.watch=config/subdir` — hash only a specific config path (relative to service directory)
 
 2. On all services that should recreate when config changes, add a label with the `config.sha256` key:
-   ```yaml
-   services:
-     example:
-       labels:
-         - "config.watch=config/app.conf"    # App-level setting (set exactly once)
-         - "config.sha256=${CONFIG_HASH:-}"  # Recreate when config changes
-     example-init:
-       labels:
-         - "config.sha256=${CONFIG_HASH:-}"  # Also references the same hash
-   ```
+    ```yaml
+    services:
+      example:
+        labels:
+          - "config.watch=config/app.conf"    # App-level setting (set exactly once)
+          - "config.sha256=${CONFIG_HASH:-}"  # Recreate when config changes
+      example-init:
+        labels:
+          - "config.sha256=${CONFIG_HASH:-}"  # Also references the same hash
+    ```
 
 **How it works:**
 
@@ -1504,12 +1504,12 @@ Structural helpers for visual grouping:
 
 - **Functions that return data via stdout** (`printf '%s' "$value"`) must redirect any internal log calls to stderr — otherwise log lines contaminate the captured value:
 
-  ```sh
-  get_thing() {
-      log_info "looking up thing" >&2
-      printf '%s' "${value}"
-  }
-  ```
+    ```sh
+    get_thing() {
+        log_info "looking up thing" >&2
+        printf '%s' "${value}"
+    }
+    ```
 
 - **Heredoc / grouped redirects to a file** (`{ echo …; echo …; } > FILE`) must keep using plain `echo`. Those blocks produce file content, not log output, and routing them through `log_*` would prepend timestamps and tags into the written file.
 
