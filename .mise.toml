@@ -11,6 +11,8 @@ bats = "1.14.0"
 "pipx" = "1.18.3"
 actionlint = "1.7.12"
 cocogitto = "7.0.0"
+# crane (scripts/gha-image-age-check.sh); mise has no short name Renovate tracks.
+"aqua:google/go-containerregistry" = "0.22.1"
 git-cliff = "2.14.2"
 docker-compose = "v5.5.1"
 dotenv-linter = "4.0.0"

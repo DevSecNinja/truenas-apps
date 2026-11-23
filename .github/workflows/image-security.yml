@@ -41,7 +41,12 @@ jobs:
           persist-credentials: false
 
       - name: Install crane
-        uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          # Only crane, pinned in .mise.toml, not the whole toolset.
+          install_args: aqua:google/go-containerregistry
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.13
 
       - name: Check image ages and open issues for stale images
         env:
