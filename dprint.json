@@ -21,6 +21,6 @@
     ".specify/**"
   ],
   "plugins": [
-    "https://plugins.dprint.dev/markdown-0.28.2.wasm"
+    "https://plugins.dprint.dev/markdown-0.29.0.wasm"
   ]
 }
