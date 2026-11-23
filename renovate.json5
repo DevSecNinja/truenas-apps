@@ -151,7 +151,14 @@
       // can't return their digest. Images must also be in the ledger's
       // images.txt, or they get no updates at all (fails closed).
       description: "Release dates for non-Docker-Hub images from the first-seen ledger",
-      matchPackageNames: ["ghcr.io/italypaleale/traefik-forward-auth"],
+      matchPackageNames: [
+        "ghcr.io/italypaleale/traefik-forward-auth",
+        "ghcr.io/openclaw/openclaw",
+        "ghcr.io/alexta69/metube",
+        "ghcr.io/karakeep-app/karakeep",
+        "ghcr.io/meeb/tubesync",
+        "ghcr.io/gethomepage/homepage",
+      ],
       overrideDatasource: "custom.first-seen",
       // Custom datasources have no default versioning.
       versioning: "docker",
@@ -159,8 +166,6 @@
       additionalBranchPrefix: "",
       rebaseWhen: "auto",
       groupName: null,
-      // First batch: keep the PR for review as rollout evidence (T207).
-      automerge: false,
     },
   ],
 }
