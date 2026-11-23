@@ -173,12 +173,17 @@
     {
       // The server and machine-learning images must run the same release.
       // Placed after the ledger rule so its groupName wins over groupName null.
-      description: "Update the Immich server and machine-learning images together",
+      // A group doesn't require equal versions, and ML tags can lag the server
+      // (v3.4.2 shipped without v3.4.2-openvino), so the owner merges Immich
+      // updates by hand once both images are on the same release.
+      description: "Update the Immich server and machine-learning images together; merge by hand",
       matchPackageNames: [
         "ghcr.io/immich-app/immich-server",
         "ghcr.io/immich-app/immich-machine-learning",
       ],
       groupName: "immich",
+      automerge: false,
+      addLabels: ["merge: manual"],
     },
   ],
 }
