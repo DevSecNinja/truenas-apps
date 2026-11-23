@@ -46,7 +46,6 @@ jobs:
     uses: ./.github/workflows/bats.yml # zizmor: ignore[self-repository] -- Pinned actionlint does not yet support $/ workflow calls.
     permissions:
       contents: read
-      checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.10.13"
@@ -59,7 +58,6 @@ jobs:
     uses: ./.github/workflows/bats-e2e.yml # zizmor: ignore[self-repository] -- Pinned actionlint does not yet support $/ workflow calls.
     permissions:
       contents: read
-      checks: write
     with:
       # renovate: datasource=github-releases depName=jdx/mise
       mise-version: "2026.10.13"

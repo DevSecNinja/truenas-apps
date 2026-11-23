@@ -24,7 +24,7 @@ on:
         type: number
         default: 20
       check-name:
-        description: "Name for the GitHub check annotation"
+        description: "Heading of the test results summary"
         required: false
         type: string
         default: "BATS E2E Test Results"
@@ -39,7 +39,6 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     permissions:
       contents: read
-      checks: write
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
@@ -76,11 +75,11 @@ jobs:
             ${TEST_DIRS}
 
       - name: Publish test results
-        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        uses: DevSecNinja/.github/actions/test-report@5452dbd33d61b4fc58b1780f57e0b60ff131be75 # v4.10.0
         if: always()
         with:
-          report_paths: report.xml
-          check_name: ${{ inputs.check-name }}
+          paths: report.xml
+          title: ${{ inputs.check-name }}
 
       - name: Docker cleanup
         if: always()
