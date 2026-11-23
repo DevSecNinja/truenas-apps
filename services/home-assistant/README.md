@@ -66,4 +66,4 @@ The `home-assistant-db-backup` sidecar (tiredofit/db-backup with s6-overlay) run
 
 ## Upgrade Notes
 
-Home Assistant uses the `beta` tag. Review the [release notes](https://www.home-assistant.io/blog/) before deploying major version changes — breaking changes to integrations are common. The init container uses `cp -n`, so config updates from the repo are only applied on first deploy — subsequent config changes should be made through the HA UI or by manually updating `./data/config/`.
+Home Assistant is pinned to exact stable releases (`YYYY.M.P`), not the `beta` channel: the first-seen release ledger can soak versions but can't serve a `beta` digest to Renovate. Review the [release notes](https://www.home-assistant.io/blog/) before deploying major version changes — breaking changes to integrations are common. The init container uses `cp -n`, so config updates from the repo are only applied on first deploy — subsequent config changes should be made through the HA UI or by manually updating `./data/config/`.

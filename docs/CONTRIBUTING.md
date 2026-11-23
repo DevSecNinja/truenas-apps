@@ -216,7 +216,7 @@ Background: ADR 0005 in `DevSecNinja/.github` (`docs/design-decisions/0005-pr-ag
 
 The Homepage pilot now covers an exact five-package cohort, expanded in [#793](https://github.com/DevSecNinja/truenas-apps/pull/793). The local `renovate.json5` rule **Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker`, overriding the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` only for:
 
-- **Home Assistant:** `ghcr.io/home-assistant/home-assistant` — churn on the existing `:beta` channel is intentionally included as a low-impact rolling-digest stress test because the container is not actively used.
+- **Home Assistant:** `ghcr.io/home-assistant/home-assistant` — included as a low-impact stress test because the container is not actively used. It was on the rolling `:beta` channel; it is now pinned to exact stable releases, ahead of its move to the first-seen release ledger.
 - **Homepage:** `ghcr.io/gethomepage/homepage` — single-image update coverage, continuing the original pilot.
 - **Immich:** `ghcr.io/immich-app/immich-machine-learning` and `ghcr.io/immich-app/immich-server` — grouped app-image coverage, preserving the existing Immich update group.
 - **Traefik:** `dhi.io/traefik` — single-image update coverage for important infrastructure.
