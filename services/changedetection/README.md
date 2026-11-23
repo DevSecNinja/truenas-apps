@@ -248,71 +248,71 @@ source /mnt/vm-pool/apps/scripts/aliases.sh
 
 1. Pull the merged changes and decrypt configuration for the new app:
 
-   ```sh
-   dccd-app changedetection
-   ```
+    ```sh
+    dccd-app changedetection
+    ```
 
-   The missing TrueNAS app config directory and skipped deployment are
-   expected before the Custom App exists. Do not run `dccd-all` first:
-   Traefik may reference the new frontend network before it exists.
+    The missing TrueNAS app config directory and skipped deployment are
+    expected before the Custom App exists. Do not run `dccd-all` first:
+    Traefik may reference the new frontend network before it exists.
 2. Provision the registry-declared account, group, and child dataset:
 
-   ```sh
-   cd /mnt/vm-pool/apps
-   sudo bash scripts/truenas-prep-app.sh changedetection
-   ```
+    ```sh
+    cd /mnt/vm-pool/apps
+    sudo bash scripts/truenas-prep-app.sh changedetection
+    ```
 
-   The helper preserves the checked-out service files.
+    The helper preserves the checked-out service files.
 3. Create the Custom App in the TrueNAS UI.
 
-   **TrueNAS Custom App name:** `changedetection`
+    **TrueNAS Custom App name:** `changedetection`
 
-   ```yaml
-   include:
-       - /mnt/vm-pool/apps/services/changedetection/compose.yaml
-   services: {}
-   ```
+    ```yaml
+    include:
+        - /mnt/vm-pool/apps/services/changedetection/compose.yaml
+    services: {}
+    ```
 
 4. Run the canonical final deployment:
 
-   ```sh
-   dccd-all
-   ```
+    ```sh
+    dccd-all
+    ```
 
-   This deploys the apps and dependent AdGuard/Traefik changes in the normal
-   order. Its database-backup freshness check does not validate this app's
-   file-state backups.
+    This deploys the apps and dependent AdGuard/Traefik changes in the normal
+    order. Its database-backup freshness check does not validate this app's
+    file-state backups.
 5. Sign in through SSO at `https://changedetection.${DOMAINNAME}`:
-   - Remove the demo watches.
-   - Set the check interval, confirm the timezone, and select the browser fetcher.
-   - Add a real public-website JavaScript watch; verify rendered content, a
-     screenshot, and a diff after a change.
-   - Explicitly select the browser fetcher for existing Basic HTTP watches
-     where wanted; do not silently rewrite stored watch settings.
-   - Configure a notification destination and send a test notification.
-   - Optionally set an application password under **Settings**; do not look
-     for a new-user account flow.
+    - Remove the demo watches.
+    - Set the check interval, confirm the timezone, and select the browser fetcher.
+    - Add a real public-website JavaScript watch; verify rendered content, a
+        screenshot, and a diff after a change.
+    - Explicitly select the browser fetcher for existing Basic HTTP watches
+        where wanted; do not silently rewrite stored watch settings.
+    - Configure a notification destination and send a test notification.
+    - Optionally set an application password under **Settings**; do not look
+        for a new-user account flow.
 6. Verify init completed, proxy/Chrome/app health checks pass, and
-   unauthenticated UI/API requests remain behind SSO. Check the browser's
-   actual version is at least `153.0.8010.52`, with no exception warning.
-   Browser-step and visual-selector integration remain pending verification.
+    unauthenticated UI/API requests remain behind SSO. Check the browser's
+    actual version is at least `153.0.8010.52`, with no exception warning.
+    Browser-step and visual-selector integration remain pending verification.
 
 ## Upgrade Notes
 
 - Review upstream release notes and Renovate image changes before deployment.
 - Gracefully stop the app and capture a complete datastore recovery point
-  before an upgrade that may change stored files.
+    before an upgrade that may change stored files.
 - Do not run old and new app instances against the same datastore.
 - Recheck JavaScript fetching, screenshots/diffs, browser reconnection, and
-  notifications after upgrades.
+    notifications after upgrades.
 - After DHI updates, verify the actual Chromium version in both browsers is
-  at least `153.0.8010.52`, with no exception warning. The obsolete
-  `BROWSER_ALLOW_UNPATCHED_VERSION` override is already absent from both
-  stacks; do not restore it for an older cached image. The Playwright tag
-  alone does not prove the running binary version or that all CVEs are fixed.
+    at least `153.0.8010.52`, with no exception warning. The obsolete
+    `BROWSER_ALLOW_UNPATCHED_VERSION` override is already absent from both
+    stacks; do not restore it for an older cached image. The Playwright tag
+    alone does not prove the running binary version or that all CVEs are fixed.
 - If rollback requires older file formats, restore the matching complete
-  pre-upgrade state with the corresponding image version. Keep the failed
-  tree until recovery is verified.
+    pre-upgrade state with the corresponding image version. Keep the failed
+    tree until recovery is verified.
 
 For the existing apps after merge, use the sourced aliases to run
 `dccd-app karakeep`, `dccd-app changedetection`, then `dccd-all`.

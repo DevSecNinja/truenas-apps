@@ -35,14 +35,14 @@ This container uses LinuxServer's s6-overlay init system, which requires deviati
 - **`/run` is mounted as tmpfs with `exec`**: s6-overlay stores its service files here and needs to execute them.
 - **`cap_drop: ALL` is still applied**; only the capabilities s6-overlay needs are re-added:
 
-  | Capability     | Reason                                                                                                                  |
-  | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-  | `CHOWN`        | s6-overlay chowns `/config` to PUID:PGID at startup                                                                     |
-  | `DAC_OVERRIDE` | s6-overlay runs as root before dropping privileges; needed to write into `/config` even when already owned by PUID:PGID |
-  | `KILL`         | `init-plex-claim` (root) signals the temporary Plex process (UID 911) during server claiming                            |
-  | `SETGID`       | s6-overlay drops from root GID to PGID                                                                                  |
-  | `SETUID`       | s6-overlay drops from root UID to PUID                                                                                  |
-  | `SETPCAP`      | s6-overlay clears the bounding capability set before exec-ing Plex                                                      |
+    | Capability     | Reason                                                                                                                  |
+    | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+    | `CHOWN`        | s6-overlay chowns `/config` to PUID:PGID at startup                                                                     |
+    | `DAC_OVERRIDE` | s6-overlay runs as root before dropping privileges; needed to write into `/config` even when already owned by PUID:PGID |
+    | `KILL`         | `init-plex-claim` (root) signals the temporary Plex process (UID 911) during server claiming                            |
+    | `SETGID`       | s6-overlay drops from root GID to PGID                                                                                  |
+    | `SETUID`       | s6-overlay drops from root UID to PUID                                                                                  |
+    | `SETPCAP`      | s6-overlay clears the bounding capability set before exec-ing Plex                                                      |
 
 ### Init Container
 
@@ -53,15 +53,15 @@ The `plex-init` service pre-sets ownership on `./data/config` and `./backups` to
 1. Get a [Plex claim token](https://www.plex.tv/claim/) (valid for 4 minutes only) and set it in `secret.sops.env`
 2. Deploy the stack
 3. In **Settings → Network**:
-   - Set **Custom server access URLs** to `https://plex.<DOMAINNAME>:443`
-   - Set **LAN Networks** to `192.168.0.0/16,172.16.0.0/16`
-     (the `172.16.0.0/16` range covers Traefik's Docker bridge network so proxied connections are treated as local)
-   - Disable **Enable Relay** to prevent streams from being routed through Plex's external relay servers
+    - Set **Custom server access URLs** to `https://plex.<DOMAINNAME>:443`
+    - Set **LAN Networks** to `192.168.0.0/16,172.16.0.0/16`
+        (the `172.16.0.0/16` range covers Traefik's Docker bridge network so proxied connections are treated as local)
+    - Disable **Enable Relay** to prevent streams from being routed through Plex's external relay servers
 4. In **Settings → Remote Access**:
-   - Enable **Remote Access** — this is required so Plex publishes your custom access URL to plex.tv for client discovery
-   - Select **Manually specify public port** and set it to `443` (Traefik's HTTPS port)
-   - The dashboard may show remote access as unavailable (red) — this is expected since port 32400 is not publicly exposed
-   - The server settings page may still show connections as "Remote" — this is normal; actual stream status (Local/Direct) is visible in the dashboard activity view
+    - Enable **Remote Access** — this is required so Plex publishes your custom access URL to plex.tv for client discovery
+    - Select **Manually specify public port** and set it to `443` (Traefik's HTTPS port)
+    - The dashboard may show remote access as unavailable (red) — this is expected since port 32400 is not publicly exposed
+    - The server settings page may still show connections as "Remote" — this is normal; actual stream status (Local/Direct) is visible in the dashboard activity view
 5. In **Settings → Library**: enable automatic library scanning
 6. In **Settings → Scheduled Tasks**: set backup directory to `/backups`
 

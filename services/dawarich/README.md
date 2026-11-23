@@ -43,17 +43,17 @@ configured.
 Two higher-priority routers provide narrowly scoped Forward Auth bypasses:
 
 - The official mobile router requires an `X-Dawarich-Proxy-Token` header matching
-  `DAWARICH_MOBILE_PROXY_TOKEN`. It accepts only the following `/api/v1`
-  resources: `health`, `users/me`, `plan`, `settings/mobile`, `points`,
-  `timeline`, `tracks`, `visits`, `stats`, `insights`, `digests`, `demo_data`,
-  `families`, `photos`, `countries`, `maps`, `tiles`, and `places`.
-  `/api/v1/health` intentionally skips API-key authentication upstream because
-  the official iOS app uses it for server and version discovery; it returns no
-  user data. Every other allowlisted mobile data endpoint requires both the
-  proxy token and the user's Dawarich API key.
+    `DAWARICH_MOBILE_PROXY_TOKEN`. It accepts only the following `/api/v1`
+    resources: `health`, `users/me`, `plan`, `settings/mobile`, `points`,
+    `timeline`, `tracks`, `visits`, `stats`, `insights`, `digests`, `demo_data`,
+    `families`, `photos`, `countries`, `maps`, `tiles`, and `places`.
+    `/api/v1/health` intentionally skips API-key authentication upstream because
+    the official iOS app uses it for server and version discovery; it returns no
+    user data. Every other allowlisted mobile data endpoint requires both the
+    proxy token and the user's Dawarich API key.
 - The third-party ingestion router accepts only `POST` requests to the three
-  exact endpoints listed in the table. These endpoints still require a
-  Dawarich API key.
+    exact endpoints listed in the table. These endpoints still require a
+    Dawarich API key.
 
 Authentication login and registration routes, `/api-docs`, requests with a
 missing or incorrect mobile proxy token, and every other route remain behind
@@ -94,14 +94,14 @@ API-key authentication.
 ## Architecture
 
 - **Images**: Dawarich `1.14.2`, PostGIS `17-3.5-alpine`, Redis
-  `7.4-alpine`, nfrastack/db-backup `4.9.2`, and postgres_exporter `v0.20.1`;
-  Compose pins each image by digest
+    `7.4-alpine`, nfrastack/db-backup `4.9.2`, and postgres_exporter `v0.20.1`;
+    Compose pins each image by digest
 - **Application user/group**: `3128:3128` (`svc-app-dawarich`)
 - **Reverse proxy**: Traefik with `chain-auth-dawarich@file` by default, plus
-  separate higher-priority mobile and third-party ingestion routers using
-  `chain-no-auth@file`
+    separate higher-priority mobile and third-party ingestion routers using
+    `chain-no-auth@file`
 - **Networks**: `dawarich-frontend` and the external, internal
-  `dawarich-backend`
+    `dawarich-backend`
 
 ### Services
 
@@ -199,84 +199,84 @@ backends are healthy.
 ## First-Run Setup
 
 1. From the repository root on TrueNAS, provision the Dawarich host
-   prerequisites:
+    prerequisites:
 
-   ```sh
-   sudo bash scripts/truenas-prep-app.sh dawarich
-   ```
+    ```sh
+    sudo bash scripts/truenas-prep-app.sh dawarich
+    ```
 
-   The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
-   `truenas_admin` as an auxiliary member for access to mode `770` runtime
-   directories, creates the `svc-app-dawarich` user with UID 3128 and that
-   primary group, and creates the `vm-pool/apps/services/dawarich` child dataset
-   without discarding an existing checkout. It is idempotent and stops on
-   account ID collisions or before creating a missing dataset while Dawarich is
-   running.
+    The helper ensures that the `svc-app-dawarich` group uses GID 3128, adds
+    `truenas_admin` as an auxiliary member for access to mode `770` runtime
+    directories, creates the `svc-app-dawarich` user with UID 3128 and that
+    primary group, and creates the `vm-pool/apps/services/dawarich` child dataset
+    without discarding an existing checkout. It is idempotent and stops on
+    account ID collisions or before creating a missing dataset while Dawarich is
+    running.
 2. Manually add a unique, high-entropy `DAWARICH_MOBILE_PROXY_TOKEN`, replace
-   every shared `CHANGE_ME` value in `secret.sops.env`, then re-encrypt the file
-   with SOPS. Do not reuse a Dawarich API key as the proxy token.
+    every shared `CHANGE_ME` value in `secret.sops.env`, then re-encrypt the file
+    with SOPS. Do not reuse a Dawarich API key as the proxy token.
 3. Run a full `dccd.sh` deployment so `_bootstrap` creates
-   `dawarich-backend` before Alloy and Dawarich.
+    `dawarich-backend` before Alloy and Dawarich.
 4. Confirm `dawarich-init` validates the decrypted values and completes before
-   PostGIS or Redis starts; the application and worker then wait for the
-   backends to become healthy.
+    PostGIS or Redis starts; the application and worker then wait for the
+    backends to become healthy.
 5. Open `https://dawarich.${DOMAINNAME}` through Traefik Forward Auth and sign
-   in with the upstream seeded
-   account.
+    in with the upstream seeded
+    account.
 6. **Immediately change the seeded `demo@dawarich.app` / `safepassword`
-   credentials before importing data or configuring a GPS client.**
+    credentials before importing data or configuring a GPS client.**
 7. Create a separate Dawarich API key for each GPS client.
 8. For the official iOS app 2.5 or later, configure the server URL, API key,
-   and custom proxy header described under [Official iOS App](#official-ios-app).
+    and custom proxy header described under [Official iOS App](#official-ios-app).
 9. Configure third-party clients to use only the applicable exact ingestion
-   endpoint. GPSLogger and PhoneTrack use `/api/v1/owntracks/points`. These
-   endpoints bypass Forward Auth only for `POST` and still require Dawarich
-   API-key authentication.
+    endpoint. GPSLogger and PhoneTrack use `/api/v1/owntracks/points`. These
+    endpoints bypass Forward Auth only for `POST` and still require Dawarich
+    API-key authentication.
 
 ## Security Model
 
 - The Rails application and Sidekiq worker run the upstream role-specific
-  `web-entrypoint.sh` and `sidekiq-entrypoint.sh` scripts directly as
-  `svc-app-dawarich` (`3128:3128`). The web command is explicitly
-  `bin/rails server -p 3000 -b ::`.
+    `web-entrypoint.sh` and `sidekiq-entrypoint.sh` scripts directly as
+    `svc-app-dawarich` (`3128:3128`). The web command is explicitly
+    `bin/rails server -p 3000 -b ::`.
 - `dawarich-init` is the only application-specific root process. It retains
-  only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`; the latter is required to traverse
-  mode `770` runtime paths on repeat deployments. It rejects empty or
-  `CHANGE_ME` required values, prepares the writable paths, and exits before
-  PostGIS, Redis, or the application starts.
+    only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`; the latter is required to traverse
+    mode `770` runtime paths on repeat deployments. It rejects empty or
+    `CHANGE_ME` required values, prepares the writable paths, and exits before
+    PostGIS, Redis, or the application starts.
 - The app, worker, Redis, and exporter use read-only root filesystems,
-  `no-new-privileges`, and dropped Linux capabilities.
+    `no-new-privileges`, and dropped Linux capabilities.
 - The official PostGIS image retains its root-start entrypoint so it can
-  initialise ownership and then drop to its internal PostgreSQL user.
+    initialise ownership and then drop to its internal PostgreSQL user.
 - PostGIS, Redis, database backup access, and metrics stay on the internal
-  backend network. The backup job sets `ENABLE_NOTIFICATIONS=FALSE` and does not
-  join the frontend network. Only the web application is routed through
-  Traefik.
+    backend network. The backup job sets `ENABLE_NOTIFICATIONS=FALSE` and does not
+    join the frontend network. Only the web application is routed through
+    Traefik.
 - The web UI and unspecified routes use `chain-auth-dawarich@file`, combining
-  rate limiting, Forward Auth, and Dawarich-specific secure headers. Its CSP
-  permits `connect-src 'self' https: wss:`. HTTPS supports upstream's
-  user-configurable vector, raster, and style basemap URLs; custom endpoints
-  must use HTTPS because HTTP custom origins remain blocked. Explicit `wss:`
-  supports ActionCable updates for the live map, family locations, tracks, and
-  notifications because browsers do not consistently treat `'self'` as
-  authorizing WSS. `worker-src 'self' blob:` stays unchanged, and the other
-  directives remain restrictive.
+    rate limiting, Forward Auth, and Dawarich-specific secure headers. Its CSP
+    permits `connect-src 'self' https: wss:`. HTTPS supports upstream's
+    user-configurable vector, raster, and style basemap URLs; custom endpoints
+    must use HTTPS because HTTP custom origins remain blocked. Explicit `wss:`
+    supports ActionCable updates for the live map, family locations, tracks, and
+    notifications because browsers do not consistently treat `'self'` as
+    authorizing WSS. `worker-src 'self' blob:` stays unchanged, and the other
+    directives remain restrictive.
 - With `SELF_HOSTED=true` on Dawarich 1.14.2, `/sidekiq` requires a signed-in
-  Dawarich administrator account rather than separate dashboard credentials.
+    Dawarich administrator account rather than separate dashboard credentials.
 - The official mobile router uses `chain-no-auth@file` only when the request
-  has the configured `X-Dawarich-Proxy-Token` and targets an allowlisted mobile
-  API resource. `/api/v1/health` needs only the proxy token and returns no user
-  data; every other mobile data endpoint also requires the user's Dawarich API
-  key.
+    has the configured `X-Dawarich-Proxy-Token` and targets an allowlisted mobile
+    API resource. `/api/v1/health` needs only the proxy token and returns no user
+    data; every other mobile data endpoint also requires the user's Dawarich API
+    key.
 - The third-party ingestion router uses `chain-no-auth@file` only for `POST` to
-  `/api/v1/owntracks/points`, `/api/v1/overland/batches`, or
-  `/api/v1/traccar/points`; Dawarich API-key authentication still applies.
-  Login, registration, `/api-docs`, all other methods and endpoints, and mobile
-  requests without the proxy token stay behind Forward Auth.
+    `/api/v1/owntracks/points`, `/api/v1/overland/batches`, or
+    `/api/v1/traccar/points`; Dawarich API-key authentication still applies.
+    Login, registration, `/api-docs`, all other methods and endpoints, and mobile
+    requests without the proxy token stay behind Forward Auth.
 - Forward Auth reduces exposure of the seeded demo administrator but does not
-  replace rotating `demo@dawarich.app` / `safepassword` immediately.
+    replace rotating `demo@dawarich.app` / `safepassword` immediately.
 - SOPS encrypts credentials at rest in Git. Decrypted `.env` files and all
-  runtime/backup directories are gitignored.
+    runtime/backup directories are gitignored.
 
 ## Backup and Restore
 
@@ -316,15 +316,15 @@ encrypted database backups. See [Backup Strategy](../BACKUP.md).
 For a restore:
 
 1. Preserve the SOPS secrets used by the backup, especially
-   `DB_ENC_PASSPHRASE` and the Dawarich encryption keys.
+    `DB_ENC_PASSPHRASE` and the Dawarich encryption keys.
 2. Stop the Rails application and Sidekiq worker.
 3. Restore file-backed paths from the same ZFS snapshot when a coordinated
-   dataset rollback is required.
+    dataset rollback is required.
 4. Verify the SHA1 sidecar, then use `DB_ENC_PASSPHRASE` to GPG-decrypt and
-   ZSTD-decompress the dump.
+    ZSTD-decompress the dump.
 5. Restore the resulting PostgreSQL dump into PostGIS.
 6. Start the stack and verify the health endpoint, login, imports, and
-   background jobs.
+    background jobs.
 
 Prefer the application-level PostgreSQL dump for database recovery; use a
 whole-dataset rollback only when all runtime paths must return to the same
@@ -333,12 +333,12 @@ point in time.
 ## Upgrade Notes
 
 - Renovate manages image updates. Review Dawarich release notes for migrations
-  and breaking configuration changes before deployment.
+    and breaking configuration changes before deployment.
 - Take a current database backup and ZFS snapshot before major Dawarich or
-  PostGIS changes.
+    PostGIS changes.
 - The application uses stop-first replacement so migrations complete before a
-  replacement instance serves traffic.
+    replacement instance serves traffic.
 - Treat a PostGIS major-version change as a database migration. Follow
-  [Database Upgrades](../DATABASE-UPGRADES.md) rather than replacing the image
-  in place.
+    [Database Upgrades](../DATABASE-UPGRADES.md) rather than replacing the image
+    in place.
 - Do not rotate persistent encryption keys as part of a routine upgrade.
