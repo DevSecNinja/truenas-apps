@@ -102,8 +102,8 @@ jobs:
           sarif_file: sarif-output/trivy-images.sarif
           category: trivy-images
 
-      # Only written when the dhi.io images were scanned, so a run without
-      # credentials leaves this category's alerts open instead of closing them.
+      # Not written when dhi.io images were skipped for missing credentials, so
+      # that run leaves this category's alerts open instead of closing them.
       - name: Upload dhi.io SARIF to GitHub Security tab
         if: hashFiles('sarif-output/trivy-images-dhi.sarif') != ''
         uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0

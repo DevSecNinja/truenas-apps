@@ -15,7 +15,8 @@
 # a login (DOCKERHUB_USERNAME / DOCKERHUB_TOKEN, as for dccd.sh). Without
 # those credentials they're reported as unscanned and skipped, not failed.
 # Their results go to sarif-output/trivy-images-dhi.sarif (category
-# trivy-images-dhi), so a run without credentials doesn't close their alerts.
+# trivy-images-dhi), which a run without credentials doesn't write, so it
+# doesn't close their alerts.
 #
 # The merged run has no per-image field, so each result's message ends with an
 # "Image: <reference>" line. The message isn't part of an alert's identity, so
@@ -128,25 +129,35 @@ merge_sarif() {
 }
 
 # dhi.io images (slug prefix dhiio_) get their own file and category,
-# trivy-images-dhi, written only when they were scanned. Without dhi.io
-# credentials that category gets no upload, so its alerts stay open instead
-# of closing as fixed.
+# trivy-images-dhi. It's written on every complete scan (empty once no dhi.io
+# image is left, so retired images' alerts close), and left out only when
+# dhi.io images were skipped for missing credentials, so their alerts stay
+# open instead of closing as fixed.
 # shellcheck disable=SC2312
 mapfile -t sarif_files < <(find sarif-tmp -name '*.sarif' ! -name 'dhiio_*' | sort)
 # shellcheck disable=SC2312
 mapfile -t dhi_files < <(find sarif-tmp -name 'dhiio_*.sarif' | sort)
 
-if [ "${#sarif_files[@]}" -eq 0 ]; then
-    log_warn "No valid SARIF files produced — all scans skipped or failed"
-    # Emit a minimal valid empty SARIF so the upload-sarif action does not error.
+# A minimal valid SARIF without results, so the upload-sarif action does not
+# error and the category's remaining alerts close.
+write_empty_sarif() {
     # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
     # shellcheck disable=SC2016
-    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Trivy"}},"results":[]}]}\n' >sarif-output/trivy-images.sarif
+    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Trivy"}},"results":[]}]}\n' >"$1"
+}
+
+if [ "${#sarif_files[@]}" -eq 0 ]; then
+    log_warn "No valid SARIF files produced — all scans skipped or failed"
+    write_empty_sarif sarif-output/trivy-images.sarif
 else
     merge_sarif sarif-output/trivy-images.sarif "${sarif_files[@]}"
 fi
-if [ "${#dhi_files[@]}" -gt 0 ]; then
-    merge_sarif sarif-output/trivy-images-dhi.sarif "${dhi_files[@]}"
+if [ "${#unscanned[@]}" -eq 0 ]; then
+    if [ "${#dhi_files[@]}" -gt 0 ]; then
+        merge_sarif sarif-output/trivy-images-dhi.sarif "${dhi_files[@]}"
+    else
+        write_empty_sarif sarif-output/trivy-images-dhi.sarif
+    fi
 fi
 
 # Remove the per-image working files; sarif-output/ now has only the merged files.

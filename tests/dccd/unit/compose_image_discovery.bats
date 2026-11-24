@@ -132,6 +132,10 @@ resolved: ${resolved}"
   run jq -r '.runs[0].results[0].message.text' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
   assert_success
   assert_output "offline fixture finding"$'\n'"Image: ${DISCOVERY_IMAGE}"
+  # No dhi.io image and none skipped: an empty dhi.io report closes retired alerts.
+  run jq -c '.runs[0].results' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images-dhi.sarif"
+  assert_success
+  assert_output '[]'
   discovery_assert_no_network_fallback
 }
 
