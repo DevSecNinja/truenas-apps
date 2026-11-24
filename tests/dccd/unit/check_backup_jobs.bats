@@ -276,6 +276,20 @@ mock_project_scoped_backups() {
   refute_output --partial "successful backup confirmed"
 }
 
+@test "check_backup_jobs: ignores successful v5 prune and archive records" {
+  # Field layout from jlog() in 5.0.12 internal/scheduler/retention.go.
+  local prune='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac15 action=prune job=db01 type=backup status=complete deleted=1 policy="within=2880m" msg="prune complete"'
+  local archive='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac15 action=archive job=db01 type=backup status=complete msg="nothing to archive"'
+  local logs="${BACKUP01_V5_COMPLETE}"$'\n'"${prune}"$'\n'"${archive}"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}" 0 '01'
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial "app-db-backup: successful backup confirmed in logs (1h ago)"
+}
+
 @test "check_backup_jobs: rejects a v5 completion whose job is not named dbNN" {
   local logs="${BACKUP01_V5_COMPLETE/job=db01/job=gatus}"
   mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}"

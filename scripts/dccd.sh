@@ -799,6 +799,8 @@ check_backup_jobs() {
             local completion_pattern=$'Backup ([[:digit:]]+) routines finish time: .+ with exit code (-?[[:digit:]]+)([[:space:]]|$|\033\\[[0-9;]*m)'
             local operation_error_pattern="(DB Backup of|Moving of backup) '.+' reported errors"
             # nfrastack/db-backup v5 logfmt records; jobs must be named dbNN.
+            # Only action=backup records are completions: prune and archive
+            # records carry the same type=backup status=complete fields.
             # A failed v5 one-shot run still exits 0 (5.0.12), so any error
             # record fails the check.
             local v5_completion_marker=' type=backup status=complete'
@@ -814,7 +816,7 @@ check_backup_jobs() {
                     log_error "${container_name}: backup reported an error record"
                     invalid_completion=1
                 fi
-                if [[ "${log_line}" == *"${v5_completion_marker}"* ]]; then
+                if [[ "${log_line}" == *" action=backup "*"${v5_completion_marker}"* ]]; then
                     if [[ "${log_line}" =~ ${v5_completion_pattern} ]]; then
                         local v5_job="${BASH_REMATCH[1]}"
                         # One run per container start: a repeat means a second

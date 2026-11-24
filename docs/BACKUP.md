@@ -1250,7 +1250,9 @@ checks alone proves that an artifact decrypts or restores successfully.
 - **nfrastack/db-backup v5:** a completion is a current-run logfmt record with
     `action=backup job=dbNN type=backup status=complete`, so v5 jobs must be
     named `db01`, `db02` and so on, matching `dccd.backup-jobs`. A completion
-    for any other job name is malformed. A second completion of the same job
+    for any other job name is malformed. Successful `action=prune` and
+    `action=archive` records are not completions; their failures still fail
+    the check. A second completion of the same job
     in one run fails even without a label: it means a second scheduler ran, as
     `backup-now` does next to the `MODE=MANUAL` service. Because a failed v5
     one-shot run still exits `0` (5.0.12), any `status=failed`, any
