@@ -14,6 +14,8 @@
 # then skips the upload and the existing alerts stay open. dhi.io images need
 # a login (DOCKERHUB_USERNAME / DOCKERHUB_TOKEN, as for dccd.sh). Without
 # those credentials they're reported as unscanned and skipped, not failed.
+# Their results go to sarif-output/trivy-images-dhi.sarif (category
+# trivy-images-dhi), so a run without credentials doesn't close their alerts.
 #
 # The merged run has no per-image field, so each result's message ends with an
 # "Image: <reference>" line. The message isn't part of an alert's identity, so
@@ -102,18 +104,10 @@ if [ "${#failed[@]}" -gt 0 ]; then
     exit 1
 fi
 
-# Check whether any validated SARIF files were produced.
-# shellcheck disable=SC2312
-mapfile -t sarif_files < <(find sarif-tmp -name '*.sarif' | sort)
-
-if [ "${#sarif_files[@]}" -eq 0 ]; then
-    log_warn "No valid SARIF files produced — all scans skipped or failed"
-    # Emit a minimal valid empty SARIF so the upload-sarif action does not error.
-    # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
-    # shellcheck disable=SC2016
-    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Trivy"}},"results":[]}]}\n' >sarif-output/trivy-images.sarif
-else
-    # Merge all per-image SARIF files into one file with a single combined run.
+merge_sarif() {
+    local output="$1"
+    shift
+    # Merge per-image SARIF files into one file with a single combined run.
     # GitHub rejects SARIF with >20 runs, and also rejects multiple runs under
     # the same tool+category — a single merged run avoids both constraints.
     # shellcheck disable=SC2312
@@ -129,9 +123,31 @@ else
             "results": [.[].runs[].results[]],
             "artifacts": ([.[].runs[].artifacts[]?] | unique_by(.location.uri))
         }]
-    }' "${sarif_files[@]}" >sarif-output/trivy-images.sarif
+    }' "$@" >"${output}"
+    log_result "Merged $# SARIF file(s) into ${output}"
+}
 
-    # Remove the per-image working files; sarif-output/ now has only trivy-images.sarif.
-    rm -rf sarif-tmp
-    log_result "Merged ${#sarif_files[@]} SARIF file(s) into sarif-output/trivy-images.sarif"
+# dhi.io images (slug prefix dhiio_) get their own file and category,
+# trivy-images-dhi, written only when they were scanned. Without dhi.io
+# credentials that category gets no upload, so its alerts stay open instead
+# of closing as fixed.
+# shellcheck disable=SC2312
+mapfile -t sarif_files < <(find sarif-tmp -name '*.sarif' ! -name 'dhiio_*' | sort)
+# shellcheck disable=SC2312
+mapfile -t dhi_files < <(find sarif-tmp -name 'dhiio_*.sarif' | sort)
+
+if [ "${#sarif_files[@]}" -eq 0 ]; then
+    log_warn "No valid SARIF files produced — all scans skipped or failed"
+    # Emit a minimal valid empty SARIF so the upload-sarif action does not error.
+    # SC2016: $schema is a JSON key, not a shell variable — single quotes are correct.
+    # shellcheck disable=SC2016
+    printf '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Trivy"}},"results":[]}]}\n' >sarif-output/trivy-images.sarif
+else
+    merge_sarif sarif-output/trivy-images.sarif "${sarif_files[@]}"
 fi
+if [ "${#dhi_files[@]}" -gt 0 ]; then
+    merge_sarif sarif-output/trivy-images-dhi.sarif "${dhi_files[@]}"
+fi
+
+# Remove the per-image working files; sarif-output/ now has only the merged files.
+rm -rf sarif-tmp

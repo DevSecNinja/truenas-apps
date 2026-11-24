@@ -170,6 +170,7 @@ resolved: ${resolved}"
   run get_mock_call_count trivy
   assert_output 1
   assert_file_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  assert_file_not_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images-dhi.sarif"
   discovery_assert_no_network_fallback
 }
 
