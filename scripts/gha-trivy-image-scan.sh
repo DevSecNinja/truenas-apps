@@ -69,7 +69,7 @@ while IFS= read -r full_image; do
         # Validate that the output is parseable SARIF before keeping it, and
         # name the image in every result. Trivy may write a partial or empty
         # file on non-fatal errors.
-        if jq --arg image "${full_image}" '
+        if jq -e --arg image "${full_image}" '
             if (.runs[0] | type) == "object"
             then .runs[].results[]?.message.text += "\nImage: " + $image
             else error("no SARIF run")

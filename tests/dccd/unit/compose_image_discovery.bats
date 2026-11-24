@@ -146,6 +146,17 @@ resolved: ${resolved}"
   discovery_assert_no_network_fallback
 }
 
+@test "gha_trivy_image_scan: an empty SARIF file counts as a failed scan" {
+  discovery_mock_monitors
+  : >"${DISCOVERY_TMPDIR}/empty.sarif"
+  export DISCOVERY_SARIF="${DISCOVERY_TMPDIR}/empty.sarif"
+  run bash "${REPO_ROOT}/scripts/gha-trivy-image-scan.sh"
+  assert_failure
+  assert_output --partial "is not valid SARIF for ${DISCOVERY_IMAGE}"
+  assert_file_not_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  discovery_assert_no_network_fallback
+}
+
 @test "gha_trivy_image_scan: dhi.io images without credentials are reported unscanned, not failed" {
   discovery_mock_monitors
   unset DOCKERHUB_USERNAME DOCKERHUB_TOKEN
