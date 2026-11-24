@@ -20,9 +20,11 @@ setup() {
   LOG_TIMESTAMP="test"
   BACKUP01_SUCCESS='Backup 01 routines finish time: 2026-09-06 19:00:00 UTC with exit code 0'
   BACKUP02_SUCCESS='Backup 02 routines finish time: 2026-09-06 19:00:00 UTC with exit code 0'
-  # Sanitized logfmt shape from the reported v5 completions, not runtime proof.
-  BACKUP01_V5_COMPLETE='time=2026-09-06T19:00:00Z level=info action=backup job=db01 type=backup status=complete strategy=full file=/backup/synthetic.sql.zst msg="backup complete"'
-  BACKUP02_V5_COMPLETE='time=2026-09-06T19:00:00Z level=info action=backup job=db02 type=backup status=complete strategy=full file=/backup/synthetic.rdb.zst msg="backup complete"'
+  # nfrastack/db-backup 5.0.12 records captured by the v5 CI job (#1055).
+  BACKUP01_V5_COMPLETE='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac15 action=backup job=db01 type=backup status=complete strategy=full file=/backup/postgres-restore_test-backup_v5_pg_source-full-20261124-135244.sql.zst.age size=1556 timing="dump=170ms comp=1ms encrypt=0ms upload=171ms total=172ms" msg="backup complete"'
+  BACKUP02_V5_COMPLETE='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac16 action=backup job=db02 type=backup status=complete strategy=full file=/backup/redis-0-valkey-full-20261124-135244.rdb.zst.age size=1556 timing="total=10ms" msg="backup complete"'
+  BACKUP01_V5_FAILED='2026-11-24 14:19:47 [ERROR] session=06fe55 run_id=35717812 action=backup job=db01 type=backup status=failed stage=connect error="write to storage: connect: failed SASL auth" msg="backup failed"'
+  BACKUP_V5_ONESHOT_FAILED='2026-11-24.14:19:47 [ERROR] ** [db-backup-scheduler] One shot backup run failed (exit 1) - halting container'
 }
 
 teardown() {
@@ -230,9 +232,8 @@ mock_project_scoped_backups() {
   assert_output --partial 'expected one successful completion for backup routine 01, found 2'
 }
 
-@test "check_backup_jobs: rejects unmatched v5 logfmt completions despite exit zero" {
+@test "check_backup_jobs: accepts one v5 completion per job with and without an expected-job label" {
   local expected_jobs
-  # Neither completion-looking text nor a .sql.zst filename proves a v4 backup.
   local logs="${BACKUP01_V5_COMPLETE}"$'\n'"${BACKUP02_V5_COMPLETE}"
   mock_fixed_date 1000000 996400
 
@@ -241,26 +242,74 @@ mock_project_scoped_backups() {
 
     run check_backup_jobs
 
-    assert_failure
-    assert_output --partial "app-db-backup-1: no successful backup completion found in logs from the last 48 hours"
-    assert_output --partial "1/1 database backup job(s) failed the freshness check"
-    refute_output --partial "successful backup confirmed"
+    assert_success
+    assert_output --partial "app-db-backup: successful backup confirmed in logs (1h ago)"
     assert_mock_called_with "docker" "logs --since 2026-09-06T18:59:00Z container-1"
   done
 }
 
-@test "check_backup_jobs: unmatched v5 logfmt job db02 cannot satisfy the two-job label alongside v4 job 01" {
-  local logs="${BACKUP01_SUCCESS}"$'\n'"${BACKUP02_V5_COMPLETE}"
-  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}" 0 '01,02'
+@test "check_backup_jobs: rejects a failed v5 run that still exited zero" {
+  local logs
+  mock_fixed_date 1000000 996400
+
+  for logs in "${BACKUP01_V5_FAILED}" "${BACKUP01_V5_COMPLETE}"$'\n'"${BACKUP_V5_ONESHOT_FAILED}"; do
+    mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}"
+
+    run check_backup_jobs
+
+    assert_failure
+    assert_output --partial "app-db-backup-1: backup reported an error record"
+    refute_output --partial "successful backup confirmed"
+  done
+}
+
+@test "check_backup_jobs: rejects a second v5 run of the same job without an expected-job label" {
+  # The #849 symptom: backup-now plus the MODE=MANUAL service ran db01 twice.
+  local logs="${BACKUP01_V5_COMPLETE}"$'\n'"${BACKUP01_V5_COMPLETE}"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "app-db-backup-1: backup job db01 completed more than once in one run"
+  refute_output --partial "successful backup confirmed"
+}
+
+@test "check_backup_jobs: ignores successful v5 prune and archive records" {
+  # Field layout from jlog() in 5.0.12 internal/scheduler/retention.go.
+  local prune='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac15 action=prune job=db01 type=backup status=complete deleted=1 policy="within=2880m" msg="prune complete"'
+  local archive='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac15 action=archive job=db01 type=backup status=complete msg="nothing to archive"'
+  local logs="${BACKUP01_V5_COMPLETE}"$'\n'"${prune}"$'\n'"${archive}"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}" 0 '01'
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_success
+  assert_output --partial "app-db-backup: successful backup confirmed in logs (1h ago)"
+}
+
+@test "check_backup_jobs: rejects a v5 completion whose job is not named dbNN" {
+  local logs="${BACKUP01_V5_COMPLETE/job=db01/job=gatus}"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "app-db-backup-1: malformed backup completion record"
+}
+
+@test "check_backup_jobs: a missing labelled v5 job fails despite another v5 completion" {
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${BACKUP01_V5_COMPLETE}" 0 '01,02'
   mock_fixed_date 1000000 996400
 
   run check_backup_jobs
 
   assert_failure
   assert_output --partial "app-db-backup-1: expected one successful completion for backup routine 02, found 0"
-  assert_output --partial "1/1 database backup job(s) failed the freshness check"
   refute_output --partial "successful backup confirmed"
-  assert_mock_called_with "docker" "logs --since 2026-09-06T18:59:00Z container-1"
 }
 
 @test "check_backup_jobs: does not accept a retained success marker from an older execution" {

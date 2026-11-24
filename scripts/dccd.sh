@@ -795,14 +795,42 @@ check_backup_jobs() {
                 continue
             fi
 
-            local log_line job_code completed_jobs="" invalid_completion=0
+            local log_line job_code completed_jobs="" v5_completed_jobs="" invalid_completion=0
             local completion_pattern=$'Backup ([[:digit:]]+) routines finish time: .+ with exit code (-?[[:digit:]]+)([[:space:]]|$|\033\\[[0-9;]*m)'
             local operation_error_pattern="(DB Backup of|Moving of backup) '.+' reported errors"
+            # nfrastack/db-backup v5 logfmt records; jobs must be named dbNN.
+            # Only action=backup records are completions: prune and archive
+            # records carry the same type=backup status=complete fields.
+            # A failed v5 one-shot run still exits 0 (5.0.12), so any error
+            # record fails the check.
+            local v5_completion_marker=' type=backup status=complete'
+            local v5_completion_pattern=' action=backup job=db([[:digit:]]+) type=backup status=complete([[:space:]]|$)'
+            local v5_error_pattern='( type=backup status=failed|\[ERROR\] session=|One shot backup run failed)'
             while IFS= read -r log_line; do
                 # The compatibility image can log an operation error but still emit exit code 0.
                 if [[ "${log_line}" =~ ${operation_error_pattern} ]]; then
                     log_error "${container_name}: backup reported a dump or output-move error"
                     invalid_completion=1
+                fi
+                if [[ "${log_line}" =~ ${v5_error_pattern} ]]; then
+                    log_error "${container_name}: backup reported an error record"
+                    invalid_completion=1
+                fi
+                if [[ "${log_line}" == *" action=backup "*"${v5_completion_marker}"* ]]; then
+                    if [[ "${log_line}" =~ ${v5_completion_pattern} ]]; then
+                        local v5_job="${BASH_REMATCH[1]}"
+                        # One run per container start: a repeat means a second
+                        # scheduler ran, with or without an expected-job label.
+                        if [[ "${v5_completed_jobs} " == *" ${v5_job} "* ]]; then
+                            log_error "${container_name}: backup job db${v5_job} completed more than once in one run"
+                            invalid_completion=1
+                        fi
+                        v5_completed_jobs="${v5_completed_jobs} ${v5_job}"
+                        completed_jobs="${completed_jobs} ${v5_job}"
+                    else
+                        log_error "${container_name}: malformed backup completion record"
+                        invalid_completion=1
+                    fi
                 fi
                 if [[ "${log_line}" =~ Backup[[:space:]][[:digit:]]+[[:space:]]routines[[:space:]]finish[[:space:]]time: ]]; then
                     if [[ "${log_line}" =~ ${completion_pattern} ]]; then

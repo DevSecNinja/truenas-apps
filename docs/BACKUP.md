@@ -1150,8 +1150,11 @@ Keep this constraint until an intentional migration validates:
     duplicate/missing completion detection.
 
 Do not loosen the v4 freshness checker or disable it to accept v5 output.
-Recognizing a new log format alone would not establish encryption or
-recoverability.
+The checker recognizes v5 records only in the fail-closed form described under
+[How They Run](#how-they-run), based on the v5 CI evidence in
+[#1055](https://github.com/DevSecNinja/truenas-apps/pull/1055). Recognizing the
+log format alone does not establish encryption or recoverability, and does not
+approve a v5 migration.
 
 ### October 2026 Backup Incidents
 
@@ -1244,6 +1247,16 @@ checks alone proves that an artifact decrypts or restores successfully.
 - **Unlabeled sidecars:** retain the requirement for at least one successful
     completion, but any nonzero/malformed completion or known operation-error
     diagnostic still fails.
+- **nfrastack/db-backup v5:** a completion is a current-run logfmt record with
+    `action=backup job=dbNN type=backup status=complete`, so v5 jobs must be
+    named `db01`, `db02` and so on, matching `dccd.backup-jobs`. A completion
+    for any other job name is malformed. Successful `action=prune` and
+    `action=archive` records are not completions; their failures still fail
+    the check. A second completion of the same job
+    in one run fails even without a label: it means a second scheduler ran, as
+    `backup-now` does next to the `MODE=MANUAL` service. Because a failed v5
+    one-shot run still exits `0` (5.0.12), any `status=failed`, any
+    `[ERROR] session=` record and `One shot backup run failed` fail the check.
 
 If any check fails, `dccd.sh` fails. Disable the check for one invocation with:
 
