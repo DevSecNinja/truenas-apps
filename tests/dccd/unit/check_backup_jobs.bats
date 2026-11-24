@@ -25,6 +25,10 @@ setup() {
   BACKUP02_V5_COMPLETE='2026-11-24 14:19:45 [INFO] session=2a8824 run_id=4403ac16 action=backup job=db02 type=backup status=complete strategy=full file=/backup/redis-0-valkey-full-20261124-135244.rdb.zst.age size=1556 timing="total=10ms" msg="backup complete"'
   BACKUP01_V5_FAILED='2026-11-24 14:19:47 [ERROR] session=06fe55 run_id=35717812 action=backup job=db01 type=backup status=failed stage=connect error="write to storage: connect: failed SASL auth" msg="backup failed"'
   BACKUP_V5_ONESHOT_FAILED='2026-11-24.14:19:47 [ERROR] ** [db-backup-scheduler] One shot backup run failed (exit 1) - halting container'
+  # Expected AGE recipients for the v5 artifact check.
+  BASE_DIR="${BATS_TEST_TMPDIR}/apps"
+  mkdir -p "${BASE_DIR}/services/shared/env"
+  printf 'DB_BACKUP_AGE_RECIPIENT=age1test\n' >"${BASE_DIR}/services/shared/env/db-backup.env"
 }
 
 teardown() {
@@ -55,6 +59,14 @@ inspect)
 logs)
     printf '%s\n' ${logs_literal}
     exit ${logs_exit}
+    ;;
+run)
+    # v5 artifact check helper: one result line per file after "verify".
+    while [ "\$#" -gt 0 ] && [ "\$1" != verify ]; do shift; done
+    shift
+    for f in "\$@"; do
+        printf '%s|%s|%s\n' "\${MOCK_V5_STATUS:-OK}" "\${f}" "\${MOCK_V5_DETAIL:-age1test}"
+    done
     ;;
 esac
 MOCK
@@ -310,6 +322,64 @@ mock_project_scoped_backups() {
   assert_failure
   assert_output --partial "app-db-backup-1: expected one successful completion for backup routine 02, found 0"
   refute_output --partial "successful backup confirmed"
+}
+
+@test "check_backup_jobs: checks v5 artifacts in the sidecar image without network or write access" {
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${BACKUP01_V5_COMPLETE}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_success
+  assert_mock_called_with "docker" "run --rm --network none --volumes-from container-1:ro --entrypoint /bin/bash"
+  run get_mock_call_args docker
+  assert_output --partial "verify /backup/postgres-restore_test-backup_v5_pg_source-full-20261124-135244.sql.zst.age"
+}
+
+@test "check_backup_jobs: rejects a v5 completion that wrote an unencrypted file" {
+  # The #849 symptom: a v5 run that produced .sql.zst instead of an AGE file.
+  local logs="${BACKUP01_V5_COMPLETE/.sql.zst.age/.sql.zst}"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${logs}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "app-db-backup-1: backup job db01 did not write an AGE-encrypted file"
+}
+
+@test "check_backup_jobs: rejects a v5 artifact the helper could not verify" {
+  export MOCK_V5_STATUS=ERR MOCK_V5_DETAIL="no AGE header"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${BACKUP01_V5_COMPLETE}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "app-db-backup-1: postgres-restore_test-backup_v5_pg_source-full-20261124-135244.sql.zst.age: no AGE header"
+  refute_output --partial "successful backup confirmed"
+}
+
+@test "check_backup_jobs: rejects a v5 artifact encrypted to other recipients" {
+  export MOCK_V5_DETAIL="age1other"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${BACKUP01_V5_COMPLETE}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "is encrypted to 'age1other', expected 'age1test'"
+}
+
+@test "check_backup_jobs: fails v5 artifact checks without the expected recipients file" {
+  rm "${BASE_DIR}/services/shared/env/db-backup.env"
+  mock_backup_container 'exited|0|2026-09-06T18:59:00Z|2026-09-06T19:00:00Z' 0 "${BACKUP01_V5_COMPLETE}"
+  mock_fixed_date 1000000 996400
+
+  run check_backup_jobs
+
+  assert_failure
+  assert_output --partial "app-db-backup-1: cannot read ${BASE_DIR}/services/shared/env/db-backup.env"
 }
 
 @test "check_backup_jobs: does not accept a retained success marker from an older execution" {

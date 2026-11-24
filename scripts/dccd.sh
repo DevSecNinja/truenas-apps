@@ -677,6 +677,72 @@ dump_project_logs_tail() {
     done <<<"${containers}"
 }
 
+# Check nfrastack/db-backup v5 artifacts without decrypting them: each file is
+# non-empty, starts with the AGE header, and its JSON sidecar reports status ok
+# and exactly the recipients in services/shared/env/db-backup.env. The checks
+# run in the sidecar's own image with its volumes mounted read-only, because
+# the artifacts belong to the backup identity with mode 600.
+verify_v5_artifacts() {
+    local container_id="$1" container_name="$2"
+    shift 2
+    local recipients_file="${BASE_DIR}/services/shared/env/db-backup.env"
+    local expected image result file status result_file detail seen ok rc=0
+    if [ ! -r "${recipients_file}" ]; then
+        log_error "${container_name}: cannot read ${recipients_file} for the expected AGE recipients"
+        return 1
+    fi
+    expected=$(sed -n 's/^DB_BACKUP_AGE_RECIPIENT[A-Z0-9_]*=//p' "${recipients_file}" | sort | paste -sd, -)
+    if [ -z "${expected}" ]; then
+        log_error "${container_name}: no DB_BACKUP_AGE_RECIPIENT in ${recipients_file}"
+        return 1
+    fi
+    if ! image=$(${SUDO} docker inspect --format '{{.Image}}' "${container_id}" 2>/dev/null); then
+        log_error "${container_name}: unable to inspect the backup image"
+        return 1
+    fi
+    # shellcheck disable=SC2016 # Expanded by bash inside the helper container.
+    local script='
+for f in "$@"; do
+    if [ ! -s "${f}" ]; then echo "ERR|${f}|missing or empty"; continue; fi
+    header=""
+    IFS= read -r -n 21 header <"${f}" || true
+    if [ "${header}" != "age-encryption.org/v1" ]; then echo "ERR|${f}|no AGE header"; continue; fi
+    if ! status=$(yq -p json ".status" "${f}.json" 2>/dev/null); then echo "ERR|${f}|unreadable JSON sidecar"; continue; fi
+    if [ "${status}" != ok ]; then echo "ERR|${f}|sidecar status ${status}"; continue; fi
+    recipients=$(yq -p json ".encryption.recipients | sort | join(\",\")" "${f}.json" 2>/dev/null) || recipients=""
+    echo "OK|${f}|${recipients}"
+done'
+    if ! result=$(
+        ${SUDO} docker run --rm --network none --volumes-from "${container_id}:ro" \
+            --entrypoint /bin/bash "${image}" -c "${script}" verify "$@" 2>&1
+    ); then
+        log_error "${container_name}: artifact check container failed"
+        return 1
+    fi
+    for file in "$@"; do
+        seen=0
+        ok=0
+        while IFS='|' read -r status result_file detail; do
+            [ "${result_file}" = "${file}" ] || continue
+            seen=1
+            if [ "${status}" != OK ]; then
+                log_error "${container_name}: ${file##*/}: ${detail}"
+            elif [ "${detail}" != "${expected}" ]; then
+                log_error "${container_name}: ${file##*/} is encrypted to '${detail}', expected '${expected}'"
+            else
+                ok=1
+            fi
+        done <<<"${result}"
+        if [ "${seen}" -eq 0 ]; then
+            log_error "${container_name}: no artifact check result for ${file##*/}"
+        fi
+        if [ "${ok}" -ne 1 ]; then
+            rc=1
+        fi
+    done
+    return "${rc}"
+}
+
 # Verify every Compose-managed database backup container has exited successfully
 # within the configured freshness window. Active jobs are allowed to finish for
 # up to WAIT_TIMEOUT seconds, shared across all backup containers.
@@ -796,6 +862,7 @@ check_backup_jobs() {
             fi
 
             local log_line job_code completed_jobs="" v5_completed_jobs="" invalid_completion=0
+            local -a v5_files=()
             local completion_pattern=$'Backup ([[:digit:]]+) routines finish time: .+ with exit code (-?[[:digit:]]+)([[:space:]]|$|\033\\[[0-9;]*m)'
             local operation_error_pattern="(DB Backup of|Moving of backup) '.+' reported errors"
             # nfrastack/db-backup v5 logfmt records; jobs must be named dbNN.
@@ -827,6 +894,12 @@ check_backup_jobs() {
                         fi
                         v5_completed_jobs="${v5_completed_jobs} ${v5_job}"
                         completed_jobs="${completed_jobs} ${v5_job}"
+                        if [[ "${log_line}" =~ [[:space:]]file=([^[:space:]]+\.age)([[:space:]]|$) ]]; then
+                            v5_files+=("${BASH_REMATCH[1]}")
+                        else
+                            log_error "${container_name}: backup job db${v5_job} did not write an AGE-encrypted file"
+                            invalid_completion=1
+                        fi
                     else
                         log_error "${container_name}: malformed backup completion record"
                         invalid_completion=1
@@ -888,6 +961,13 @@ check_backup_jobs() {
                     failed=$((failed + 1))
                     continue
                 fi
+            fi
+
+            # shellcheck disable=SC2310  # failure is handled by the surrounding if block
+            if [ "${#v5_files[@]}" -gt 0 ] &&
+                ! verify_v5_artifacts "${container_id}" "${container_name}" "${v5_files[@]}"; then
+                failed=$((failed + 1))
+                continue
             fi
 
             local age_display
