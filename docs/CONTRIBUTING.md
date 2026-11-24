@@ -172,7 +172,7 @@ The root-level `schedule: ["at any time"]` in `renovate.json5` overrides the sha
 
 The repository-local capacity change sets root-level `prConcurrentLimit: 20`. `branchConcurrentLimit` remains unset and inherits `prConcurrentLimit`, raising the effective branch/PR cap from the default 10 to 20. More cooldown candidates can start soaking concurrently, but `prHourlyLimit` remains at its inherited default of 2: creation is still limited to two PRs per hour, subject to hosted run frequency and queue bottlenecks.
 
-This is a capacity-only change: the exact five-package `rebaseWhen: "never"` frozen cohort, grouping, major manual merge policy, and all automerge/digest policies remain unchanged. Increased capacity does not bypass age gates or required checks, fix existing failing checks, reset existing HEADs, or guarantee immediate clearance of the entire backlog.
+This is a capacity-only change: the `rebaseWhen: "never"` frozen cohort, grouping, major manual merge policy, and all automerge/digest policies remain unchanged. Increased capacity does not bypass age gates or required checks, fix existing failing checks, reset existing HEADs, or guarantee immediate clearance of the entire backlog.
 
 Creation timing is separate from merge eligibility. Native `minimumReleaseAge` checks remain in place where configured and trusted release timestamps are available. Independently, the required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer time. The age policies are:
 
@@ -214,14 +214,11 @@ Background: ADR 0005 in `DevSecNinja/.github` (`docs/design-decisions/0005-pr-ag
 
 #### Homepage frozen-candidate pilot
 
-The Homepage pilot now covers an exact five-package cohort, expanded in [#793](https://github.com/DevSecNinja/truenas-apps/pull/793). The local `renovate.json5` rule **Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker`, overriding the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` only for:
+The pilot started with Homepage and was expanded in [#793](https://github.com/DevSecNinja/truenas-apps/pull/793). Homepage, both Immich app images and Home Assistant have since moved to the first-seen release ledger (T207), where the 14-day soak is native and nothing needs freezing. The local `renovate.json5` rule **Freeze Traefik update candidates while they complete the cooldown** sets `rebaseWhen: "never"` for datasource `docker`, overriding the shared `DevSecNinja/.github` setting `rebaseWhen: "conflicted"` only for:
 
-- **Home Assistant:** `ghcr.io/home-assistant/home-assistant` — included as a low-impact stress test because the container is not actively used. It was on the rolling `:beta` channel; it is now pinned to exact stable releases, ahead of its move to the first-seen release ledger.
-- **Homepage:** `ghcr.io/gethomepage/homepage` — single-image update coverage, continuing the original pilot.
-- **Immich:** `ghcr.io/immich-app/immich-machine-learning` and `ghcr.io/immich-app/immich-server` — grouped app-image coverage, preserving the existing Immich update group.
 - **Traefik:** `dhi.io/traefik` — single-image update coverage for important infrastructure.
 
-Matching is by exact package name, not by stack or registry. Immich Postgres (`ghcr.io/immich-app/postgres`), `dhi.io/redis`, all other sidecars, AdGuard Home, Bitwarden, and ESPHome are excluded. The aim is to let existing candidates finish their soak instead of repeatedly restarting it as newer candidates appear.
+Matching is by exact package name, not by stack or registry; every other image is excluded. The aim is to let existing candidates finish their soak instead of repeatedly restarting it as newer candidates appear.
 
 - **Existing branch:** Ordinary automatic Renovate version/digest rewrites to the same existing branch stop. This freezes that branch's candidate; it is **not a per-digest queue**. Separate major-update branches and stale-branch cleanup remain normal.
 - **Cooldown:** The independent required `pr-cooldown` check on `renovate/docker-gated-*` branches still waits 14 days from the HEAD committer date and reevaluates every six hours. Expanding the rule does not rewrite existing HEADs or reset their elapsed age; current candidates retain time already accrued.
@@ -237,7 +234,7 @@ Matching is by exact package name, not by stack or registry. Immich Postgres (`g
 
 **Observed first cycle:** Homepage [#722](https://github.com/DevSecNinja/truenas-apps/pull/722) retained HEAD `6d3dfe8` (2026-09-10 02:32:56 UTC) and candidate `v2.3.0@sha256:f820276654539cdc2cf0169f28188d135919a7984fad76d83d8d5ff1383f3705` through the newer `v2.4.0` release on 2026-09-17. After 55 pending cooldown status posts, the check succeeded on 2026-09-24 at 04:48:54 UTC and automerge followed at 04:49:22 UTC. This demonstrates one freeze/soak/automerge cycle. As of 2026-09-28, the next `v2.4.0` candidate was only **Rate-Limited** in dashboard [#115](https://github.com/DevSecNinja/truenas-apps/issues/115); no next PR or new soak had been observed.
 
-**Scope and rollback:** The original frozen-cohort expansion was repository-local, not a global or shared-config change. It included no workflow, cooldown algorithm/duration, branch naming, grouping, automerge, rate-limit, digest-enabling, or image-pin changes. To roll back the freeze, remove the local freeze rule from `renovate.json5`; all five packages then inherit the shared `rebaseWhen: "conflicted"` behavior again.
+**Scope and rollback:** The original frozen-cohort expansion was repository-local, not a global or shared-config change. It included no workflow, cooldown algorithm/duration, branch naming, grouping, automerge, rate-limit, digest-enabling, or image-pin changes. To roll back the freeze, remove the local freeze rule from `renovate.json5`; Traefik then inherits the shared `rebaseWhen: "conflicted"` behavior again.
 
 Broader rollout tracking remains open in [#758](https://github.com/DevSecNinja/truenas-apps/issues/758); related: [#759](https://github.com/DevSecNinja/truenas-apps/issues/759).
 

@@ -121,15 +121,9 @@
       versioning: "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
     },
     {
-      description: "Freeze Homepage, Traefik, Immich app, and Home Assistant update candidates while they complete the cooldown",
+      description: "Freeze Traefik update candidates while they complete the cooldown",
       matchDatasources: ["docker"],
-      matchPackageNames: [
-        "ghcr.io/gethomepage/homepage",
-        "dhi.io/traefik",
-        "ghcr.io/immich-app/immich-server",
-        "ghcr.io/immich-app/immich-machine-learning",
-        "ghcr.io/home-assistant/home-assistant",
-      ],
+      matchPackageNames: ["dhi.io/traefik"],
       rebaseWhen: "never",
     },
     {
@@ -158,6 +152,15 @@
         "ghcr.io/karakeep-app/karakeep",
         "ghcr.io/meeb/tubesync",
         "ghcr.io/gethomepage/homepage",
+        "ghcr.io/esphome/esphome",
+        "ghcr.io/blakeblackshear/frigate",
+        "ghcr.io/home-assistant/home-assistant",
+        "ghcr.io/immich-app/immich-server",
+        "ghcr.io/immich-app/immich-machine-learning",
+        "quay.io/prometheuscommunity/postgres-exporter",
+        "ghcr.io/home-assistant-libs/python-matter-server",
+        "ghcr.io/coleifer/sqlite-web",
+        "ghcr.io/bitwarden/lite",
       ],
       overrideDatasource: "custom.first-seen",
       // Custom datasources have no default versioning.
@@ -166,6 +169,21 @@
       additionalBranchPrefix: "",
       rebaseWhen: "auto",
       groupName: null,
+    },
+    {
+      // The server and machine-learning images must run the same release.
+      // Placed after the ledger rule so its groupName wins over groupName null.
+      // A group doesn't require equal versions, and ML tags can lag the server
+      // (v3.4.2 shipped without v3.4.2-openvino), so the owner merges Immich
+      // updates by hand once both images are on the same release.
+      description: "Update the Immich server and machine-learning images together; merge by hand",
+      matchPackageNames: [
+        "ghcr.io/immich-app/immich-server",
+        "ghcr.io/immich-app/immich-machine-learning",
+      ],
+      groupName: "immich",
+      automerge: false,
+      addLabels: ["merge: manual"],
     },
   ],
 }
