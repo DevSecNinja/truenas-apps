@@ -1257,6 +1257,14 @@ checks alone proves that an artifact decrypts or restores successfully.
     `backup-now` does next to the `MODE=MANUAL` service. Because a failed v5
     one-shot run still exits `0` (5.0.12), any `status=failed`, any
     `[ERROR] session=` record and `One shot backup run failed` fail the check.
+- **v5 artifacts, without decrypting:** every v5 completion must name a
+    `file=…` ending in `.age`. For each such file, a throwaway container runs
+    the sidecar's own image with its volumes mounted read-only
+    (`--volumes-from …:ro`, `--network none`) and checks that the file is
+    non-empty, starts with the AGE header `age-encryption.org/v1`, and that its
+    JSON sidecar reports `status: ok` and exactly the recipients listed as
+    `DB_BACKUP_AGE_RECIPIENT*` in `services/shared/env/db-backup.env`. These
+    checks can't prove a backup restores; see the restore drill.
 
 If any check fails, `dccd.sh` fails. Disable the check for one invocation with:
 
