@@ -27,7 +27,7 @@
 # Container logs are written to ${V5_LOG_DIR:-/tmp/db-backup-v5-logs} so the
 # workflow can upload them as evidence for the dccd.sh v5 log patterns.
 #
-# Required host tools: docker, age, age-keygen, zstd, sqlite3, openssl,
+# Required host tools: docker, age, age-keygen, zstd, sqlite3, openssl, jq,
 # sha1sum.
 
 set -euo pipefail
@@ -185,7 +185,7 @@ expect_one_successful_run() {
 # decrypted, decompressed dump. A root helper container reads the mode and
 # owner and hands the files back to the runner user.
 check_artifact() {
-    local dir="$1" owner="$2" meta files count artifact header sum file matched=0
+    local dir="$1" owner="$2" meta files count artifact header sum want
     # Mode and owner first, as root: the artifact is 600 and the backup
     # directory may belong to root. Then hand everything to the runner user.
     meta="$(docker run --rm --network none -v "${dir}:/backup" --entrypoint /bin/sh "${POSTGRES_IMAGE}" \
@@ -209,18 +209,15 @@ check_artifact() {
     DUMP_FILE="${DUMP_FILE%.zst.age}"
     age -d -i "${WORK_DIR}/identity.txt" -o "${DUMP_FILE}.zst" "${artifact}"
     zstd -q -d "${DUMP_FILE}.zst" -o "${DUMP_FILE}"
-    # The JSON sidecar records checksums of the content, not of the ciphertext:
-    # accept the SHA1 of the compressed stream or of the plain dump.
+    # The JSON sidecar records SHA1s of the content, not of the ciphertext:
+    # both must match the decrypted stream and the plain dump exactly.
     log_info "sidecar ${artifact##*/}.json:"$'\n'"$(<"${artifact}.json")"
-    for file in "${DUMP_FILE}.zst" "${DUMP_FILE}" "${artifact}"; do
-        sum="$(sha1sum "${file}")"
-        sum="${sum%% *}"
-        if grep -qs "${sum}" "${artifact}.json"; then
-            log_info "SHA1 of ${file##*/} matches the sidecar"
-            matched=1
-        fi
-    done
-    [ "${matched}" = 1 ] || die "no SHA1 from ${artifact##*/} matches its JSON sidecar"
+    sum="$(sha1sum "${DUMP_FILE}.zst")"
+    want="$(jq -r '.checksums.compressed_sha1' "${artifact}.json")"
+    [ "${sum%% *}" = "${want}" ] || die "compressed_sha1 ${want} != ${sum%% *}"
+    sum="$(sha1sum "${DUMP_FILE}")"
+    want="$(jq -r '.checksums.uncompressed_sha1' "${artifact}.json")"
+    [ "${sum%% *}" = "${want}" ] || die "uncompressed_sha1 ${want} != ${sum%% *}"
 }
 
 seed_postgres() {
