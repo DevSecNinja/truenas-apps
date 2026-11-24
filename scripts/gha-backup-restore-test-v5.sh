@@ -251,6 +251,8 @@ restore_postgres() {
     [ "${got}" = 1 ] || die "PostgreSQL sentinel missing after restore"
     got="$(pg "${PG_RESTORE}" -c "SELECT string_agg(big::text, ',' ORDER BY id) FROM restore_sentinel;")"
     [ "${got}" = "${BIGINTS}" ] || die "bigint values changed after restore: ${got}"
+    got="$(pg "${PG_RESTORE}" -c "SELECT count(*) FROM pg_constraint WHERE conname = 'z_child_parent_id_fkey' AND contype = 'f';")"
+    [ "${got}" = 1 ] || die "the restored database lost the z_child foreign key"
     got="$(pg "${PG_RESTORE}" -c "SELECT count(*) FROM z_child c LEFT JOIN a_parent p ON p.id = c.parent_id WHERE p.id IS NULL;")"
     if [ "${got}" = 0 ]; then
         RESTORE_RESULT="ok"
@@ -343,7 +345,7 @@ CREATE TABLE restore_sentinel (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT 
 INSERT INTO restore_sentinel (value) VALUES ('${SENTINEL}');
 CREATE TABLE resource (id INTEGER PRIMARY KEY, filename TEXT NOT NULL, blob BLOB NOT NULL);
 INSERT INTO resource (filename, blob) VALUES ('synthetic.bin', X'${blob}');
-.shell sleep 120
+.shell sleep 600
 SQL
     SQLITE_HOLDER_PID=$!
     until [ -s "${src}/${DB_NAME}.db-wal" ]; do
@@ -356,6 +358,8 @@ SQL
     run_backup sqlite "${dir}" "${config}" "" --network none --memory 1024m --pids-limit 100 \
         --security-opt no-new-privileges:true -e DBBACKUP_USER=root -e DBBACKUP_GROUP=root \
         -v "${src}:/db:ro"
+    kill -0 "${SQLITE_HOLDER_PID}" 2>/dev/null ||
+        die "the SQLite connection closed before the backup finished; the live-WAL case was not tested"
     expect_one_successful_run sqlite
     check_artifact "${dir}" "0:0"
     sqlite3 -bail "${restored}" <"${DUMP_FILE}" || die "SQLite dump did not load"
