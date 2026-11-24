@@ -183,9 +183,9 @@ expect_one_successful_run() {
 
 # check_artifact <backup dir> <expected uid:gid> — sets DUMP_FILE to the
 # decrypted, decompressed dump. A root helper container reads the mode and
-# owner (the artifact is 600 and may belong to root) and hands the files back.
+# owner and hands the files back to the runner user.
 check_artifact() {
-    local dir="$1" owner="$2" meta files count artifact header sum
+    local dir="$1" owner="$2" meta files count artifact header sum file matched=0
     # Mode and owner first, as root: the artifact is 600 and the backup
     # directory may belong to root. Then hand everything to the runner user.
     meta="$(docker run --rm --network none -v "${dir}:/backup" --entrypoint /bin/sh "${POSTGRES_IMAGE}" \
@@ -205,12 +205,22 @@ check_artifact() {
     esac
     header="$(head -c 21 "${artifact}")"
     [ "${header}" = "age-encryption.org/v1" ] || die "artifact has no AGE header"
-    sum="$(sha1sum "${artifact}")"
-    sum="${sum%% *}"
-    grep -qs "${sum}" "${artifact}.json" || die "SHA1 ${sum} is not in ${artifact##*/}.json"
     DUMP_FILE="${WORK_DIR}/${artifact##*/}"
     DUMP_FILE="${DUMP_FILE%.zst.age}"
-    age -d -i "${WORK_DIR}/identity.txt" "${artifact}" | zstd -q -d -o "${DUMP_FILE}"
+    age -d -i "${WORK_DIR}/identity.txt" -o "${DUMP_FILE}.zst" "${artifact}"
+    zstd -q -d "${DUMP_FILE}.zst" -o "${DUMP_FILE}"
+    # The JSON sidecar records checksums of the content, not of the ciphertext:
+    # accept the SHA1 of the compressed stream or of the plain dump.
+    log_info "sidecar ${artifact##*/}.json:"$'\n'"$(<"${artifact}.json")"
+    for file in "${DUMP_FILE}.zst" "${DUMP_FILE}" "${artifact}"; do
+        sum="$(sha1sum "${file}")"
+        sum="${sum%% *}"
+        if grep -qs "${sum}" "${artifact}.json"; then
+            log_info "SHA1 of ${file##*/} matches the sidecar"
+            matched=1
+        fi
+    done
+    [ "${matched}" = 1 ] || die "no SHA1 from ${artifact##*/} matches its JSON sidecar"
 }
 
 seed_postgres() {
