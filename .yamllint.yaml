@@ -20,3 +20,4 @@ ignore: |-
   apm.yml
   apm.lock.yaml
   apm_modules/
+  .venv*/
