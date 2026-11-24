@@ -9,21 +9,26 @@
 #
 #   postgres     gatus/outline/immich/dawarich pattern: numeric non-root UID,
 #                bigint edge values and a foreign key, restored with psql.
+#                Also runs once with a wrong password: the container must exit
+#                non-zero so the dccd.sh backup check can see the failure.
 #   sqlite       memos/bitwarden/home-assistant pattern: root, read-only source
 #                mount with a live WAL, network none, BLOB byte-for-byte.
 #   consistency  v5 dumps PostgreSQL table by table without a snapshot
 #                transaction. Writes parent/child rows during the backup and
 #                checks that the foreign key still restores.
 #
-# Every backup scenario checks: exit code 0, exactly one *.age artifact (one
-# run, no loop), no plaintext dump left behind, the AGE header, mode 600, the
-# expected owner, the SHA1 in the JSON sidecar, decryption with the identity,
-# and a restore into a fresh database with sentinel checks.
+# Every backup scenario checks: exit code 0, exactly one job start and one
+# completion in the log (no second run: with MODE=MANUAL the container's own
+# service already runs every job once, so `backup-now` must not be passed),
+# exactly one *.age artifact, no plaintext dump left behind, the AGE header,
+# mode 600, the expected owner, the SHA1 in the JSON sidecar, decryption with
+# the identity, and a restore into a fresh database with sentinel checks.
 #
 # Container logs are written to ${V5_LOG_DIR:-/tmp/db-backup-v5-logs} so the
 # workflow can upload them as evidence for the dccd.sh v5 log patterns.
 #
-# Required host tools: docker, age, age-keygen, zstd, sqlite3, openssl.
+# Required host tools: docker, age, age-keygen, zstd, sqlite3, openssl,
+# sha1sum.
 
 set -euo pipefail
 
@@ -47,6 +52,11 @@ HOST_GID="$(id -g)"
 BIGINTS="9223372036854775807,-9223372036854775808,9007199254740993"
 WRITER_PID=""
 SQLITE_HOLDER_PID=""
+# Set by run_backup, check_artifact and restore_postgres; functions report
+# through these instead of exit codes so `set -e` is never suspended.
+BACKUP_RC=0
+DUMP_FILE=""
+RESTORE_RESULT=""
 
 _BACKUP_TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/log.sh disable=SC1091
@@ -141,54 +151,66 @@ pg_config() {
         - ${DB_NAME}"
 }
 
-# run_backup <name> <backup dir> <config> [docker run args...]
+# run_backup <name> <backup dir> <config> <db password> [docker run args...]
+# Runs the sidecar exactly as Compose will: MODE=MANUAL, no command. Sets
+# BACKUP_RC; the log is kept in ${LOG_DIR}/<name>.log.
 run_backup() {
-    local name="$1" backup_dir="$2" config="$3" rc=0
-    shift 3
+    local name="$1" backup_dir="$2" config="$3" pass="$4"
+    shift 4
+    BACKUP_RC=0
     docker run --rm --name "backup-v5-${name}" \
         -e MODE=MANUAL -e MANUAL_RUN_FOREVER=FALSE -e SETUP_TYPE=MANUAL \
-        -e DB_BACKUP_AGE_RECIPIENT="${AGE_RECIPIENT}" -e DB_PASS="${DB_PASS}" \
+        -e DB_BACKUP_AGE_RECIPIENT="${AGE_RECIPIENT}" -e DB_PASS="${pass}" \
         -v "${config}:/config/db-backup.yml:ro" -v "${backup_dir}:/backup" \
-        "$@" "${DB_BACKUP_V5_IMAGE}" backup-now >"${LOG_DIR}/${name}.log" 2>&1 || rc=$?
-    if [ "${rc}" -ne 0 ]; then
-        cat "${LOG_DIR}/${name}.log" >&2
-        die "${name}: backup container exited ${rc}"
+        "$@" "${DB_BACKUP_V5_IMAGE}" >"${LOG_DIR}/${name}.log" 2>&1 || BACKUP_RC=$?
+}
+
+# expect_one_successful_run <name> — exit 0, one start, one completion.
+expect_one_successful_run() {
+    local log="${LOG_DIR}/${1}.log" started completed failed
+    if [ "${BACKUP_RC}" -ne 0 ]; then
+        cat "${log}" >&2
+        die "${1}: backup container exited ${BACKUP_RC}"
+    fi
+    started="$(grep -c 'job=db01 type=backup status=started' "${log}" || true)"
+    completed="$(grep -c 'job=db01 type=backup status=complete ' "${log}" || true)"
+    failed="$(grep -c 'status=fail' "${log}" || true)"
+    if [ "${started}" != 1 ] || [ "${completed}" != 1 ] || [ "${failed}" != 0 ]; then
+        cat "${log}" >&2
+        die "${1}: expected one start and one completion, got started=${started} completed=${completed} failed=${failed}"
     fi
 }
 
-# check_artifact <backup dir> <expected uid:gid> — prints the path of the
-# decrypted, decompressed dump. The file checks run as root in a helper
-# container because the artifact belongs to the backup identity (mode 600).
+# check_artifact <backup dir> <expected uid:gid> — sets DUMP_FILE to the
+# decrypted, decompressed dump. A root helper container reads the mode and
+# owner (the artifact is 600 and may belong to root) and hands the files back.
 check_artifact() {
-    local dir="$1" owner="$2" artifact dump
-    docker run --rm --network none -v "${dir}:/backup" --entrypoint /bin/sh \
-        -e OWNER="${owner}" -e HOST_UID="${HOST_UID}" -e HOST_GID="${HOST_GID}" \
-        "${DB_BACKUP_V5_IMAGE}" -c '
-        set -eu
-        found=$(find /backup -path /backup/.dbb -prune -o -type f -print)
-        printf "artifacts:\n%s\n" "${found}" >&2
-        n=$(printf "%s\n" "${found}" | grep -c "\.age$" || true)
-        [ "${n}" = 1 ] || { echo "expected exactly one .age artifact, found ${n}" >&2; exit 1; }
-        if printf "%s\n" "${found}" | grep -Eq "\.(sql|zst|gz|archive)$"; then
-            echo "plaintext dump found next to the encrypted artifact" >&2; exit 1
-        fi
-        artifact=$(printf "%s\n" "${found}" | grep "\.age$")
-        [ "$(head -c 21 "${artifact}")" = "age-encryption.org/v1" ] || { echo "missing AGE header" >&2; exit 1; }
-        [ "$(stat -c %a "${artifact}")" = 600 ] || { echo "artifact mode is not 600" >&2; exit 1; }
-        [ "$(stat -c %u:%g "${artifact}")" = "${OWNER}" ] || { echo "artifact owner is not ${OWNER}" >&2; exit 1; }
-        sum=$(sha1sum "${artifact}" | cut -d" " -f1)
-        grep -rqs "${sum}" /backup --include="*.json" || { echo "SHA1 ${sum} not in a JSON sidecar" >&2; exit 1; }
-        chown -R "${HOST_UID}:${HOST_GID}" /backup
-    ' || die "artifact checks failed in ${dir}"
-
-    artifact="$(find "${dir}" -path "${dir}/.dbb" -prune -o -type f -name '*.age' -print)"
+    local dir="$1" owner="$2" meta files count artifact header sum
+    # Mode and owner first, as root: the artifact is 600 and the backup
+    # directory may belong to root. Then hand everything to the runner user.
+    meta="$(docker run --rm --network none -v "${dir}:/backup" --entrypoint /bin/sh "${POSTGRES_IMAGE}" \
+        -c "stat -c '%a %u:%g' /backup/*.age; chown -R ${HOST_UID}:${HOST_GID} /backup")"
+    files="$(find "${dir}" -path "${dir}/.dbb" -prune -o -type f -print)"
+    log_info "artifacts:"$'\n'"${files}"
+    count="$(grep -c '\.age$' <<<"${files}" || true)"
+    [ "${count}" = 1 ] || die "expected exactly one .age artifact, found ${count}"
+    [ "${meta}" = "600 ${owner}" ] || die "artifact mode/owner is '${meta}', expected '600 ${owner}'"
+    if grep -Eq '\.(sql|zst|gz|archive)$' <<<"${files}"; then
+        die "plaintext dump found next to the encrypted artifact"
+    fi
+    artifact="$(grep '\.age$' <<<"${files}")"
     case "${artifact}" in
     *.zst.age) ;;
     *) die "unexpected artifact name ${artifact} (expected *.zst.age)" ;;
     esac
-    dump="${WORK_DIR}/$(basename "${artifact%.zst.age}")"
-    age -d -i "${WORK_DIR}/identity.txt" "${artifact}" | zstd -q -d -o "${dump}"
-    printf '%s' "${dump}"
+    header="$(head -c 21 "${artifact}")"
+    [ "${header}" = "age-encryption.org/v1" ] || die "artifact has no AGE header"
+    sum="$(sha1sum "${artifact}")"
+    sum="${sum%% *}"
+    grep -qs "${sum}" "${artifact}.json" || die "SHA1 ${sum} is not in ${artifact##*/}.json"
+    DUMP_FILE="${WORK_DIR}/${artifact##*/}"
+    DUMP_FILE="${DUMP_FILE%.zst.age}"
+    age -d -i "${WORK_DIR}/identity.txt" "${artifact}" | zstd -q -d -o "${DUMP_FILE}"
 }
 
 seed_postgres() {
@@ -203,42 +225,62 @@ INSERT INTO z_child (parent_id) VALUES (1);
 SQL
 }
 
-# restore_postgres <dump> — psql into a fresh server; returns non-zero when the
-# load fails or child rows lost their parent. Bigint drift is always fatal.
+# restore_postgres — psql DUMP_FILE into a fresh server. Sets RESTORE_RESULT to
+# ok, load-failed or orphans. A missing sentinel or bigint drift is fatal.
 restore_postgres() {
-    local got
+    local got rc=0
     start_postgres "${PG_RESTORE}"
-    docker cp "${1}" "${PG_RESTORE}:/tmp/restore.sql"
+    docker cp "${DUMP_FILE}" "${PG_RESTORE}:/tmp/restore.sql"
     docker exec -e PGPASSWORD="${DB_PASS}" "${PG_RESTORE}" psql -U "${DB_USER}" -d "${DB_NAME}" \
-        --set ON_ERROR_STOP=on -q -f /tmp/restore.sql >/dev/null || return 1
+        --set ON_ERROR_STOP=on -q -f /tmp/restore.sql >/dev/null || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        RESTORE_RESULT="load-failed"
+        return 0
+    fi
     got="$(pg "${PG_RESTORE}" -c "SELECT count(*) FROM restore_sentinel WHERE value = '${SENTINEL}';")"
     [ "${got}" = 1 ] || die "PostgreSQL sentinel missing after restore"
     got="$(pg "${PG_RESTORE}" -c "SELECT string_agg(big::text, ',' ORDER BY id) FROM restore_sentinel;")"
     [ "${got}" = "${BIGINTS}" ] || die "bigint values changed after restore: ${got}"
     got="$(pg "${PG_RESTORE}" -c "SELECT count(*) FROM z_child c LEFT JOIN a_parent p ON p.id = c.parent_id WHERE p.id IS NULL;")"
-    [ "${got}" = 0 ]
+    if [ "${got}" = 0 ]; then
+        RESTORE_RESULT="ok"
+    else
+        RESTORE_RESULT="orphans"
+    fi
 }
 
 run_postgres_scenario() {
     log_info "=== v5 PostgreSQL: non-root UID, bigint, foreign key ==="
-    local dir="${WORK_DIR}/pgsql" config="${WORK_DIR}/pgsql.yml" dump
-    mkdir -p "${dir}"
+    local dir="${WORK_DIR}/pgsql" config="${WORK_DIR}/pgsql.yml"
+    local -a identity
+    mkdir -p "${dir}" "${WORK_DIR}/pgsql-fail"
     start_postgres "${PG_SOURCE}"
     seed_postgres
     pg_config "${config}"
     # Same identity pattern as pocket-id-db-backup: a named user with a fixed UID.
-    run_backup postgres "${dir}" "${config}" --network "${NETWORK}" \
-        -e DBBACKUP_USER=cibackup -e DBBACKUP_GROUP=cibackup \
+    identity=(
+        -e DBBACKUP_USER=cibackup -e DBBACKUP_GROUP=cibackup
         -e CONTAINER_INIT_PRE_COMMAND="addgroup -g ${HOST_GID} cibackup && adduser -D -H -u ${HOST_UID} -G cibackup cibackup"
-    dump="$(check_artifact "${dir}" "${HOST_UID}:${HOST_GID}")"
-    restore_postgres "${dump}" || die "PostgreSQL restore or foreign-key check failed"
+    )
+    run_backup postgres "${dir}" "${config}" "${DB_PASS}" --network "${NETWORK}" "${identity[@]}"
+    expect_one_successful_run postgres
+    check_artifact "${dir}" "${HOST_UID}:${HOST_GID}"
+    restore_postgres
+    [ "${RESTORE_RESULT}" = ok ] || die "PostgreSQL restore result: ${RESTORE_RESULT}"
+
+    log_info "Wrong password: the container must exit non-zero..."
+    run_backup postgres-failure "${WORK_DIR}/pgsql-fail" "${config}" "wrong-password" \
+        --network "${NETWORK}" "${identity[@]}"
+    [ "${BACKUP_RC}" -ne 0 ] || die "a failed backup exited 0; dccd.sh could not detect it from the exit code"
+    log_info "failed backup exited ${BACKUP_RC}"
+
     docker rm -f "${PG_SOURCE}" "${PG_RESTORE}" >/dev/null
     log_info "v5 PostgreSQL scenario PASSED"
 }
 
 run_consistency_scenario() {
     log_info "=== v5 PostgreSQL consistency under concurrent writes ==="
-    local dir="${WORK_DIR}/consistency" config="${WORK_DIR}/consistency.yml" dump
+    local dir="${WORK_DIR}/consistency" config="${WORK_DIR}/consistency.yml"
     mkdir -p "${dir}"
     start_postgres "${PG_SOURCE}"
     seed_postgres
@@ -248,19 +290,22 @@ run_consistency_scenario() {
     pg_config "${config}"
     (
         while true; do
-            pg "${PG_SOURCE}" -c "WITH p AS (INSERT INTO a_parent (note) VALUES ('live') RETURNING id)
+            docker exec -e PGPASSWORD="${DB_PASS}" "${PG_SOURCE}" psql -U "${DB_USER}" -d "${DB_NAME}" -q -c \
+                "WITH p AS (INSERT INTO a_parent (note) VALUES ('live') RETURNING id)
                 INSERT INTO z_child (parent_id) SELECT id FROM p;" >/dev/null 2>&1 || true
         done
     ) &
     WRITER_PID=$!
-    run_backup consistency "${dir}" "${config}" --network "${NETWORK}" \
+    run_backup consistency "${dir}" "${config}" "${DB_PASS}" --network "${NETWORK}" \
         -e DBBACKUP_USER=root -e DBBACKUP_GROUP=root
     stop_pid "${WRITER_PID}"
     WRITER_PID=""
-    dump="$(check_artifact "${dir}" "0:0")"
-    if ! restore_postgres "${dump}"; then
-        echo "::warning title=db-backup v5 consistency::A backup taken during writes did not restore with intact foreign keys. v5 dumps PostgreSQL tables without a snapshot transaction."
-        die "consistency scenario FAILED"
+    expect_one_successful_run consistency
+    check_artifact "${dir}" "0:0"
+    restore_postgres
+    if [ "${RESTORE_RESULT}" != ok ]; then
+        echo "::warning title=db-backup v5 consistency::A backup taken during writes restored with result '${RESTORE_RESULT}'. v5 dumps PostgreSQL tables without a snapshot transaction."
+        die "consistency scenario FAILED (${RESTORE_RESULT})"
     fi
     docker rm -f "${PG_SOURCE}" "${PG_RESTORE}" >/dev/null
     log_info "v5 consistency scenario PASSED"
@@ -269,9 +314,10 @@ run_consistency_scenario() {
 run_sqlite_scenario() {
     log_info "=== v5 SQLite: root, read-only mount, live WAL, BLOB ==="
     local src="${WORK_DIR}/sqlite_src" dir="${WORK_DIR}/sqlite" config="${WORK_DIR}/sqlite.yml"
-    local restored="${WORK_DIR}/restored.db" dump blob attempts=0
+    local restored="${WORK_DIR}/restored.db" blob got attempts=0
     mkdir -p "${src}" "${dir}"
-    blob="$(openssl rand -hex 128 | tr '[:lower:]' '[:upper:]')"
+    blob="$(openssl rand -hex 128)"
+    blob="${blob^^}"
     # Keep a connection open so the -wal file stays un-checkpointed during the
     # backup, the state a running Memos or Home Assistant presents.
     sqlite3 "${src}/${DB_NAME}.db" <<SQL &
@@ -292,16 +338,18 @@ SQL
     done
     write_config "${config}" "      type: sqlite
       host: /db/${DB_NAME}.db"
-    run_backup sqlite "${dir}" "${config}" --network none --memory 1024m --pids-limit 100 \
+    run_backup sqlite "${dir}" "${config}" "" --network none --memory 1024m --pids-limit 100 \
         --security-opt no-new-privileges:true -e DBBACKUP_USER=root -e DBBACKUP_GROUP=root \
         -v "${src}:/db:ro"
-    dump="$(check_artifact "${dir}" "0:0")"
-    sqlite3 -bail "${restored}" <"${dump}" || die "SQLite dump did not load"
-    [ "$(sqlite3 "${restored}" 'PRAGMA integrity_check;')" = ok ] || die "SQLite integrity_check failed"
-    [ "$(sqlite3 "${restored}" "SELECT count(*) FROM restore_sentinel WHERE value = '${SENTINEL}';")" = 1 ] ||
-        die "SQLite sentinel missing after restore"
-    [ "$(sqlite3 "${restored}" 'SELECT hex(blob) FROM resource WHERE id = 1;')" = "${blob}" ] ||
-        die "SQLite BLOB changed after restore"
+    expect_one_successful_run sqlite
+    check_artifact "${dir}" "0:0"
+    sqlite3 -bail "${restored}" <"${DUMP_FILE}" || die "SQLite dump did not load"
+    got="$(sqlite3 "${restored}" 'PRAGMA integrity_check;')"
+    [ "${got}" = ok ] || die "SQLite integrity_check failed: ${got}"
+    got="$(sqlite3 "${restored}" "SELECT count(*) FROM restore_sentinel WHERE value = '${SENTINEL}';")"
+    [ "${got}" = 1 ] || die "SQLite sentinel missing after restore"
+    got="$(sqlite3 "${restored}" 'SELECT hex(blob) FROM resource WHERE id = 1;')"
+    [ "${got}" = "${blob}" ] || die "SQLite BLOB changed after restore"
     stop_pid "${SQLITE_HOLDER_PID}"
     SQLITE_HOLDER_PID=""
     log_info "v5 SQLite scenario PASSED"
