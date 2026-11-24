@@ -17,7 +17,7 @@ permissions:
 jobs:
   backup-restore-test:
     name: Database backup/restore cycle (pgsql, mongo, sqlite3)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -50,7 +50,7 @@ jobs:
   # job until every sidecar is migrated.
   backup-restore-test-v5:
     name: db-backup v5 AGE backup/restore cycle (pgsql, sqlite)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
