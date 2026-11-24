@@ -6,9 +6,10 @@ on:
     paths:
       - .github/workflows/backup-restore-test.yml
       - scripts/gha-backup-restore-test.sh
+      - scripts/gha-backup-restore-test-v5.sh
   schedule:
     - cron: "0 4 * * 6" # 04:00 UTC every Saturday
-  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow — no artifacts are produced.
+  workflow_dispatch: # checkov:skip=CKV_GHA_7: Not a build workflow — only test logs are uploaded.
 
 permissions:
   contents: read
@@ -44,3 +45,40 @@ jobs:
             2>/dev/null || true
           docker network rm backup-test-net 2>/dev/null || true
           docker system prune -f 2>/dev/null || true
+
+  # Evidence for the db-backup v5 + AGE migration (#80). Runs next to the v4
+  # job until every sidecar is migrated.
+  backup-restore-test-v5:
+    name: db-backup v5 AGE backup/restore cycle (pgsql, sqlite)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        # renovate: datasource=github-tags depName=DevSecNinja/.github
+        uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: sudo apt-get install -y --no-install-recommends age zstd sqlite3
+
+      - name: Run v5 backup/restore test
+        run: bash scripts/gha-backup-restore-test-v5.sh postgres sqlite
+
+      # v5 dumps PostgreSQL without a snapshot transaction. Report the result
+      # without blocking until upstream answers; the step shows as failed.
+      - name: Run v5 consistency probe (concurrent writes)
+        continue-on-error: true
+        run: bash scripts/gha-backup-restore-test-v5.sh consistency
+
+      - name: Upload v5 container logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: db-backup-v5-logs
+          path: /tmp/db-backup-v5-logs
+          retention-days: 30
