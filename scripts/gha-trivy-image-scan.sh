@@ -31,6 +31,10 @@ LOG_TAG="trivy-image-scan"
 # final merged trivy-images.sarif that the workflow uploads.
 mkdir -p sarif-tmp sarif-output
 
+# Large images (e.g. unifi) can exceed Trivy's default 5m analysis timeout, and
+# a timeout now fails the whole scan.
+export TRIVY_TIMEOUT="${TRIVY_TIMEOUT:-15m}"
+
 have_dhi_credentials=false
 if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
     have_dhi_credentials=true

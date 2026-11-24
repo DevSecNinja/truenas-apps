@@ -50,13 +50,13 @@ gh)
 mise)
   [[ "$#" -ge 3 && "$1" == exec && "$2" == -- && "$3" == trivy ]] || exit 97
   shift 3
+  [[ "${DISCOVERY_TRIVY_FAIL:-0}" == 0 ]] || exit 1
   exec "${MOCK_BIN}/trivy" "$@"
   ;;
 trivy)
   [[ "$#" == 13 && "$1" == image && "${13}" == "${DISCOVERY_IMAGE}" ]] || exit 97
-  [[ "${*:2:9}" == '--scanners vuln --ignore-unfixed --severity CRITICAL --ignorefile .trivyignore.yaml --format sarif --output' ]] || exit 97
+  [[ "${*:2:10}" == '--scanners vuln --ignore-unfixed --severity CRITICAL --ignorefile .trivyignore.yaml --format sarif --output' ]] || exit 97
   [[ "${12}" == sarif-tmp/*.sarif ]] || exit 97
-  [[ "${DISCOVERY_TRIVY_FAIL:-0}" == 0 ]] || exit 1
   cp "${DISCOVERY_SARIF}" "${12}"
   ;;
 logger) ;;
