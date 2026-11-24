@@ -68,7 +68,9 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    continue-on-error: true
+    # No continue-on-error: a failed scan must turn the run red and page IRM.
+    # The script then writes no SARIF, so the upload is skipped and no alert
+    # closes on a partial scan.
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
@@ -87,11 +89,15 @@ jobs:
           version: 2026.10.13
 
       - name: Scan images and build combined SARIF
+        env:
+          # Docker Hub credentials for dhi.io, as dccd.sh uses. Without them
+          # the dhi.io images are listed as unscanned.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: bash scripts/gha-trivy-image-scan.sh
 
       - name: Upload combined SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
-        if: always()
         with:
           sarif_file: sarif-output/trivy-images.sarif
           category: trivy-images

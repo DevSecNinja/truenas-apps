@@ -148,7 +148,7 @@ candidate**, not a deployable service; gate any documented rollout commands.
 
 ## Image Selection: Docker Hardened Images
 
-DHI images at `dhi.io/<image>:<tag>` are preferred whenever the [catalog](https://hub.docker.com/hardened-images/catalog) lists the upstream — they provide hardened bases, signed SBOMs, and SLSA Build Level 3 provenance, and are free under the Community tier (Apache 2.0). This preference does not waive the exact-artifact maintenance and vulnerability review above. Pulls require `docker login dhi.io`; `scripts/dccd.sh` performs that login automatically when DHI credentials are present. Current DHI consumers: `services/adguard/compose.yaml` (redis), `services/alloy/compose.yaml`, `services/traefik/compose.yaml`.
+DHI images at `dhi.io/<image>:<tag>` are preferred whenever the [catalog](https://hub.docker.com/hardened-images/catalog) lists the upstream — they provide hardened bases, signed SBOMs, and SLSA Build Level 3 provenance, and are free under the Community tier (Apache 2.0). This preference does not waive the exact-artifact maintenance and vulnerability review above. Pulls require `docker login dhi.io`; `scripts/dccd.sh` performs that login automatically when DHI credentials are present. The weekly Trivy image scan logs in with the `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` repository secrets; without them it reports the `dhi.io` images as unscanned. Current DHI consumers: `services/adguard/compose.yaml` (redis), `services/alloy/compose.yaml`, `services/traefik/compose.yaml`.
 
 Two caveats apply when adopting a DHI (or any new) image — the full procedure lives in the `new-docker-app` skill at `.github/skills/new-docker-app/SKILL.md`:
 

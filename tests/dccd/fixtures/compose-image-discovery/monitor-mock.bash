@@ -56,6 +56,7 @@ trivy)
   [[ "$#" == 13 && "$1" == image && "${13}" == "${DISCOVERY_IMAGE}" ]] || exit 97
   [[ "${*:2:9}" == '--scanners vuln --ignore-unfixed --severity CRITICAL --ignorefile .trivyignore.yaml --format sarif --output' ]] || exit 97
   [[ "${12}" == sarif-tmp/*.sarif ]] || exit 97
+  [[ "${DISCOVERY_TRIVY_FAIL:-0}" == 0 ]] || exit 1
   cp "${DISCOVERY_SARIF}" "${12}"
   ;;
 logger) ;;

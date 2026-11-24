@@ -8,6 +8,16 @@
 # rejects multiple runs sharing the same tool+category. Merging into a single
 # run avoids both limits and lets GitHub auto-close findings when images are
 # removed or vulnerabilities are fixed upstream.
+#
+# That auto-close also closes the alerts of an image whose scan failed, so any
+# failed scan fails the script without writing the merged SARIF: the workflow
+# then skips the upload and the existing alerts stay open. dhi.io images need
+# a login (DOCKERHUB_USERNAME / DOCKERHUB_TOKEN, as for dccd.sh). Without
+# those credentials they're reported as unscanned and skipped, not failed.
+#
+# The merged run has no per-image field, so each result's message ends with an
+# "Image: <reference>" line. The message isn't part of an alert's identity, so
+# adding it doesn't reopen or duplicate alerts.
 
 set -euo pipefail
 
@@ -21,10 +31,26 @@ LOG_TAG="trivy-image-scan"
 # final merged trivy-images.sarif that the workflow uploads.
 mkdir -p sarif-tmp sarif-output
 
+have_dhi_credentials=false
+if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
+    have_dhi_credentials=true
+    if ! printf '%s' "${DOCKERHUB_TOKEN}" |
+        docker login dhi.io --username "${DOCKERHUB_USERNAME}" --password-stdin >/dev/null; then
+        echo "::error::docker login dhi.io failed; dhi.io images will fail to scan"
+    fi
+fi
+
+failed=()
+unscanned=()
+
 # SC2312: set -o pipefail (via set -euo pipefail above) already surfaces pipeline
 # failures — the per-stage warning is a false positive in this context.
 # shellcheck disable=SC2312
 while IFS= read -r full_image; do
+    if [[ "${full_image}" == dhi.io/* && "${have_dhi_credentials}" == false ]]; then
+        unscanned+=("${full_image}")
+        continue
+    fi
     slug=$(echo "${full_image}" | tr '/:@' '_' | tr -cd '[:alnum:]_-')
     outfile="sarif-tmp/${slug}.sarif"
     log_state "Scanning ${full_image}"
@@ -36,15 +62,24 @@ while IFS= read -r full_image; do
         --format sarif \
         --output "${outfile}" \
         "${full_image}"; then
-        # Validate that the output is parseable SARIF before keeping it.
-        # Trivy may write a partial/empty file on non-fatal errors.
-        if ! jq -e '.runs[0]' "${outfile}" >/dev/null 2>&1; then
-            log_warn "${outfile} is not valid SARIF, discarding"
-            rm -f "${outfile}"
+        # Validate that the output is parseable SARIF before keeping it, and
+        # name the image in every result. Trivy may write a partial or empty
+        # file on non-fatal errors.
+        if jq --arg image "${full_image}" '
+            if (.runs[0] | type) == "object"
+            then .runs[].results[]?.message.text += "\nImage: " + $image
+            else error("no SARIF run")
+            end' "${outfile}" >"${outfile}.tmp" 2>/dev/null; then
+            mv "${outfile}.tmp" "${outfile}"
+        else
+            echo "::error::${outfile} is not valid SARIF for ${full_image}"
+            rm -f "${outfile}" "${outfile}.tmp"
+            failed+=("${full_image}")
         fi
     else
-        log_warn "trivy scan failed for ${full_image}, skipping"
+        echo "::error::trivy scan failed for ${full_image}"
         rm -f "${outfile}"
+        failed+=("${full_image}")
     fi
 done < <(
     grep -rh 'image:' services/*/compose.yaml |
@@ -53,6 +88,15 @@ done < <(
         tr -d "'" |
         sort -u
 )
+
+if [ "${#unscanned[@]}" -gt 0 ]; then
+    echo "::warning::Not scanned, no dhi.io credentials (set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN): ${unscanned[*]}"
+fi
+
+if [ "${#failed[@]}" -gt 0 ]; then
+    echo "::error::${#failed[@]} image scan(s) failed; not writing the merged SARIF, so no alert closes on a partial scan: ${failed[*]}"
+    exit 1
+fi
 
 # Check whether any validated SARIF files were produced.
 # shellcheck disable=SC2312
