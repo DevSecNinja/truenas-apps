@@ -97,7 +97,6 @@ docs/
     lint.yml             # PR/push CI: dprint, yamlfmt, compose config, checkov,
                          #   actionlint, gitleaks, shellcheck, shfmt, trivy, zizmor
     image-security.yml   # Weekly: stale image detection + Trivy image scans
-    todo-to-issue.yml    # Converts TODO comments to GitHub issues on push to main
     labeler.yml          # Auto-labels PRs based on changed paths
     label-sync.yml       # Syncs repo labels from .github/labels.yaml
     release.yml          # Triggered on v* tag push: generates changelog and creates GitHub Release

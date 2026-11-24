@@ -381,8 +381,8 @@ review and actual coherent full-schema live-SQLite, same-key/JWKS encrypted
 recovery, retention and fail-closed tests.
 
 **Owner/action:** the Compose TODO assigns **@DevSecNinja** review **before
-2026-12-21**; the TODO-to-Issue workflow runs on `main` (no existing issue is
-claimed). Record a qualified replacement, a fresh explicit exception review,
+2026-12-21**, tracked in [#1008](https://github.com/DevSecNinja/truenas-apps/issues/1008).
+Record a qualified replacement, a fresh explicit exception review,
 or controlled rollback/retirement preserving independent recovery.
 Expiry removes exception clearance for first or continued use; it does **not
 automatically stop the IdP or its backups**.
