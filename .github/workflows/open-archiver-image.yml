@@ -67,6 +67,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # Mint the OIDC token for the Sigstore signing certificate.
+      attestations: write # Store the build-provenance attestation for this repo.
+      artifact-metadata: write # Record the image storage record for push-to-registry.
     steps:
       - name: Harden runner
         uses: DevSecNinja/.github/actions/harden-runner@76bb084c3dd335be7cc5cfffead44376120eb68c # main; zizmor: ignore[ref-version-mismatch] Renovate tracks this branch pin.
@@ -96,6 +99,17 @@ jobs:
           provenance: mode=max
           sbom: true
           tags: ghcr.io/devsecninja/truenas-apps/open-archiver:${{ github.sha }}
+
+      # BuildKit's provenance and SBOM above are unsigned. This signed attestation
+      # proves the digest was built by this workflow. Verify the pin in compose.yaml with:
+      #   gh attestation verify oci://ghcr.io/devsecninja/truenas-apps/open-archiver@<digest> \
+      #     --repo DevSecNinja/truenas-apps
+      - name: Attest image build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/devsecninja/truenas-apps/open-archiver
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true
 
       - name: Verify published runtime artifacts
         env:
