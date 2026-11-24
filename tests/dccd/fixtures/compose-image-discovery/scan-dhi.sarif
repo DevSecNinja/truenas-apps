@@ -1,0 +1,14 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Trivy",
+          "rules": [{"id": "fixture-dhi"}]
+        }
+      },
+      "results": [{"ruleId": "fixture-dhi", "message": {"text": "offline dhi fixture finding"}}]
+    }
+  ]
+}

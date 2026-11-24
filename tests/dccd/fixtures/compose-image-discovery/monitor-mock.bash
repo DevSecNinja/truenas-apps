@@ -51,6 +51,11 @@ mise)
   [[ "$#" -ge 3 && "$1" == exec && "$2" == -- && "$3" == trivy ]] || exit 97
   shift 3
   [[ "${DISCOVERY_TRIVY_FAIL:-0}" == 0 ]] || exit 1
+  # The dhi.io image (credentialed test) gets its own fixture report.
+  if [[ -n "${DISCOVERY_DHI_IMAGE:-}" && "${*: -1}" == "${DISCOVERY_DHI_IMAGE}" ]]; then
+    cp "${DISCOVERY_DHI_SARIF}" "${*: -2:1}"
+    exit 0
+  fi
   exec "${MOCK_BIN}/trivy" "$@"
   ;;
 trivy)
@@ -60,6 +65,10 @@ trivy)
   cp "${DISCOVERY_SARIF}" "${12}"
   ;;
 logger) ;;
+docker)
+  [[ "$*" == "login dhi.io --username ${DISCOVERY_DHI_USER:-} --password-stdin" ]] || exit 97
+  cat >/dev/null
+  ;;
 *)
   printf 'Unexpected external call blocked: %s %s\n' "${command}" "$*" >&2
   exit 97
