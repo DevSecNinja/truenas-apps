@@ -63,6 +63,7 @@ To auto-fix formatting, replace `--diff` / `check` / `-lint` with the write vari
 .gitleaks.toml          # Gitleaks secret-scan allowlist
 dprint.json             # dprint config (Markdown plugin only)
 trivy.yaml              # Trivy config (skips age.key)
+.trivyignore.yaml       # Reviewed, expiring Trivy image-scan ignores (path-scoped)
 renovate.json           # Renovate config (digest-pinning, grouped Postgres updates)
 cog.toml                # cocogitto config (bump hooks, tag prefix)
 cliff.toml              # git-cliff config (changelog template and commit groups)

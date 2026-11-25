@@ -53,10 +53,10 @@ mise)
   exec "${MOCK_BIN}/trivy" "$@"
   ;;
 trivy)
-  [[ "$#" == 11 && "$1" == image && "${11}" == "${DISCOVERY_IMAGE}" ]] || exit 97
-  [[ "$2 $3 $4 $5 $6 $7 $8 $9" == '--scanners vuln --ignore-unfixed --severity CRITICAL --format sarif --output' ]] || exit 97
-  [[ "${10}" == sarif-tmp/*.sarif ]] || exit 97
-  cp "${DISCOVERY_SARIF}" "${10}"
+  [[ "$#" == 13 && "$1" == image && "${13}" == "${DISCOVERY_IMAGE}" ]] || exit 97
+  [[ "${*:2:10}" == '--scanners vuln --ignore-unfixed --severity CRITICAL --ignorefile .trivyignore.yaml --format sarif --output' ]] || exit 97
+  [[ "${12}" == sarif-tmp/*.sarif ]] || exit 97
+  cp "${DISCOVERY_SARIF}" "${12}"
   ;;
 logger) ;;
 *)

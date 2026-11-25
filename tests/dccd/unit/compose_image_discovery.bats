@@ -120,7 +120,7 @@ resolved: ${resolved}"
   local slug="${DISCOVERY_IMAGE//[\/:@]/_}"
   slug="${slug//[^[:alnum:]_-]/}"
   run get_mock_call_args trivy
-  assert_output "image --scanners vuln --ignore-unfixed --severity CRITICAL --format sarif --output sarif-tmp/${slug}.sarif ${DISCOVERY_IMAGE}"
+  assert_output "image --scanners vuln --ignore-unfixed --severity CRITICAL --ignorefile .trivyignore.yaml --format sarif --output sarif-tmp/${slug}.sarif ${DISCOVERY_IMAGE}"
   refute_output --partial '&app-image'
   refute_output --partial '*app-image'
   assert_dir_exists "${DISCOVERY_TMPDIR}/sarif-output"

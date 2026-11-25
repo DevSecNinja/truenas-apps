@@ -1,0 +1,61 @@
+---
+# Reviewed, expiring exceptions for the weekly Trivy image scan
+# (scripts/gha-trivy-image-scan.sh passes this file with --ignorefile).
+#
+# Only for findings that have no fix we can pull: a vendor image bundles an
+# old helper binary, and the CVE can't be reached through how that binary is
+# used. Scope every entry to the exact in-image path. Give it a statement and
+# an expired_at about 90 days out. When an entry expires, Trivy reports the
+# finding again: re-check it, then renew the entry or drop it.
+vulnerabilities:
+  # gosu (tianon/gosu) is the setuid helper that database entrypoints run once
+  # at container start to drop root. Its crypto/tls finding comes from the Go
+  # stdlib it was built with. gosu makes no TLS connections, and its
+  # maintainers treat Go stdlib scanner hits as not applicable. Fixed when the
+  # vendor images ship gosu >= 1.20.
+  - id: CVE-2025-68121
+    paths:
+      - usr/local/bin/gosu
+    statement: >-
+      gosu only drops privileges at container start and never uses crypto/tls;
+      stdlib CVE not reachable. Vendor images bundle gosu, upstream 1.20 fixes it.
+    expired_at: 2027-02-22
+  # tempio (home-assistant/tempio) renders config files from container env at
+  # start in a Home Assistant base image. This build uses Go 1.17. It makes no
+  # TLS connections, parses no network input and renders no HTML for
+  # browsers. Fixed when the vendor image ships tempio >= 2026.07.0.
+  - id: CVE-2025-68121
+    paths:
+      - usr/local/tempio/bin/tempio
+    statement: >-
+      tempio renders local config templates at container start and never uses crypto/tls;
+      stdlib CVE not reachable. Vendor base image bundles an old tempio.
+    expired_at: 2027-02-22
+  - id: CVE-2024-24790
+    paths:
+      - usr/local/tempio/bin/tempio
+    statement: >-
+      net/netip Is* methods with IPv4-mapped IPv6 addresses; tempio does no IP
+      address checks. Vendor base image bundles an old tempio.
+    expired_at: 2027-02-22
+  - id: CVE-2023-24540
+    paths:
+      - usr/local/tempio/bin/tempio
+    statement: >-
+      html/template JavaScript escaping; tempio renders config files from trusted
+      container env, not HTML. Vendor base image bundles an old tempio.
+    expired_at: 2027-02-22
+  - id: CVE-2023-24538
+    paths:
+      - usr/local/tempio/bin/tempio
+    statement: >-
+      html/template backtick handling; tempio renders config files from trusted
+      container env, not HTML. Vendor base image bundles an old tempio.
+    expired_at: 2027-02-22
+  - id: CVE-2022-23806
+    paths:
+      - usr/local/tempio/bin/tempio
+    statement: >-
+      crypto/elliptic IsOnCurve; tempio does no elliptic-curve cryptography.
+      Vendor base image bundles an old tempio.
+    expired_at: 2027-02-22

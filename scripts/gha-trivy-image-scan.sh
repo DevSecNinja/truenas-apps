@@ -32,6 +32,7 @@ while IFS= read -r full_image; do
         --scanners vuln \
         --ignore-unfixed \
         --severity CRITICAL \
+        --ignorefile .trivyignore.yaml \
         --format sarif \
         --output "${outfile}" \
         "${full_image}"; then
