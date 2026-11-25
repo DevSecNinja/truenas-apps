@@ -13,6 +13,9 @@ permissions:
 jobs:
   labeler:
     uses: DevSecNinja/.github/.github/workflows/labeler.yml@76bb084c3dd335be7cc5cfffead44376120eb68c # main
+    # The reusable workflow's issue-labeler job asks for issues: write; without
+    # it every run fails to start (startup_failure), even on pull requests.
     permissions:
       contents: read
       pull-requests: write
+      issues: write
