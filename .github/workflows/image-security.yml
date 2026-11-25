@@ -68,7 +68,9 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    continue-on-error: true
+    # No continue-on-error: a failed scan must turn the run red and page IRM.
+    # The script then writes no SARIF, so the upload is skipped and no alert
+    # closes on a partial scan.
     steps:
       - name: Harden runner
         # renovate: datasource=github-tags depName=DevSecNinja/.github
@@ -87,14 +89,27 @@ jobs:
           version: 2026.10.13
 
       - name: Scan images and build combined SARIF
+        env:
+          # Docker Hub credentials for dhi.io, as dccd.sh uses. Without them
+          # the dhi.io images are listed as unscanned.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: bash scripts/gha-trivy-image-scan.sh
 
       - name: Upload combined SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
-        if: always()
         with:
           sarif_file: sarif-output/trivy-images.sarif
           category: trivy-images
+
+      # Not written when dhi.io images were skipped for missing credentials, so
+      # that run leaves this category's alerts open instead of closing them.
+      - name: Upload dhi.io SARIF to GitHub Security tab
+        if: hashFiles('sarif-output/trivy-images-dhi.sarif') != ''
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          sarif_file: sarif-output/trivy-images-dhi.sarif
+          category: trivy-images-dhi
 
   # --- Page on scheduled/manual run failure (Phase 3 of #15) ---
   # PR runs are excluded — they only execute on workflow-file edits and a

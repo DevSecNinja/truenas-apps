@@ -129,7 +129,75 @@ resolved: ${resolved}"
     "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
   assert_success
   assert_output '[1,1,"fixture-image"]'
+  run jq -r '.runs[0].results[0].message.text' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  assert_success
+  assert_output "offline fixture finding"$'\n'"Image: ${DISCOVERY_IMAGE}"
+  # No dhi.io image and none skipped: an empty dhi.io report closes retired alerts.
+  run jq -c '.runs[0].results' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images-dhi.sarif"
+  assert_success
+  assert_output '[]'
   discovery_assert_no_network_fallback
+}
+
+@test "gha_trivy_image_scan: a failed scan fails without writing the merged SARIF" {
+  discovery_mock_monitors
+  export DISCOVERY_TRIVY_FAIL=1
+  run bash "${REPO_ROOT}/scripts/gha-trivy-image-scan.sh"
+  assert_failure
+  assert_output --partial "::error::trivy scan failed for ${DISCOVERY_IMAGE}"
+  assert_output --partial "1 image scan(s) failed"
+  assert_file_not_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  discovery_assert_no_network_fallback
+}
+
+@test "gha_trivy_image_scan: an empty SARIF file counts as a failed scan" {
+  discovery_mock_monitors
+  : >"${DISCOVERY_TMPDIR}/empty.sarif"
+  export DISCOVERY_SARIF="${DISCOVERY_TMPDIR}/empty.sarif"
+  run bash "${REPO_ROOT}/scripts/gha-trivy-image-scan.sh"
+  assert_failure
+  assert_output --partial "is not valid SARIF for ${DISCOVERY_IMAGE}"
+  assert_file_not_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  discovery_assert_no_network_fallback
+}
+
+@test "gha_trivy_image_scan: dhi.io images without credentials are reported unscanned, not failed" {
+  discovery_mock_monitors
+  unset DOCKERHUB_USERNAME DOCKERHUB_TOKEN
+  mkdir -p services/dhi-fixture
+  printf 'services:\n  app:\n    image: dhi.io/redis:8-debian13\n' >services/dhi-fixture/compose.yaml
+  run bash "${REPO_ROOT}/scripts/gha-trivy-image-scan.sh"
+  assert_success
+  assert_output --partial "::warning::Not scanned, no dhi.io credentials"
+  assert_output --partial "dhi.io/redis:8-debian13"
+  refute_output --partial "Scanning dhi.io/"
+  run get_mock_call_count trivy
+  assert_output 1
+  assert_file_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  assert_file_not_exists "${DISCOVERY_TMPDIR}/sarif-output/trivy-images-dhi.sarif"
+  discovery_assert_no_network_fallback
+}
+
+@test "gha_trivy_image_scan: with dhi.io credentials, dhi.io results go to their own report" {
+  discovery_mock_monitors
+  export DOCKERHUB_USERNAME=fixture-user DOCKERHUB_TOKEN=fixture-token DISCOVERY_DHI_USER=fixture-user
+  export DISCOVERY_DHI_IMAGE="dhi.io/redis:8-debian13"
+  export DISCOVERY_DHI_SARIF="${DISCOVERY_FIXTURES}/scan-dhi.sarif"
+  mkdir -p services/dhi-fixture
+  printf 'services:\n  app:\n    image: %s\n' "${DISCOVERY_DHI_IMAGE}" >services/dhi-fixture/compose.yaml
+  run bash "${REPO_ROOT}/scripts/gha-trivy-image-scan.sh"
+  assert_success
+  refute_output --partial "Not scanned"
+  run get_mock_call_count docker
+  assert_output 1
+  run get_mock_call_count mise
+  assert_output 2
+  run jq -c '[.runs[0].results[].ruleId]' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images.sarif"
+  assert_output '["fixture-image"]'
+  run jq -c '[.runs[0].results[].ruleId]' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images-dhi.sarif"
+  assert_output '["fixture-dhi"]'
+  run jq -r '.runs[0].results[0].message.text' "${DISCOVERY_TMPDIR}/sarif-output/trivy-images-dhi.sarif"
+  assert_output "offline dhi fixture finding"$'\n'"Image: ${DISCOVERY_DHI_IMAGE}"
 }
 
 @test "gha_image_age_check: shared mapping checks exactly one bare tag without digest or YAML tokens" {
