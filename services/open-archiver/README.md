@@ -110,7 +110,8 @@ the image). Before pinning a new digest, check that this workflow built it:
 
 ```sh
 gh attestation verify oci://ghcr.io/devsecninja/truenas-apps/open-archiver@sha256:<digest> \
-    --repo DevSecNinja/truenas-apps
+    --repo DevSecNinja/truenas-apps \
+    --signer-workflow DevSecNinja/truenas-apps/.github/workflows/open-archiver-image.yml
 ```
 
 The bootstrap digest predates attestation and has none; that is expected.

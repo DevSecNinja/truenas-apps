@@ -103,7 +103,8 @@ jobs:
       # BuildKit's provenance and SBOM above are unsigned. This signed attestation
       # proves the digest was built by this workflow. Verify the pin in compose.yaml with:
       #   gh attestation verify oci://ghcr.io/devsecninja/truenas-apps/open-archiver@<digest> \
-      #     --repo DevSecNinja/truenas-apps
+      #     --repo DevSecNinja/truenas-apps \
+      #     --signer-workflow DevSecNinja/truenas-apps/.github/workflows/open-archiver-image.yml
       - name: Attest image build provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
