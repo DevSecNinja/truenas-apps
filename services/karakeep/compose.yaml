@@ -395,7 +395,7 @@ services:
       - "config.sha256=${CONFIG_HASH:-}"
 
   karakeep-meilisearch:
-    image: docker.io/getmeili/meilisearch:v1.54.0@sha256:0bf32debcbfa8ba4e418679025f4935884972171513c92f0584689ff994a61df
+    image: docker.io/getmeili/meilisearch:v1.56.2@sha256:9600db22be3fcbf3d506176d3a73dd70a65c5719d9aa1d2837355b75afb8f4fb
     container_name: karakeep-meilisearch
     depends_on:
       karakeep-init:

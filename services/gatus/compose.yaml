@@ -36,7 +36,7 @@ services:
       - ./data/sidecar-config:/config
 
   gatus:
-    image: docker.io/twinproduction/gatus:v5.37.0@sha256:094eb186e55235db367e90e9d56140e5897b7044c41de23cde4cc18e6da1242e
+    image: docker.io/twinproduction/gatus:v5.38.0@sha256:085ed63da963728965d00a3c78aa6167e3bf135218485b893201758e079e8415
     container_name: gatus
     depends_on:
       gatus-init:
@@ -151,7 +151,7 @@ services:
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
   gatus-db-upgrade:
-    image: docker.io/pgautoupgrade/pgautoupgrade:18.4-alpine@sha256:9fdd8f8da95a5c4ca041290bfe966cd22ccd66f9f3bece17a0d37bd3b7e0a260
+    image: docker.io/pgautoupgrade/pgautoupgrade:18.6-alpine@sha256:722599f0fe6483f2a97e765066e23122a780b4ea221287edfaaf67268af6757a
     container_name: gatus-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env

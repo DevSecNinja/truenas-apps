@@ -29,7 +29,7 @@ services:
       - ./data/data:/data
 
   outline:
-    image: docker.io/outlinewiki/outline:1.11.0@sha256:08ee9ffdb847e1bd35ded30ee832090dd06a7f93f67422687db59e70bc7f5393
+    image: docker.io/outlinewiki/outline:1.12.0@sha256:25d6a2ced2f1f0cf03c09abd776d87ba31941ed96d3a99992aa84b3bd0afc074
     container_name: outline
     depends_on:
       outline-init:
@@ -138,7 +138,7 @@ services:
   # pgautoupgrade starts as root to perform data-directory upgrade operations
   # before handing off to Postgres. cap_drop: ALL would break that process.
   outline-db-upgrade:
-    image: docker.io/pgautoupgrade/pgautoupgrade:18.4-alpine@sha256:9fdd8f8da95a5c4ca041290bfe966cd22ccd66f9f3bece17a0d37bd3b7e0a260
+    image: docker.io/pgautoupgrade/pgautoupgrade:18.6-alpine@sha256:722599f0fe6483f2a97e765066e23122a780b4ea221287edfaaf67268af6757a
     container_name: outline-db-upgrade
     env_file:
       - path: .env # Decrypted from secret.sops.env
