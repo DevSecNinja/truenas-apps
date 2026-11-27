@@ -1,16 +1,22 @@
 ---
 name: Lint
 
-# PR-only: branch protection makes the merge commit identical to the
-# last PR head, so re-running on push to main is duplicate work. See
-# DevSecNinja/.github docs/workflow-trigger-conventions.md.
+# Runs on pull requests and on push to main. This repo uploads SARIF to code
+# scanning, which needs a default-branch analysis: without a main run, alerts
+# fixed on main never close and PR alerts lack a baseline. See
+# DevSecNinja/.github docs/workflow-trigger-conventions.md and workflow-templates/lint.yml.
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch: # checkov:skip=CKV_GHA_7: Validation workflow only -- no artifacts produced.
 
+# A newer push to a PR cancels its running run; a running main run is never
+# cancelled, a queued one is superseded.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
