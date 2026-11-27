@@ -307,7 +307,13 @@ test("workflow: only the main-gated publish job has package write permission aft
     assert.equal(entry(workflow, "permissions").value, "{}");
     assert.deepEqual(keys(jobs).sort(), ["image", "publish"]);
     assert.deepEqual(fields(entry(image, "permissions").body), { contents: "read" });
-    assert.deepEqual(fields(entry(publish, "permissions").body), { contents: "read", packages: "write" });
+    assert.deepEqual(fields(entry(publish, "permissions").body), {
+        contents: "read",
+        packages: "write",
+        "id-token": "write",
+        attestations: "write",
+        "artifact-metadata": "write",
+    });
     assert.equal(entry(publish, "needs").value, "image");
     assert.match(
         entry(publish, "if").value,
@@ -391,6 +397,32 @@ test("workflow: published digest passes the same runtime artifact check before r
         probe.code, artifactProbe(built).code,
         "the pushed digest must pass the same UID, SQLite binding, and readable-artifact assertions as the build",
     );
+});
+
+test("workflow: publish signs provenance for the exact pushed digest before recording its reference", () => {
+    const steps = items(entry(publish, "steps").body);
+    const pushed = onlyStep(steps, (step) =>
+        keys(step).includes("uses")
+        && entry(step, "uses").value.startsWith("docker/build-push-action@")
+        && fields(entry(step, "with").body).push === "true",
+    "candidate push");
+    const attested = onlyStep(steps, (step) =>
+        keys(step).includes("uses") && entry(step, "uses").value.startsWith("actions/attest@"),
+    "provenance attestation");
+    const recorded = onlyStep(steps, (step) =>
+        keys(step).includes("run") && /\$\{?GITHUB_STEP_SUMMARY\b/.test(runCommand(step)),
+    "immutable reference summary");
+    assert.match(entry(attested, "uses").value, /^actions\/attest@[0-9a-f]{40}$/, "pin the attest action by SHA");
+    assert.deepEqual(fields(entry(attested, "with").body), {
+        "subject-name": "ghcr.io/devsecninja/truenas-apps/open-archiver",
+        "subject-digest": `\${{ steps.${entry(pushed, "id").value}.outputs.digest }}`,
+        "push-to-registry": "true",
+    });
+    assert.ok(steps.indexOf(pushed) < steps.indexOf(attested), "attest only after publishing");
+    assert.ok(steps.indexOf(attested) < steps.indexOf(recorded), "record only attested references");
+    for (const key of ["if", "continue-on-error"]) {
+        assert.ok(!keys(attested).includes(key), `attestation must not be skippable (${key})`);
+    }
 });
 
 test("image: SQLite binding check uses an absolute require without changing the /app working directory", () => {

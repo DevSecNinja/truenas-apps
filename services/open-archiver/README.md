@@ -104,6 +104,17 @@ then is configured to pull and run the **exact pushed digest**, checking UID
 `3132`, native `sqlite3` loading, and artifact readability before recording
 the deployment reference. Passing the test job's local image checks alone
 does not prove the separately rebuilt published artifact works.
+The same job signs a build-provenance attestation for the pushed digest
+(GitHub artifact attestations, stored in GitHub and pushed to GHCR next to
+the image). Before pinning a new digest, check that this workflow built it:
+
+```sh
+gh attestation verify oci://ghcr.io/devsecninja/truenas-apps/open-archiver@sha256:<digest> \
+    --repo DevSecNinja/truenas-apps \
+    --signer-workflow DevSecNinja/truenas-apps/.github/workflows/open-archiver-image.yml
+```
+
+The bootstrap digest predates attestation and has none; that is expected.
 Publication does not update the Compose pin or enable deployment. The unchanged
 bootstrap digest predates these source revisions; the adoption follow-up must
 review and pin a **current-source, published and digest-verified derivative**,
