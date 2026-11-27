@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1](https://github.com/DevSecNinja/truenas-apps/compare/v1.2.0...v1.2.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **ci:** keep image-scan alerts open on a failed scan, scan dhi.io images and name the image ([#1048](https://github.com/DevSecNinja/truenas-apps/issues/1048)) ([380903c](https://github.com/DevSecNinja/truenas-apps/commit/380903c13b075818d683cc4eb5e1824c6514d61f))
+
 ## [1.2.0](https://github.com/DevSecNinja/truenas-apps/compare/v1.1.0...v1.2.0) (2026-11-24)
 
 
