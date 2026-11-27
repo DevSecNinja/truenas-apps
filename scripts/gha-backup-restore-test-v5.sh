@@ -34,7 +34,7 @@ set -euo pipefail
 
 # --- Image references (kept in sync with services/*/compose.yaml) ------------
 # renovate: datasource=docker depName=docker.io/library/postgres
-POSTGRES_IMAGE="docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911"
+POSTGRES_IMAGE="docker.io/library/postgres:18.6-alpine@sha256:9ba53c7d41ea093baf5c1ba635ba5434c4f979880527d49bb7d9237d3193085b"
 # renovate: datasource=docker depName=docker.io/nfrastack/db-backup
 DB_BACKUP_V5_IMAGE="docker.io/nfrastack/db-backup:5.0.12@sha256:773a7f77e97e48164057ad2637801df7747b790f2b75677a66008259154c10c0"
 

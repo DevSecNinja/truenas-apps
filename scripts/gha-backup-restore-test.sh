@@ -47,9 +47,9 @@ set -euo pipefail
 
 # --- Image references (kept in sync with services/*/compose.yaml) ----------------
 # renovate: datasource=docker depName=docker.io/library/postgres
-POSTGRES_IMAGE="docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911"
+POSTGRES_IMAGE="docker.io/library/postgres:18.6-alpine@sha256:9ba53c7d41ea093baf5c1ba635ba5434c4f979880527d49bb7d9237d3193085b"
 # renovate: datasource=docker depName=docker.io/library/mongo
-MONGO_IMAGE="docker.io/library/mongo:8.2.6@sha256:eea8506335198f8b359865b32004036310854a935fbd317083817c614152818f"
+MONGO_IMAGE="docker.io/library/mongo:8.3.13@sha256:e16e606f792ea89d2b4907b54e5e31eb86a7a23e27231dce3a982cc8f2d73cd2"
 # renovate: datasource=docker depName=docker.io/tiredofit/db-backup
 DB_BACKUP_IMAGE="docker.io/tiredofit/db-backup:4.1.100@sha256:78e3cb669ee9648c1a4ab7e8421c6e89d01b659bfa5963f7611a2347b2009eab"
 

@@ -46,7 +46,7 @@ jobs:
           # Only crane, pinned in .mise.toml, not the whole toolset.
           install_args: aqua:google/go-containerregistry
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.13
+          version: 2026.11.8
 
       - name: Check image ages and open issues for stale images
         env:
@@ -86,7 +86,7 @@ jobs:
         with:
           install: true
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.10.13
+          version: 2026.11.8
 
       - name: Scan images and build combined SARIF
         env:
@@ -97,7 +97,7 @@ jobs:
         run: bash scripts/gha-trivy-image-scan.sh
 
       - name: Upload combined SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: sarif-output/trivy-images.sarif
           category: trivy-images
@@ -106,7 +106,7 @@ jobs:
       # that run leaves this category's alerts open instead of closing them.
       - name: Upload dhi.io SARIF to GitHub Security tab
         if: hashFiles('sarif-output/trivy-images-dhi.sarif') != ''
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: sarif-output/trivy-images-dhi.sarif
           category: trivy-images-dhi
