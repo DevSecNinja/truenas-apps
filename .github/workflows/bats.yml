@@ -68,7 +68,7 @@ jobs:
             ${TEST_DIRS}
 
       - name: Publish test results
-        uses: DevSecNinja/.github/actions/test-report@5452dbd33d61b4fc58b1780f57e0b60ff131be75 # v4.10.0
+        uses: DevSecNinja/.github/actions/test-report@44885bcb863214dc0dc1a9f34ec5850cedd387f2 # v5.1.0
         if: always()
         with:
           paths: report.xml
