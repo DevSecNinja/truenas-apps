@@ -120,20 +120,25 @@ url = "https://github.com/google/go-containerregistry/releases/download/v0.22.1/
 [[tools.bats]]
 version = "1.14.0"
 backend = "aqua:bats-core/bats-core"
+unsupported_platforms = ["windows-x64"]
 
 [tools.bats."platforms.linux-arm64"]
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools.bats."platforms.linux-arm64-musl"]
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools.bats."platforms.linux-x64"]
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools.bats."platforms.linux-x64-musl"]
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
@@ -143,6 +148,7 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools.bats."platforms.macos-x64"]
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
@@ -227,6 +233,10 @@ provenance = "cosign"
 [[tools.dotenv-linter]]
 version = "4.0.0"
 backend = "aqua:dotenv-linter/dotenv-linter"
+unsupported_platforms = [
+    "linux-arm64",
+    "linux-arm64-musl",
+]
 
 [tools.dotenv-linter."platforms.linux-x64"]
 checksum = "sha256:9e2f1f6eb88a71ac15ef209f78f5a68644db82f132d2677112b4f80ec2bd2127"
@@ -446,6 +456,7 @@ url = "https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip"
 [[tools.pipx]]
 version = "1.18.3"
 backend = "aqua:pypa/pipx"
+unsupported_platforms = ["windows-x64"]
 
 [tools.pipx."platforms.linux-arm64"]
 checksum = "sha256:863ff59a1db37d819df28f6497653cba292ff350b372622276f957f3d7192088"
